@@ -108,10 +108,10 @@ return function(mod)
     local Runtime = engine("src.core.game3.runtime")
     return Runtime and Runtime.getSession and Runtime.getSession() or nil
   end
-  -- the game's own item icon (24 px art), `size` units square at x, y (units); FireRed / LeafGreen's
+  -- the game's own item icon (24 px art), `size` units square at x, y (units), alpha `a`; FireRed / LeafGreen's
   -- images kept here (the engine's lookup makes garbage every call)
   local frlgIcons, rseSheet, rseQuads = {}, nil, {}
-  local function itemIcon(id, x, y, size)
+  local function itemIcon(id, x, y, size, a)
     local G = Kit.graphics()
     local k = size * Kit.sc / 24
     if frlg() then
@@ -123,7 +123,7 @@ return function(mod)
         frlgIcons[id] = img
       end
       if img then
-        G.setColor(1, 1, 1, 1)
+        G.setColor(1, 1, 1, a or 1)
         G.draw(img, Kit.X(x), Kit.Y(y), 0, k, k)
       end
       return
@@ -144,7 +144,7 @@ return function(mod)
       q = love.graphics.newQuad(0, n * 24, 24, 24, rseSheet.w, rseSheet.h)
       rseQuads[n] = q
     end
-    G.setColor(1, 1, 1, 1)
+    G.setColor(1, 1, 1, a or 1)
     G.draw(rseSheet.img, q, Kit.X(x), Kit.Y(y), 0, k, k)
   end
   -- a Pokémon's menu icon (its first frame), `size` units square (the engine keeps the images;
@@ -252,6 +252,8 @@ return function(mod)
     end,
     log = function(fmt, ...) mod.log:warn(fmt, ...) end,
   })
+  -- the shelf's item pad, for the apps: an item crossing it ("out" to the PC, "in" to the Bag)
+  env.pad = { transfer = function(id, dir) Desktop.padTransfer(id, dir) end }
   Sh = makeShell(mod, { require = require, log = mod.log, desktop = Desktop, apps = Apps })
   Sh.enabled = function() return option("desktop", true) ~= false end
 

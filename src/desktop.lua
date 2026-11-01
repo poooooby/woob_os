@@ -28,6 +28,8 @@
 --   D.open(ctx) (ctx: src/apps.lua, plus warm = skip the boot, back = the app id to zoom back from)
 --   D.close() ; D.isOpen() ; D.input(input) ; D.pointer(ev) -> true ; D.wheel(dy) ; D.draw(G, vp)
 --   D.state() (tests) ; D.booting() ; D.skipBoot() ; D.launch(i) ; D.tap(x, y)
+--   D.padTransfer(itemId, "out" | "in") (an item across the shelf's pad; lit while a window has
+--   pad = true) ; D.padState() -> effects, way, item, light
 
 return function(deps)
   local K = deps.kit
@@ -47,12 +49,26 @@ return function(deps)
     local k = min(1, max(0, (into - 0.05) / D.BOOT.FILL))
     return 1 - (1 - k) * (1 - k)
   end
-  D.PAGE = { height = 160, minWidth = 220, maxWidth = 300, portraitWidth = 180, portraitHeight = 300,
-             portraitAspect = 1.15 }
+  -- the shelf under the monitor (units): the page is the monitor (160 tall) and the shelf
+  -- (the item on the pad and the ball in its cradle: `item` units across)
+  D.SHELF = { h = 28, item = 18 }
+  D.PAGE = { height = 160 + D.SHELF.h, minWidth = 220, maxWidth = 300, portraitWidth = 180,
+             portraitHeight = 300 + D.SHELF.h, portraitAspect = 1.15 }
+  -- the item pad (seconds): its light coming on / off; an item going out (dropping onto it,
+  -- digitizing away, a flash) and coming in (digitizing in, a moment, fading into the Bag)
+  -- (ball: the Poké Ball sinking into the pad / rising back)
+  D.PAD = { ball = 0.3, light = 0.25, drop = 0.25, out = 0.55, flash = 0.2, inn = 0.55, hold = 0.25, fade = 0.35, gap = 0.1 }
+  local function padLength(dir)
+    local P = D.PAD
+    if dir == "out" then return P.drop + P.out + P.flash + P.gap end
+    return P.inn + P.hold + P.fade + P.gap
+  end
   -- a home-screen cell (an icon and its label), the icon's size, the dock's icons
   D.CELL = { w = 34, h = 33, icon = 20, dockIcon = 18 }
   -- an app opening / coming back: the zoom (seconds)
   D.ZOOM = 0.24
+  -- the screen's corners (units)
+  D.SCREEN_RADIUS = 4
   D.REPEAT_START, D.REPEAT_EVERY = 20, 4
   local repeated = K.repeater(D.REPEAT_START, D.REPEAT_EVERY)
 
@@ -65,6 +81,13 @@ return function(deps)
     roomFoot = { 18, 19, 26 }, sheet = { 248, 248, 251 }, sheetFoot = { 232, 234, 240 }, dim = { 0, 0, 0 },
     accent = { 64, 132, 246 }, clear = { 255, 255, 255, 0 }, gloss = { 255, 255, 255, 0.34 },
     good = { 120, 230, 160 }, coinTop = { 255, 222, 110 }, coinFoot = { 222, 160, 40 }, coinMark = { 120, 80, 10 },
+    -- the shelf: its top, its front lip; a Poké Ball; the pad's light and beam
+    shelfBack = { 150, 154, 166 }, shelfTop = { 214, 217, 225 }, lipTop = { 196, 200, 210 }, lipFoot = { 132, 136, 150 },
+    ballRed = { 228, 64, 58 }, ballRedDark = { 176, 36, 40 }, ballRedLight = { 246, 122, 108 },
+    ballWhite = { 248, 248, 250 }, ballShade = { 184, 186, 196 }, ballInk = { 40, 40, 48 },
+    ballEdge = { 70, 72, 80 },
+    padGlow = { 90, 214, 255 }, padLight = { 150, 236, 255 },
+    beamTop = { 90, 214, 255, 0 }, beamFoot = { 90, 214, 255, 0.7 },
   }
   -- the words: keys into lang/*.lua (src/i18n.lua), looked up as they're drawn; the hint lists
   -- through T.list (one translated copy per language, made once)
@@ -128,6 +151,8 @@ return function(deps)
     r = { ctx = ctx, grid = grid, dock = dock, focus = grid[1] and "grid" or "dock", cursor = 1, dockCursor = 1,
           menuCursor = 1, page = 1, pageShown = 1, cols = 3, rows = 2, perPage = 6, t0 = now(), held = {},
           game = game, hit = K.hits, icon = {},
+          -- the pad: its light (0..1), its effects (the first playing, the rest waiting)
+          padGlow = 0, padN = 0, padQ = { {}, {}, {} },
           waitRelease = true, booted = ctx.warm or options().boot == false }
     if r.booted then r.t0 = now() - bootLength() end
     -- (back from an app: its icon zooms back into place)
@@ -223,6 +248,37 @@ return function(deps)
   end
   D.closeWindow = function() if r then closeWindow() end end
   D.window = function() return r and r.win end
+
+  -- an item crossing the pad: "out" (Bag -> PC) or "in" (PC -> Bag). One plays at a time; a
+  -- waiting one of the same way is replaced, so the last item chosen is the one shown
+  function D.padTransfer(id, dir)
+    if not r or (dir ~= "out" and dir ~= "in") then return end
+    local Q, n = r.padQ, r.padN
+    local slot
+    if n == 0 then slot = 1
+    elseif n > 1 and Q[n].dir == dir then slot = n
+    elseif n < #Q then slot = n + 1
+    else slot = n
+    end
+    r.padN = max(n, slot)
+    local e = Q[slot]
+    e.id, e.dir, e.t0, e.sounded = id, dir, now(), false
+  end
+  local function padNext(clock)
+    local Q = r.padQ
+    for i = 1, r.padN - 1 do
+      Q[i].id, Q[i].dir = Q[i + 1].id, Q[i + 1].dir
+    end
+    r.padN = r.padN - 1
+    if r.padN > 0 then Q[1].t0, Q[1].sounded = clock, false end
+  end
+  -- -> waiting + playing, the playing one's way and item, the light
+  function D.padState()
+    if not r then return 0 end
+    local e = r.padQ[1]
+    if r.padN == 0 then return 0, nil, nil, r.padGlow end
+    return r.padN, e.dir, e.id, r.padGlow
+  end
 
   local function openMenu()
     r.menuOpen, r.menuCursor = true, 1
@@ -640,12 +696,230 @@ return function(deps)
     K.ring(K.R(lx - pad, ly - pad, ls + pad * 2, ls + pad * 2), rad, WHITE, K.pulse(), 1)
   end
 
+  -- ------- the shelf: the pad in its middle (the Poké Ball resting on it, items crossing it)
+
+  -- the ledge the monitor stands on: its top running back under the monitor, a front lip
+  local function drawLedge(L)
+    local top, lip = L.shelf, L.lip
+    K.shadow(K.R(lip[1] + 2, lip[2], lip[3] - 4, lip[4]), 2, 1.5, 0.45)
+    K.grad(top, 2, C.shelfBack, C.shelfTop)
+    K.grad(lip, 1.5, C.lipTop, C.lipFoot)
+    K.col(WHITE, 0.6)
+    K.box("fill", K.R(lip[1] + 2, lip[2], lip[3] - 4, 0.6), 0.3)
+    K.ring(K.R(top[1], top[2], top[3], top[4] + lip[4]), 2, C.shellEdge, 0.7, 0.6)
+  end
+
+  -- the scissor put back to (sx, sy, sw, sh) (none: nil), then narrowed to x, y, w, h (pixels)
+  local function clipTo(G, sx, sy, sw, sh, x, y, w, h)
+    if sx then G.setScissor(sx, sy, sw, sh) else G.setScissor() end
+    if x then G.intersectScissor(floor(x), floor(y), math.ceil(w), math.ceil(h)) end
+  end
+
+  -- a Poké Ball facing us, `rad` units round, at cx, cy: a glossy red top lit from the top left,
+  -- a white foot shading to grey, the band and the button (each half shaded inside a scissor)
+  local function drawBall(G, cx, cy, rad)
+    local x, y, R = K.X(cx), K.Y(cy), rad * K.sc
+    local sx, sy, sw, sh = G.getScissor()
+    local band, b = R * 0.09, R * 0.93
+    K.col(C.ballEdge)
+    G.circle("fill", x, y, R)
+    clipTo(G, sx, sy, sw, sh, x - R, y - R, 2 * R, R - band)
+    K.col(C.ballRedDark)
+    G.circle("fill", x, y, b)
+    K.col(C.ballRed)
+    G.circle("fill", x - R * 0.1, y - R * 0.12, b * 0.84)
+    K.col(C.ballRedLight)
+    G.circle("fill", x - R * 0.28, y - R * 0.36, b * 0.4)
+    clipTo(G, sx, sy, sw, sh, x - R, y + band, 2 * R, R)
+    K.col(C.ballShade)
+    G.circle("fill", x, y, b)
+    K.col(C.ballWhite)
+    G.circle("fill", x - R * 0.12, y - R * 0.22, b * 0.86)
+    clipTo(G, sx, sy, sw, sh)
+    K.col(C.ballInk)
+    G.rectangle("fill", x - b, y - band, 2 * b, 2 * band)
+    G.circle("fill", x, y, R * 0.34)
+    K.col(C.ballShade)
+    G.circle("fill", x, y, R * 0.26)
+    K.col(C.ballWhite)
+    G.circle("fill", x - R * 0.02, y - R * 0.02, R * 0.2)
+    K.col(C.ballShade, 0.9)
+    G.setLineWidth(max(1, R * 0.04))
+    G.circle("line", x, y, R * 0.13)
+    K.col(WHITE, 0.75)
+    G.ellipse("fill", x - R * 0.42, y - R * 0.56, R * 0.15, R * 0.1)
+  end
+
+  -- the Poké Ball resting on the pad while a window is open and there's a party (until the Box
+  -- app gives it a job; the party read once a second). It sinks into the pad while an item
+  -- crosses, and when the window closes; the home screen's pad stays empty
+  local function drawPadBall(L, clock)
+    local G = K.graphics()
+    if not r.ballsAt or clock - r.ballsAt >= 1 or clock < r.ballsAt then
+      r.ballsAt = clock
+      local s = r.ctx.session or (deps.session and deps.session())
+      local party = type(s) == "table" and s.party
+      local n = 0
+      if type(party) == "table" then
+        for i = 1, 6 do
+          local m = party[i]
+          if type(m) == "table" and (tonumber(m.species or m.speciesId) or 0) ~= 0 then n = n + 1 end
+        end
+      end
+      r.balls = n
+    end
+    -- (never on the home screen: only under an open window)
+    local want = r.win and r.balls > 0 and r.padN == 0 and 1 or 0
+    if not r.ballK then r.ballK = want end
+    local step = r.dt / D.PAD.ball
+    r.ballK = want > r.ballK and min(want, r.ballK + step) or max(want, r.ballK - step)
+    if r.ballK <= 0 then return end
+    local p = L.padC
+    local rad = D.SHELF.item / 2
+    local rest = p[2] + 1 - rad
+    local k = 1 - (1 - r.ballK) * (1 - r.ballK)
+    if r.ballK < 1 then G.setScissor(0, 0, K.ww, floor(K.Y(p[2] + 1))) end
+    drawBall(G, p[1], rest + (1 - k) * (rad * 2 + 1), rad)
+    if r.ballK < 1 then G.setScissor() end
+  end
+
+  -- the pad: a silver disc, its glass lit while a window uses it, six lights round it
+  local function drawPad(L, clock)
+    local G = K.graphics()
+    local p = L.padC
+    local sc = K.sc
+    local cx, cy, rx, ry = K.X(p[1]), K.Y(p[2]), p[3] * sc, p[4] * sc
+    K.col(BLACK, 0.3)
+    G.ellipse("fill", cx, cy + 2.4 * sc, rx * 1.02, ry)
+    K.col(C.shellEdge)
+    G.ellipse("fill", cx, cy + 1.5 * sc, rx, ry)
+    K.col(C.shellFoot)
+    G.ellipse("fill", cx, cy + 0.8 * sc, rx, ry)
+    K.col(C.shellTop)
+    G.ellipse("fill", cx, cy, rx, ry)
+    K.col(C.glass)
+    G.ellipse("fill", cx, cy, rx * 0.74, ry * 0.68)
+    local glow = r.padGlow
+    local busy = r.padN > 0
+    if glow > 0 then
+      G.setBlendMode("add")
+      K.col(C.padGlow, glow * (0.45 + 0.15 * math.sin(clock * 2.5)))
+      G.ellipse("fill", cx, cy, rx * 0.74, ry * 0.68)
+      K.col(C.padLight, glow * 0.5)
+      G.setLineWidth(max(1, 0.5 * sc))
+      G.ellipse("line", cx, cy, rx * 0.5, ry * 0.44)
+      G.setBlendMode("alpha")
+    end
+    for i = 0, 5 do
+      local a = math.pi * 2 * i / 6 + 0.26
+      local lx, ly = cx + math.cos(a) * rx * 0.87, cy + math.sin(a) * ry * 0.84
+      K.col(C.shellEdge, 0.8)
+      G.circle("fill", lx, ly, 0.85 * sc)
+      if glow > 0 or busy then
+        -- (a light running round while an item crosses)
+        local on = busy and (0.35 + 0.65 * max(0, math.cos(a - clock * 9))) or glow
+        K.col(C.padLight, on)
+        G.circle("fill", lx, ly, 0.85 * sc)
+      end
+    end
+  end
+
+  -- the item at x, y (units, s square), cut into bands that come apart upward as k goes 0 -> 1
+  -- (the top band first); `a` its alpha
+  local PAD_BANDS = 6
+  local function drawSlices(icon, id, x, y, s, k, a, clock)
+    if k <= 0 then
+      pcall(icon, id, x, y, s, a)
+      return
+    end
+    local G = K.graphics()
+    local bh = s / PAD_BANDS
+    for i = 1, PAD_BANDS do
+      local start = (i - 1) / PAD_BANDS * 0.5
+      local q = min(1, max(0, (k - start) / 0.5))
+      if q < 1 then
+        local rise = q * 12
+        local jitter = math.sin(i * 7.3 + clock * 40) * q * 1.4
+        local by = y + (i - 1) * bh - rise
+        G.setScissor(floor(K.X(x - 2)), floor(K.Y(by)), math.ceil((s + 4) * K.sc), math.ceil(bh * K.sc) + 1)
+        pcall(icon, id, x + jitter, y - rise, s, a * (1 - q))
+        if q > 0 then
+          G.setBlendMode("add")
+          K.col(C.padLight, q * 0.45 * a)
+          K.box("fill", K.R(x + jitter, by, s, bh))
+          G.setBlendMode("alpha")
+        end
+      end
+    end
+    G.setScissor()
+  end
+
+  -- the beam over the pad (0..1)
+  local function drawBeam(L, k)
+    if k <= 0 then return end
+    local p = L.padC
+    local G = K.graphics()
+    G.setBlendMode("add")
+    K.grad(K.R(p[1] - p[3] * 0.5, p[2] - 26, p[3], 26), 3, C.beamTop, C.beamFoot, k * 0.8)
+    G.setBlendMode("alpha")
+  end
+
+  -- the item crossing the pad, over the monitor's chin
+  local function drawPadFx(L, clock)
+    if r.padN == 0 then return end
+    local icon = deps.env and deps.env.itemIcon
+    if not icon then return end
+    local fx, P = r.padQ[1], D.PAD
+    local t = clock - fx.t0
+    local p = L.padC
+    local s = D.SHELF.item
+    local x, y = p[1] - s / 2, p[2] - s + 1
+    if fx.dir == "out" then
+      if t < P.drop then
+        local k = t / P.drop
+        drawSlices(icon, fx.id, x, y - 10 * (1 - k * k), s, 0, min(1, k * 3), clock)
+      elseif t < P.drop + P.out then
+        if not fx.sounded then
+          fx.sounded = true
+          se("SE_WARP_OUT")
+        end
+        local k = (t - P.drop) / P.out
+        drawBeam(L, k < 0.3 and k / 0.3 or 1 - (k - 0.3) / 0.7)
+        drawSlices(icon, fx.id, x, y, s, k, 1, clock)
+      elseif t < P.drop + P.out + P.flash then
+        local k = (t - P.drop - P.out) / P.flash
+        local G = K.graphics()
+        G.setBlendMode("add")
+        K.col(C.padLight, 1 - k)
+        G.setLineWidth(max(1, 0.7 * K.sc))
+        G.ellipse("line", K.X(p[1]), K.Y(p[2]), p[3] * (0.3 + 0.8 * k) * K.sc, p[4] * (0.3 + 0.8 * k) * K.sc)
+        G.setBlendMode("alpha")
+      end
+    else
+      if t < P.inn then
+        if not fx.sounded then
+          fx.sounded = true
+          se("SE_WARP_IN")
+        end
+        local k = t / P.inn
+        drawBeam(L, k < 0.6 and 1 or 1 - (k - 0.6) / 0.4)
+        drawSlices(icon, fx.id, x, y, s, 1 - k, 1, clock)
+      elseif t < P.inn + P.hold then
+        drawSlices(icon, fx.id, x, y, s, 0, 1, clock)
+      elseif t < P.inn + P.hold + P.fade then
+        local k = (t - P.inn - P.hold) / P.fade
+        drawSlices(icon, fx.id, x, y - 5 * k, s, 0, 1 - k, clock)
+      end
+    end
+  end
+
   -- the monitor around the screen, the room behind it -> the screen's rectangle (units)
-  local function drawMonitor(L)
+  local function drawMonitor(L, clock)
     local G = K.graphics()
     K.col(C.roomFoot)
     G.rectangle("fill", 0, 0, K.ww, K.wh)
     K.gradient(G, 0, 0, K.ww, K.wh, 0, C.room, C.roomFoot)
+    drawLedge(L)
     local body = L.body
     K.shadow(body, 9, 2, 0.5)
     K.grad(body, 9, C.shellTop, C.shellFoot)
@@ -671,6 +945,10 @@ return function(deps)
     G.arc("line", "open", pcx, pcy + pb[3] * 0.02 * K.sc, rad, -math.pi * 0.5 + 0.7, math.pi * 1.5 - 0.7)
     G.line(pcx, pcy - pb[3] * 0.3 * K.sc, pcx, pcy - pb[3] * 0.02 * K.sc)
     K.addHit(pb, "power")
+    -- on the shelf, in front of it
+    drawPad(L, clock)
+    drawPadBall(L, clock)
+    drawPadFx(L, clock)
   end
 
   -- the chosen wallpaper (src/wallpaper.lua's canvas), else the game's classic colours
@@ -679,7 +957,7 @@ return function(deps)
     local id = deps.wallpaper and deps.wallpaper() or "classic"
     if id ~= "classic" and deps.wall then
       local fit = deps.wallpaperFit and deps.wallpaperFit() or "fill"
-      local ok, drawn = pcall(deps.wall.draw, id, K.X(sb[1]), K.Y(sb[2]), sb[3] * K.sc, sb[4] * K.sc, 3 * K.sc, fit)
+      local ok, drawn = pcall(deps.wall.draw, id, K.X(sb[1]), K.Y(sb[2]), sb[3] * K.sc, sb[4] * K.sc, D.SCREEN_RADIUS * K.sc, fit)
       if ok and drawn then return end
     end
     if not r.wall then
@@ -687,7 +965,7 @@ return function(deps)
       if deps.wall then top, foot = deps.wall.tint(r.game) end
       r.wall = { top or CLASSIC[1], foot or CLASSIC[2] }
     end
-    K.grad(sb, 3, r.wall[1], r.wall[2])
+    K.grad(sb, D.SCREEN_RADIUS, r.wall[1], r.wall[2])
     -- two soft light bands across it
     K.col(WHITE, 0.07)
     local x0, y0, w, h = sb[1], sb[2], sb[3], sb[4]
@@ -744,13 +1022,31 @@ return function(deps)
     end
   end
 
+  -- the screen's corners rounded over whatever is on it (the menu bar, a window, a sheet): each
+  -- corner covered in the glass's own colour by a thick arc whose inner edge is the rounding
+  -- (each corner: which side in x and y, its arc's start and end in half turns)
+  local CORNER_ARCS = { { -1, -1, 1, 1.5 }, { 1, -1, 1.5, 2 }, { 1, 1, 0, 0.5 }, { -1, 1, 0.5, 1 } }
+  local function drawScreenCorners(L)
+    local G = K.graphics()
+    local sb, rad = L.screen, D.SCREEN_RADIUS
+    local R = rad * K.sc
+    G.setLineWidth(R * 0.7)
+    for i = 1, 4 do
+      local a = CORNER_ARCS[i]
+      local x = a[1] < 0 and sb[1] + rad or sb[1] + sb[3] - rad
+      local y = a[2] < 0 and sb[2] + rad or sb[2] + sb[4] - rad
+      K.col(a[2] < 0 and L.glassAtTop or L.glassAtFoot)
+      G.arc("line", "open", K.X(x), K.Y(y), R * 1.35, a[3] * math.pi - 0.08, a[4] * math.pi + 0.08)
+    end
+  end
+
   -- an app's window over the screen: the title strip with its close button, then the app
   local function drawWindow(L, clock, portrait)
     local G = K.graphics()
     local wb, tb = L.win, L.winTitle
     -- (the whole screen, its rounded corners; the menu bar is drawn over its top)
     K.col(C.sheet)
-    K.box("fill", K.R(wb[1], wb[2] - 9, wb[3], wb[4] + 9), 3)
+    K.box("fill", K.R(wb[1], wb[2] - 9, wb[3], wb[4] + 9), D.SCREEN_RADIUS)
     K.grad(tb, 0, C.sheet, C.sheetFoot)
     K.col(BLACK, 0.1)
     K.box("fill", K.R(tb[1], tb[2] + tb[4] - 0.4, tb[3], 0.4))
@@ -897,7 +1193,7 @@ return function(deps)
     local sb = L.screen
     K.keepHits("power")
     K.col(C.dim, 0.38)
-    K.box("fill", sb, 3)
+    K.box("fill", sb, D.SCREEN_RADIUS)
     K.addHit(sb, "dim")
     local ab = L.sheetB
     K.shadow(ab, 8, 2, 0.35)
@@ -984,10 +1280,25 @@ return function(deps)
   function D.layout(pw, ph, portrait)
     local L = { pw = pw, ph = ph, portrait = portrait }
     local chinH = portrait and 34 or 22
-    L.body = { 2.5, 2.5, pw - 5, ph - 5 }
-    L.glassB = { 6, 6, pw - 12, ph - 6 - chinH }
+    -- the monitor above the shelf
+    local mh = ph - D.SHELF.h
+    L.mh = mh
+    L.body = { 2.5, 2.5, pw - 5, mh - 5 }
+    L.glassB = { 6, 6, pw - 12, mh - 6 - chinH }
     L.screen = { 10, 10, pw - 20, L.glassB[4] - 8 }
-    L.chin = { 6, ph - chinH, pw - 12, chinH - 4 }
+    -- (the glass's colour by the screen's top and foot corners: what covers them)
+    local gb, sbx = L.glassB, L.screen
+    L.glassAtTop = mix(C.glass, C.glassFoot, (sbx[2] + 2 - gb[2]) / gb[4])
+    L.glassAtFoot = mix(C.glass, C.glassFoot, (sbx[2] + sbx[4] - 2 - gb[2]) / gb[4])
+    L.chin = { 6, mh - chinH, pw - 12, chinH - 4 }
+    -- the shelf: its top running back under the monitor's foot, its lip; the pad in the middle of
+    -- its top, clear of the monitor and the front edge (padC: its middle and radii; the disc's
+    -- edge hangs 1.6 under it)
+    L.shelf = { 1, mh - 4, pw - 2, 22 }
+    L.lip = { 1, mh + 18, pw - 2, 6 }
+    local top, front = L.body[2] + L.body[4], L.lip[2]
+    L.padC = { pw / 2, (top + front) / 2 - 0.8, 26, 5 }
+    L.pad = { L.padC[1] - 26, L.padC[2] - 5, 52, 11.6 }
     local chinMid = L.chin[2] + L.chin[4] / 2
     if portrait then
       L.chinLogo = { pw / 2, L.chin[2] + 8, 10 }
@@ -1048,8 +1359,13 @@ return function(deps)
     local s = D.CELL.dockIcon
     local dw = #r.dock * (s + 5) + 5
     db[1], db[2], db[3], db[4] = L.screen[1] + (L.screen[3] - dw) / 2, L.dockY, dw, 24
+    -- the pad: lit while the window uses it; its effects one after another
+    local want = r.win and r.win.pad and 1 or 0
+    local step = r.dt / D.PAD.light
+    r.padGlow = want > r.padGlow and min(want, r.padGlow + step) or max(want, r.padGlow - step)
+    if r.padN > 0 and clock - r.padQ[1].t0 >= padLength(r.padQ[1].dir) then padNext(clock) end
 
-    drawMonitor(L)
+    drawMonitor(L, clock)
     local sb = L.screen
     drawWallpaper(sb)
     if r.win then
@@ -1076,6 +1392,7 @@ return function(deps)
     end
     drawMenu(L)
     drawSheet(L)
+    drawScreenCorners(L)
     local bt = bootAge()
     if bt then drawBoot(L, bt) end
     -- the hints on the chin

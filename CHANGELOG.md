@@ -17,6 +17,10 @@ All notable changes to this mod are documented here, in
 - **Items:** the Bag and the PC's item storage side by side in a window: move items across (how
   many, or SELECT for the whole stack), Bag pockets on L / R, sort the PC by name or pocket, toss.
   Important items stay in the Bag.
+- **A shelf under the monitor,** with a digitization pad in its middle:
+  - It lights up while Items is open.
+  - It shows each item crossing: dropping onto it and digitizing away into the PC, or digitizing in and fading into the Bag.
+  - A Poké Ball rests on it while an app's window is open and you have a party (never on the home screen), and sinks into it while an item crosses. The ball is a placeholder until a Box app.
 - **Mail:** the mailbox as an inbox: read a letter, move it to the Bag, give it to a Pokémon; a
   Held folder for the party's mail, with Take. FireRed and LeafGreen included.
 - **Decorate** on Ruby, Sapphire and Emerald's bedroom PC: the game's Decoration menu.

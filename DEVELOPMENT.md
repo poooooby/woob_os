@@ -66,7 +66,25 @@ A window instead of `open`: `window = function(ctx, env) return win end`, where 
 `draw(body, clock, portrait)` (body in units; hits as `K.addHit(rect, "win", arg)`),
 `input(input, nav)` (true when handled; a B it leaves closes the window), `tap(arg, x, y)`,
 `scroll(dy, x, y)`, `hints()` and `close()`. `env` has `K`, `session()`, `se(name)`, `now()`,
-`itemIcon(id, x, y, size)` and `monIcon(species, x, y, size)`. The garbage rules below apply.
+`itemIcon(id, x, y, size, alpha)`, `monIcon(species, x, y, size)` and `pad.transfer(itemId, dir)`.
+The garbage rules below apply.
+
+## The shelf
+
+Under the monitor is a shelf (`D.SHELF.h` units; the page is the monitor's 160 plus the shelf, so
+the screen keeps its size in units). In its middle is the pad, used for the Poké Ball and for items.
+
+- **The ball.** It rests on the pad while a window is open and there's a party; the home screen's pad stays empty (the party is read once a second). It
+  sinks into the pad while an item crosses and rises again after (`D.PAD.ball`). It is a
+  placeholder, waiting for the Box app.
+- **Sizes.** The ball and the item on the pad are both `D.SHELF.item` units across.
+
+The pad lights up while the open window has `pad = true` (Items does), and
+`env.pad.transfer(itemId, "out" | "in")` plays an item crossing it. "out" (Bag to PC) drops the
+item onto the pad and digitizes it away (`SE_WARP_OUT`); "in" (PC to Bag) digitizes it in
+(`SE_WARP_IN`), holds it, and fades it into the Bag. One effect plays at a time, at most two
+wait, and a waiting one going the same way is replaced, so the pad shows the last item chosen.
+Timings in `D.PAD`; `D.padState()` for tests.
 
 ## Words
 

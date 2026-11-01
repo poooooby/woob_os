@@ -344,6 +344,18 @@ for _, shape in ipairs(shapes) do
   T.check(inside, shape[1] .. ": everything to tap is inside the window")
   T.eq(L.portrait, shape[3] > shape[2] * 1.15 or (shape[2] / shape[3] < 1.15), shape[1] .. ": "
     .. (L.portrait and "portrait" or "landscape"))
+  -- the shelf under the monitor: inside the page, the pad in its middle, the monitor on it
+  local sh, lip, pb = L.shelf, L.lip, L.pad
+  T.check(sh and lip and pb and lip[2] + lip[4] <= L.ph + 0.01 and pb[1] >= 0 and pb[1] + pb[3] <= L.pw
+    and math.abs(pb[1] + pb[3] / 2 - L.pw / 2) < 0.01 and L.body[2] + L.body[4] <= L.ph - D.SHELF.h + 2
+    and L.body[2] + L.body[4] > sh[2], shape[1] .. ": the shelf under the monitor, the pad in its middle")
+  local foot = L.body[2] + L.body[4]
+  T.check(pb[2] > foot and pb[2] + pb[4] < lip[2]
+    and math.abs((pb[2] - foot) - (lip[2] - pb[2] - pb[4])) < 0.01,
+    shape[1] .. ": the pad clear of the monitor and the shelf's front edge, centred between them")
+  if not L.portrait then
+    T.check(math.abs(L.screen[4] - 124) < 1e-6, shape[1] .. ": the screen as tall as ever (units)")
+  end
 end
 VP.width, VP.height = 480, 320
 
@@ -482,11 +494,30 @@ st = D.state()
 D.skipBoot()
 draw(30)
 st.focus, st.dockCursor = "dock", 2
+T.eq(select(4, D.padState()), 0, "the shelf's pad: dark on the home screen")
 D.input(input({}, {}))
 press("a")
 draw(30)
 local IW = D.window()
 T.check(IW and IW.title == "Items", "Items over a session")
+draw(20)
+T.check(select(4, D.padState()) > 0.99, "the pad lights up with Items open")
+do
+  local party0 = s.party
+  s.party = { { species = 25 }, { speciesId = 1 }, { species = 0 } }
+  draw(70)
+  T.eq(st.balls, 2, "the pad: the Poké Ball while there's a party (" .. tostring(st.balls) .. " Pokémon)")
+  T.eq(st.ballK, 1, "resting on it under the window")
+  -- (the home screen: the pad empty; the window again: the ball back)
+  D.closeWindow()
+  draw(40)
+  T.eq(st.ballK, 0, "the home screen's pad stays empty")
+  press("a")
+  draw(40)
+  IW = D.window()
+  T.check(IW and IW.title == "Items" and st.ballK == 1, "Items again: the ball back on the pad")
+  s.party = party0
+end
 press("a")
 T.check(IW.state.step and IW.state.step.qty == 5, "A on 5 Potions: how many (all to start)")
 press("down")
@@ -494,11 +525,29 @@ T.eq(IW.state.step.qty, 4, "Down: one fewer")
 press("a")
 T.eq(Bag.get(s.bag, POTION), 4, "A: 4 to the Bag")
 T.eq(Storage.ensure(s).items[1].qty, 1, "1 left in the PC")
+do
+  local n, dir, id = D.padState()
+  T.check(n == 1 and dir == "in" and id == POTION, "the Potion digitizes in on the pad (" .. tostring(dir) .. ")")
+end
 press("left")
 T.eq(IW.state.focus, "bag", "Left: the Bag")
 press("select")
 T.eq(Bag.get(s.bag, POTION), 0, "SELECT: the whole stack to the PC")
 T.eq(Storage.ensure(s).items[1].qty, 5, "5 in the PC again")
+do
+  local n, dir = D.padState()
+  T.check(n == 2 and dir == "in", "going to the PC waits for the one coming in")
+  draw(80)
+  local n2, dir2, id2 = D.padState()
+  T.check(n2 == 1 and dir2 == "out" and id2 == POTION, "then the Potion digitizes away (" .. tostring(dir2) .. ")")
+  -- (a second move the same way while one waits: the last one chosen is shown)
+  D.padTransfer(POTION, "in")
+  D.padTransfer(13, "in")
+  local n3 = D.padState()
+  T.eq(n3, 2, "one waiting, the last one chosen")
+  T.eq(st.padQ[2].id, 13, "(its item)")
+  st.padN = 1
+end
 press("start")
 T.check(IW.state.menu ~= nil, "START: the menu")
 press("b")
@@ -511,6 +560,17 @@ draw(120)
 local perW = (collectgarbage("count") - kbW) / 120
 collectgarbage("restart")
 T.check(perW < 0.3, ("the Items window draws next to no garbage (%.3f KB a frame)"):format(perW))
+T.eq(D.padState(), 0, "the pad's effects play out")
+-- an effect on its own, warm, measured as it plays
+D.padTransfer(POTION, "out")
+draw(2)
+collectgarbage("collect")
+collectgarbage("stop")
+local kbP = collectgarbage("count")
+draw(60)
+local perP = (collectgarbage("count") - kbP) / 60
+collectgarbage("restart")
+T.check(perP < 0.3, ("an item crossing the pad makes next to no garbage (%.3f KB a frame)"):format(perP))
 for _, shape in ipairs({ { 480, 320 }, { 320, 480 }, { 900, 320 } }) do
   VP.width, VP.height = shape[1], shape[2]
   draw(2)

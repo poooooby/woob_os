@@ -144,17 +144,57 @@ local function body(game, log)
   U.wait(10)
   local IW = D.window()
   check(IW and IW.title == "Items", "Items: its window, in the desktop")
+  check(waitFor(function() return select(4, D.padState()) > 0.99 end, 600), "the shelf's pad lights up")
   shot("d4_items")
+  -- the pad: the Poké Ball resting on it while there's a party (a party lent for the shot, then put back)
+  do
+    local party0 = s0.party
+    s0.party = { { species = 1 }, { species = 4 }, { species = 7 } }
+    check(waitFor(function() return D.state().balls == 3 and D.state().ballK == 1 end, 1200), "the pad: the Poké Ball on it")
+    shot("d4h_ball")
+    s0.party = party0
+  end
+  -- (the pad's effects run on the wall clock: wait for their moments)
+  local function padAt(dir, at)
+    return waitFor(function()
+      local n, d = D.padState()
+      return n > 0 and d == dir and love.timer.getTime() - D.state().padQ[1].t0 >= at
+    end, 1200)
+  end
   if IW and potion then
     U.tap(game, "a"); U.wait(4)
     if IW.state.step then U.tap(game, "a"); U.wait(4) end
     check(Bag.get(s0.bag, potion) == bagQty0 + pcQty0, "the PC's first item to the Bag")
+    check(padAt("in", 0.3), "it digitizes in on the pad")
+    shot("d4p1_pad_in")
+    padAt("in", 0.65)
+    shot("d4p2_pad_hold")
     shot("d4b_items_moved")
     U.tap(game, "left"); U.wait(4)
     for i, row in ipairs(IW.state.bag.rows) do if row.id == potion then IW.state.bag.cursor = i end end
     U.tap(game, "select"); U.wait(4)
     check(Bag.get(s0.bag, potion) == 0 and Storage.ensure(s0).items[1].qty == pcQty0 + bagQty0,
       "SELECT: the whole stack back to the PC")
+    check(padAt("out", 0.15), "then it drops onto the pad")
+    shot("d4p3_pad_drop")
+    padAt("out", 0.5)
+    shot("d4p4_pad_out")
+    check(waitFor(function() return D.padState() == 0 end, 1200), "and digitizes away")
+    -- an item crossing, its draw garbage (warm: it just played)
+    D.padTransfer(potion, "out")
+    local drawP, kbP, nP = D.draw, 0, 0
+    D.draw = function(...)
+      local was = collectgarbage("isrunning")
+      collectgarbage("stop")
+      local kb0 = collectgarbage("count")
+      drawP(...)
+      kbP, nP = kbP + (collectgarbage("count") - kb0), nP + 1
+      if was then collectgarbage("restart") end
+    end
+    waitFor(function() return D.padState() == 0 end, 1200)
+    D.draw = drawP
+    log(("  an item crossing the pad: %.3f KB per frame over %d frames"):format(kbP / math.max(1, nP), nP))
+    check(kbP / math.max(1, nP) < 0.5, "an item crossing the pad makes next to no garbage")
   end
   -- the window's draw garbage
   local drawW, kbW, nW = D.draw, 0, 0

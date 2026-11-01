@@ -35,7 +35,8 @@ local NO_T = setmetatable({ list = function(l) return l end, f = string.format }
 
 return function(ctx, env)
   local K, inv, T = env.K, env.inv, env.T or NO_T
-  local W = { title = "Items" }
+  -- (pad: the shelf's item pad lights up while the window is open)
+  local W = { title = "Items", pad = true }
   local function session() return ctx.session or (env.session and env.session()) end
   local function se(name) if env.se then pcall(env.se, name) end end
   local function now() return env.now and env.now() or 0 end
@@ -124,6 +125,10 @@ return function(ctx, env)
       ok, why = inv.deposit(s, pk and pk.id or "ITEMS", p.cursor, qty)
     end
     if ok then
+      -- (the item crosses the pad: into the PC, or out of it into the Bag)
+      if not toss and env.pad and env.pad.transfer then
+        pcall(env.pad.transfer, row.id, st.focus == "pc" and "in" or "out")
+      end
       local what = row.name .. (row.showQty and (" ×" .. qty) or "")
       toast(T.f(toss and "items.tossed" or (st.focus == "pc" and "items.toBag" or "items.toPc"), what))
     else
