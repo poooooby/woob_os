@@ -20,5 +20,8 @@ All notable changes to this mod are documented here, in
 - **Mail:** the mailbox as an inbox: read a letter, move it to the Bag, give it to a Pokémon; a
   Held folder for the party's mail, with Take. FireRed and LeafGreen included.
 - **Decorate** on Ruby, Sapphire and Emerald's bedroom PC: the game's Decoration menu.
+- **Settings:** Language (English, French, German, Spanish, Italian; one editable `lang/*.lua`
+  each, and any a player adds) and Wallpaper (the classic colours, five drawn wallpapers tinted
+  per game, and the pictures in `wallpapers/`, shown Fill or Stretch). Kept for the installation.
 - Options: Desktop (on), Boot Screen (on), 24-Hour Clock (off).
 - An app registry other mods can add to (`exports.apps.register`).

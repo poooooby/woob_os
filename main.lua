@@ -4,7 +4,10 @@
 --   src/desktop.lua  the desktop: monitor, boot, menu bar, home grid, dock, sheets, input
 --   src/shell.lua    the PC menu takeover, the UI stack layer, the render / pointer / wheel hooks
 --   src/inventory.lua, src/mailbox.lua   the item and mail models (the engine's Storage, Bag, Mail)
---   src/apps/items.lua, src/apps/mail.lua the Items (PC | Bag) and Mail (inbox) windows
+--   src/apps/items.lua, src/apps/mail.lua the Items (Bag | PC) and Mail (inbox) windows
+--   src/apps/settings.lua               the Settings window (Language, Wallpaper)
+--   src/i18n.lua, lang/*.lua            the words, by language ; src/settings.lua the kept choices
+--   src/wallpaper.lua                   the drawn wallpapers and the wallpapers/ folder's pictures
 
 local function loadSibling(mod, name)
   local source = mod:read(name)
@@ -32,7 +35,19 @@ return function(mod)
   local makeDesktop, makeShell = loadSibling(mod, "src/desktop.lua"), loadSibling(mod, "src/shell.lua")
   local makeInv, makeMb = loadSibling(mod, "src/inventory.lua"), loadSibling(mod, "src/mailbox.lua")
   local itemsWindow, mailWindow = loadSibling(mod, "src/apps/items.lua"), loadSibling(mod, "src/apps/mail.lua")
+  local makeI18n, makeSettings = loadSibling(mod, "src/i18n.lua"), loadSibling(mod, "src/settings.lua")
+  local makeWall, settingsWindow = loadSibling(mod, "src/wallpaper.lua"), loadSibling(mod, "src/apps/settings.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell) then return end
+
+  local function warn(fmt, ...) mod.log:warn(fmt, ...) end
+  -- the words (lang/*.lua) and the Settings app's kept choices (mod.cache: the installation's)
+  local T = makeI18n and makeI18n({
+    read = function(path) return mod:read(path) end,
+    list = function(dir) return mod:list(dir) end,
+    log = warn,
+  })
+  local Settings = T and makeSettings and makeSettings({ cache = mod.cache, loadData = T.loadData, log = warn })
+  if T and Settings then T.set(Settings.get("language", "en")) end
 
   local function option(key, default)
     local ok, v = pcall(function() return mod.options:get(key) end)
@@ -126,14 +141,32 @@ return function(mod)
     G.setColor(1, 1, 1, 1)
     G.draw(e.image, e.quads[0], Kit.X(x), Kit.Y(y), 0, size * Kit.sc / e.w, size * Kit.sc / e.h)
   end
+  local Wall = makeWall and makeWall({
+    gameId = gameId,
+    list = function(dir) return mod:list(dir) end,
+    image = function(path) return mod.assets:image(path) end,
+    log = warn,
+  })
+  local function wallpaper() return Settings and Settings.get("wallpaper", "classic") or "classic" end
+  -- (a picture of the player's: "fill" covers the screen, cropped; "stretch" shows all of it)
+  local function wallpaperFit() return Settings and Settings.get("wallpaperFit", "fill") or "fill" end
   local env = {
     K = Kit, session = session, now = function() return love and love.timer and love.timer.getTime() or 0 end,
     se = function(name) if Sh then Sh.se(name) end end, itemIcon = itemIcon, monIcon = monIcon,
     inv = makeInv and makeInv(engine), mb = makeMb and makeMb(engine),
+    T = T, wall = Wall, gameId = gameId, wallpaper = wallpaper,
+    language = function() return T and T.code() or "en" end,
+    setLanguage = function(code)
+      if T and T.set(code) and Settings then Settings.set("language", code) end
+    end,
+    setWallpaper = function(id) if Settings then Settings.set("wallpaper", id) end end,
+    wallpaperFit = wallpaperFit,
+    setWallpaperFit = function(fit) if Settings then Settings.set("wallpaperFit", fit) end end,
   }
   local Apps = makeApps({
     items = env.inv and itemsWindow or nil,
     mail = env.mb and mailWindow or nil,
+    settings = T and Settings and settingsWindow or nil,
     -- (Ruby / Sapphire / Emerald: the bedroom PC's Decoration, the game's own menu)
     decorate = function(ctx)
       ctx.over(function(onClose)
@@ -157,6 +190,7 @@ return function(mod)
     session = session,
     gameId = gameId,
     env = env,
+    T = T, wall = Wall, wallpaper = wallpaper, wallpaperFit = wallpaperFit,
     options = function()
       return { boot = option("boot", true) ~= false, clock24 = option("clock24", false) == true }
     end,
@@ -214,5 +248,5 @@ return function(mod)
   -- open | window }
   mod.exports.apps = { register = Apps.register, list = function() return Apps.apps end }
   mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb,
-                        env = env }
+                        env = env, i18n = T, settings = Settings, wall = Wall }
 end

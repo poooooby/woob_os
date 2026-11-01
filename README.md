@@ -38,10 +38,15 @@ opens a desktop in a sleek monitor instead of a text menu.
 - 📟 **Oak's PC:** your Pokédex rating, once you have the Pokédex (FireRed and LeafGreen).
 - 🏆 **Hall of Fame:** your champion teams, once you've beaten the Elite Four.
 - 🛋️ **Decorate:** your room's decorations, from the bedroom PC (Ruby, Sapphire and Emerald).
+- ⚙️ **Settings:** like a phone's or a Mac's.
+  - 🌐 **Language:** WoobleOS in English, Français, Deutsch, Español or Italiano. The game's own
+    text, such as item names and mail, stays as it is.
+  - 🖼️ **Wallpaper:** the classic colours of your game, five drawn wallpapers (Ribbon, Hills,
+    Coast, Waves and Bloom, each tinted to your game), or your own pictures.
 - ℹ️ **About:** which version you're running.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
 
-Items and Mail open in a window on the desktop: B or the red button closes it. Boxes, Oak's PC,
+Items, Mail and Settings open in a window on the desktop: B or the red button closes it. Boxes, Oak's PC,
 Hall of Fame and Decorate open the game's own screens, and closing them brings you back to the
 desktop.
 
@@ -70,6 +75,14 @@ turn it on for your Generation 3 games.
   "booted up the PC" and "Which PC should be accessed?" lines are skipped: the boot screen does
   their job.
 - With the Desktop option off, every PC opens the game's original menu.
+- **Your own wallpapers:** put PNG or JPG pictures in the mod's `wallpapers` folder, then pick them
+  in Settings. With one of your pictures chosen, a Fill / Stretch switch appears by the title
+  (SELECT or a tap): Fill covers the screen and crops the picture from its centre, Stretch shows
+  the whole picture stretched to the screen's shape.
+- **Your own language:** copy `lang/en.lua` to a new file in the same folder (for example
+  `lang/pt.lua`), write the language's name at the top and translate the words. It shows up in
+  Settings. The other languages' files can be edited the same way.
+- Your Settings choices are kept for the whole game, not per save file.
 
 ## 🪪 Credits
 

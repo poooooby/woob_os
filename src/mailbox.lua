@@ -7,20 +7,13 @@
 --   Mb.inbox(s) -> rows (the PC's mail, first to last) ; Mb.held(s) -> rows (the party's)
 --       row = { rec, slot (pool index), mon, monName, title, from, lines, preview, species, design }
 --   Mb.toBag(s, row) ; Mb.give(s, row, mon) ; Mb.take(s, row)
---       -> true | false, reason ("bag_full" | "holding" | "box_full" | "gone")
+--       -> true | false, reason ("bag_full" | "holding" | "box_full" | "gone"; the words are
+--       lang/*.lua's "reason.mail.<reason>")
 --   Mb.party(s) -> { { mon, name, species, item (its name or nil), held = bool }, ... }
---   Mb.REASON[reason]
 
 return function(engine)
   local Mb = {}
   local PARTY, COUNT = 6, 16
-
-  Mb.REASON = {
-    bag_full = "No room in the Bag.",
-    holding = "That Pokémon is holding an item.",
-    box_full = "The mailbox is full.",
-    gone = "That mail isn't there any more.",
-  }
 
   local function Mail() return engine("src.core.game3.mail") end
 

@@ -98,15 +98,15 @@ local function ctxWith(mode, rows)
   ctx.row = function(id) for i, row in ipairs(ctx.rows) do if row.id == id then return i - 1 end end end
   return ctx
 end
-T.eq(ids(Apps.list(ctxWith("select", rowsAll))), "storage items mail oak hall about logoff",
+T.eq(ids(Apps.list(ctxWith("select", rowsAll))), "storage items mail oak hall settings about logoff",
   "a cleared game's PC: every app")
 T.eq(ids(Apps.list(ctxWith("select", { { id = "storage" }, { id = "player" }, { id = "quit" } }))),
-  "storage items mail about logoff", "early on: no Oak's PC, no Hall of Fame")
-T.eq(ids(Apps.list(ctxWith("bedroom"))), "items mail about logoff", "the bedroom PC: Items and Mail")
+  "storage items mail settings about logoff", "early on: no Oak's PC, no Hall of Fame")
+T.eq(ids(Apps.list(ctxWith("bedroom"))), "items mail settings about logoff", "the bedroom PC: Items, Mail, Settings")
 do
   local c = ctxWith("bedroom")
   c.family = "rse"
-  T.eq(ids(Apps.list(c)), "items mail decorate about logoff", "Ruby / Sapphire / Emerald's bedroom: Decorate too")
+  T.eq(ids(Apps.list(c)), "items mail decorate settings about logoff", "Ruby / Sapphire / Emerald's bedroom: Decorate too")
 end
 T.check(not Apps.register({ id = "storage", open = noop }), "an id can't be taken twice")
 T.check(not Apps.register({ id = "x" }), "an app needs open()")
@@ -238,7 +238,7 @@ openPc({ startMode = "player_pc", bedroom = true })
 st = D.state()
 T.check(D.isOpen() and st.ctx.mode == "bedroom", "the bedroom PC opens the desktop")
 local rse = st.ctx.family == "rse"
-T.eq(#st.grid + #st.dock, rse and 5 or 4, "with Items, Mail, About and Log Off" .. (rse and ", Decorate" or ""))
+T.eq(#st.grid + #st.dock, rse and 6 or 5, "with Items, Mail, Settings, About and Log Off" .. (rse and ", Decorate" or ""))
 D.skipBoot()
 draw(40)
 if rse then
@@ -550,6 +550,172 @@ st.ctx.logoff()
 openPc({ startMode = "select" })
 st = D.state()
 D.skipBoot()
+draw(30)
+
+-- ------- the words (lang/*.lua through src/i18n.lua)
+local I18n, Set, Wall = X._test.i18n, X._test.settings, X._test.wall
+local MOD = "mods/wooble_os/"
+local function readFile(path)
+  local f = io.open(MOD .. path, "rb")
+  if not f then return nil end
+  local s = f:read("*a")
+  f:close()
+  return s
+end
+local en = I18n.raw("en")
+T.check(en and en["app.items"] == "Items", "English loads (lang/en.lua)")
+-- every key the code names is in English
+local missing, named = {}, 0
+local NOT_WORDS = { ["game.ready"] = true }   -- (an engine event's name)
+local PREFIX = { hint = 1, menu = 1, logoff = 1, button = 1, about = 1, nav = 1, game = 1, app = 1, items = 1,
+                 pocket = 1, reason = 1, mail = 1, settings = 1, wall = 1, failed = 1 }
+for _, file in ipairs({ "main.lua", "src/desktop.lua", "src/apps.lua", "src/apps/items.lua", "src/apps/mail.lua",
+                        "src/apps/settings.lua" }) do
+  local src = readFile(file) or ""
+  for key in src:gmatch('"([%a][%w_]*%.[%w_%.]+)"') do
+    if PREFIX[key:match("^(%a+)")] and not key:match("%.$") and not key:match("%.lua$") and not NOT_WORDS[key] then
+      named = named + 1
+      if not en[key] then missing[#missing + 1] = key end
+    end
+  end
+end
+-- (and the keys made from codes)
+for _, k in ipairs({ "bag_full", "pc_full", "stack_full", "important", "gone" }) do
+  if not en["reason.item." .. k] then missing[#missing + 1] = "reason.item." .. k end
+end
+for _, k in ipairs({ "bag_full", "holding", "box_full", "gone" }) do
+  if not en["reason.mail." .. k] then missing[#missing + 1] = "reason.mail." .. k end
+end
+for _, k in ipairs({ "ITEMS", "KEY_ITEMS", "POKE_BALLS", "TM_CASE", "BERRY_POUCH" }) do
+  if not en["pocket." .. k] then missing[#missing + 1] = "pocket." .. k end
+end
+for _, k in ipairs({ "firered", "leafgreen", "ruby", "sapphire", "emerald" }) do
+  if not en["game." .. k] then missing[#missing + 1] = "game." .. k end
+end
+for _, k in ipairs(Wall.BUILTIN) do
+  if not en["wall." .. k] then missing[#missing + 1] = "wall." .. k end
+end
+T.check(named > 60 and #missing == 0, "every key the code names is in English (" .. named .. " named; missing: "
+  .. table.concat(missing, ", ") .. ")")
+-- the shipped languages: each loads, has a name, every key, and the same %s as English
+local langs = I18n.languages()
+T.eq(#langs, 5, "five languages (" .. #langs .. ")")
+T.eq(langs[1].code, "en", "English first")
+for _, l in ipairs(langs) do
+  local words = I18n.raw(l.code)
+  local gaps, bad = 0, {}
+  for k, v in pairs(en) do
+    local w = words[k]
+    if not w then gaps = gaps + 1
+    else
+      local _, a = v:gsub("%%s", "")
+      local _, b = w:gsub("%%s", "")
+      if a ~= b then bad[#bad + 1] = k end
+    end
+  end
+  T.check(l.name ~= l.code and gaps == 0 and #bad == 0, l.code .. ": " .. l.name .. ", every word, the same %s ("
+    .. gaps .. " missing" .. (#bad > 0 and ("; %s off: " .. table.concat(bad, ", ")) or "") .. ")")
+end
+-- a missing word: English; an unknown key: itself; a file with code in it can't reach anything
+do
+  local makeI18n = dofile(MOD .. "src/i18n.lua")
+  local files = {
+    ["lang/en.lua"] = 'return { name = "English", strings = { ["hint.open"] = "Open", ["hint.back"] = "Back" } }',
+    ["lang/xx.lua"] = 'return { name = "Test", strings = { ["hint.open"] = "Ouvre" } }',
+    ["lang/yy.lua"] = 'return { name = tostring(os.time()), strings = {} }',
+  }
+  local logged = 0
+  local t2 = makeI18n({ read = function(p) return files[p] end,
+                        list = function() return { "en.lua", "xx.lua", "yy.lua" } end,
+                        log = function() logged = logged + 1 end })
+  T.check(t2.set("xx") and t2("hint.open") == "Ouvre" and t2("hint.back") == "Back", "a missing word falls back to English")
+  T.eq(t2("no.such.key"), "no.such.key", "an unknown key shows itself")
+  T.check(not t2.set("yy") and logged == 1, "a language file that reaches for anything is skipped")
+end
+-- switching: labels and hints follow, then back
+local storageApp = Apps.byId("storage")
+T.check(I18n.set("fr") and D.labelOf(storageApp) == "Boîtes", "French: Boxes is Boîtes")
+T.eq(I18n.list(D.TEXT.hints.grid)[1][2], "Ouvrir", "and the hints follow")
+I18n.set("en")
+T.eq(D.labelOf(storageApp), "Boxes", "English again")
+
+-- ------- the kept settings (a stand-in for mod.cache)
+local function fakeCache()
+  local store = {}
+  return { store = store, read = function(_, k) return store[k] end,
+           write = function(_, k, v) store[k] = v return true end }
+end
+local cacheA = fakeCache()
+Set.cache = cacheA
+Set.set("wallpaper", "hills")
+T.eq(Set.get("wallpaper"), "hills", "a setting kept")
+T.check(type(cacheA.store["settings.lua"]) == "string", "and written")
+local Set2 = dofile(MOD .. "src/settings.lua")({ cache = cacheA, loadData = I18n.loadData })
+T.eq(Set2.get("wallpaper"), "hills", "and read back")
+Set.set("wallpaper", "classic")
+T.eq(Wall.choices()[1].id, "classic", "the wallpapers: Classic first")
+T.eq(#Wall.choices(), 6, "then the five drawn ones (no pictures in wallpapers/)")
+T.check(not Wall.draw("ribbon", 0, 0, 100, 60, 3), "headless (no canvases): the classic colours instead")
+
+-- ------- the Settings window: choose French, a wallpaper, back
+for i, app in ipairs(st.grid) do if app.id == "settings" then st.focus, st.cursor = "grid", i end end
+D.input(input({}, {}))
+press("a")
+draw(30)
+local SW = D.window()
+T.check(SW and SW.title == "Settings", "Settings opens its window")
+press("a")
+T.eq(SW.state.focus, "detail", "A: Language")
+for _ = 1, 3 do press("down") end
+T.eq(SW.state.langs[SW.state.langCursor].code, "fr", "Down to Français")
+press("a")
+T.check(I18n.code() == "fr" and Set.get("language") == "fr", "A: French, kept")
+T.eq(D.labelOf(storageApp), "Boîtes", "the desktop's words follow")
+press("b")
+press("down")
+press("a")
+T.eq(SW.state.section, 2, "Wallpaper")
+press("right")
+press("a")
+T.eq(Set.get("wallpaper"), "ribbon", "A on Ribbon: chosen")
+-- a picture: Fill (cover, cropped from the centre) or Stretch (all of it, to the screen's shape)
+do
+  local px, py, sx, sy = Wall.place(200, 100, 100, 100, "fill")
+  T.check(px == -50 and py == 0 and sx == 1 and sy == 1, "Fill: one scale, cropped from the centre")
+  px, py, sx, sy = Wall.place(200, 100, 100, 100, "stretch")
+  T.check(px == 0 and py == 0 and sx == 0.5 and sy == 1, "Stretch: each side to the screen's")
+end
+X._test.env.setWallpaper("user:picture.png")
+T.eq(SW.hints()[2][1], "SELECT", "a picture: SELECT in the hints")
+press("select")
+T.eq(Set.get("wallpaperFit"), "stretch", "SELECT: Stretch")
+draw(2)
+T.check(not D.state().winFailed, "the Fill | Stretch switch draws")
+press("select")
+T.eq(Set.get("wallpaperFit"), "fill", "SELECT again: Fill")
+X._test.env.setWallpaper("ribbon")
+press("select")
+T.eq(Set.get("wallpaperFit"), "fill", "a drawn wallpaper: SELECT does nothing")
+for _, shape in ipairs({ { 480, 320 }, { 320, 480 } }) do
+  VP.width, VP.height = shape[1], shape[2]
+  draw(2)
+  T.check(not D.state().winFailed, "the Settings window draws " .. shape[1] .. "x" .. shape[2])
+end
+VP.width, VP.height = 480, 320
+draw(30)
+collectgarbage("collect")
+collectgarbage("stop")
+local kbS = collectgarbage("count")
+draw(120)
+local perS = (collectgarbage("count") - kbS) / 120
+collectgarbage("restart")
+T.check(perS < 0.3, ("the Settings window draws next to no garbage (%.3f KB a frame)"):format(perS))
+press("b")
+press("b")
+T.check(D.window() == nil, "B, B: closed")
+X._test.env.setLanguage("en")
+X._test.env.setWallpaper("classic")
+T.check(I18n.code() == "en" and Set.get("wallpaper") == "classic", "(back to English and Classic)")
 draw(30)
 
 -- ------- garbage: the draw, warm

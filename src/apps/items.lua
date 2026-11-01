@@ -24,15 +24,17 @@ local POCKET_PREV, POCKET_NEXT, SEG_PC, SEG_BAG = 2001, 2002, 2003, 2004
 local STEP_MINUS, STEP_PLUS, STEP_ALL, STEP_GO, STEP_BACK = 2010, 2011, 2012, 2013, 2014
 local MENU_ROW, SORT_BUTTON = 2020, 2030
 
+-- (the words are keys of lang/*.lua, through env.T)
 local HINTS = {
-  main = { { "A", "Move" }, { "SELECT", "All" }, { "L R", "Pocket" }, { "START", "Menu" } },
-  step = { { "< >", "10" }, { "A", "OK" }, { "B", "Back" } },
-  menu = { { "A", "Choose" }, { "B", "Back" } },
+  main = { { "A", "hint.move" }, { "SELECT", "hint.all" }, { "L R", "hint.pocket" }, { "START", "hint.menu" } },
+  step = { { "< >", "hint.ten" }, { "A", "hint.ok" }, { "B", "hint.back" } },
+  menu = { { "A", "hint.choose" }, { "B", "hint.back" } },
 }
-local MENU = { "Sort by Name", "Sort by Pocket", "Toss…" }
+local MENU = { "items.sortName", "items.sortPocket", "items.tossMenu" }
+local NO_T = setmetatable({ list = function(l) return l end, f = string.format }, { __call = function(_, k) return k end })
 
 return function(ctx, env)
-  local K, inv = env.K, env.inv
+  local K, inv, T = env.K, env.inv, env.T or NO_T
   local W = { title = "Items" }
   local function session() return ctx.session or (env.session and env.session()) end
   local function se(name) if env.se then pcall(env.se, name) end end
@@ -66,8 +68,8 @@ return function(ctx, env)
     st.pc.rows = inv.pcRows(s)
     st.bag.rows = pk and inv.bagRows(s, pk.id) or {}
     local used, cap = inv.pcCount(s)
-    st.pcHead = "PC  " .. used .. "/" .. cap
-    st.pocketName = pk and pk.label or "Bag"
+    st.pcHead = T("items.pc") .. "  " .. used .. "/" .. cap
+    st.pocketKey = pk and ("pocket." .. pk.id) or "items.bag"
     clampPane(st.pc)
     clampPane(st.bag)
   end
@@ -123,12 +125,9 @@ return function(ctx, env)
     end
     if ok then
       local what = row.name .. (row.showQty and (" ×" .. qty) or "")
-      if toss then toast("Tossed " .. what .. ".")
-      elseif st.focus == "pc" then toast(what .. " to the Bag.")
-      else toast(what .. " to the PC.")
-      end
+      toast(T.f(toss and "items.tossed" or (st.focus == "pc" and "items.toBag" or "items.toPc"), what))
     else
-      toast(inv.REASON[why] or "That didn't work.", true)
+      toast(T(why and ("reason.item." .. why) or "failed"), true)
     end
     refresh()
   end
@@ -137,7 +136,7 @@ return function(ctx, env)
     local p = pane()
     local row = p.rows[p.cursor]
     if not row then return end
-    if row.important and (toss or st.focus == "bag") then return toast(inv.REASON.important, true) end
+    if row.important and (toss or st.focus == "bag") then return toast(T("reason.item.important"), true) end
     if row.qty <= 1 then return act(1, toss) end
     st.step = { qty = row.qty, max = row.qty, toss = toss }
     se("SE_SELECT")
@@ -157,7 +156,7 @@ return function(ctx, env)
       inv.sort(s, i == 1 and "name" or "pocket")
       st.pc.cursor, st.pc.top = 1, 0
       refresh()
-      toast(i == 1 and "Sorted by name." or "Sorted by pocket.")
+      toast(T(i == 1 and "items.sortedName" or "items.sortedPocket"))
     elseif i == 3 then
       st.focus = "pc"
       begin(true)
@@ -211,7 +210,11 @@ return function(ctx, env)
       local p = pane()
       local row = p.rows[p.cursor]
       if row then
-        if row.important and st.focus == "bag" then toast(inv.REASON.important, true) else act(row.qty, false) end
+        if row.important and st.focus == "bag" then
+          toast(T("reason.item.important"), true)
+        else
+          act(row.qty, false)
+        end
       end
     end
     return true
@@ -264,9 +267,9 @@ return function(ctx, env)
   end
 
   function W.hints()
-    if st.menu then return HINTS.menu end
-    if st.step then return HINTS.step end
-    return HINTS.main
+    if st.menu then return T.list(HINTS.menu) end
+    if st.step then return T.list(HINTS.step) end
+    return T.list(HINTS.main)
   end
 
   -- ------- drawing (no tables made here)
@@ -298,7 +301,7 @@ return function(ctx, env)
       K.addHit(rb, "win", base + i, clip)
     end
     if #p.rows == 0 then
-      K.text(name == "pc" and "No items in the PC." or "Nothing in this pocket.", x, y + h / 2 - 3, 4.6, C.faint,
+      K.text(T(name == "pc" and "items.emptyPc" or "items.emptyPocket"), x, y + h / 2 - 3, 4.6, C.faint,
         "center", w)
     end
     -- the scroll bar
@@ -324,15 +327,17 @@ return function(ctx, env)
       local sb = K.R(x + w - 18, y + 1.5, 16, HEAD_H - 3)
       K.col(C.chip)
       K.box("fill", sb, 3.5)
-      K.text("Sort", sb[1], sb[2] + 1.5, 4, C.ink, "center", sb[3])
+      local sl = T("items.sort")
+      K.text(sl, sb[1], sb[2] + 1.5, K.fit(sl, 4, sb[3] - 2), C.ink, "center", sb[3])
       K.addHit(sb, "win", SORT_BUTTON)
     else
       K.text("<", x + 3, y + 2.2, 5, C.soft)
       K.addHit(K.R(x, y, 12, HEAD_H), "win", POCKET_PREV)
       K.text(">", x + w - 7, y + 2.2, 5, C.soft)
       K.addHit(K.R(x + w - 12, y, 12, HEAD_H), "win", POCKET_NEXT)
-      local ps = K.fit(st.pocketName, 4.8, w - 26)
-      K.text(st.pocketName, x + 12, y + 2.4 + (4.8 - ps) * 0.5, ps, focused and C.accent or C.ink, "center", w - 24)
+      local pname = T(st.pocketKey)
+      local ps = K.fit(pname, 4.8, w - 26)
+      K.text(pname, x + 12, y + 2.4 + (4.8 - ps) * 0.5, ps, focused and C.accent or C.ink, "center", w - 24)
     end
   end
 
@@ -344,18 +349,20 @@ return function(ctx, env)
     K.box("fill", K.R(x, y, w, 0.4))
     local sp = st.step
     if sp then
-      local label = sp.toss and "Toss how many?" or "How many?"
+      local label = T(sp.toss and "items.tossHowMany" or "items.howMany")
       K.text(label, x + 4, y + 5.5, 4.8, C.ink)
       local bx = x + w - 4
       local go = K.R(bx - 22, y + 3, 22, 10)
       K.col(sp.toss and C.bad or C.accent)
       K.box("fill", go, 5)
-      K.text(sp.toss and "Toss" or "Move", go[1], go[2] + 2.4, 4.8, K.WHITE, "center", go[3])
+      local gl = T(sp.toss and "items.toss" or "items.move")
+      K.text(gl, go[1], go[2] + 2.4, K.fit(gl, 4.8, go[3] - 2), K.WHITE, "center", go[3])
       K.addHit(go, "win", STEP_GO)
       local all = K.R(go[1] - 17, y + 3, 15, 10)
       K.col(C.chip)
       K.box("fill", all, 5)
-      K.text("All", all[1], all[2] + 2.4, 4.6, C.ink, "center", all[3])
+      local al = T("items.all")
+      K.text(al, all[1], all[2] + 2.4, K.fit(al, 4.6, all[3] - 1), C.ink, "center", all[3])
       K.addHit(all, "win", STEP_ALL)
       local plus = K.R(all[1] - 12, y + 3, 10, 10)
       K.col(C.chip)
@@ -386,7 +393,8 @@ return function(ctx, env)
     K.col(C.pane)
     K.box("fill", mb, 4)
     K.ring(mb, 4, K.BLACK, 0.12, 0.5)
-    for i, label in ipairs(MENU) do
+    for i, key in ipairs(MENU) do
+      local label = T(key)
       local rb = K.R(mb[1] + 2, mb[2] + 2 + (i - 1) * 10, mb[3] - 4, 10)
       if i == m.cursor then
         K.col(i == 3 and C.bad or C.accent)
@@ -412,8 +420,8 @@ return function(ctx, env)
         local on = st.focus == name
         K.col(on and C.accent or C.chip)
         K.box("fill", sb, 3.5)
-        K.text(name == "pc" and st.pcHead or "Bag", sb[1], sb[2] + 1.6, 4.4, on and K.WHITE or C.ink, "center",
-          sb[3])
+        K.text(name == "pc" and st.pcHead or T("items.bag"), sb[1], sb[2] + 1.6, 4.4, on and K.WHITE or C.ink,
+          "center", sb[3])
         K.addHit(sb, "win", name == "pc" and SEG_PC or SEG_BAG)
       end
       local name = st.focus

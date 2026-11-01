@@ -2,10 +2,11 @@
 -- ones: Boxes, Oak's PC and Hall of Fame open the game's own PC screens; Items and Mail are our own
 -- windows; Decorate (Ruby / Sapphire / Emerald, the bedroom) opens the game's Decoration menu.
 --
---   A = Apps(deps)   deps: items / mail = window(ctx, env) makers ; decorate(ctx) (the game's menu)
+--   A = Apps(deps)   deps: items / mail / settings = window(ctx, env) makers ; decorate(ctx) (the
+--                    game's menu). Built-ins name themselves with labelKey (a lang/*.lua key)
 --   A.register(app) -> true | false, why    app = {
 --       id       unique string
---       label    under its icon (short: about 10 letters)
+--       label    under its icon (short: about 10 letters) ; labelKey: a word of lang/*.lua instead
 --       glyph    the icon's picture: "ball" | "bag" | "trophy" | "dex" | "power" | "logo" | "gear",
 --                or a function(K, cx, cy, size, a) drawing it (window pixels, white on the tile)
 --       color    { r, g, b } the tile's colour
@@ -68,30 +69,42 @@ return function(deps)
   local function toRow(id) return function(ctx) ctx.finish(ctx.row(id)) end end
 
   -- the Pokémon Storage System: the game's own (SOMEONE'S / BILL'S / LANETTE'S PC)
-  A.register({ id = "storage", label = "Boxes", glyph = "ball", color = { 226, 70, 72 }, order = 10, dock = true,
+  A.register({ id = "storage", labelKey = "app.storage", label = "Boxes",
+               glyph = "ball", color = { 226, 70, 72 }, order = 10, dock = true,
                available = hasRow("storage"), open = toRow("storage") })
   -- the player's PC, our own: item storage (PC | Bag) and the mailbox (an inbox)
   if deps.items then
-    A.register({ id = "items", label = "Items", glyph = "bag", color = { 74, 150, 236 }, order = 20, dock = true,
+    A.register({ id = "items", labelKey = "app.items", label = "Items",
+                 glyph = "bag", color = { 74, 150, 236 }, order = 20, dock = true,
                  window = deps.items })
   end
   if deps.mail then
-    A.register({ id = "mail", label = "Mail", glyph = "mail", color = { 64, 178, 236 }, order = 25, dock = true,
+    A.register({ id = "mail", labelKey = "app.mail", label = "Mail",
+                 glyph = "mail", color = { 64, 178, 236 }, order = 25, dock = true,
                  window = deps.mail })
   end
   -- the bedroom's Decoration (Ruby / Sapphire / Emerald): the game's own menu
   if deps.decorate then
-    A.register({ id = "decorate", label = "Decorate", glyph = "home", color = { 156, 112, 220 }, order = 50,
+    A.register({ id = "decorate", labelKey = "app.decorate", label = "Decorate",
+                 glyph = "home", color = { 156, 112, 220 }, order = 50,
                  available = function(ctx) return ctx.mode == "bedroom" and ctx.family == "rse" end,
                  open = deps.decorate })
   end
-  A.register({ id = "oak", label = "Oak's PC", glyph = "dex", color = { 232, 120, 64 }, order = 30,
+  A.register({ id = "oak", labelKey = "app.oak", label = "Oak's PC",
+               glyph = "dex", color = { 232, 120, 64 }, order = 30,
                available = hasRow("oak"), open = toRow("oak") })
-  A.register({ id = "hall", label = "Hall of Fame", glyph = "trophy", color = { 236, 176, 48 }, order = 40,
+  A.register({ id = "hall", labelKey = "app.hall", label = "Hall of Fame",
+               glyph = "trophy", color = { 236, 176, 48 }, order = 40,
                available = hasRow("hall"), open = toRow("hall") })
-  A.register({ id = "about", label = "About", glyph = "logo", color = { 70, 76, 96 }, order = 80,
+  if deps.settings then
+    A.register({ id = "settings", labelKey = "app.settings", label = "Settings", glyph = "gear",
+                 color = { 132, 140, 158 }, order = 70, window = deps.settings })
+  end
+  A.register({ id = "about", labelKey = "app.about", label = "About",
+               glyph = "logo", color = { 70, 76, 96 }, order = 80,
                open = function(ctx) ctx.sheet("about") end })
-  A.register({ id = "logoff", label = "Log Off", glyph = "power", color = { 120, 128, 146 }, order = 90, dock = true,
+  A.register({ id = "logoff", labelKey = "app.logoff", label = "Log Off",
+               glyph = "power", color = { 120, 128, 146 }, order = 90, dock = true,
                open = function(ctx) ctx.sheet("logoff") end })
 
   return A

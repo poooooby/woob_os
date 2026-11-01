@@ -26,15 +26,17 @@ local TINT = {
 local ROW_H, SEG_H, ACT_H = 15, 10, 11
 local SEG_INBOX, SEG_HELD, ACTION, YES, NO, MON, BACK, DIM = 2001, 2002, 2010, 2020, 2021, 2030, 2040, 2050
 
-local ACTIONS = { inbox = { "Move to Bag", "Give to Pokémon" }, held = { "Take to Inbox" } }
+-- (the words are keys of lang/*.lua, through env.T)
+local ACTIONS = { inbox = { "mail.toBag", "mail.give" }, held = { "mail.take" } }
 local HINTS = {
-  list = { { "A", "Open" }, { "L R", "Folder" }, { "B", "Close" } },
-  reader = { { "< >", "Choose" }, { "A", "OK" }, { "B", "Back" } },
-  sheet = { { "A", "OK" }, { "B", "Cancel" } },
+  list = { { "A", "hint.open" }, { "L R", "hint.folder" }, { "B", "hint.close" } },
+  reader = { { "< >", "hint.choose" }, { "A", "hint.ok" }, { "B", "hint.back" } },
+  sheet = { { "A", "hint.ok" }, { "B", "hint.cancel" } },
 }
+local NO_T = setmetatable({ list = function(l) return l end, f = string.format }, { __call = function(_, k) return k end })
 
 return function(ctx, env)
-  local K, mb = env.K, env.mb
+  local K, mb, T = env.K, env.mb, env.T or NO_T
   local W = { title = "Mail" }
   local function session() return ctx.session or (env.session and env.session()) end
   local function se(name) if env.se then pcall(env.se, name) end end
@@ -59,8 +61,8 @@ return function(ctx, env)
   local function refresh()
     local s = session()
     st.inbox, st.held = mb.inbox(s), mb.held(s)
-    st.segInbox = "Inbox  " .. #st.inbox
-    st.segHeld = "Held  " .. #st.held
+    st.segInbox = T("mail.inbox") .. "  " .. #st.inbox
+    st.segHeld = T("mail.held") .. "  " .. #st.held
     clamp()
   end
   W.refresh = refresh
@@ -93,7 +95,7 @@ return function(ctx, env)
     if st.folder == "held" then
       local ok, why = mb.take(s, row)
       refresh()
-      if ok then toast("Filed in the Inbox.") else toast(mb.REASON[why] or "That didn't work.", true) end
+      if ok then toast(T("mail.filed")) else toast(T(why and ("reason.mail." .. why) or "failed"), true) end
       return
     end
     if i == 1 then
@@ -101,7 +103,7 @@ return function(ctx, env)
       se("SE_SELECT")
     else
       st.party = mb.party(s)
-      if #st.party == 0 then return toast("No Pokémon to give it to.", true) end
+      if #st.party == 0 then return toast(T("mail.noParty"), true) end
       st.partyCursor = 1
       for k, p in ipairs(st.party) do
         if not p.held then
@@ -122,7 +124,11 @@ return function(ctx, env)
       local ok, why = mb.toBag(s, row)
       refresh()
       back()
-      if ok then toast(row.title .. " to the Bag.") else toast(mb.REASON[why] or "That didn't work.", true) end
+      if ok then
+        toast(T.f("mail.movedToBag", row.title))
+      else
+        toast(T(why and ("reason.mail." .. why) or "failed"), true)
+      end
     elseif st.sheet == "give" then
       if not yes then
         st.sheet = nil
@@ -130,12 +136,16 @@ return function(ctx, env)
       end
       local p = st.party[st.partyCursor]
       if not p then return end
-      if p.held then return toast(mb.REASON.holding, true) end
+      if p.held then return toast(T("reason.mail.holding"), true) end
       st.sheet = nil
       local ok, why = mb.give(s, row, p.mon)
       refresh()
       back()
-      if ok then toast(p.name .. " is holding the mail.") else toast(mb.REASON[why] or "That didn't work.", true) end
+      if ok then
+        toast(T.f("mail.given", p.name))
+      else
+        toast(T(why and ("reason.mail." .. why) or "failed"), true)
+      end
     end
   end
 
@@ -237,9 +247,9 @@ return function(ctx, env)
   end
 
   function W.hints()
-    if st.sheet then return HINTS.sheet end
-    if st.focus == "reader" then return HINTS.reader end
-    return HINTS.list
+    if st.sheet then return T.list(HINTS.sheet) end
+    if st.focus == "reader" then return T.list(HINTS.reader) end
+    return T.list(HINTS.list)
   end
 
   -- ------- drawing (no tables made here)
@@ -292,7 +302,7 @@ return function(ctx, env)
       K.addHit(rb, "win", i, clip)
     end
     if #list == 0 then
-      K.text(st.folder == "inbox" and "No mail." or "No Pokémon is holding mail.", x + 4, y + h / 2 - 4, 4.8,
+      K.text(T(st.folder == "inbox" and "mail.empty" or "mail.emptyHeld"), x + 4, y + h / 2 - 4, 4.8,
         C.faint, "center", w - 8)
     end
     if #list > st.visible then
@@ -308,7 +318,7 @@ return function(ctx, env)
   local function drawReader(x, y, w, h, body)
     local row = rows()[st.cursor]
     if not row then
-      K.text("Choose a mail to read it.", x, y + h / 2 - 4, 4.8, C.faint, "center", w)
+      K.text(T("mail.pick"), x, y + h / 2 - 4, 4.8, C.faint, "center", w)
       return
     end
     local tint = TINT[row.design] or TINT[0]
@@ -335,7 +345,7 @@ return function(ctx, env)
       K.text(lines[i], cb[1] + 5, ly + (i - 1) * step, ls, C.ink, "center", cb[3] - 10)
     end
     K.text(row.from, cb[1] + 5, cb[2] + cardH - 8, 4.6, C.soft, "right", cb[3] - 10)
-    K.text("From", cb[1] + 5, cb[2] + cardH - 8, 4.2, C.faint)
+    K.text(T("mail.from"), cb[1] + 5, cb[2] + cardH - 8, 4.2, C.faint)
     -- the actions
     local acts = ACTIONS[st.folder]
     local n = #acts
@@ -351,8 +361,9 @@ return function(ctx, env)
         K.col(C.chip)
         K.box("fill", bb, 5)
       end
-      local fs = K.fit(acts[i], 4.6, bw - 4)
-      K.text(acts[i], bb[1], bb[2] + 2.6 + (4.6 - fs) * 0.5, fs, on and K.WHITE or C.ink, "center", bb[3])
+      local label = T(acts[i])
+      local fs = K.fit(label, 4.6, bw - 4)
+      K.text(label, bb[1], bb[2] + 2.6 + (4.6 - fs) * 0.5, fs, on and K.WHITE or C.ink, "center", bb[3])
       K.addHit(bb, "win", ACTION + i - 1)
     end
   end
@@ -368,8 +379,9 @@ return function(ctx, env)
       K.shadow(ab, 6, 1.5, 0.3)
       K.col(C.pane)
       K.box("fill", ab, 6)
-      K.text("Move it to the Bag?", ab[1], ab[2] + 7, 6, C.ink, "center", ab[3])
-      K.text("The message will be lost.", ab[1], ab[2] + 17, 4.8, C.soft, "center", ab[3])
+      local title, body = T("mail.confirmTitle"), T("mail.confirmBody")
+      K.text(title, ab[1], ab[2] + 7, K.fit(title, 6, ab[3] - 6), C.ink, "center", ab[3])
+      K.text(body, ab[1], ab[2] + 17, K.fit(body, 4.8, ab[3] - 6), C.soft, "center", ab[3])
       local bw = (aw - 20) / 2
       for i = 1, 2 do
         local yes = i == 2
@@ -377,7 +389,8 @@ return function(ctx, env)
         local on = yes == st.yes
         K.col(on and (yes and C.bad or C.soft) or C.chip)
         K.box("fill", bb, 6)
-        K.text(yes and "Move" or "Cancel", bb[1], bb[2] + 3, 5, on and K.WHITE or C.ink, "center", bb[3])
+        local bl = T(yes and "mail.confirmMove" or "button.cancel")
+        K.text(bl, bb[1], bb[2] + 3, K.fit(bl, 5, bb[3] - 2), on and K.WHITE or C.ink, "center", bb[3])
         K.addHit(bb, "win", yes and YES or NO)
       end
       return
@@ -388,7 +401,8 @@ return function(ctx, env)
     K.shadow(ab, 6, 1.5, 0.3)
     K.col(C.pane)
     K.box("fill", ab, 6)
-    K.text("Give it to which Pokémon?", ab[1], ab[2] + 3, 5, C.ink, "center", ab[3])
+    local gt = T("mail.giveTitle")
+    K.text(gt, ab[1], ab[2] + 3, K.fit(gt, 5, ab[3] - 6), C.ink, "center", ab[3])
     local cw, chh = (aw - 12) / 2, min(18, (ab[4] - 14) / 3)
     for i, p in ipairs(st.party) do
       local col, rw = (i - 1) % 2, floor((i - 1) / 2)
@@ -400,7 +414,7 @@ return function(ctx, env)
       local ink = on and K.WHITE or (p.held and C.faint or C.ink)
       local ns = K.fit(p.name, 4.8, cw - 18)
       K.text(p.name, pb[1] + 16, pb[2] + 2, ns, ink)
-      local sub = p.item or "No item"
+      local sub = p.item or T("mail.noItem")
       local ss = K.fit(sub, 4, cw - 18)
       K.text(sub, pb[1] + 16, pb[2] + pb[4] - 6.5, ss, on and K.WHITE or C.faint)
       K.addHit(pb, "win", MON + i - 1)
@@ -413,7 +427,7 @@ return function(ctx, env)
     if portrait then
       if st.reading then
         local bb = K.R(x + 2, y + 1, 26, SEG_H - 2)
-        K.text("< Back", bb[1] + 2, bb[2] + 1.6, 4.6, C.accent)
+        K.text(T("nav.back"), bb[1] + 2, bb[2] + 1.6, 4.6, C.accent)
         K.addHit(bb, "win", BACK)
         drawReader(x, y + SEG_H, w, h - SEG_H, body)
       else

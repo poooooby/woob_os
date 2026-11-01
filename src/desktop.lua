@@ -22,7 +22,9 @@
 --         currency(G, x, y, px, rgba) / currencyWidth(px) (the game's Pokédollar sign) ;
 --         clock() -> hour, minute ; options() -> { boot = bool, clock24 = bool } ; version ;
 --         gameId() -> "firered" | "leafgreen" | "ruby" | "sapphire" | "emerald" ;
---         env (handed to an app's window(ctx, env): the kit, item and Pokémon icons, ...)
+--         env (handed to an app's window(ctx, env): the kit, item and Pokémon icons, ...) ;
+--         T (src/i18n.lua: the words) ; wall (src/wallpaper.lua) ; wallpaper() -> the chosen id ;
+--         wallpaperFit() -> "fill" | "stretch" (a picture's)
 --   D.open(ctx) (ctx: src/apps.lua, plus warm = skip the boot, back = the app id to zoom back from)
 --   D.close() ; D.isOpen() ; D.input(input) ; D.pointer(ev) -> true ; D.wheel(dy) ; D.draw(G, vp)
 --   D.state() (tests) ; D.booting() ; D.skipBoot() ; D.launch(i) ; D.tap(x, y)
@@ -64,32 +66,28 @@ return function(deps)
     accent = { 64, 132, 246 }, clear = { 255, 255, 255, 0 }, gloss = { 255, 255, 255, 0.34 },
     good = { 120, 230, 160 }, coinTop = { 255, 222, 110 }, coinFoot = { 222, 160, 40 }, coinMark = { 120, 80, 10 },
   }
-  -- the wallpaper, by game (its top, its foot)
-  local WALL = {
-    firered = { { 255, 140, 96 }, { 168, 40, 76 } }, leafgreen = { { 150, 216, 112 }, { 34, 116, 92 } },
-    ruby = { { 240, 100, 116 }, { 112, 26, 70 } }, sapphire = { { 96, 164, 244 }, { 34, 56, 150 } },
-    emerald = { { 84, 214, 164 }, { 18, 96, 112 } }, other = { { 116, 144, 232 }, { 58, 48, 140 } },
-  }
-
+  -- the words: keys into lang/*.lua (src/i18n.lua), looked up as they're drawn; the hint lists
+  -- through T.list (one translated copy per language, made once)
+  local T = deps.T or setmetatable({ list = function(l) return l end }, { __call = function(_, k) return k end })
+  D.T = T
+  local CLASSIC = { { 116, 144, 232 }, { 58, 48, 140 } }
   local TEXT = {
     hints = {
-      grid = { { "A", "Open" }, { "B", "Log Off" }, { "START", "Menu" } },
-      gridPages = { { "A", "Open" }, { "B", "Log Off" }, { "L R", "Page" }, { "START", "Menu" } },
-      menu = { { "A", "Choose" }, { "B", "Back" } },
-      sheet = { { "< >", "Choose" }, { "A", "OK" }, { "B", "Cancel" } },
-      about = { { "A", "OK" } },
-      boot = { { "A", "Skip" } },
-      window = { { "B", "Close" }, { "START", "Menu" } },
+      grid = { { "A", "hint.open" }, { "B", "hint.logoff" }, { "START", "hint.menu" } },
+      gridPages = { { "A", "hint.open" }, { "B", "hint.logoff" }, { "L R", "hint.page" }, { "START", "hint.menu" } },
+      menu = { { "A", "hint.choose" }, { "B", "hint.back" } },
+      sheet = { { "< >", "hint.choose" }, { "A", "hint.ok" }, { "B", "hint.cancel" } },
+      about = { { "A", "hint.ok" } },
+      boot = { { "A", "hint.skip" } },
+      window = { { "B", "hint.close" }, { "START", "hint.menu" } },
     },
-    menu = { "About WoobleOS", "Log Off…" },
-    logoffTitle = "Log off?",
-    logoffBody = "The PC turns off and you go back to the game.",
-    cancel = "Cancel", logoff = "Log Off", ok = "OK",
+    menu = { "menu.about", "menu.logoff" },
     aboutName = "WoobleOS",
-    games = { firered = "FireRed", leafgreen = "LeafGreen", ruby = "Ruby", sapphire = "Sapphire",
-              emerald = "Emerald" },
   }
   D.TEXT = TEXT
+  -- an app's name, in the language (another mod's app: its own label)
+  local function labelOf(app) return app.labelKey and T(app.labelKey) or app.label end
+  D.labelOf = labelOf
   -- (a landscape chin has the W in its middle: the first two hints go left of it, the rest right)
   -- (made once per list: an app's lists too, the first time they're shown)
   local HALVES = setmetatable({}, { __mode = "k" })
@@ -129,7 +127,7 @@ return function(deps)
     local game = deps.gameId and deps.gameId() or ""
     r = { ctx = ctx, grid = grid, dock = dock, focus = grid[1] and "grid" or "dock", cursor = 1, dockCursor = 1,
           menuCursor = 1, page = 1, pageShown = 1, cols = 3, rows = 2, perPage = 6, t0 = now(), held = {},
-          wall = WALL[game] or WALL.other, gameName = TEXT.games[game] or "", hit = K.hits, icon = {},
+          game = game, hit = K.hits, icon = {},
           waitRelease = true, booted = ctx.warm or options().boot == false }
     if r.booted then r.t0 = now() - bootLength() end
     -- (back from an app: its icon zooms back into place)
@@ -675,8 +673,20 @@ return function(deps)
     K.addHit(pb, "power")
   end
 
+  -- the chosen wallpaper (src/wallpaper.lua's canvas), else the game's classic colours
   local function drawWallpaper(sb)
     local G = K.graphics()
+    local id = deps.wallpaper and deps.wallpaper() or "classic"
+    if id ~= "classic" and deps.wall then
+      local fit = deps.wallpaperFit and deps.wallpaperFit() or "fill"
+      local ok, drawn = pcall(deps.wall.draw, id, K.X(sb[1]), K.Y(sb[2]), sb[3] * K.sc, sb[4] * K.sc, 3 * K.sc, fit)
+      if ok and drawn then return end
+    end
+    if not r.wall then
+      local top, foot
+      if deps.wall then top, foot = deps.wall.tint(r.game) end
+      r.wall = { top or CLASSIC[1], foot or CLASSIC[2] }
+    end
     K.grad(sb, 3, r.wall[1], r.wall[2])
     -- two soft light bands across it
     K.col(WHITE, 0.07)
@@ -725,7 +735,7 @@ return function(deps)
       end
     end
     -- (an app open: its name there, as a Mac does)
-    local name = r.winApp and r.winApp.label or s and (s.name or s.playerName)
+    local name = r.winApp and labelOf(r.winApp) or s and (s.name or s.playerName)
     if type(name) == "string" and name ~= "" then
       local nx = wb[1] + wb[3] + 3
       local ns = K.fit(name, 5, x - nx)
@@ -753,7 +763,7 @@ return function(deps)
     G.line(cx - d, cy - d, cx + d, cy + d)
     G.line(cx - d, cy + d, cx + d, cy - d)
     K.addHit(K.R(cb[1] - 2, cb[2] - 1, cb[3] + 4, cb[4] + 2), "winclose")
-    local title = r.win.title or r.winApp.label
+    local title = labelOf(r.winApp) or r.win.title
     K.text(title, tb[1], tb[2] + 2.4, 5, C.ink, "center", tb[3])
     local body = L.winBody
     local wa = r.winArea or {}
@@ -816,8 +826,9 @@ return function(deps)
           appIcon(app, ix, iy, cell.icon, (on or hover) and 0.08 or 0)
           if on then focusRing(ix, iy, cell.icon, 0.08, 1.4, 6) end
         end
-        local ls = K.fit(app.label, 4.6, cell.w - 1)
-        K.label(app.label, cx, iy + cell.icon + 2.2 + (4.6 - ls) * 0.5, ls, WHITE, "center", cell.w)
+        local label = labelOf(app)
+        local ls = K.fit(label, 4.6, cell.w - 1)
+        K.label(label, cx, iy + cell.icon + 2.2 + (4.6 - ls) * 0.5, ls, WHITE, "center", cell.w)
         K.addHit(K.R(cx, cy, cell.w, cell.h), "grid", i, area)
       end
     end
@@ -870,7 +881,7 @@ return function(deps)
     K.shadow(mb, 4, 1.2, 0.3)
     K.grad(mb, 4, C.sheet, C.sheetFoot)
     K.ring(mb, 4, BLACK, 0.12, 0.5)
-    for i, label in ipairs(TEXT.menu) do
+    for i, label in ipairs(T.list(TEXT.menu)) do
       local row = K.R(mb[1] + 2, mb[2] + 2 + (i - 1) * 10, mb[3] - 4, 10)
       if i == r.menuCursor then
         K.col(C.accent)
@@ -894,20 +905,26 @@ return function(deps)
     if r.sheet == "about" then
       K.drawLogo(K.X(ab[1] + ab[3] / 2), K.Y(ab[2] + 15), 22 * K.sc, C.accent, 1)
       K.text(TEXT.aboutName, ab[1], ab[2] + 26, 8, C.ink, "center", ab[3])
-      r.aboutLine = r.aboutLine or ("Version " .. tostring(deps.version or "?")
-        .. (r.gameName ~= "" and ("  ·  " .. r.gameName) or ""))
+      -- (made again only when the language changes)
+      if r.aboutCode ~= T.code() then
+        local gameName = r.game ~= "" and T("game." .. r.game) or ""
+        r.aboutLine = T.f("about.version", tostring(deps.version or "?"))
+          .. ((gameName ~= "" and gameName ~= "game." .. r.game) and ("  ·  " .. gameName) or "")
+        r.aboutCode = T.code()
+      end
       K.text(r.aboutLine, ab[1], ab[2] + 37, 5, C.soft, "center", ab[3])
       local b = K.R(ab[1] + (ab[3] - 44) / 2, ab[2] + ab[4] - 18, 44, 13)
       K.grad(b, 6.5, light(C.accent, 0.15), dark(C.accent, 0.08))
-      K.label(TEXT.ok, b[1], b[2] + 3, 6, WHITE, "center", b[3])
+      K.label(T("button.ok"), b[1], b[2] + 3, 6, WHITE, "center", b[3])
       K.ring(K.R(b[1] - 1.2, b[2] - 1.2, b[3] + 2.4, b[4] + 2.4), 7.5, C.accent, K.pulse(), 1)
       K.addHit(b, "ok")
       return
     end
     K.drawLogo(K.X(ab[1] + ab[3] / 2), K.Y(ab[2] + 12), 14 * K.sc, C.bad, 1)
-    K.text(TEXT.logoffTitle, ab[1], ab[2] + 20, 7, C.ink, "center", ab[3])
-    local bs = K.fit(TEXT.logoffBody, 4.8, ab[3] - 10)
-    K.text(TEXT.logoffBody, ab[1] + 4, ab[2] + 30, bs, C.soft, "center", ab[3] - 8)
+    K.text(T("logoff.title"), ab[1], ab[2] + 20, 7, C.ink, "center", ab[3])
+    local body = T("logoff.body")
+    local bs = K.fit(body, 4.8, ab[3] - 10)
+    K.text(body, ab[1] + 4, ab[2] + 30, bs, C.soft, "center", ab[3] - 8)
     local bw = (ab[3] - 20) / 2
     for i = 1, 2 do
       local yes = i == 2
@@ -916,12 +933,12 @@ return function(deps)
       local tint = yes and C.bad or C.soft
       if on then
         K.grad(b, 6.5, light(tint, 0.15), dark(tint, 0.08))
-        K.label(yes and TEXT.logoff or TEXT.cancel, b[1], b[2] + 3, 6, WHITE, "center", b[3])
+        K.label(T(yes and "button.logoff" or "button.cancel"), b[1], b[2] + 3, 6, WHITE, "center", b[3])
         K.ring(K.R(b[1] - 1.2, b[2] - 1.2, b[3] + 2.4, b[4] + 2.4), 7.5, tint, K.pulse(), 1)
       else
         K.col(BLACK, 0.07)
         K.box("fill", b, 6.5)
-        K.text(yes and TEXT.logoff or TEXT.cancel, b[1], b[2] + 3, 6, C.ink, "center", b[3])
+        K.text(T(yes and "button.logoff" or "button.cancel"), b[1], b[2] + 3, 6, C.ink, "center", b[3])
       end
       K.addHit(b, yes and "yes" or "no")
     end
@@ -1063,15 +1080,15 @@ return function(deps)
     if bt then drawBoot(L, bt) end
     -- the hints on the chin
     local hints
-    if bt and bt < revealAt() then hints = TEXT.hints.boot
-    elseif r.sheet == "about" then hints = TEXT.hints.about
-    elseif r.sheet then hints = TEXT.hints.sheet
-    elseif r.menuOpen then hints = TEXT.hints.menu
+    if bt and bt < revealAt() then hints = T.list(TEXT.hints.boot)
+    elseif r.sheet == "about" then hints = T.list(TEXT.hints.about)
+    elseif r.sheet then hints = T.list(TEXT.hints.sheet)
+    elseif r.menuOpen then hints = T.list(TEXT.hints.menu)
     elseif r.win then
       local ok, got = true, nil
       if r.win.hints then ok, got = pcall(r.win.hints) end
-      hints = ok and type(got) == "table" and got or TEXT.hints.window
-    else hints = pages() > 1 and TEXT.hints.gridPages or TEXT.hints.grid
+      hints = ok and type(got) == "table" and got or T.list(TEXT.hints.window)
+    else hints = T.list(pages() > 1 and TEXT.hints.gridPages or TEXT.hints.grid)
     end
     if portrait then
       K.hints(hints, L.hints, C.bar, true, C.ink, C.ink)

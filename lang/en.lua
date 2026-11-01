@@ -1,0 +1,128 @@
+-- WoobleOS in English: the master list of its words. Every word the desktop and its apps show
+-- comes from here (the game's own text, such as item names, mail and Pokémon, stays the cart's).
+--
+-- To make another language: copy this file to lang/<code>.lua (fr, de, pt-br, ...), set `name`
+-- to the language's name in that language, and change the words on the right. Keep the keys on
+-- the left, keep every %s (a name or a number goes there), and keep the "< " in front of Back.
+-- A word you leave out shows in English. The file may only hold words: it can't run anything.
+return {
+  name = "English",
+  strings = {
+    -- the button hints along the bottom of the monitor
+    ["hint.open"] = "Open",
+    ["hint.logoff"] = "Log Off",
+    ["hint.menu"] = "Menu",
+    ["hint.page"] = "Page",
+    ["hint.choose"] = "Choose",
+    ["hint.back"] = "Back",
+    ["hint.ok"] = "OK",
+    ["hint.cancel"] = "Cancel",
+    ["hint.skip"] = "Skip",
+    ["hint.close"] = "Close",
+    ["hint.move"] = "Move",
+    ["hint.all"] = "All",
+    ["hint.pocket"] = "Pocket",
+    ["hint.ten"] = "10",
+    ["hint.folder"] = "Folder",
+    ["hint.fit"] = "Fit",
+
+    -- the desktop: the W menu, the sheets
+    ["menu.about"] = "About WoobleOS",
+    ["menu.logoff"] = "Log Off…",
+    ["logoff.title"] = "Log off?",
+    ["logoff.body"] = "The PC turns off and you go back to the game.",
+    ["button.cancel"] = "Cancel",
+    ["button.logoff"] = "Log Off",
+    ["button.ok"] = "OK",
+    ["about.version"] = "Version %s",
+    ["nav.back"] = "< Back",
+
+    -- the games' names (on the About sheet)
+    ["game.firered"] = "FireRed",
+    ["game.leafgreen"] = "LeafGreen",
+    ["game.ruby"] = "Ruby",
+    ["game.sapphire"] = "Sapphire",
+    ["game.emerald"] = "Emerald",
+
+    -- the apps' names (under their icons, in the menu bar, on a window's title)
+    ["app.storage"] = "Boxes",
+    ["app.items"] = "Items",
+    ["app.mail"] = "Mail",
+    ["app.oak"] = "Oak's PC",
+    ["app.hall"] = "Hall of Fame",
+    ["app.decorate"] = "Decorate",
+    ["app.settings"] = "Settings",
+    ["app.about"] = "About",
+    ["app.logoff"] = "Log Off",
+
+    -- Items
+    ["items.pc"] = "PC",
+    ["items.bag"] = "Bag",
+    ["items.sort"] = "Sort",
+    ["items.sortName"] = "Sort by Name",
+    ["items.sortPocket"] = "Sort by Pocket",
+    ["items.tossMenu"] = "Toss…",
+    ["items.howMany"] = "How many?",
+    ["items.tossHowMany"] = "Toss how many?",
+    ["items.move"] = "Move",
+    ["items.toss"] = "Toss",
+    ["items.all"] = "All",
+    ["items.emptyPc"] = "No items in the PC.",
+    ["items.emptyPocket"] = "Nothing in this pocket.",
+    ["items.toBag"] = "%s to the Bag.",
+    ["items.toPc"] = "%s to the PC.",
+    ["items.tossed"] = "Tossed %s.",
+    ["items.sortedName"] = "Sorted by name.",
+    ["items.sortedPocket"] = "Sorted by pocket.",
+    ["pocket.ITEMS"] = "Items",
+    ["pocket.KEY_ITEMS"] = "Key Items",
+    ["pocket.POKE_BALLS"] = "Poké Balls",
+    ["pocket.TM_CASE"] = "TMs & HMs",
+    ["pocket.BERRY_POUCH"] = "Berries",
+    ["reason.item.bag_full"] = "No room in the Bag.",
+    ["reason.item.pc_full"] = "The PC is full.",
+    ["reason.item.stack_full"] = "That stack is full.",
+    ["reason.item.important"] = "Important items stay in the Bag.",
+    ["reason.item.gone"] = "That item isn't there any more.",
+
+    -- Mail
+    ["mail.inbox"] = "Inbox",
+    ["mail.held"] = "Held",
+    ["mail.toBag"] = "Move to Bag",
+    ["mail.give"] = "Give to Pokémon",
+    ["mail.take"] = "Take to Inbox",
+    ["mail.filed"] = "Filed in the Inbox.",
+    ["mail.noParty"] = "No Pokémon to give it to.",
+    ["mail.movedToBag"] = "%s to the Bag.",
+    ["mail.given"] = "%s is holding the mail.",
+    ["mail.empty"] = "No mail.",
+    ["mail.emptyHeld"] = "No Pokémon is holding mail.",
+    ["mail.pick"] = "Choose a mail to read it.",
+    ["mail.from"] = "From",
+    ["mail.confirmTitle"] = "Move it to the Bag?",
+    ["mail.confirmBody"] = "The message will be lost.",
+    ["mail.confirmMove"] = "Move",
+    ["mail.giveTitle"] = "Give it to which Pokémon?",
+    ["mail.noItem"] = "No item",
+    ["reason.mail.bag_full"] = "No room in the Bag.",
+    ["reason.mail.holding"] = "That Pokémon is holding an item.",
+    ["reason.mail.box_full"] = "The mailbox is full.",
+    ["reason.mail.gone"] = "That mail isn't there any more.",
+
+    -- Settings
+    ["settings.language"] = "Language",
+    ["settings.wallpaper"] = "Wallpaper",
+    ["settings.languageNote"] = "WoobleOS's own words. The game's text stays as it is.",
+    ["settings.wallpaperNote"] = "Add your own: put PNG or JPG pictures in mods/wooble_os/wallpapers/",
+    ["settings.fill"] = "Fill",
+    ["settings.stretch"] = "Stretch",
+    ["wall.classic"] = "Classic",
+    ["wall.ribbon"] = "Ribbon",
+    ["wall.hills"] = "Hills",
+    ["wall.coast"] = "Coast",
+    ["wall.waves"] = "Waves",
+    ["wall.bloom"] = "Bloom",
+
+    ["failed"] = "That didn't work.",
+  },
+}

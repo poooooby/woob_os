@@ -201,6 +201,85 @@ local function body(game, log)
   shot("d4e_dock_focus")
   st = D.state()
 
+  -- Settings: French, every wallpaper (a picture the run put in wallpapers/ too), then the
+  -- installation's settings file back as it was
+  local XT = X._test
+  local I18n, Set, Wall, Env = XT.i18n, XT.settings, XT.wall, XT.env
+  local savedSettings = Set.cache and Set.cache.read and Set.cache:read("settings.lua")
+  for i, app in ipairs(st.grid) do if app.id == "settings" then st.focus, st.cursor = "grid", i end end
+  U.tap(game, "a")
+  waitFor(function() return D.window() ~= nil end, 600)
+  U.wait(10)
+  local SW = D.window()
+  check(SW and SW.title == "Settings", "Settings: its window")
+  shot("d5a_settings")
+  U.tap(game, "a"); U.wait(4)
+  for _ = 1, 3 do U.tap(game, "down"); U.wait(3) end
+  U.tap(game, "a"); U.wait(6)
+  check(I18n.code() == "fr", "A on Français: French")
+  shot("d5b_settings_fr")
+  U.tap(game, "b"); U.wait(3)
+  U.tap(game, "down"); U.wait(3)
+  U.tap(game, "a"); U.wait(20)
+  shot("d5c_settings_wallpaper")
+  U.tap(game, "b"); U.wait(3)
+  U.tap(game, "b")
+  waitFor(function() return D.window() == nil and D.state().zoom == nil end, 600)
+  U.wait(10)
+  shot("d5d_desktop_fr")
+  Env.setLanguage("en")
+  local choices = Wall.choices()
+  check(#choices >= 7, "the wallpapers: the built-ins and the run's picture (" .. #choices .. ")")
+  for _, c in ipairs(choices) do
+    Env.setWallpaper(c.id)
+    U.wait(4)
+    shot("d5e_wall_" .. c.id:gsub("[^%w]", "_"))
+  end
+  -- a picture: Fill and Stretch, and the switch on the Wallpaper page
+  local pic
+  for _, c in ipairs(choices) do if Wall.isPicture(c.id) then pic = c.id end end
+  if pic then
+    Env.setWallpaper(pic)
+    Env.setWallpaperFit("stretch")
+    U.wait(4)
+    shot("d5f_picture_stretch")
+    st = D.state()
+    for i, app in ipairs(st.grid) do if app.id == "settings" then st.focus, st.cursor = "grid", i end end
+    U.tap(game, "a")
+    waitFor(function() return D.window() ~= nil end, 600)
+    U.wait(6)
+    U.tap(game, "down"); U.wait(3)
+    U.tap(game, "a"); U.wait(20)
+    shot("d5g_settings_fit")
+    U.tap(game, "select"); U.wait(4)
+    check(Env.wallpaperFit() == "fill", "SELECT on the Wallpaper page: back to Fill")
+    U.tap(game, "b"); U.wait(3)
+    U.tap(game, "b")
+    waitFor(function() return D.window() == nil and D.state().zoom == nil end, 600)
+    shot("d5h_picture_fill")
+  end
+  Env.setWallpaper("ribbon")
+  U.wait(10)
+  local drawR, kbR, nR = D.draw, 0, 0
+  D.draw = function(...)
+    local was = collectgarbage("isrunning")
+    collectgarbage("stop")
+    local kb0 = collectgarbage("count")
+    drawR(...)
+    kbR, nR = kbR + (collectgarbage("count") - kb0), nR + 1
+    if was then collectgarbage("restart") end
+  end
+  U.wait(120)
+  D.draw = drawR
+  log(("  the desktop's draw on Ribbon: %.3f KB per frame over %d frames"):format(kbR / math.max(1, nR), nR))
+  check(kbR / math.max(1, nR) < 0.5, "a drawn wallpaper makes next to no garbage")
+  Env.setWallpaper("classic")
+  if Set.cache then
+    if savedSettings then Set.cache:write("settings.lua", savedSettings) else Set.cache:delete("settings.lua") end
+  end
+  check(I18n.code() == "en", "(back to English and Classic)")
+  st = D.state()
+
   -- B, then A: logged off, the player walks again
   U.tap(game, "b"); U.wait(10)
   shot("d5_logoff_sheet")

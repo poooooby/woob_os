@@ -15,6 +15,10 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/mailbox.lua` | The mail model: inbox and held rows, to Bag / give / take on the engine's mail pool |
 | `src/apps/items.lua` | The Items window: Bag \| PC commander |
 | `src/apps/mail.lua` | The Mail window: folders, list, the open letter, the party picker |
+| `src/apps/settings.lua` | The Settings window: Language, Wallpaper |
+| `src/i18n.lua`, `lang/*.lua` | The words, by language (`lang/en.lua` the master) |
+| `src/settings.lua` | The Settings app's choices, kept in `mod.cache` (`settings.lua`) for the installation |
+| `src/wallpaper.lua` | The drawn wallpapers and the `wallpapers/` folder's pictures, painted once into canvases |
 
 ## How the PC is taken over
 
@@ -63,6 +67,31 @@ A window instead of `open`: `window = function(ctx, env) return win end`, where 
 `input(input, nav)` (true when handled; a B it leaves closes the window), `tap(arg, x, y)`,
 `scroll(dy, x, y)`, `hints()` and `close()`. `env` has `K`, `session()`, `se(name)`, `now()`,
 `itemIcon(id, x, y, size)` and `monIcon(species, x, y, size)`. The garbage rules below apply.
+
+## Words
+
+Every word WoobleOS shows is a key of `lang/en.lua`: `T("app.items")` in code, or a key in a
+constant list passed through `T.list(...)` (the hints, the menus), which keeps one translated copy
+per language so a draw makes no tables. Built-in apps name themselves with `labelKey`; another
+mod's app keeps its plain `label`. `T.f(key, ...)` formats (toasts: an action, not a draw). The
+models (`inventory.lua`, `mailbox.lua`) return reason codes; the windows show
+`reason.item.<code>` / `reason.mail.<code>`. A new word: add it to `lang/en.lua` and the other
+four. The test checks every key the code names is in English and every language has every key
+with the same `%s`.
+
+Language files are data: `src/i18n.lua` loads them with an empty environment. The engine has no
+language setting and `mod.options` can't be set from code, so the Settings app's choices live in
+`mod.cache` (`src/settings.lua`).
+
+## Wallpapers
+
+`classic` is the desktop's own gradient. The others are painted once into a canvas the size
+they're shown at (a stencil rounds the corners) and drawn with one `draw` a frame; a new canvas
+only when the choice, the size or the game changes (at most 32 kept). Each drawn wallpaper is a
+painter in `src/wallpaper.lua` (`PAINT.<id>`, window pixels, the game's two colours) plus a
+`wall.<id>` word. Pictures in `wallpapers/` are loaded with `mod.assets:image` and placed by
+`Wall.place(iw, ih, w, h, fit)`: `fill` (one scale, cropped from the centre) or `stretch` (each side
+to the screen's), the `wallpaperFit` setting; the fit is part of a picture's canvas key.
 
 ## Garbage
 

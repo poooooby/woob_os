@@ -3,27 +3,18 @@
 -- the game's own screens change it. Rows are made here when something changes (never per frame).
 --
 --   Inv = inventory(engine)      engine(name) -> an engine module or nil (kept by the caller)
---   Inv.pockets(s) -> { { id = "ITEMS", label = "Items" }, ... } (the game's order; containers
+--   Inv.pockets(s) -> { { id = "ITEMS" }, ... } (the game's order; the words "pocket.<id>"; containers
 --       only when they hold something)
 --   Inv.pcRows(s) / Inv.bagRows(s, pocket) -> rows { id, qty, name, desc, showQty, important }
 --   Inv.pcCount(s) -> used, capacity
 --   Inv.withdraw(s, pcIdx, qty) / Inv.deposit(s, pocket, bagIdx, qty) / Inv.toss(s, pcIdx, qty)
---       -> true | false, reason ("bag_full" | "pc_full" | "stack_full" | "important" | "gone")
+--       -> true | false, reason ("bag_full" | "pc_full" | "stack_full" | "important" | "gone"; the words
+--       are lang/*.lua's "reason.item.<reason>")
 --   Inv.sort(s, how)  how: "name" | "pocket" (a stable reorder of the PC's list)
---   Inv.REASON[reason] -> the words for a refusal
 
 return function(engine)
   local Inv = {}
 
-  Inv.REASON = {
-    bag_full = "No room in the Bag.",
-    pc_full = "The PC is full.",
-    stack_full = "That stack is full.",
-    important = "Important items stay in the Bag.",
-    gone = "That item isn't there any more.",
-  }
-  local LABELS = { ITEMS = "Items", KEY_ITEMS = "Key Items", POKE_BALLS = "Poké Balls", TM_CASE = "TMs & HMs",
-                   BERRY_POUCH = "Berries" }
   -- (pockets whose quantities the game doesn't show)
   local NO_QTY = { KEY_ITEMS = true, TM_CASE = true }
 
@@ -57,7 +48,7 @@ return function(engine)
         local ok, rows = pcall(Bag.listPocket, s.bag, p)
         show = ok and rows and #rows > 0
       end
-      if show then out[#out + 1] = { id = p, label = LABELS[p] or p } end
+      if show then out[#out + 1] = { id = p } end
     end
     return out
   end
