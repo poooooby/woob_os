@@ -150,7 +150,7 @@ local function body(game, log)
     if IW.state.step then U.tap(game, "a"); U.wait(4) end
     check(Bag.get(s0.bag, potion) == bagQty0 + pcQty0, "the PC's first item to the Bag")
     shot("d4b_items_moved")
-    U.tap(game, "right"); U.wait(4)
+    U.tap(game, "left"); U.wait(4)
     for i, row in ipairs(IW.state.bag.rows) do if row.id == potion then IW.state.bag.cursor = i end end
     U.tap(game, "select"); U.wait(4)
     check(Bag.get(s0.bag, potion) == 0 and Storage.ensure(s0).items[1].qty == pcQty0 + bagQty0,
@@ -197,6 +197,8 @@ local function body(game, log)
   U.tap(game, "b")
   waitFor(function() return D.window() == nil and D.state() and D.state().zoom == nil end, 600)
   check(D.window() == nil and D.isOpen(), "B: the desktop again")
+  U.wait(10)
+  shot("d4e_dock_focus")
   st = D.state()
 
   -- B, then A: logged off, the player walks again

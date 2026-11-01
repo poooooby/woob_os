@@ -27,7 +27,7 @@ opens a desktop in a sleek monitor instead of a text menu.
 
 ### Apps
 
-- 🎒 **Items:** your PC's item storage and your Bag side by side. Pick an item and send it across:
+- 🎒 **Items:** your Bag and your PC's item storage side by side. Pick an item and send it across:
   choose how many, or press SELECT to move the whole stack. L and R flip through the Bag's
   pockets, and START sorts the PC by name or pocket or tosses an item. Important items stay in
   the Bag.

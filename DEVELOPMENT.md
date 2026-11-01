@@ -13,7 +13,7 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/shell.lua` | The PC menu takeover, the UI stack layer, the `render.hud` / `input.pointer` / `input.wheel` / `script.command` hooks, the touch pad hide |
 | `src/inventory.lua` | The item model: PC and Bag rows, withdraw / deposit / toss / sort through the engine's `Storage` and `Bag` |
 | `src/mailbox.lua` | The mail model: inbox and held rows, to Bag / give / take on the engine's mail pool |
-| `src/apps/items.lua` | The Items window: PC \| Bag commander |
+| `src/apps/items.lua` | The Items window: Bag \| PC commander |
 | `src/apps/mail.lua` | The Mail window: folders, list, the open letter, the party picker |
 
 ## How the PC is taken over

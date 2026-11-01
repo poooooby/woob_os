@@ -636,6 +636,12 @@ return function(deps)
     glyph(G, app.glyph, K.X(x + s / 2), K.Y(y + s / 2), s * K.sc, a or 1)
   end
 
+  -- the focus ring, centred on the icon as appIcon lifts it (`pad` units clear of it all round)
+  local function focusRing(x, y, s, lift, pad, rad)
+    local lx, ly, ls = x - s * lift / 2, y - s * lift / 2 - lift * 2, s * (1 + lift)
+    K.ring(K.R(lx - pad, ly - pad, ls + pad * 2, ls + pad * 2), rad, WHITE, K.pulse(), 1)
+  end
+
   -- the monitor around the screen, the room behind it -> the screen's rectangle (units)
   local function drawMonitor(L)
     local G = K.graphics()
@@ -808,9 +814,7 @@ return function(deps)
         local zooming = r.zoom and r.zoom.id == app.id
         if not zooming then
           appIcon(app, ix, iy, cell.icon, (on or hover) and 0.08 or 0)
-          if on then
-            K.ring(K.R(ix - 2.2, iy - 3.2, cell.icon + 4.4, cell.icon + 4.4), 6, WHITE, K.pulse(), 1)
-          end
+          if on then focusRing(ix, iy, cell.icon, 0.08, 1.4, 6) end
         end
         local ls = K.fit(app.label, 4.6, cell.w - 1)
         K.label(app.label, cx, iy + cell.icon + 2.2 + (4.6 - ls) * 0.5, ls, WHITE, "center", cell.w)
@@ -852,7 +856,7 @@ return function(deps)
       local hover = r.hover == "dock" and r.hoverArg == i
       if not (r.zoom and r.zoom.id == app.id) then
         appIcon(app, ix, iy, s, (on or hover) and 0.1 or 0)
-        if on then K.ring(K.R(ix - 2, iy - 3, s + 4, s + 4), 5.5, WHITE, K.pulse(), 1) end
+        if on then focusRing(ix, iy, s, 0.1, 1.1, 5.5) end
       end
       K.addHit(K.R(ix - 2, db[2], s + 4, db[4]), "dock", i)
     end

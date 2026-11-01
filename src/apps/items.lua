@@ -1,6 +1,6 @@
--- The Items app: the PC's item storage and the Bag side by side, a commander. The focused pane's
+-- The Items app: the Bag and the PC's item storage side by side, a commander. The focused pane's
 -- item goes across to the other: A (a stepper for how many when there's more than one), SELECT the
--- whole stack. Landscape: PC | Bag; portrait: one pane at a time under a PC | Bag switch.
+-- whole stack. Landscape: Bag | PC; portrait: one pane at a time under a Bag | PC switch.
 --   buttons  Left / Right the pane, Up / Down the item, L / R the Bag's pocket, A move, SELECT move
 --            all, START the menu (sort, toss), B close
 --   stepper  Up / Down one more or less, Left / Right ten, A move, B back
@@ -200,8 +200,8 @@ return function(ctx, env)
       return true
     end
     if pressed("b") then return false end
-    if nav.left then setFocus("pc")
-    elseif nav.right then setFocus("bag")
+    if nav.left then setFocus("bag")
+    elseif nav.right then setFocus("pc")
     elseif nav.up then moveCursor(pane(), -1)
     elseif nav.down then moveCursor(pane(), 1)
     elseif pressed("l") then setPocket(st.pocket - 1)
@@ -404,16 +404,17 @@ return function(ctx, env)
     local listH = h - HEAD_H - 1 - FOOT_H
     st.visible = max(1, floor(listH / ROW_H))
     if portrait then
-      -- the PC | Bag switch, then the one pane
+      -- the Bag | PC switch, then the one pane
       local half = (w - 8) / 2
       for k = 1, 2 do
-        local name = k == 1 and "pc" or "bag"
+        local name = k == 1 and "bag" or "pc"
         local sb = K.R(x + 4 + (k - 1) * half, y + 1.5, half, HEAD_H - 3)
         local on = st.focus == name
         K.col(on and C.accent or C.chip)
         K.box("fill", sb, 3.5)
-        K.text(k == 1 and st.pcHead or "Bag", sb[1], sb[2] + 1.6, 4.4, on and K.WHITE or C.ink, "center", sb[3])
-        K.addHit(sb, "win", k == 1 and SEG_PC or SEG_BAG)
+        K.text(name == "pc" and st.pcHead or "Bag", sb[1], sb[2] + 1.6, 4.4, on and K.WHITE or C.ink, "center",
+          sb[3])
+        K.addHit(sb, "win", name == "pc" and SEG_PC or SEG_BAG)
       end
       local name = st.focus
       local top = listTop
@@ -428,10 +429,10 @@ return function(ctx, env)
       K.scissor(body)
     else
       local pw = (w - 1) / 2
-      st.pc.x1, st.pc.x2 = K.X(x), K.X(x + pw)
-      st.bag.x1, st.bag.x2 = K.X(x + pw + 1), K.X(x + w)
+      st.bag.x1, st.bag.x2 = K.X(x), K.X(x + pw)
+      st.pc.x1, st.pc.x2 = K.X(x + pw + 1), K.X(x + w)
       for k = 1, 2 do
-        local name = k == 1 and "pc" or "bag"
+        local name = k == 1 and "bag" or "pc"
         local px = x + (k - 1) * (pw + 1)
         drawHead(name, px, y, pw, st.focus == name)
         drawList(st[name], name, px, listTop, pw, listH, st.focus == name)

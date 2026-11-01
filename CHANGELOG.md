@@ -14,7 +14,7 @@ All notable changes to this mod are documented here, in
   work, and the layout fits wide, small and upright windows. The game's "booted up the PC" and
   "Which PC should be accessed?" lines are skipped (the boot does their job); the boot's loading
   bar fills before the desktop fades up.
-- **Items:** the PC's item storage and the Bag side by side in a window: move items across (how
+- **Items:** the Bag and the PC's item storage side by side in a window: move items across (how
   many, or SELECT for the whole stack), Bag pockets on L / R, sort the PC by name or pocket, toss.
   Important items stay in the Bag.
 - **Mail:** the mailbox as an inbox: read a letter, move it to the Bag, give it to a Pokémon; a
