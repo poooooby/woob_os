@@ -72,10 +72,31 @@ return function(mod)
     engineMods[name] = m
     return m or nil
   end
+  local FALLBACK_FONT = "assets/fonts/plainpixel/PlainPixel-Regular.ttf"
+  local fallbackFonts, fallbackMissing = {}, false
   local Kit = makeKit({
     safeArea = function()
       local SafeArea = engine("src.core.SafeArea")
       if SafeArea and SafeArea.windowRect then return SafeArea.windowRect() end
+    end,
+    -- (what the default face can't draw, kana and CJK for Japanese among it, comes from the
+    -- engine's own Plain Pixel face, as its launcher does it; Latin keeps its look. At the font's
+    -- own size, not snapped to Plain Pixel's 15 px grid as the launcher does: snapped, kana came
+    -- out half the size of the words around them at some sizes)
+    fallback = function(font, px)
+      if fallbackMissing or not font.setFallbacks then return end
+      local size = math.max(6, math.floor(px + 0.5))
+      local f = fallbackFonts[size]
+      if not f then
+        local ok, made = pcall(love.graphics.newFont, FALLBACK_FONT, size)
+        if not (ok and made) then
+          fallbackMissing = true
+          return
+        end
+        f = made
+        fallbackFonts[size] = f
+      end
+      pcall(font.setFallbacks, font, f)
     end,
   })
   local function gameId() return Sh and Sh.gameId() or "" end

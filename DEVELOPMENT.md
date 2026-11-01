@@ -79,6 +79,12 @@ models (`inventory.lua`, `mailbox.lua`) return reason codes; the windows show
 four. The test checks every key the code names is in English and every language has every key
 with the same `%s`.
 
+Every font the kit makes gets the engine's Plain Pixel face (`assets/fonts/plainpixel`, CC-BY 4.0,
+bundled with the engine for translations) as its fallback, at the font's own size: Latin keeps
+LÖVE's default face, and kana, CJK and anything else it lacks come from Plain Pixel. (Not through
+the engine's `UiFont.attach`, which snaps to 15 px steps: kana came out half-size at some sizes.)
+A language needing glyphs Plain Pixel lacks would need a font of its own.
+
 Language files are data: `src/i18n.lua` loads them with an empty environment. The engine has no
 language setting and `mod.options` can't be set from code, so the Settings app's choices live in
 `mod.cache` (`src/settings.lua`).

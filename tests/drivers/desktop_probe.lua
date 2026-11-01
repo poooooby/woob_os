@@ -227,6 +227,23 @@ local function body(game, log)
   waitFor(function() return D.window() == nil and D.state().zoom == nil end, 600)
   U.wait(10)
   shot("d5d_desktop_fr")
+  -- Japanese (its kana from the engine's Plain Pixel face) and Brazilian Portuguese
+  for _, code in ipairs({ "ja", "pt-br" }) do
+    Env.setLanguage(code)
+    check(I18n.code() == code, code .. ": chosen")
+    U.wait(4)
+    shot("d5d_desktop_" .. code)
+    st = D.state()
+    for i, app in ipairs(st.grid) do if app.id == "settings" then st.focus, st.cursor = "grid", i end end
+    U.tap(game, "a")
+    waitFor(function() return D.window() ~= nil end, 600)
+    U.wait(6)
+    U.tap(game, "a"); U.wait(6)
+    shot("d5d_settings_" .. code)
+    U.tap(game, "b"); U.wait(3)
+    U.tap(game, "b")
+    waitFor(function() return D.window() == nil and D.state().zoom == nil end, 600)
+  end
   Env.setLanguage("en")
   local choices = Wall.choices()
   check(#choices >= 7, "the wallpapers: the built-ins and the run's picture (" .. #choices .. ")")

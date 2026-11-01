@@ -599,7 +599,7 @@ T.check(named > 60 and #missing == 0, "every key the code names is in English ("
   .. table.concat(missing, ", ") .. ")")
 -- the shipped languages: each loads, has a name, every key, and the same %s as English
 local langs = I18n.languages()
-T.eq(#langs, 5, "five languages (" .. #langs .. ")")
+T.eq(#langs, 7, "seven languages (" .. #langs .. ")")
 T.eq(langs[1].code, "en", "English first")
 for _, l in ipairs(langs) do
   local words = I18n.raw(l.code)
@@ -702,7 +702,8 @@ for _, shape in ipairs({ { 480, 320 }, { 320, 480 } }) do
   T.check(not D.state().winFailed, "the Settings window draws " .. shape[1] .. "x" .. shape[2])
 end
 VP.width, VP.height = 480, 320
-draw(30)
+-- (warm: the shapes above made new font sizes and wallpaper keys)
+draw(120)
 collectgarbage("collect")
 collectgarbage("stop")
 local kbS = collectgarbage("count")

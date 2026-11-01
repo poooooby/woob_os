@@ -39,8 +39,8 @@ opens a desktop in a sleek monitor instead of a text menu.
 - 🏆 **Hall of Fame:** your champion teams, once you've beaten the Elite Four.
 - 🛋️ **Decorate:** your room's decorations, from the bedroom PC (Ruby, Sapphire and Emerald).
 - ⚙️ **Settings:** like a phone's or a Mac's.
-  - 🌐 **Language:** WoobleOS in English, Français, Deutsch, Español or Italiano. The game's own
-    text, such as item names and mail, stays as it is.
+  - 🌐 **Language:** WoobleOS in English, Français, Deutsch, Español, Italiano, 日本語 or
+    Português (Brasil). The game's own text, such as item names and mail, stays as it is.
   - 🖼️ **Wallpaper:** the classic colours of your game, five drawn wallpapers (Ribbon, Hills,
     Coast, Waves and Bloom, each tinted to your game), or your own pictures.
 - ℹ️ **About:** which version you're running.

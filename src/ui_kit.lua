@@ -8,7 +8,8 @@
 -- gradient meshes are kept by those colour tables' identity and their size. Callers keep to the
 -- same rules: colour constants made once, no table literals in a draw.
 --
---   K = Kit(deps)        deps: safeArea() -> x, y, w, h (window pixels) or nil
+--   K = Kit(deps)        deps: safeArea() -> x, y, w, h (window pixels) or nil ; fallback(font, px)
+--                        (more glyphs under a font: the engine's kana / CJK face) or nil
 --   K.frame(G, vp, page, now) -> pw, ph, portrait   starts a frame: the window from the render.hud
 --         viewport (vp.width / height), the page in units, K.sc / K.ox / K.oy set, pools emptied
 --         page = { height, minWidth, maxWidth, portraitWidth, portraitHeight, portraitAspect }
@@ -109,6 +110,7 @@ return function(deps)
     if not f then
       local ok, made = pcall(G.newFont, px)
       f = ok and made or G.getFont()
+      if ok and made and deps.fallback then pcall(deps.fallback, made, px) end
       fonts[px] = f
     end
     return f
