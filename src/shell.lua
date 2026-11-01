@@ -10,7 +10,8 @@
 --     current mod instance's `impl`, so loading the mod again (another game) never wraps it twice
 --   - the desktop is a Gen 3 UI stack layer (it takes the buttons, holds the script) drawn over the
 --     whole window from render.hud; taps and clicks from input.pointer, the wheel from input.wheel;
---     the on-screen touch pad is put away while it is up and put back as it was
+--     the on-screen touch pad (and FireRed / LeafGreen's L / R help) is put away while it is up and
+--     put back as it was
 --   - an app hands the game's script the menu row the game's own list has for it (pc_menu's
 --     _rootEntries: FireRed / LeafGreen storage, player, Oak, Hall of Fame, log off; Ruby /
 --     Sapphire / Emerald storage, player, Hall of Fame, log off), so the script runs on exactly as
@@ -44,9 +45,26 @@ return function(mod, deps)
   end
   Sh.se = se
 
-  -- the on-screen touch pad: put away while the desktop is up, back as it was after
+  -- FireRed / LeafGreen's help (L or R in the field opens it, and the game's update stops under
+  -- it): off while the desktop is up (L / R are the desktop's pages and the boxes), back after
+  local helpPrev, helpOff = nil, false
+  local function help(hide)
+    local Help = engine("src.ui.game3.help_system")
+    if not Help then return end
+    if hide then
+      if not helpOff then helpPrev, helpOff = Help.enabled, true end
+      Help.enabled = false
+    elseif helpOff then
+      helpOff = false
+      Help.enabled = helpPrev
+    end
+  end
+
+  -- the on-screen touch pad: put away while the desktop is up, back as it was after (and the help
+  -- with it)
   local padPrev, padHidden = nil, false
   local function pad(hide)
+    help(hide)
     local TC = engine("src.core.TouchControls")
     if not TC then return end
     if hide then
@@ -155,14 +173,16 @@ return function(mod, deps)
       if mode == "select" then ctx.finish(127) else ctx.done() end
     end
     -- one of the game's own screens over the desktop: open(onClose) opens it; the desktop comes
-    -- back (no boot, the app's icon zooming back) when it closes
-    function ctx.over(open)
+    -- back (no boot, the app's icon zooming back) when it closes. With `resume` (an app window's
+    -- state), the window itself comes back, handed ctx.resume = { app, state }
+    function ctx.over(open, resume)
       D.close()
       pop()
       local back = ctx.app
       local function reopen()
         if closed then return end
         ctx.warm, ctx.back = true, back
+        ctx.resume = resume ~= nil and { app = back, state = resume } or nil
         D.open(ctx)
         push()
       end

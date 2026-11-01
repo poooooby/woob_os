@@ -155,8 +155,16 @@ return function(deps)
           padGlow = 0, padN = 0, padQ = { {}, {}, {} },
           waitRelease = true, booted = ctx.warm or options().boot == false }
     if r.booted then r.t0 = now() - bootLength() end
-    -- (back from an app: its icon zooms back into place)
-    if ctx.back then
+    -- (back from one of the game's screens an app's window opened: the window again, as it was)
+    local resume = ctx.resume
+    if resume then
+      for i, app in ipairs(dock) do
+        if app.id == resume.app then r.dockCursor, r.focus = i, "dock" end
+      end
+      for i, app in ipairs(grid) do if app.id == resume.app then r.cursor = i end end
+      local app = deps.apps.byId(resume.app)
+      if app and app.window then r.resumeApp = app end
+    elseif ctx.back then
       for i, app in ipairs(grid) do if app.id == ctx.back then r.cursor = i end end
       for i, app in ipairs(dock) do
         if app.id == ctx.back then r.dockCursor, r.focus = i, "dock" end
@@ -251,7 +259,7 @@ return function(deps)
 
   -- an item crossing the pad: "out" (Bag -> PC) or "in" (PC -> Bag). One plays at a time; a
   -- waiting one of the same way is replaced, so the last item chosen is the one shown
-  function D.padTransfer(id, dir)
+  function D.padTransfer(id, dir, kind)
     if not r or (dir ~= "out" and dir ~= "in") then return end
     local Q, n = r.padQ, r.padN
     local slot
@@ -262,22 +270,22 @@ return function(deps)
     end
     r.padN = max(n, slot)
     local e = Q[slot]
-    e.id, e.dir, e.t0, e.sounded = id, dir, now(), false
+    e.id, e.dir, e.t0, e.sounded, e.kind = id, dir, now(), false, kind
   end
   local function padNext(clock)
     local Q = r.padQ
     for i = 1, r.padN - 1 do
-      Q[i].id, Q[i].dir = Q[i + 1].id, Q[i + 1].dir
+      Q[i].id, Q[i].dir, Q[i].kind = Q[i + 1].id, Q[i + 1].dir, Q[i + 1].kind
     end
     r.padN = r.padN - 1
     if r.padN > 0 then Q[1].t0, Q[1].sounded = clock, false end
   end
-  -- -> waiting + playing, the playing one's way and item, the light
+  -- -> waiting + playing, the playing one's way and item, the light, its kind (nil: an item; "ball")
   function D.padState()
     if not r then return 0 end
     local e = r.padQ[1]
     if r.padN == 0 then return 0, nil, nil, r.padGlow end
-    return r.padN, e.dir, e.id, r.padGlow
+    return r.padN, e.dir, e.id, r.padGlow, e.kind
   end
 
   local function openMenu()
@@ -499,6 +507,16 @@ return function(deps)
   end
   D.tap = function(x, y) return r ~= nil and tap(x, y) end
 
+  -- a window that takes the pointer itself (win.pointer(phase, x, y) in units: "pressed", "moved",
+  -- "hover", "released" -> true when it used the release, "cancelled")
+  local function winPointer(phase, x, y)
+    local w = r.win
+    if not (w and w.pointer) then return false end
+    local ok, used = pcall(w.pointer, phase, (x - K.ox) / K.sc, (y - K.oy) / K.sc)
+    if not ok and deps.log then deps.log("the window's pointer failed: %s", tostring(used)) end
+    return ok and used == true
+  end
+
   function D.pointer(ev)
     if not (r and type(ev) == "table") then return false end
     local x, y = tonumber(ev.x) or 0, tonumber(ev.y) or 0
@@ -509,9 +527,18 @@ return function(deps)
       r.press = { id = ev.id, x = x, y = y, ly = y, drag = false,
                   grid = not r.win and area ~= nil and free and K.inside(area, x, y),
                   win = r.win ~= nil and wa ~= nil and free and K.inside(wa, x, y) }
+      if r.press.win and r.win.pointer then
+        r.press.own = true
+        winPointer("pressed", x, y)
+      end
     elseif ev.phase == "moved" then
       r.mouseX, r.mouseY = x, y
-      if press and press.id == ev.id then
+      if press and press.id == ev.id and press.own then
+        if abs(x - press.x) > 4 * K.sc or abs(y - press.y) > 4 * K.sc then press.drag = true end
+        winPointer("moved", x, y)
+      elseif not press and r.win and r.win.pointer and r.winArea and K.inside(r.winArea, x, y) then
+        winPointer("hover", x, y)
+      elseif press and press.id == ev.id then
         local dx = x - press.x
         if press.grid and (press.drag or abs(dx) > 4 * K.sc) then
           press.drag = true
@@ -528,7 +555,11 @@ return function(deps)
         r.hoverArg = h and h.arg or nil
       end
     elseif ev.phase == "released" then
-      if press and press.id == ev.id then
+      if press and press.id == ev.id and press.own then
+        r.press = nil
+        -- (a release the window didn't use is a tap)
+        if not winPointer("released", x, y) and not press.drag then tap(x, y) end
+      elseif press and press.id == ev.id then
         r.press = nil
         if press.drag and press.win then
           -- (the window kept up with it)
@@ -542,6 +573,7 @@ return function(deps)
       end
     elseif ev.phase == "cancelled" then
       if press and press.id == ev.id then
+        if press.own then winPointer("cancelled", x, y) end
         r.press, r.dragX = nil, nil
       end
     end
@@ -717,37 +749,41 @@ return function(deps)
 
   -- a Poké Ball facing us, `rad` units round, at cx, cy: a glossy red top lit from the top left,
   -- a white foot shading to grey, the band and the button (each half shaded inside a scissor)
-  local function drawBall(G, cx, cy, rad)
+  local function drawBall(G, cx, cy, rad, a)
     local x, y, R = K.X(cx), K.Y(cy), rad * K.sc
     local sx, sy, sw, sh = G.getScissor()
     local band, b = R * 0.09, R * 0.93
-    K.col(C.ballEdge)
+    K.col(C.ballEdge, a)
     G.circle("fill", x, y, R)
     clipTo(G, sx, sy, sw, sh, x - R, y - R, 2 * R, R - band)
-    K.col(C.ballRedDark)
+    K.col(C.ballRedDark, a)
     G.circle("fill", x, y, b)
-    K.col(C.ballRed)
+    K.col(C.ballRed, a)
     G.circle("fill", x - R * 0.1, y - R * 0.12, b * 0.84)
-    K.col(C.ballRedLight)
+    K.col(C.ballRedLight, a)
     G.circle("fill", x - R * 0.28, y - R * 0.36, b * 0.4)
     clipTo(G, sx, sy, sw, sh, x - R, y + band, 2 * R, R)
-    K.col(C.ballShade)
+    K.col(C.ballShade, a)
     G.circle("fill", x, y, b)
-    K.col(C.ballWhite)
+    K.col(C.ballWhite, a)
     G.circle("fill", x - R * 0.12, y - R * 0.22, b * 0.86)
     clipTo(G, sx, sy, sw, sh)
-    K.col(C.ballInk)
+    K.col(C.ballInk, a)
     G.rectangle("fill", x - b, y - band, 2 * b, 2 * band)
     G.circle("fill", x, y, R * 0.34)
-    K.col(C.ballShade)
+    K.col(C.ballShade, a)
     G.circle("fill", x, y, R * 0.26)
-    K.col(C.ballWhite)
+    K.col(C.ballWhite, a)
     G.circle("fill", x - R * 0.02, y - R * 0.02, R * 0.2)
-    K.col(C.ballShade, 0.9)
+    K.col(C.ballShade, 0.9 * (a or 1))
     G.setLineWidth(max(1, R * 0.04))
     G.circle("line", x, y, R * 0.13)
-    K.col(WHITE, 0.75)
+    K.col(WHITE, 0.75 * (a or 1))
     G.ellipse("fill", x - R * 0.42, y - R * 0.56, R * 0.15, R * 0.1)
+  end
+  -- a Poké Ball as the pad's effects draw an item: s units square at x, y (its top left)
+  local function ballIcon(_, x, y, s, a)
+    drawBall(K.graphics(), x + s / 2, y + s / 2, s / 2, a)
   end
 
   -- the Poké Ball resting on the pad while a window is open and there's a party (until the Box
@@ -867,9 +903,9 @@ return function(deps)
   -- the item crossing the pad, over the monitor's chin
   local function drawPadFx(L, clock)
     if r.padN == 0 then return end
-    local icon = deps.env and deps.env.itemIcon
-    if not icon then return end
     local fx, P = r.padQ[1], D.PAD
+    local icon = fx.kind == "ball" and ballIcon or deps.env and deps.env.itemIcon
+    if not icon then return end
     local t = clock - fx.t0
     local p = L.padC
     local s = D.SHELF.item
@@ -1346,6 +1382,12 @@ return function(deps)
       layoutKey.L, layoutKey.pw, layoutKey.ph, layoutKey.portrait = L, pw, ph, portrait
     end
     r.layout, r.hit = L, K.hits
+    -- (back from one of the game's screens: the window that opened it, at once)
+    if r.resumeApp then
+      local app = r.resumeApp
+      r.resumeApp = nil
+      openWindow(app)
+    end
     r.dt = max(0, min(0.1, clock - (r.lastDraw or clock)))
     r.lastDraw = clock
     if r.cols ~= L.cols or r.rows ~= L.rows then

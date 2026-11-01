@@ -38,7 +38,21 @@ opens a desktop in a sleek monitor instead of a text menu.
 - ✉️ **Mail:** your mailbox as an inbox. Read each letter on its own stationery, move it to the
   Bag, or give it to a Pokémon in your party. The Held folder shows the mail your Pokémon are
   carrying, and Take files a letter back in the inbox. Works in all five games.
-- 🔴 **Boxes:** the Pokémon Storage System, to withdraw, deposit and move your Pokémon.
+- 🔴 **Boxes:** the Pokémon Storage System in one window: your party on the left, a box in the
+  middle (L and R go through all 14), and the Pokémon under the cursor on the right, with its
+  picture, types, nature, ability, item and moves. With WoobleDex, its Dynamax Level shows as a
+  gauge of ten, and a G-Max badge marks a Pokémon with the Gigantamax Factor. Three cursor modes, switched with SELECT or a
+  tap on their icons under the box:
+  - **Select** (red): A opens a Pokémon's options: Move, Summary, Item (take it to the Bag or give
+    one) and Release. A on the box's name, or START, jumps to a box, renames it or changes its
+    wallpaper.
+  - **Swap** (blue): A picks a Pokémon up and A puts it down, swapping with whoever is there. With
+    the mouse or a finger, drag it onto its new place.
+  - **Drag** (green): hold A and move to draw a rectangle (or drag one out), let go, and every
+    Pokémon in it moves together. They keep their shape in the new box.
+
+  A Pokémon going between your party and a box crosses the pad as a Poké Ball. Holding a carried
+  Pokémon over the box's arrows turns the box.
 - 📟 **Oak's PC:** your Pokédex rating, once you have the Pokédex (FireRed and LeafGreen).
 - 🏆 **Hall of Fame:** your champion teams, once you've beaten the Elite Four.
 - 🛋️ **Decorate:** your room's decorations, from the bedroom PC (Ruby, Sapphire and Emerald).
@@ -50,7 +64,7 @@ opens a desktop in a sleek monitor instead of a text menu.
 - ℹ️ **About:** which version you're running.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
 
-Items, Mail and Settings open in a window on the desktop: B or the red button closes it. Boxes, Oak's PC,
+Boxes, Items, Mail and Settings open in a window on the desktop: B or the red button closes it. Oak's PC,
 Hall of Fame and Decorate open the game's own screens, and closing them brings you back to the
 desktop.
 
@@ -72,6 +86,8 @@ turn it on for your Generation 3 games.
 - **Any save:** the mod keeps no data of its own in your save. Items and mail move exactly as the
   game's own PC moves them, so you can turn the mod on and off whenever you like.
 - **Other mods:** other mods can add their own apps to the desktop.
+- **WoobleDex:** the Boxes preview shows a Pokémon's Dynamax Level and G-Max Factor (from
+  WoobleDex's Dynamax Candy and Max Soup, or Max Raids' dens), as the game's summary does.
 
 ## 📌 Good to Know
 
@@ -79,6 +95,10 @@ turn it on for your Generation 3 games.
   "booted up the PC" and "Which PC should be accessed?" lines are skipped: the boot screen does
   their job.
 - With the Desktop option off, every PC opens the game's original menu.
+- **Boxes follows the game's rules:** your party always keeps a Pokémon that can battle, a Pokémon
+  holding mail stays out of the boxes (take the letter off in Mail first), and Eggs can't be
+  released. A Pokémon put in a box is healed, as in the game. On FireRed and LeafGreen, L and R
+  turn the boxes and pages here instead of opening the game's Help.
 - **Your own wallpapers:** put PNG or JPG pictures in the mod's `wallpapers` folder, then pick them
   in Settings. With one of your pictures chosen, a Fill / Stretch switch appears by the title
   (SELECT or a tap): Fill covers the screen and crops the picture from its centre, Stretch shows

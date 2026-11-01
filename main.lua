@@ -6,6 +6,7 @@
 --   src/inventory.lua, src/mailbox.lua   the item and mail models (the engine's Storage, Bag, Mail)
 --   src/apps/items.lua, src/apps/mail.lua the Items (Bag | PC) and Mail (inbox) windows
 --   src/apps/settings.lua               the Settings window (Language, Wallpaper)
+--   src/boxes.lua, src/apps/boxes.lua, src/apps/boxes_view.lua   the Pokémon model, the Boxes window
 --   src/i18n.lua, lang/*.lua            the words, by language ; src/settings.lua the kept choices
 --   src/wallpaper.lua                   the drawn wallpapers and the wallpapers/ folder's pictures
 
@@ -37,6 +38,8 @@ return function(mod)
   local itemsWindow, mailWindow = loadSibling(mod, "src/apps/items.lua"), loadSibling(mod, "src/apps/mail.lua")
   local makeI18n, makeSettings = loadSibling(mod, "src/i18n.lua"), loadSibling(mod, "src/settings.lua")
   local makeWall, settingsWindow = loadSibling(mod, "src/wallpaper.lua"), loadSibling(mod, "src/apps/settings.lua")
+  local makeBx, boxesWindow = loadSibling(mod, "src/boxes.lua"), loadSibling(mod, "src/apps/boxes.lua")
+  local boxesView = loadSibling(mod, "src/apps/boxes_view.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell) then return end
 
   local function warn(fmt, ...) mod.log:warn(fmt, ...) end
@@ -162,6 +165,65 @@ return function(mod)
     G.setColor(1, 1, 1, 1)
     G.draw(e.image, e.quads[0], Kit.X(x), Kit.Y(y), 0, size * Kit.sc / e.w, size * Kit.sc / e.h)
   end
+  -- a Pokémon's own menu icon (eggs, forms), `size` units square, frame 0 / 1, alpha a (kept per
+  -- Pokémon: the engine's lookup builds names)
+  local iconOf = setmetatable({}, { __mode = "k" })
+  local function monIconOf(mon, x, y, size, frame, a)
+    local e = iconOf[mon]
+    if e == nil then
+      local P = engine("src.core.game3.pokemon")
+      local ok, got = pcall(P and P.monIcon or error, mon)
+      e = ok and type(got) == "table" and got.image and got.quads and got or false
+      iconOf[mon] = e
+    end
+    if not e then return end
+    local q = e.quads[frame or 0] or e.quads[0]
+    if not q then return end
+    local G = Kit.graphics()
+    G.setColor(1, 1, 1, a or 1)
+    G.draw(e.image, q, Kit.X(x), Kit.Y(y), 0, size * Kit.sc / e.w, size * Kit.sc / (e.h or e.w))
+  end
+  -- a box's wallpaper, the game's own picture covering x, y, w, h (units) -> true when drawn. The
+  -- picture (160 x 144) is the box-name banner over the framed panel the Pokémon sit on: inside
+  -- the panel's frame only (our header has the name, our bezel is the frame), a quad kept per picture
+  local PANEL = { 8 / 160, 32 / 144, 142 / 160, 104 / 144 }
+  local panels = setmetatable({}, { __mode = "k" })
+  local function boxWall(id, x, y, w, h)
+    local Chrome = engine("src.ui.game3.pc_chrome")
+    if not Chrome then return false end
+    local ok = pcall(Chrome.ensure)
+    local img = ok and Chrome._wallpapers and Chrome._wallpapers[tonumber(id) or 1]
+    if not img then return false end
+    local G = Kit.graphics()
+    local q = panels[img]
+    if not q then
+      local iw, ih = img:getDimensions()
+      q = { quad = love.graphics.newQuad(PANEL[1] * iw, PANEL[2] * ih, PANEL[3] * iw, PANEL[4] * ih, iw, ih),
+            w = PANEL[3] * iw, h = PANEL[4] * ih }
+      panels[img] = q
+    end
+    local px, py, pw, ph = Kit.X(x), Kit.Y(y), w * Kit.sc, h * Kit.sc
+    local k = math.max(pw / q.w, ph / q.h)
+    local sx, sy, sw, sh = G.getScissor()
+    G.intersectScissor(math.floor(px), math.floor(py), math.ceil(pw), math.ceil(ph))
+    G.setColor(1, 1, 1, 1)
+    G.draw(img, q.quad, px + (pw - q.w * k) / 2, py + (ph - q.h * k) / 2, 0, k, k)
+    if sx then G.setScissor(sx, sy, sw, sh) else G.setScissor() end
+    return true
+  end
+  local function boxWallCount()
+    local Chrome = engine("src.ui.game3.pc_chrome")
+    local ok, names = pcall(function()
+      Chrome.ensure()
+      return Chrome.wallpaperNames()
+    end)
+    return ok and type(names) == "table" and #names > 0 and #names or 16
+  end
+  local function itemName(id)
+    local I = engine("src.core.game3.items_data")
+    local ok, name = pcall(I and I.displayName or error, id)
+    return ok and name and tostring(name) or tostring(id)
+  end
   local Wall = makeWall and makeWall({
     gameId = gameId,
     list = function(dir) return mod:list(dir) end,
@@ -174,7 +236,8 @@ return function(mod)
   local env = {
     K = Kit, session = session, now = function() return love and love.timer and love.timer.getTime() or 0 end,
     se = function(name) if Sh then Sh.se(name) end end, itemIcon = itemIcon, monIcon = monIcon,
-    inv = makeInv and makeInv(engine), mb = makeMb and makeMb(engine),
+    inv = makeInv and makeInv(engine), mb = makeMb and makeMb(engine), bx = makeBx and makeBx(engine),
+    monIconOf = monIconOf, boxWall = boxWall, boxWallCount = boxWallCount, itemName = itemName,
     T = T, wall = Wall, gameId = gameId, wallpaper = wallpaper,
     language = function() return T and T.code() or "en" end,
     setLanguage = function(code)
@@ -184,7 +247,16 @@ return function(mod)
     wallpaperFit = wallpaperFit,
     setWallpaperFit = function(fit) if Settings then Settings.set("wallpaperFit", fit) end end,
   }
+  -- (the Boxes preview's Dynamax row: WoobleDex's levels and factors, when it's on)
+  if env.bx then
+    env.bx.dynamax = function()
+      local nd = mod.find("national_dex_gen3")
+      return nd and nd.exports and nd.exports.dynamax or nil
+    end
+  end
   local Apps = makeApps({
+    boxes = env.bx and boxesWindow and boxesView
+      and function(ctx, e) return boxesWindow(ctx, e, boxesView) end or nil,
     items = env.inv and itemsWindow or nil,
     mail = env.mb and mailWindow or nil,
     settings = T and Settings and settingsWindow or nil,
@@ -253,7 +325,7 @@ return function(mod)
     log = function(fmt, ...) mod.log:warn(fmt, ...) end,
   })
   -- the shelf's item pad, for the apps: an item crossing it ("out" to the PC, "in" to the Bag)
-  env.pad = { transfer = function(id, dir) Desktop.padTransfer(id, dir) end }
+  env.pad = { transfer = function(id, dir, kind) Desktop.padTransfer(id, dir, kind) end }
   Sh = makeShell(mod, { require = require, log = mod.log, desktop = Desktop, apps = Apps })
   Sh.enabled = function() return option("desktop", true) ~= false end
 
@@ -270,6 +342,6 @@ return function(mod)
   -- other mods add apps: exports.apps.register{ id, label, glyph, color, order, dock, available,
   -- open | window }
   mod.exports.apps = { register = Apps.register, list = function() return Apps.apps end }
-  mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb,
+  mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
                         env = env, i18n = T, settings = Settings, wall = Wall }
 end

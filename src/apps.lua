@@ -1,8 +1,9 @@
 -- The apps on the desktop: a registry other mods can add to (mod.exports.apps), and the built-in
--- ones: Boxes, Oak's PC and Hall of Fame open the game's own PC screens; Items and Mail are our own
--- windows; Decorate (Ruby / Sapphire / Emerald, the bedroom) opens the game's Decoration menu.
+-- ones: Oak's PC and Hall of Fame open the game's own PC screens; Boxes, Items, Mail and Settings
+-- are our own windows; Decorate (Ruby / Sapphire / Emerald, the bedroom) opens the game's
+-- Decoration menu.
 --
---   A = Apps(deps)   deps: items / mail / settings = window(ctx, env) makers ; decorate(ctx) (the
+--   A = Apps(deps)   deps: boxes / items / mail / settings = window(ctx, env) makers ; decorate(ctx) (the
 --                    game's menu). Built-ins name themselves with labelKey (a lang/*.lua key)
 --   A.register(app) -> true | false, why    app = {
 --       id       unique string
@@ -16,7 +17,9 @@
 --       open(ctx)                ctx below; an app ends with ctx.finish / ctx.done / its own screen
 --       window(ctx, env) -> win  instead of open: a window in the desktop's screen (src/desktop.lua)
 --                win = { title, draw(body, clock, portrait), input(input, nav) -> handled,
---                        tap(arg, x, y), scroll(dyUnits, x, y), hints() -> { { key, words } }, close() }
+--                        tap(arg, x, y), scroll(dyUnits, x, y), hints() -> { { key, words } }, close(),
+--                        pointer(phase, x, y) (units; takes presses, moves, hover and releases itself,
+--                        -> true for a release it used), pad = true (the shelf's pad lit) }
 --                draw adds its hits as K.addHit(rect, "win", arg); nav = { up, down, left, right }
 --                (repeating); env = { K, session(), se(name), now(), itemIcon(id, x, y, size),
 --                monIcon(species, x, y, size), inv, mb } }
@@ -68,10 +71,12 @@ return function(deps)
   local function hasRow(id) return function(ctx) return ctx.mode == "select" and ctx.row(id) ~= nil end end
   local function toRow(id) return function(ctx) ctx.finish(ctx.row(id)) end end
 
-  -- the Pokémon Storage System: the game's own (SOMEONE'S / BILL'S / LANETTE'S PC)
+  -- the Pokémon Storage System (SOMEONE'S / BILL'S / LANETTE'S PC): our own window, the party and
+  -- every box; the game's own screens when it can't be made
   A.register({ id = "storage", labelKey = "app.storage", label = "Boxes",
                glyph = "ball", color = { 226, 70, 72 }, order = 10, dock = true,
-               available = hasRow("storage"), open = toRow("storage") })
+               available = hasRow("storage"), window = deps.boxes,
+               open = not deps.boxes and toRow("storage") or nil })
   -- the player's PC, our own: item storage (PC | Bag) and the mailbox (an inbox)
   if deps.items then
     A.register({ id = "items", labelKey = "app.items", label = "Items",

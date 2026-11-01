@@ -104,33 +104,162 @@ local function body(game, log)
   log(("  the desktop's draw: %.3f KB per frame over %d frames"):format(perFrame, draws))
   check(perFrame < 0.5, "the draw makes next to no garbage")
 
-  -- Boxes (the dock's first): the game's storage menu, then the PC menu = the desktop, warm
+  -- Boxes (the dock's first): our own window, over a party and boxes lent for the run (the
+  -- session's own put back after; nothing is saved)
   check(st.dock[1] and st.dock[1].id == "storage", "Boxes in the dock")
+  local Storage, Bag = require("src.core.game3.storage"), require("src.core.game3.bag")
+  local Party = require("src.core.game3.party")
+  local Bx = X._test.bx
+  local stor = Storage.ensure(s0)
+  local party0, box0, cur0 = s0.party, {}, stor.currentBox
+  for b = 1, 3 do
+    box0[b] = stor.boxes[b].mons
+    stor.boxes[b].mons = {}
+  end
+  -- (made in a session of their own: the player's Pokédex untouched)
+  local function lend(list)
+    local out = {}
+    for _, sp in ipairs(list) do
+      local tmp = { party = {} }
+      local ok, _, m = Party.giveMon(tmp, sp, 18 + #out)
+      if ok and m then out[#out + 1] = m end
+    end
+    return out
+  end
+  s0.party = lend({ 1, 4, 7 })
+  local lent = lend({ 25, 133, 152, 155, 158, 175 })
+  for i, slot in ipairs({ 1, 2, 7, 8, 14, 20 }) do stor.boxes[1].mons[slot] = lent[i] end
+  stor.currentBox = 1
   U.tap(game, "down"); U.wait(4)
   check(st.focus == "dock", "Down: the dock")
   U.tap(game, "a")
   -- (the zoom runs on the clock; the driver's frames run faster than it)
-  check(waitFor(function() return not D.isOpen() end, 600), "A on Boxes: the desktop gives way")
-  local storageMenu = waitFor(function()
-    if PcMenu.isOpen() and PcMenu.mode == "storage_menu" then return true end
-    if not D.isOpen() then U.tap(game, "a") end
+  check(waitFor(function() return D.window() ~= nil end, 600), "A on Boxes: its window, in the desktop")
+  local BW = D.window()
+  local bst = BW and BW.state
+  check(BW and BW.title == "Boxes", "the Boxes window")
+  if bst then
+    -- (the preview's Dynamax row: WoobleDex's, when it's on, else a stand-in; the lent Pikachu
+    -- Dynamax Level 6 with the G-Max Factor)
+    local realDx = Bx.dynamax and Bx.dynamax()
+    local dynamax0 = Bx.dynamax
+    if realDx and realDx.setLevel then
+      realDx.setLevel(lent[1], 6); realDx.setFactor(lent[1], true)
+    else
+      local Dx = { canDynamax = function() return true end, level = function(m) return m == lent[1] and 6 or 0 end,
+                   canGigantamax = function(m) return m == lent[1] end }
+      Bx.dynamax = function() return Dx end
+    end
+    log("  Dynamax from " .. (realDx and "WoobleDex" or "a stand-in"))
+    Bx.forget(lent[1])
+    bst.area, bst.bi = "box", 1
     U.wait(10)
-    return false
-  end, 60)
-  check(storageMenu, "the game's storage menu (" .. tostring(PcMenu.mode) .. ")")
-  shot("d2_storage")
-  -- B / SEE YA out: the script goes back to its PC menu - the desktop, no boot
-  local back = waitFor(function()
-    if D.isOpen() then return true end
+    local pv = Bx.info(lent[1], X._test.env.T)
+    check(pv and pv.dmax == 6 and pv.gmax == true, "the preview: Dynamax Level 6, the G-Max Factor")
+    shot("d2_boxes")
+    Bx.dynamax = dynamax0
+    -- Swap: carry one two along
+    U.tap(game, "select"); U.wait(4)
+    check(bst.mode == BW.SWAP, "SELECT: Swap")
+    bst.area, bst.bi = "box", 1
+    U.tap(game, "a"); U.wait(4)
+    check(bst.held ~= nil, "A picks it up")
+    U.tap(game, "right"); U.wait(4)
+    U.tap(game, "right"); U.wait(8)
+    shot("d2b_boxes_carry")
+    U.tap(game, "a"); U.wait(4)
+    check(stor.boxes[1].mons[3] == lent[1], "A puts it down two along")
+    -- a party Pokémon into the box and back: a Poké Ball across the pad
+    bst.area, bst.pi = "party", 3
+    U.tap(game, "a"); U.wait(4)
+    bst.area, bst.bi = "box", 30
+    U.tap(game, "a"); U.wait(2)
+    check(#s0.party == 2 and stor.boxes[1].mons[30] ~= nil, "deposit: party to box")
+    check(waitFor(function()
+      local n, _, _, _, kind = D.padState()
+      return n > 0 and kind == "ball" and love.timer.getTime() - D.state().padQ[1].t0 >= 0.45
+    end, 600), "a Poké Ball crosses the pad")
+    shot("d2c_pad_ball")
+    U.tap(game, "a"); U.wait(4)
+    bst.area, bst.pi = "party", 3
+    U.tap(game, "a"); U.wait(4)
+    check(#s0.party == 3 and stor.boxes[1].mons[30] == nil, "withdraw: back to the party")
+    -- Drag: hold A over a rectangle, let go, carry the group to box 2
+    U.tap(game, "select"); U.wait(4)
+    check(bst.mode == BW.DRAG, "SELECT: Drag")
+    bst.area, bst.bi = "box", 2
+    table.insert(game.input.pressQueue, "a")
+    game.input.state.a = true
+    U.wait(3)
+    U.tap(game, "right"); U.wait(3)
+    U.tap(game, "down"); U.wait(6)
+    check(bst.rect ~= nil, "held A: a rectangle")
+    shot("d2d_boxes_rect")
+    game.input.state.a = false
+    U.wait(4)
+    check(bst.held and bst.held.n == 3, "let go: three in the hand (" .. tostring(bst.held and bst.held.n) .. ")")
+    U.tap(game, "r"); U.wait(4)
+    check(bst.box == 2, "R: box 2, carrying them (the game's help stays shut)")
+    bst.area, bst.bi = "box", 1
+    U.wait(6)
+    shot("d2e_boxes_group")
+    U.tap(game, "a"); U.wait(4)
+    check(bst.held == nil and Bx.count(s0, 2) == 3, "A: down in box 2, together")
+    -- Select: a Pokémon's options, the box menu, the wallpapers
+    U.tap(game, "select"); U.wait(4)
+    check(bst.mode == BW.SELECT, "SELECT: round to Select")
+    U.tap(game, "a"); U.wait(6)
+    check(bst.sheet and bst.sheet.kind == "actions", "A: its options")
+    shot("d2f_actions")
+    U.tap(game, "b"); U.wait(4)
+    U.tap(game, "start"); U.wait(6)
+    check(bst.sheet and bst.sheet.kind == "box", "START: the box menu")
+    shot("d2g_boxmenu")
+    U.tap(game, "down"); U.wait(2)
+    U.tap(game, "down"); U.wait(2)
+    U.tap(game, "a"); U.wait(6)
+    check(bst.sheet and bst.sheet.kind == "wall", "Wallpaper: the game's wallpapers")
+    shot("d2h_wallpaper")
+    U.tap(game, "b"); U.wait(4)
+    -- the window's draw garbage
+    local drawB, kbB, nB = D.draw, 0, 0
+    D.draw = function(...)
+      local was = collectgarbage("isrunning")
+      collectgarbage("stop")
+      local kb0 = collectgarbage("count")
+      drawB(...)
+      kbB, nB = kbB + (collectgarbage("count") - kb0), nB + 1
+      if was then collectgarbage("restart") end
+    end
+    U.wait(120)
+    D.draw = drawB
+    log(("  the Boxes window's draw: %.3f KB per frame over %d frames"):format(kbB / math.max(1, nB), nB))
+    check(kbB / math.max(1, nB) < 0.5, "the Boxes window makes next to no garbage")
+    -- Summary: the game's screen, then the window back as it was
+    U.tap(game, "a"); U.wait(6)
+    U.tap(game, "down"); U.wait(2)
+    U.tap(game, "a")
+    check(waitFor(function() return not D.isOpen() end, 120), "Summary: the game's own screen")
+    U.wait(40)
+    shot("d2i_summary")
+    local back = waitFor(function()
+      if D.window() then return true end
+      U.tap(game, "b")
+      U.wait(20)
+      return D.window() ~= nil
+    end, 30)
+    local BW2 = D.window()
+    check(back and BW2 and BW2.title == "Boxes" and BW2.state.box == 2 and BW2.state.mode == BW.SELECT,
+      "B: back into Boxes, box 2, Select")
+    U.wait(10)
+    shot("d2j_boxes_back")
     U.tap(game, "b")
-    U.wait(15)
-    return D.isOpen()
-  end, 40)
-  check(back, "out of the storage menu: the desktop again")
-  check(not D.booting(), "without the boot")
-  U.wait(6)
-  shot("d3_zoom_back")
-  U.wait(30)
+    waitFor(function() return D.window() == nil and D.state() and D.state().zoom == nil end, 600)
+  end
+  -- (the session's own party and boxes back)
+  s0.party = party0
+  for b = 1, 3 do stor.boxes[b].mons = box0[b] end
+  stor.currentBox = cur0
   st = D.state()
 
   -- Items: our own window; the PC's Potion to the Bag and back
@@ -406,7 +535,7 @@ local function body(game, log)
       L.pw or 0, L.ph or 0, L.cols or 0, L.rows or 0))
     shot("d9_" .. shape[1])
     if shape[1] == "w16x9" or shape[1] == "portrait" then
-      for _, id in ipairs({ "items", "mail" }) do
+      for _, id in ipairs({ "storage", "items", "mail" }) do
         for i, app in ipairs(st.dock) do if app.id == id then D.launch("dock", i) end end
         waitFor(function() return D.window() ~= nil end, 600)
         U.wait(10)

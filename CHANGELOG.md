@@ -14,6 +14,13 @@ All notable changes to this mod are documented here, in
   work, and the layout fits wide, small and upright windows. The game's "booted up the PC" and
   "Which PC should be accessed?" lines are skipped (the boot does their job); the boot's loading
   bar fills before the desktop fades up.
+- **Boxes:** the Pokémon Storage System as our own window.
+  - The party, any of the 14 boxes, and a preview of the Pokémon under the cursor (with WoobleDex: its Dynamax Level as a gauge and a G-Max badge for the Gigantamax Factor).
+  - Three cursor modes on SELECT or their icons under the box: Select (options: Move, Summary, Item, Release), Swap (pick up and put down; drag and drop with the pointer) and Drag (a rectangle of Pokémon moved together, keeping its shape).
+  - The box menu: Jump, Rename (the game's naming screen) and Wallpaper (the game's wallpapers).
+  - The Summary and naming screens come back to the window as it was.
+  - The game's rules hold on all five games, and a Pokémon crossing between the party and a box shows as a Poké Ball on the pad.
+- FireRed / LeafGreen's Help no longer opens on L / R while the desktop is up.
 - **Items:** the Bag and the PC's item storage side by side in a window: move items across (how
   many, or SELECT for the whole stack), Bag pockets on L / R, sort the PC by name or pocket, toss.
   Important items stay in the Bag.

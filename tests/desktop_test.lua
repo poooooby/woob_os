@@ -127,19 +127,28 @@ local rows = st.ctx.rows
 T.check(#rows >= 3, "the game's own rows (" .. #rows .. ")")
 T.eq(st.dock[1] and st.dock[1].id, "storage", "Boxes first in the dock")
 
--- Boxes: zooms up, then the script gets the storage row
+-- Boxes: zooms up into its own window (no row to the script)
+local before0 = #results
 st.focus, st.dockCursor = "dock", 1
 press("a")
 T.check(st.zoom ~= nil, "Boxes zooms up from its icon")
 draw(30)
-T.check(not D.isOpen() and not Stack.has("wooble_os"), "then the desktop closes")
-T.eq(last(), st.ctx.row("storage"), "and the script gets the storage row (" .. tostring(last()) .. ")")
+T.check(D.isOpen() and D.window() ~= nil and D.window().title == "Boxes", "into its window, in the desktop")
+T.eq(#results, before0, "and hands the script nothing")
+press("b")
+T.check(D.window() == nil and st.zoom and st.zoom.back and st.zoom.id == "storage", "B: back into its icon")
+draw(30)
 
--- back to the PC menu (the script comes back after the storage system): no boot, Boxes zooms back
+-- an app handing the script a row (as Oak's PC does): the PC menu again is the desktop, no boot,
+-- the app's icon zooming back
+st.ctx.app = "storage"
+st.ctx.finish(st.ctx.row("storage"))
+T.check(not D.isOpen() and not Stack.has("wooble_os"), "a row to the script: the desktop closes")
+T.eq(last(), st.ctx.row("storage"), "and the script gets the row (" .. tostring(last()) .. ")")
 openPc({ startMode = "select" })
 st = D.state()
 T.check(D.isOpen() and not D.booting(), "the PC menu again: the desktop, without the boot")
-T.check(st.zoom and st.zoom.back and st.zoom.id == "storage", "Boxes zooms back into its icon")
+T.check(st.zoom and st.zoom.back and st.zoom.id == "storage", "the app zooms back into its icon")
 draw(30)
 -- Items: our own window, in the desktop (no row to the script)
 local before = #results
@@ -606,6 +615,246 @@ end
 VP.width, VP.height = 480, 320
 press("b")
 T.check(D.window() == nil, "B closes Mail")
+draw(30)
+
+-- ------- the Pokémon model (src/boxes.lua, on the engine's Storage)
+local Bx = X._test.bx
+local function newMon(species, hp, extra)
+  local m = { species = species, level = 10, hp = hp, maxHp = 30, moves = { 33, 45 }, personality = 1234, otId = 1 }
+  for k, v in pairs(extra or {}) do m[k] = v end
+  return m
+end
+local p1, p2, p3 = newMon(1, 30), newMon(4, 0), newMon(7, 12)
+s.party = { p1, p2, p3 }
+do
+  local b1 = Bx.boxMons(s, 1)
+  for i = 1, Bx.SLOTS do b1[i] = nil end
+  b1[1], b1[2], b1[7] = newMon(16, 5), newMon(19, 30), newMon(25, 30)
+end
+local held, why2
+held = Bx.take(s, { Bx.addr("party", 3) })
+T.check(held and held.n == 1 and #s.party == 2, "take a party Pokémon: the party packs up")
+T.check(Bx.place(s, held, Bx.addr("box", 3, 1)), "deposit: into box 1, slot 3")
+T.check(Bx.get(s, Bx.addr("box", 3, 1)) == p3 and p3.hp == 30, "there, and healed")
+held, why2 = Bx.take(s, { Bx.addr("party", 1) })
+T.check(not held and why2 == "last_usable", "the last Pokémon that can battle stays (" .. tostring(why2) .. ")")
+held = Bx.take(s, { Bx.addr("box", 2, 1) })
+T.check(Bx.place(s, held, Bx.addr("party", 6)) and #s.party == 3, "withdraw: onto the party's end")
+do
+  local h = Bx.take(s, { Bx.addr("box", 1, 1) })
+  local ok, back = Bx.place(s, h, Bx.addr("party", 2))
+  T.check(ok and back and back.mons[1] == p2 and s.party[2].species == 16, "a swap: the one there comes to the hand")
+  T.check(Bx.place(s, back, Bx.addr("box", 1, 1)) and Bx.get(s, Bx.addr("box", 1, 1)) == p2,
+    "and goes down where the first was")
+end
+do
+  s.party[3].heldItem = 121
+  local h = Bx.take(s, { Bx.addr("party", 3) })
+  local ok, w = Bx.place(s, h, Bx.addr("box", 10, 1))
+  T.check(not ok and w == "mail", "a Pokémon holding mail stays out of the boxes")
+  Bx.putBack(s, h)
+  T.check(#s.party == 3 and s.party[3].heldItem == 121, "put back where it was")
+  s.party[3].heldItem = nil
+end
+-- a group of four keeps its shape
+do
+  local b2 = Bx.boxMons(s, 2)
+  b2[1], b2[2], b2[7], b2[8] = newMon(41, 30), newMon(42, 30), newMon(43, 30), newMon(44, 30)
+  local h = Bx.take(s, { Bx.addr("box", 1, 2), Bx.addr("box", 2, 2), Bx.addr("box", 7, 2), Bx.addr("box", 8, 2) })
+  T.check(h and h.n == 4 and Bx.count(s, 2) == 0, "a group of four taken")
+  local ok, w = Bx.fits(s, h, Bx.addr("box", 6, 3))
+  T.check(not ok and w == "no_room", "past the box's edge: no room")
+  T.check(Bx.place(s, h, Bx.addr("box", 5, 3)), "into box 3 at the fifth slot")
+  local b3 = Bx.boxMons(s, 3)
+  T.check(b3[5] and b3[6] and b3[11] and b3[12] and b3[5].species == 41 and b3[12].species == 44,
+    "in the same 2 x 2 shape")
+end
+do
+  for i = #s.party + 1, 5 do s.party[i] = newMon(50 + i, 30) end
+  local h = Bx.take(s, { Bx.addr("box", 5, 3), Bx.addr("box", 6, 3) })
+  local ok, w = Bx.place(s, h, Bx.addr("party", 6))
+  T.check(not ok and w == "no_room", "two into a party with one place left: no room")
+  Bx.putBack(s, h)
+  T.check(Bx.get(s, Bx.addr("box", 5, 3)) ~= nil and Bx.get(s, Bx.addr("box", 6, 3)) ~= nil, "put back in their box")
+  for i = 5, 4, -1 do s.party[i] = nil end
+end
+do
+  local b4 = Bx.boxMons(s, 4)
+  b4[1], b4[2] = newMon(60, 30, { isEgg = true }), newMon(61, 30)
+  local ok, w = Bx.release(s, Bx.addr("box", 1, 4))
+  T.check(not ok and w == "egg", "an Egg can't be released")
+  T.check(Bx.release(s, Bx.addr("box", 2, 4)) and Bx.count(s, 4) == 1, "Release")
+end
+do
+  Bag.add(s.bag, POTION, 2)
+  local m = Bx.get(s, Bx.addr("box", 5, 3))
+  T.check(Bx.giveItem(s, m, POTION) and m.heldItem == POTION and Bag.get(s.bag, POTION) == 1, "give a Potion to hold")
+  local ok, w = Bx.giveItem(s, m, POTION)
+  T.check(not ok and w == "holding", "one item at a time")
+  T.check(Bx.takeItem(s, m) and not m.heldItem and Bag.get(s.bag, POTION) == 2, "take it back to the Bag")
+  local ok2, w2 = Bx.giveItem(s, m, keyItem)
+  T.check(not ok2 and w2 == "cant_hold", "a key item can't be held")
+  local info = Bx.info(m, X._test.env.T)
+  T.check(info and info.name ~= "" and info.levelText ~= "", "the preview's words (" .. tostring(info and info.name) .. ")")
+  T.check(info.dmax == nil and not info.gmax, "no Dynamax row without WoobleDex")
+  -- (WoobleDex's exports.dynamax, stood in: kept for the window's draws below, the row and the badge)
+  local Dx = { canDynamax = function() return true end, level = function() return 7 end,
+               canGigantamax = function(mon) return mon == m end }
+  Bx.dynamax = function() return Dx end
+  Bx.forget(m)
+  info = Bx.info(m, X._test.env.T)
+  T.check(info.dmax == 7 and info.gmax == true, "the Dynamax Level and the G-Max Factor in the preview")
+  Dx.canDynamax = function(mon) return mon ~= m end
+  Bx.forget(m)
+  T.check(Bx.info(m, X._test.env.T).dmax == nil, "no row for a Pokémon that can't Dynamax")
+  Dx.canDynamax = function() return true end
+  Bx.forget(m)
+end
+Bx.rename(s, 3, "TEAM")
+Bx.setWallpaper(s, 3, 5)
+T.check(Bx.boxName(s, 3) == "TEAM" and Bx.wallpaper(s, 3) == 5, "rename a box, its wallpaper")
+T.check(pcall(Bx.sendBox, s), "the box caught Pokémon go to")
+
+-- ------- the Boxes window: modes, carrying, a group, the pointer, the pad, coming back
+Bx.setCurrent(s, 1)
+st.focus, st.dockCursor = "dock", 1
+D.input(input({}, {}))
+press("a")
+draw(30)
+local BW = D.window()
+T.check(BW and BW.title == "Boxes", "Boxes over a session")
+local bst = BW.state
+T.eq(bst.mode, BW.SELECT, "Select first")
+press("select")
+T.eq(bst.mode, BW.SWAP, "SELECT: Swap")
+press("select")
+T.eq(bst.mode, BW.DRAG, "SELECT again: Drag")
+press("select")
+T.eq(bst.mode, BW.SELECT, "and round to Select")
+bst.area, bst.bi = "box", 1
+press("a")
+T.check(bst.sheet and bst.sheet.kind == "actions", "Select: A on a Pokémon, its options")
+draw(2)
+press("b")
+T.check(bst.sheet == nil and D.window() == BW, "B: closed, the window stays")
+-- Swap: pick up, move, put down
+press("select")
+local moved = Bx.get(s, Bx.addr("box", 1, 1))
+press("a")
+T.check(bst.held and bst.held.mons[1] == moved, "Swap: A picks it up")
+press("right")
+press("right")
+press("right")
+press("a")
+T.check(bst.held == nil and Bx.get(s, Bx.addr("box", 4, 1)) == moved, "A puts it down three along")
+-- carrying across boxes; B puts back
+bst.bi = 4
+press("a")
+press("r")
+T.eq(bst.box, 2, "R: the next box, while carrying")
+press("b")
+T.check(bst.held == nil and Bx.get(s, Bx.addr("box", 4, 1)) == moved, "B: back where it was")
+press("l")
+-- a party Pokémon into a box: a Poké Ball crosses the pad
+bst.area, bst.pi = "party", 3
+local pm = s.party[3]
+press("a")
+bst.area, bst.bi = "box", 30
+press("a")
+do
+  local n, dir, _, _, kind = D.padState()
+  T.check(Bx.get(s, Bx.addr("box", 30, 1)) == pm and n > 0 and dir == "out" and kind == "ball",
+    "party to box: a Poké Ball goes out across the pad")
+end
+-- Drag: hold A over a rectangle, let go, carry the group to another box
+press("select")
+T.eq(bst.mode, BW.DRAG, "Drag")
+do
+  local b3 = Bx.boxMons(s, 3)
+  local want = Bx.count(s, 3)
+  bst.box = 3
+  Bx.setCurrent(s, 3)
+  bst.area, bst.bi = "box", 5
+  D.input(input({ "a" }, { "a" }))
+  D.input(input({ "right" }, { "a", "right" }))
+  D.input(input({}, { "a" }))
+  D.input(input({ "down" }, { "a", "down" }))
+  D.input(input({}, { "a" }))
+  T.check(bst.rect and bst.rect.b == 12, "held A: a rectangle (" .. tostring(bst.rect and bst.rect.b) .. ")")
+  D.input(input({}, {}))
+  T.check(bst.held and bst.held.n == 4 and Bx.count(s, 3) == want - 4, "let go: the four in the hand")
+  press("l")
+  T.eq(bst.box, 2, "L: box 2")
+  bst.area, bst.bi = "box", 15
+  press("a")
+  local b2 = Bx.boxMons(s, 2)
+  T.check(bst.held == nil and b2[15] and b2[16] and b2[21] and b2[22], "A: down together, the same shape")
+  T.check(b3[5] == nil, "and gone from box 3")
+end
+-- the pointer: Swap, drag one Pokémon onto an empty cell
+press("select")
+press("select")
+T.eq(bst.mode, BW.SWAP, "Swap again")
+draw(1)
+do
+  local function cellHit(i)
+    for _, h in ipairs(st.hit) do if h.kind == "win" and h.arg == BW.A.BOX + i then return h end end
+  end
+  local from, to = cellHit(15), cellHit(1)
+  local m = Bx.get(s, Bx.addr("box", 15, 2))
+  local fx, fy, tx, ty = from[1] + from[3] / 2, from[2] + from[4] / 2, to[1] + to[3] / 2, to[2] + to[4] / 2
+  D.pointer({ id = 9, phase = "pressed", x = fx, y = fy })
+  D.pointer({ id = 9, phase = "moved", x = (fx + tx) / 2, y = (fy + ty) / 2 })
+  T.check(bst.held and bst.held.mons[1] == m, "a drag lifts it")
+  D.pointer({ id = 9, phase = "moved", x = tx, y = ty })
+  draw(1)
+  D.pointer({ id = 9, phase = "released", x = tx, y = ty })
+  T.check(bst.held == nil and Bx.get(s, Bx.addr("box", 1, 2)) == m, "and drops it where it's let go")
+  local chip
+  for _, h in ipairs(st.hit) do if h.kind == "win" and h.arg == BW.A.MODE + BW.DRAG then chip = h end end
+  D.tap(chip[1] + 1, chip[2] + 1)
+  T.eq(bst.mode, BW.DRAG, "a tap on Drag's icon: Drag")
+  draw(1)
+  for _, h in ipairs(st.hit) do if h.kind == "win" and h.arg == BW.A.MODE + BW.SELECT then chip = h end end
+  D.tap(chip[1] + 1, chip[2] + 1)
+  T.eq(bst.mode, BW.SELECT, "a tap on the pill: on to the next mode (Select)")
+end
+-- the window's draw makes next to no garbage, warm, with the preview showing
+bst.area, bst.bi = "box", 1
+for _, shape in ipairs({ { 480, 320 }, { 320, 480 }, { 900, 320 } }) do
+  VP.width, VP.height = shape[1], shape[2]
+  draw(2)
+  T.check(not D.state().winFailed, "the Boxes window draws " .. shape[1] .. "x" .. shape[2])
+end
+VP.width, VP.height = 480, 320
+draw(120)
+collectgarbage("collect")
+collectgarbage("stop")
+local kbB = collectgarbage("count")
+draw(120)
+local perB = (collectgarbage("count") - kbB) / 120
+collectgarbage("restart")
+T.check(perB < 0.3, ("the Boxes window draws next to no garbage (%.3f KB a frame)"):format(perB))
+-- one of the game's screens over it (the summary, naming): the window back as it was
+bst.mode, bst.box = BW.SWAP, 2
+st.ctx.over(function(done) done() end, { mode = BW.SWAP, area = "box", pi = 1, bi = 1, box = 2 })
+st = D.state()
+draw(1)
+local BW2 = D.window()
+T.check(BW2 and BW2.title == "Boxes" and BW2 ~= BW, "back from the game's screen: the Boxes window again")
+T.check(BW2.state.mode == BW.SWAP and BW2.state.box == 2 and BW2.state.bi == 1, "as it was (mode, box, cursor)")
+-- closing never leaves a Pokémon in the hand
+D.input(input({}, {}))
+press("a")
+T.check(BW2.state.held ~= nil, "(one picked up)")
+local heldMon = BW2.state.held.mons[1]
+press("b")
+press("b")
+T.check(D.window() == nil, "B, B: closed")
+local found = false
+for b = 1, Bx.BOXES do for i = 1, Bx.SLOTS do if Bx.get(s, Bx.addr("box", i, b)) == heldMon then found = true end end end
+T.check(found, "and the Pokémon it held is back in a box")
+draw(30)
 st.ctx.logoff()
 openPc({ startMode = "select" })
 st = D.state()

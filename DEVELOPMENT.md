@@ -16,6 +16,8 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/apps/items.lua` | The Items window: Bag \| PC commander |
 | `src/apps/mail.lua` | The Mail window: folders, list, the open letter, the party picker |
 | `src/apps/settings.lua` | The Settings window: Language, Wallpaper |
+| `src/boxes.lua` | The Pokémon model: party and boxes through the engine's `Storage` (take / fits / place / putBack, release, items, the preview's words, the send-to box) |
+| `src/apps/boxes.lua`, `src/apps/boxes_view.lua` | The Boxes window: state, buttons, pointer, modes (`boxes.lua`); its drawing (`boxes_view.lua`) |
 | `src/i18n.lua`, `lang/*.lua` | The words, by language (`lang/en.lua` the master) |
 | `src/settings.lua` | The Settings app's choices, kept in `mod.cache` (`settings.lua`) for the installation |
 | `src/wallpaper.lua` | The drawn wallpapers and the `wallpapers/` folder's pictures, painted once into canvases |
@@ -66,8 +68,38 @@ A window instead of `open`: `window = function(ctx, env) return win end`, where 
 `draw(body, clock, portrait)` (body in units; hits as `K.addHit(rect, "win", arg)`),
 `input(input, nav)` (true when handled; a B it leaves closes the window), `tap(arg, x, y)`,
 `scroll(dy, x, y)`, `hints()` and `close()`. `env` has `K`, `session()`, `se(name)`, `now()`,
-`itemIcon(id, x, y, size, alpha)`, `monIcon(species, x, y, size)` and `pad.transfer(itemId, dir)`.
-The garbage rules below apply.
+`itemIcon(id, x, y, size, alpha)`, `monIcon(species, x, y, size)`, `monIconOf(mon, x, y, size, frame,
+alpha)`, `boxWall(id, x, y, w, h)`, `itemName(id)` and `pad.transfer(id, dir, kind)` (kind `"ball"`: a Poké Ball
+instead of an item). The garbage rules below apply.
+
+A window may also have:
+- `pointer(phase, x, y)` (units). It then gets every press, move, release and cancel inside it,
+  plus `"hover"`; returning true from `"released"` means it used the release. A release it doesn't
+  use, with no drag, is a tap as usual.
+- `pad = true`, which lights the shelf's pad.
+
+`ctx.over(open, state)` opens one of the game's screens. When it closes, the window comes back at
+once, handed `ctx.resume = { app, state }`. Boxes uses this for Summary and Rename.
+
+## Boxes
+
+`src/boxes.lua` wraps the engine's `Storage`:
+- **Moves:** `pickUpMon`-style taking, done by hand so a group is taken all or nothing; then
+  `placeHeldMon` (healing in a box, compacting the party, the quest log) and `restoreHeldMon`.
+- **Rules,** applied on every game: the party keeps a Pokémon that can battle; mail holders stay
+  out of boxes; no releasing Eggs, mail holders or the last usable Pokémon; on Ruby/Sapphire, the
+  game's Surf/Dive release rule.
+- **Groups:** a box group keeps its shape (`dx` / `dy` from its top-left cell); a party group goes
+  on the end.
+- **On close:** the window puts back anything held, and sets the game's send-to box (the variable
+  and flag the game's own screen sets).
+- **Dynamax (WoobleDex):** `Bx.dynamax()` returns WoobleDex's `exports.dynamax` (main.lua looks it
+  up with `mod.find("national_dex_gen3")`) or nil. `Bx.info` reads `canDynamax`, `level` and
+  `canGigantamax` once per Pokémon: `info.dmax` (0-10; nil without WoobleDex or for a Pokémon that
+  can't Dynamax) and `info.gmax`. The preview draws a ten-segment gauge row and a G-Max badge over
+  the picture's foot. Nothing is written to the Pokémon.
+- **Help:** FireRed/LeafGreen's Help opens on L/R and stops the game's update. The shell sets
+  `help_system.enabled = false` while the desktop is up, the same way as the touch pad.
 
 ## The shelf
 
