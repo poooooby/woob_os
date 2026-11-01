@@ -1,7 +1,8 @@
 -- The apps on the desktop: a registry other mods can add to (mod.exports.apps), and the built-in
--- ones, which open the game's own PC screens.
+-- ones: Boxes, Oak's PC and Hall of Fame open the game's own PC screens; Items and Mail are our own
+-- windows; Decorate (Ruby / Sapphire / Emerald, the bedroom) opens the game's Decoration menu.
 --
---   A = Apps()
+--   A = Apps(deps)   deps: items / mail = window(ctx, env) makers ; decorate(ctx) (the game's menu)
 --   A.register(app) -> true | false, why    app = {
 --       id       unique string
 --       label    under its icon (short: about 10 letters)
@@ -11,23 +12,31 @@
 --       order    sorts the apps (lower first; built-ins 10..90)
 --       dock     true: in the dock, not the home grid
 --       available(ctx) -> bool   (nil: always)
---       open(ctx)                ctx below; an app ends with ctx.finish / ctx.done / its own screen }
+--       open(ctx)                ctx below; an app ends with ctx.finish / ctx.done / its own screen
+--       window(ctx, env) -> win  instead of open: a window in the desktop's screen (src/desktop.lua)
+--                win = { title, draw(body, clock, portrait), input(input, nav) -> handled,
+--                        tap(arg, x, y), scroll(dyUnits, x, y), hints() -> { { key, words } }, close() }
+--                draw adds its hits as K.addHit(rect, "win", arg); nav = { up, down, left, right }
+--                (repeating); env = { K, session(), se(name), now(), itemIcon(id, x, y, size),
+--                monIcon(species, x, y, size), inv, mb } }
 --   A.list(ctx) -> the available apps, sorted ; A.byId(id)
 --
 --   ctx (handed by the desktop): session ; mode ("select": a Pokémon Center PC's menu, "bedroom":
 --   the player's own PC) ; family ("frlg" | "rse") ; row(id) -> the PC menu's row index for one of
 --   the game's own rows ("storage", "player", "oak", "hall", "quit") or nil ; finish(result) hands
 --   a row back to the game's PC script and closes the desktop ; done() closes the desktop as
---   cancelled ; original(opts) opens the game's own PC menu (pc_menu.show) over the desktop, which
---   comes back when it closes ; sheet(kind) shows one of the desktop's sheets ("about", "logoff")
+--   cancelled ; over(open) opens one of the game's screens over the desktop (open(onClose)), the
+--   desktop back when it closes ; original(opts) the same for the game's own PC menu
+--   (pc_menu.show) ; sheet(kind) shows one of the desktop's sheets ("about", "logoff")
 
-return function()
+return function(deps)
+  deps = deps or {}
   local A = { apps = {} }
   local byId = {}
 
   function A.register(app)
     if type(app) ~= "table" or type(app.id) ~= "string" or app.id == "" then return false, "no id" end
-    if type(app.open) ~= "function" then return false, "no open()" end
+    if type(app.open) ~= "function" and type(app.window) ~= "function" then return false, "no open()" end
     if byId[app.id] then return false, "an app " .. app.id .. " is already registered" end
     app.label = tostring(app.label or app.id)
     app.order = tonumber(app.order) or 50
@@ -61,16 +70,21 @@ return function()
   -- the Pokémon Storage System: the game's own (SOMEONE'S / BILL'S / LANETTE'S PC)
   A.register({ id = "storage", label = "Boxes", glyph = "ball", color = { 226, 70, 72 }, order = 10, dock = true,
                available = hasRow("storage"), open = toRow("storage") })
-  -- the player's PC: item storage (and the mailbox, decorations in Ruby / Sapphire / Emerald)
-  A.register({ id = "items", label = "Items", glyph = "bag", color = { 74, 150, 236 }, order = 20, dock = true,
-               available = function(ctx)
-                 return ctx.mode == "bedroom" or (ctx.mode == "select" and ctx.row("player") ~= nil)
-               end,
-               open = function(ctx)
-                 if ctx.mode == "select" then return ctx.finish(ctx.row("player")) end
-                 -- (the bedroom: the game's own player's PC menu, back to the desktop after)
-                 ctx.original({ startMode = "player_pc", bedroom = true })
-               end })
+  -- the player's PC, our own: item storage (PC | Bag) and the mailbox (an inbox)
+  if deps.items then
+    A.register({ id = "items", label = "Items", glyph = "bag", color = { 74, 150, 236 }, order = 20, dock = true,
+                 window = deps.items })
+  end
+  if deps.mail then
+    A.register({ id = "mail", label = "Mail", glyph = "mail", color = { 64, 178, 236 }, order = 25, dock = true,
+                 window = deps.mail })
+  end
+  -- the bedroom's Decoration (Ruby / Sapphire / Emerald): the game's own menu
+  if deps.decorate then
+    A.register({ id = "decorate", label = "Decorate", glyph = "home", color = { 156, 112, 220 }, order = 50,
+                 available = function(ctx) return ctx.mode == "bedroom" and ctx.family == "rse" end,
+                 open = deps.decorate })
+  end
   A.register({ id = "oak", label = "Oak's PC", glyph = "dex", color = { 232, 120, 64 }, order = 30,
                available = hasRow("oak"), open = toRow("oak") })
   A.register({ id = "hall", label = "Hall of Fame", glyph = "trophy", color = { 236, 176, 48 }, order = 40,

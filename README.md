@@ -27,14 +27,23 @@ opens a desktop in a sleek monitor instead of a text menu.
 
 ### Apps
 
+- 🎒 **Items:** your PC's item storage and your Bag side by side. Pick an item and send it across:
+  choose how many, or press SELECT to move the whole stack. L and R flip through the Bag's
+  pockets, and START sorts the PC by name or pocket or tosses an item. Important items stay in
+  the Bag.
+- ✉️ **Mail:** your mailbox as an inbox. Read each letter on its own stationery, move it to the
+  Bag, or give it to a Pokémon in your party. The Held folder shows the mail your Pokémon are
+  carrying, and Take files a letter back in the inbox. Works in all five games.
 - 🔴 **Boxes:** the Pokémon Storage System, to withdraw, deposit and move your Pokémon.
-- 🎒 **Items:** your item storage (and the mailbox and decorations in Ruby, Sapphire and Emerald).
 - 📟 **Oak's PC:** your Pokédex rating, once you have the Pokédex (FireRed and LeafGreen).
 - 🏆 **Hall of Fame:** your champion teams, once you've beaten the Elite Four.
+- 🛋️ **Decorate:** your room's decorations, from the bedroom PC (Ruby, Sapphire and Emerald).
 - ℹ️ **About:** which version you're running.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
 
-Each app opens the game's own screen, and closing it brings you back to the desktop.
+Items and Mail open in a window on the desktop: B or the red button closes it. Boxes, Oak's PC,
+Hall of Fame and Decorate open the game's own screens, and closing them brings you back to the
+desktop.
 
 ## ⚙️ Options
 
@@ -51,13 +60,15 @@ turn it on for your Generation 3 games.
 
 ## 🔗 Works With
 
-- **Any save:** nothing is written to your save, so you can turn the mod on and off whenever you
-  like.
+- **Any save:** the mod keeps no data of its own in your save. Items and mail move exactly as the
+  game's own PC moves them, so you can turn the mod on and off whenever you like.
 - **Other mods:** other mods can add their own apps to the desktop.
 
 ## 📌 Good to Know
 
-- The PC's own sounds and its screen flicker when you turn it on are kept as they are.
+- The PC's own sounds and its screen flicker when you turn it on are kept as they are. The game's
+  "booted up the PC" and "Which PC should be accessed?" lines are skipped: the boot screen does
+  their job.
 - With the Desktop option off, every PC opens the game's original menu.
 
 ## 🪪 Credits

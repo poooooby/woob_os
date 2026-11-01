@@ -98,11 +98,16 @@ local function ctxWith(mode, rows)
   ctx.row = function(id) for i, row in ipairs(ctx.rows) do if row.id == id then return i - 1 end end end
   return ctx
 end
-T.eq(ids(Apps.list(ctxWith("select", rowsAll))), "storage items oak hall about logoff",
+T.eq(ids(Apps.list(ctxWith("select", rowsAll))), "storage items mail oak hall about logoff",
   "a cleared game's PC: every app")
 T.eq(ids(Apps.list(ctxWith("select", { { id = "storage" }, { id = "player" }, { id = "quit" } }))),
-  "storage items about logoff", "early on: no Oak's PC, no Hall of Fame")
-T.eq(ids(Apps.list(ctxWith("bedroom"))), "items about logoff", "the bedroom PC: Items only")
+  "storage items mail about logoff", "early on: no Oak's PC, no Hall of Fame")
+T.eq(ids(Apps.list(ctxWith("bedroom"))), "items mail about logoff", "the bedroom PC: Items and Mail")
+do
+  local c = ctxWith("bedroom")
+  c.family = "rse"
+  T.eq(ids(Apps.list(c)), "items mail decorate about logoff", "Ruby / Sapphire / Emerald's bedroom: Decorate too")
+end
 T.check(not Apps.register({ id = "storage", open = noop }), "an id can't be taken twice")
 T.check(not Apps.register({ id = "x" }), "an app needs open()")
 
@@ -136,16 +141,24 @@ st = D.state()
 T.check(D.isOpen() and not D.booting(), "the PC menu again: the desktop, without the boot")
 T.check(st.zoom and st.zoom.back and st.zoom.id == "storage", "Boxes zooms back into its icon")
 draw(30)
--- Items: the player row
+-- Items: our own window, in the desktop (no row to the script)
+local before = #results
 st.focus, st.dockCursor = "dock", 2
 D.input(input({}, {}))
 press("a")
 draw(30)
-T.eq(last(), st.ctx.row("player"), "Items hands the script the player's PC row (" .. tostring(last()) .. ")")
+T.check(D.isOpen() and D.window() ~= nil and D.window().title == "Items", "Items opens its window in the desktop")
+T.eq(#results, before, "and hands the script nothing")
+press("b")
+T.check(D.window() == nil and D.isOpen(), "B closes it: the desktop")
+T.check(st.zoom and st.zoom.back and st.zoom.id == "items", "and it zooms back into its icon")
+draw(30)
+st.ctx.logoff()
 
 -- log off: B asks, A logs off -> 127
 openPc({ startMode = "select" })
 st = D.state()
+D.skipBoot()
 draw(30)
 D.input(input({}, {}))
 press("b")
@@ -224,19 +237,27 @@ end
 openPc({ startMode = "player_pc", bedroom = true })
 st = D.state()
 T.check(D.isOpen() and st.ctx.mode == "bedroom", "the bedroom PC opens the desktop")
-T.eq(#st.grid + #st.dock, 3, "with Items, About and Log Off")
+local rse = st.ctx.family == "rse"
+T.eq(#st.grid + #st.dock, rse and 5 or 4, "with Items, Mail, About and Log Off" .. (rse and ", Decorate" or ""))
 D.skipBoot()
 draw(40)
-st.focus, st.dockCursor = "dock", 1
-D.input(input({}, {}))
-press("a")
-draw(30)
-T.check(not D.isOpen() and PcMenu.isOpen(), "Items opens the game's player's PC")
-PcMenu.close()
-T.check(D.isOpen() and Stack.has("wooble_os"), "and closing it comes back to the desktop")
-T.check(not D.booting(), "without the boot")
-st = D.state()
-draw(30)
+if rse then
+  -- Decorate: the game's own menu over the desktop, the desktop back after it
+  local Rse = require("src.core.game3.rse.init")
+  local was = Rse._systems.decorationMenu
+  local opened
+  Rse._systems.decorationMenu = { open = function(o) opened = o end }
+  for i, app in ipairs(st.grid) do if app.id == "decorate" then st.focus, st.cursor = "grid", i end end
+  D.input(input({}, {}))
+  press("a")
+  draw(30)
+  T.check(opened ~= nil and not D.isOpen(), "Decorate opens the game's Decoration menu")
+  if opened then opened.onClose() end
+  T.check(D.isOpen() and Stack.has("wooble_os") and not D.booting(), "and closing it comes back to the desktop")
+  Rse._systems.decorationMenu = was
+  st = D.state()
+  draw(30)
+end
 st.ctx.logoff()
 T.check(not D.isOpen(), "Log Off closes it")
 
@@ -249,6 +270,59 @@ openPc({ startMode = "select" })
 T.check(not D.isOpen() and PcMenu.isOpen(), "with the Desktop option off: the game's PC menu")
 PcMenu.close()
 Sh.enabled = function() return true end
+
+-- ------- the game's lines before its PC menu: skipped (the boot does their job)
+do
+  local CacheBlob = require("src.import.CacheBlob")
+  local rel = "data/generated/gba/scripts/scripts.lua"
+  local f = io.open(GAME .. "/" .. rel, "rb")
+  local S = f and CacheBlob.decode(rel, f:read("*a"))
+  if f then f:close() end
+  if type(S) == "string" then S = assert(loadstring(S))() end
+  T.check(type(S) == "table", "the game's scripts")
+  local vm = { scripts = S or {}, ctx = { pc = {} } }
+  local function walk()
+    local skipped, menus = {}, 0
+    for key, list in pairs(vm.scripts) do
+      for i, row in ipairs(list) do
+        vm.ctx.pc.listKey, vm.ctx.pc.index = key, i + 1
+        if Sh.skips(vm, row.op, row) then skipped[#skipped + 1] = { key = key, i = i, op = row.op } end
+        if row.op == "special" then
+          local name = require("src.core.game3.scripting.natives").specialName(row.id)
+          if name == "CreatePCMenu" or name == "ScriptMenu_CreatePCMultichoice" or name == "BedroomPC" then
+            menus = menus + 1
+          end
+        end
+      end
+    end
+    return skipped, menus
+  end
+  local skipped, menus = walk()
+  local by = { message = 0, waitmessage = 0, callstd = 0 }
+  for _, s in ipairs(skipped) do by[s.op] = (by[s.op] or 0) + 1 end
+  T.check(menus >= 2, "the PC menus in the scripts (" .. menus .. ")")
+  T.check(by.callstd >= 2, "the boot lines skipped (" .. by.callstd .. ": Center and bedroom)")
+  T.check(by.message >= 1 and by.message == by.waitmessage, "the menu's prompt skipped (" .. by.message .. ")")
+  T.eq(#skipped, by.message + by.waitmessage + by.callstd, "and nothing else")
+  -- through the hook: skipped (no vanilla call); with the Desktop option off, the game's
+  local Runtime = require("src.mods.Runtime")
+  local s1 = skipped[1]
+  local row = vm.scripts[s1.key][s1.i]
+  vm.ctx.pc.listKey, vm.ctx.pc.index = s1.key, s1.i + 1
+  local ran = false
+  local function vanilla() ran = true; return false end
+  Runtime.call("script.command", vanilla, { runner = vm }, row.op, row)
+  T.check(not ran, "the hook skips it")
+  Sh.enabled = function() return false end
+  Runtime.call("script.command", vanilla, { runner = vm }, row.op, row)
+  T.check(ran, "with the Desktop option off: the game's line")
+  Sh.enabled = function() return true end
+end
+
+-- ------- the boot bar: full before the reveal
+T.check(D.bootFill(0.4) > 0.5, ("quick at first (%.2f at 0.4 s)"):format(D.bootFill(0.4)))
+T.eq(D.bootFill(D.BOOT.LOGO - 0.2), 1, "full before the reveal")
+T.eq(D.bootFill(D.BOOT.LOGO), 1, "and through it")
 
 -- ------- window shapes
 openPc({ startMode = "select" })
@@ -294,6 +368,189 @@ D.pointer({ id = 2, phase = "moved", x = grid1[1] - 80, y = grid1[2] + 5 })
 D.pointer({ id = 2, phase = "released", x = grid1[1] - 80, y = grid1[2] + 5 })
 T.eq(st.page, 2, "a swipe: the next page")
 T.check(st.zoom == nil, "and opens nothing")
+
+-- ------- the item model (the engine's own Storage / Bag)
+st.ctx.logoff()
+local Inv, Mb = X._test.inv, X._test.mb
+local Storage, Bag = require("src.core.game3.storage"), require("src.core.game3.bag")
+local ItemsData, Mail = require("src.core.game3.items_data"), require("src.core.game3.mail")
+local POTION = 13
+local function newSession()
+  local s = { name = "WOS", bag = Bag.new(), storage = Storage.new(), party = {} }
+  s.storage.items = { { id = POTION, qty = 5 } }
+  ItemsData.ensureModel(s)
+  return s
+end
+local s = newSession()
+local plain, keyItem = {}, nil
+for id = 1, 400 do
+  local info = ItemsData.info(id)
+  if info and info.name and info.name ~= "" and not Mail.isMailItem(id) then
+    if info.pocket == "ITEMS" and (tonumber(info.importance) or 0) == 0 and id ~= POTION then plain[#plain + 1] = id end
+    if not keyItem and info.pocket == "KEY_ITEMS" and (tonumber(info.importance) or 0) ~= 0 then keyItem = id end
+  end
+end
+T.check(#plain > 50 and keyItem ~= nil, "plain items and a key item to test with (" .. #plain .. ", " .. tostring(keyItem) .. ")")
+T.eq(Inv.pockets(s)[1].id, "ITEMS", "the Bag's pockets, Items first")
+T.eq(Inv.pcRows(s)[1].qty, 5, "the PC's rows")
+T.check(Inv.withdraw(s, 1, 2), "withdraw 2")
+T.eq(Storage.ensure(s).items[1].qty, 3, "the PC keeps 3")
+T.eq(Bag.get(s.bag, POTION), 2, "the Bag has 2")
+T.check(Inv.withdraw(s, 1, 3), "withdraw the rest")
+T.eq(#Storage.ensure(s).items, 0, "the PC's row is gone")
+T.check(Inv.deposit(s, "ITEMS", 1, 5), "deposit all 5 back")
+T.eq(Storage.ensure(s).items[1] and Storage.ensure(s).items[1].qty, 5, "the PC has 5 again")
+T.eq(Bag.get(s.bag, POTION), 0, "the Bag none")
+-- a full PC refuses, and nothing moves
+local _, cap = Inv.pcCount(s)
+for i = 1, cap - 1 do Storage.ensure(s).items[#Storage.ensure(s).items + 1] = { id = plain[i], qty = 1 } end
+Bag.add(s.bag, plain[cap], 2)
+local ok, why = Inv.deposit(s, "ITEMS", 1, 2)
+T.check(not ok and why == "pc_full", "a full PC refuses (" .. tostring(why) .. ")")
+T.eq(Bag.get(s.bag, plain[cap]), 2, "and the Bag keeps them")
+-- an important item stays in the Bag, and can't be tossed
+s = newSession()
+Bag.add(s.bag, keyItem, 1)
+local pocketRows = Inv.bagRows(s, "KEY_ITEMS")
+ok, why = Inv.deposit(s, "KEY_ITEMS", 1, 1)
+T.check(#pocketRows == 1 and not ok and why == "important", "an important item stays in the Bag (" .. tostring(why) .. ")")
+Storage.ensure(s).items[2] = { id = keyItem, qty = 1 }
+ok, why = Inv.toss(s, 2, 1)
+T.check(not ok and why == "important", "and can't be tossed from the PC")
+T.check(Inv.toss(s, 1, 2) and Storage.ensure(s).items[1].qty == 3, "a Potion can (5 -> 3)")
+-- a full Bag refuses a withdrawal
+s = newSession()
+local n = 0
+for _, id in ipairs(plain) do
+  if not Bag.canAdd(s.bag, id, 1) then break end
+  Bag.add(s.bag, id, 1)
+  n = n + 1
+end
+T.check(not Bag.canAdd(s.bag, POTION, 1), "the Bag's Items pocket filled (" .. n .. ")")
+ok, why = Inv.withdraw(s, 1, 1)
+T.check(not ok and why == "bag_full", "a full Bag refuses (" .. tostring(why) .. ")")
+T.eq(Storage.ensure(s).items[1].qty, 5, "and the PC keeps them")
+-- sort
+s = newSession()
+Storage.ensure(s).items = { { id = plain[3], qty = 1 }, { id = POTION, qty = 1 }, { id = plain[1], qty = 1 } }
+Inv.sort(s, "name")
+local names = {}
+for i, e in ipairs(Storage.ensure(s).items) do names[i] = ItemsData.displayName(e.id):lower() end
+T.check(names[1] <= names[2] and names[2] <= names[3], "sorted by name (" .. table.concat(names, ", ") .. ")")
+
+-- ------- the mail model (the engine's own pool)
+s = newSession()
+local pool = Mail.pool(s)
+local function letter(slot, item, from)
+  local rec = pool[slot]
+  Mail.clear(rec)
+  rec.itemId, rec.playerName, rec.species = item, from, 25
+  return rec
+end
+letter(9, 121, "MOM")
+letter(12, 122, "DAD")
+local pika = { species = 25, item = 0 }
+local busy = { species = 1, item = POTION }
+s.party = { pika, busy }
+local inbox = Mb.inbox(s)
+T.eq(#inbox, 2, "the inbox: the PC's two mails")
+T.check(inbox[1].slot == 7 and inbox[2].slot == 8, "packed to the front")
+T.eq(inbox[1].from, "MOM", "first to last")
+ok = Mb.toBag(s, inbox[1])
+T.check(ok and Bag.get(s.bag, 121) == 1, "to the Bag: the stationery as an item")
+T.eq(#Mb.inbox(s), 1, "and the mail gone from the inbox")
+inbox = Mb.inbox(s)
+ok, why = Mb.give(s, inbox[1], busy)
+T.check(not ok and why == "holding", "a Pokémon holding an item can't take it")
+T.check(Mb.give(s, inbox[1], pika), "give it to Pikachu")
+T.check(pika.item == 122 and Mail.monHasMail(pika), "Pikachu holds it")
+T.eq(#Mb.inbox(s), 0, "the inbox is empty")
+local held = Mb.held(s)
+T.eq(#held, 1, "the Held folder has it")
+T.eq(held[1].from, "DAD", "with its message")
+T.check(Mb.take(s, held[1]) and (pika.item or 0) == 0, "Take: back into the inbox")
+T.eq(#Mb.inbox(s), 1, "the inbox has it again")
+for i = 8, 16 do letter(i, 121, "X") end
+T.check(Mail.giveMailToMon2(s, pika, Mail.copy(pool[7])) ~= Mail.MAIL_NONE, "(Pikachu holds another)")
+ok, why = Mb.take(s, Mb.held(s)[1])
+T.check(not ok and why == "box_full", "a full mailbox refuses (" .. tostring(why) .. ")")
+
+-- ------- the windows over a session: buttons move items, the mail reads
+s = newSession()
+openPc({ startMode = "select", session = s })
+st = D.state()
+D.skipBoot()
+draw(30)
+st.focus, st.dockCursor = "dock", 2
+D.input(input({}, {}))
+press("a")
+draw(30)
+local IW = D.window()
+T.check(IW and IW.title == "Items", "Items over a session")
+press("a")
+T.check(IW.state.step and IW.state.step.qty == 5, "A on 5 Potions: how many (all to start)")
+press("down")
+T.eq(IW.state.step.qty, 4, "Down: one fewer")
+press("a")
+T.eq(Bag.get(s.bag, POTION), 4, "A: 4 to the Bag")
+T.eq(Storage.ensure(s).items[1].qty, 1, "1 left in the PC")
+press("right")
+T.eq(IW.state.focus, "bag", "Right: the Bag")
+press("select")
+T.eq(Bag.get(s.bag, POTION), 0, "SELECT: the whole stack to the PC")
+T.eq(Storage.ensure(s).items[1].qty, 5, "5 in the PC again")
+press("start")
+T.check(IW.state.menu ~= nil, "START: the menu")
+press("b")
+T.check(IW.state.menu == nil and D.window() == IW, "B: the menu closes, the window stays")
+draw(30)
+collectgarbage("collect")
+collectgarbage("stop")
+local kbW = collectgarbage("count")
+draw(120)
+local perW = (collectgarbage("count") - kbW) / 120
+collectgarbage("restart")
+T.check(perW < 0.3, ("the Items window draws next to no garbage (%.3f KB a frame)"):format(perW))
+for _, shape in ipairs({ { 480, 320 }, { 320, 480 }, { 900, 320 } }) do
+  VP.width, VP.height = shape[1], shape[2]
+  draw(2)
+  T.check(not D.state().winFailed, "the Items window draws " .. shape[1] .. "x" .. shape[2])
+end
+VP.width, VP.height = 480, 320
+press("b")
+T.check(D.window() == nil, "B closes Items")
+draw(30)
+pool = Mail.pool(s)
+letter(7, 121, "MOM")
+st.focus, st.dockCursor = "dock", 3
+D.input(input({}, {}))
+press("a")
+draw(30)
+local MW = D.window()
+T.check(MW and MW.title == "Mail", "Mail over a session")
+T.eq(#MW.state.inbox, 1, "its inbox")
+press("a")
+T.eq(MW.state.focus, "reader", "A opens the mail")
+draw(10)
+press("a")
+T.eq(MW.state.sheet, "bag", "Move to Bag asks first")
+press("left")
+press("a")
+T.eq(Bag.get(s.bag, 121), 1, "yes: the stationery to the Bag")
+T.eq(#MW.state.inbox, 0, "and the inbox is empty")
+for _, shape in ipairs({ { 480, 320 }, { 320, 480 } }) do
+  VP.width, VP.height = shape[1], shape[2]
+  draw(2)
+  T.check(not D.state().winFailed, "the Mail window draws " .. shape[1] .. "x" .. shape[2])
+end
+VP.width, VP.height = 480, 320
+press("b")
+T.check(D.window() == nil, "B closes Mail")
+st.ctx.logoff()
+openPc({ startMode = "select" })
+st = D.state()
+D.skipBoot()
+draw(30)
 
 -- ------- garbage: the draw, warm
 draw(120)

@@ -9,6 +9,10 @@
 --   sheet    Left / Right choose, A answers, B cancels
 --   touch    tap an icon, the W, a menu row, a sheet's button, the power button on the chin;
 --            swipe the grid (or the mouse wheel) for the next page; the mouse highlights what it's over
+--   window   an app with `window` (src/apps.lua) opens in the screen under the menu bar: its title
+--            strip (the close button), its body drawn by the app; the app takes the buttons first
+--            (B it leaves alone closes the window, START it leaves alone opens the W menu), taps
+--            on its hits, drags and the wheel as scroll(dy)
 -- It boots first (black, the W with a progress bar, the desktop fading up); any button or tap
 -- skips to the desktop. Drawn over the whole window from render.hud (src/shell.lua), laid out for
 -- its shape: landscape (a page 160 units tall) or portrait (180 units wide).
@@ -17,7 +21,8 @@
 --   deps: kit (src/ui_kit.lua) ; apps (src/apps.lua) ; se(name) ; now() -> seconds ; session() ;
 --         currency(G, x, y, px, rgba) / currencyWidth(px) (the game's Pokédollar sign) ;
 --         clock() -> hour, minute ; options() -> { boot = bool, clock24 = bool } ; version ;
---         gameId() -> "firered" | "leafgreen" | "ruby" | "sapphire" | "emerald"
+--         gameId() -> "firered" | "leafgreen" | "ruby" | "sapphire" | "emerald" ;
+--         env (handed to an app's window(ctx, env): the kit, item and Pokémon icons, ...)
 --   D.open(ctx) (ctx: src/apps.lua, plus warm = skip the boot, back = the app id to zoom back from)
 --   D.close() ; D.isOpen() ; D.input(input) ; D.pointer(ev) -> true ; D.wheel(dy) ; D.draw(G, vp)
 --   D.state() (tests) ; D.booting() ; D.skipBoot() ; D.launch(i) ; D.tap(x, y)
@@ -29,9 +34,17 @@ return function(deps)
   local WHITE, BLACK = K.WHITE, K.BLACK
   local mix, light, dark, fade = K.mix, K.light, K.dark, K.fade
 
-  -- the boot (seconds): the screen black, the W with its progress bar, the desktop fading up
-  D.BOOT = { BLACK = 0.35, LOGO = 1.3, REVEAL = 0.45 }
-  local function bootLength() return D.BOOT.BLACK + D.BOOT.LOGO + D.BOOT.REVEAL end
+  -- the boot (seconds): the screen black, the W with its progress bar (full FILL in, held full to
+  -- the end of LOGO), the desktop fading up
+  D.BOOT = { BLACK = 0.25, LOGO = 1.1, FILL = 0.75, REVEAL = 0.45 }
+  local function revealAt() return D.BOOT.BLACK + D.BOOT.LOGO end
+  local function bootLength() return revealAt() + D.BOOT.REVEAL end
+  -- the bar (0..1) at `into` seconds past the black: quick at first, full from the reveal on
+  function D.bootFill(into)
+    if into >= D.BOOT.LOGO then return 1 end
+    local k = min(1, max(0, (into - 0.05) / D.BOOT.FILL))
+    return 1 - (1 - k) * (1 - k)
+  end
   D.PAGE = { height = 160, minWidth = 220, maxWidth = 300, portraitWidth = 180, portraitHeight = 300,
              portraitAspect = 1.15 }
   -- a home-screen cell (an icon and its label), the icon's size, the dock's icons
@@ -44,7 +57,7 @@ return function(deps)
   -- colours
   local C = {
     shellTop = { 232, 234, 240 }, shellFoot = { 178, 182, 192 }, shellEdge = { 110, 114, 128 },
-    glass = { 14, 15, 20 }, glassFoot = { 26, 28, 36 }, chinTop = { 214, 217, 225 }, chinFoot = { 186, 190, 200 },
+    glass = { 14, 15, 20 }, glassFoot = { 26, 28, 36 },
     ink = { 30, 32, 44 }, soft = { 104, 108, 128 }, bar = { 250, 250, 252 }, bad = { 220, 62, 74 },
     off = { 0, 0, 0 }, logo = { 236, 238, 244 }, logoSoft = { 168, 174, 192 }, room = { 40, 42, 52 },
     roomFoot = { 18, 19, 26 }, sheet = { 248, 248, 251 }, sheetFoot = { 232, 234, 240 }, dim = { 0, 0, 0 },
@@ -66,6 +79,7 @@ return function(deps)
       sheet = { { "< >", "Choose" }, { "A", "OK" }, { "B", "Cancel" } },
       about = { { "A", "OK" } },
       boot = { { "A", "Skip" } },
+      window = { { "B", "Close" }, { "START", "Menu" } },
     },
     menu = { "About WoobleOS", "Log Off…" },
     logoffTitle = "Log off?",
@@ -77,13 +91,19 @@ return function(deps)
   }
   D.TEXT = TEXT
   -- (a landscape chin has the W in its middle: the first two hints go left of it, the rest right)
-  local HALVES = {}
-  for key, list in pairs(TEXT.hints) do
-    local left, right = {}, {}
-    for i, h in ipairs(list) do
-      if i <= 2 then left[#left + 1] = h else right[#right + 1] = h end
+  -- (made once per list: an app's lists too, the first time they're shown)
+  local HALVES = setmetatable({}, { __mode = "k" })
+  local function halvesOf(list)
+    local h = HALVES[list]
+    if not h then
+      local left, right = {}, {}
+      for i, e in ipairs(list) do
+        if i <= 2 then left[#left + 1] = e else right[#right + 1] = e end
+      end
+      h = { left, right }
+      HALVES[list] = h
     end
-    HALVES[list] = { left, right }
+    return h
   end
   local ANY_KEY = { "a", "b", "start", "select", "l", "r", "up", "down", "left", "right" }
   local DIRS = { "up", "down", "left", "right" }
@@ -124,7 +144,9 @@ return function(deps)
   end
   function D.close()
     if not r then return end
+    local w = r.win
     r = nil
+    if w and w.close then pcall(w.close) end
   end
   function D.isOpen() return r ~= nil end
   function D.state() return r end
@@ -142,11 +164,12 @@ return function(deps)
   end
   local function booting()
     local age = bootAge()
-    return age ~= nil and age < bootLength() - D.BOOT.REVEAL
+    return age ~= nil and age < revealAt()
   end
   function D.booting() return r ~= nil and booting() end
   function D.skipBoot()
-    if booting() then r.t0 = now() - (bootLength() - D.BOOT.REVEAL) end
+    -- (a hair past the reveal: now() - (now() - x) can round under x)
+    if booting() then r.t0 = now() - revealAt() - 0.001 end
   end
 
   -- ------- the actions (buttons and taps both end here)
@@ -181,6 +204,27 @@ return function(deps)
     end
     r.zoom = { id = app.id, app = app, t = now() }
   end
+
+  -- an app's window: made when its zoom ends, closed back into its icon
+  local function openWindow(app)
+    r.ctx.app = app.id
+    local ok, w = pcall(app.window, r.ctx, deps.env)
+    if not (ok and type(w) == "table" and w.draw) then
+      if deps.log then deps.log("the app %s failed to open: %s", app.id, tostring(w)) end
+      return
+    end
+    r.win, r.winApp, r.winFailed = w, app, false
+  end
+  local function closeWindow()
+    local w, app = r.win, r.winApp
+    if not w then return end
+    r.win, r.winApp = nil, nil
+    if w.close then pcall(w.close) end
+    r.zoom = { id = app.id, t = now(), back = true }
+    se("SE_SELECT")
+  end
+  D.closeWindow = function() if r then closeWindow() end end
+  D.window = function() return r and r.win end
 
   local function openMenu()
     r.menuOpen, r.menuCursor = true, 1
@@ -254,6 +298,7 @@ return function(deps)
 
   local cur
   local function pressed(k) return cur:wasPressed(k) end
+  local NAV = {}
   function D.input(input)
     if not (r and input) then return end
     cur = input
@@ -292,6 +337,16 @@ return function(deps)
       elseif pressed("a") then menuChoose(r.menuCursor)
       elseif pressed("b") or pressed("start") then closeMenu()
       end
+      return
+    end
+    -- a window takes the buttons first
+    if r.win then
+      NAV.up, NAV.down, NAV.left, NAV.right = up, down, left, right
+      local ok, used = pcall(r.win.input, input, NAV)
+      if not ok and deps.log then deps.log("the window's input failed: %s", tostring(used)) end
+      if ok and used then return end
+      if pressed("b") then return closeWindow() end
+      if pressed("start") then return openMenu() end
       return
     end
     if pressed("start") then return openMenu() end
@@ -341,6 +396,10 @@ return function(deps)
   function D.wheel(dy)
     if not r then return false end
     if booting() or r.sheet or r.menuOpen then return true end
+    if r.win then
+      if r.win.scroll then pcall(r.win.scroll, dy * 10, r.mouseX, r.mouseY) end
+      return true
+    end
     if dy > 0 then setPage(r.page - 1) elseif dy < 0 then setPage(r.page + 1) end
     return true
   end
@@ -375,6 +434,12 @@ return function(deps)
     elseif kind == "no" or kind == "ok" then closeSheet()
     elseif kind == "power" then D.sheet("logoff"); se("SE_SELECT")
     elseif kind == "dot" then setPage(arg)
+    elseif kind == "winclose" then closeWindow()
+    elseif kind == "win" then
+      if r.win and r.win.tap then
+        local ok, err = pcall(r.win.tap, arg, x, y)
+        if not ok and deps.log then deps.log("the window's tap failed: %s", tostring(err)) end
+      end
     end
     return true
   end
@@ -385,15 +450,23 @@ return function(deps)
     local x, y = tonumber(ev.x) or 0, tonumber(ev.y) or 0
     local press = r.press
     if ev.phase == "pressed" then
-      local area = r.gridArea
-      r.press = { id = ev.id, x = x, y = y, drag = false,
-                  grid = area ~= nil and not r.sheet and not r.menuOpen and K.inside(area, x, y) }
+      local area, wa = r.gridArea, r.winArea
+      local free = not r.sheet and not r.menuOpen
+      r.press = { id = ev.id, x = x, y = y, ly = y, drag = false,
+                  grid = not r.win and area ~= nil and free and K.inside(area, x, y),
+                  win = r.win ~= nil and wa ~= nil and free and K.inside(wa, x, y) }
     elseif ev.phase == "moved" then
+      r.mouseX, r.mouseY = x, y
       if press and press.id == ev.id then
         local dx = x - press.x
         if press.grid and (press.drag or abs(dx) > 4 * K.sc) then
           press.drag = true
           r.dragX = dx / K.sc
+        elseif press.win and (press.drag or abs(y - press.y) > 4 * K.sc) then
+          -- (a drag in a window scrolls it)
+          press.drag = true
+          if r.win and r.win.scroll then pcall(r.win.scroll, (y - press.ly) / K.sc, press.x, press.y) end
+          press.ly = y
         end
       else
         local h = hitAt(x, y)
@@ -403,7 +476,9 @@ return function(deps)
     elseif ev.phase == "released" then
       if press and press.id == ev.id then
         r.press = nil
-        if press.drag then
+        if press.drag and press.win then
+          -- (the window kept up with it)
+        elseif press.drag then
           local dx = r.dragX or 0
           r.dragX = nil
           if dx < -24 then setPage(r.page + 1) elseif dx > 24 then setPage(r.page - 1) end
@@ -524,6 +599,17 @@ return function(deps)
       G.line(cx, cy - s * 0.3, cx, cy - s * 0.02)
     elseif kind == "logo" then
       K.drawLogo(cx, cy + s * 0.02, s * 0.62, C.logo, a, C.logoSoft)
+    elseif kind == "mail" then
+      local w, h = s * 0.56, s * 0.4
+      local x0, y0 = cx - w / 2, cy - h / 2
+      G.rectangle("line", x0, y0, w, h, s * 0.05, s * 0.05)
+      G.line(x0 + lw * 0.3, y0 + lw * 0.3, cx, cy + h * 0.08, x0 + w - lw * 0.3, y0 + lw * 0.3)
+    elseif kind == "home" then
+      local w, h = s * 0.46, s * 0.3
+      local x0, y0 = cx - w / 2, cy - h * 0.2
+      G.rectangle("line", x0, y0, w, h + h * 0.3)
+      G.polygon("fill", cx - w * 0.68, y0 + lw * 0.2, cx, cy - s * 0.3, cx + w * 0.68, y0 + lw * 0.2)
+      G.rectangle("fill", cx - s * 0.05, y0 + h * 0.55, s * 0.1, h * 0.75)
     elseif kind == "gear" then
       local rad = s * 0.2
       G.circle("line", cx, cy, rad)
@@ -565,11 +651,10 @@ return function(deps)
     -- the black glass, edge to edge above the chin
     K.grad(L.glassB, 6, C.glass, C.glassFoot)
     K.ring(L.glassB, 6, BLACK, 0.6, 0.6)
-    -- the chin, brushed, with the W in its middle
-    local chin = L.chin
-    K.grad(chin, 0, C.chinTop, C.chinFoot)
-    K.col(BLACK, 0.12)
-    K.box("fill", K.R(chin[1], chin[2], chin[3], 0.6))
+    -- the chin: the body's own aluminium under the glass (a light edge), the W in its middle
+    local gb = L.glassB
+    K.col(WHITE, 0.35)
+    K.box("fill", K.R(gb[1] + 6, gb[2] + gb[4] + 0.4, gb[3] - 12, 0.6), 0.3)
     K.drawLogo(K.X(L.chinLogo[1]), K.Y(L.chinLogo[2]), L.chinLogo[3] * K.sc, C.shellEdge, 0.9, C.logoSoft)
     -- the power button
     local pb = L.power
@@ -633,11 +718,48 @@ return function(deps)
         x = x - dw - sw2 - 6
       end
     end
-    local name = s and (s.name or s.playerName)
+    -- (an app open: its name there, as a Mac does)
+    local name = r.winApp and r.winApp.label or s and (s.name or s.playerName)
     if type(name) == "string" and name ~= "" then
       local nx = wb[1] + wb[3] + 3
       local ns = K.fit(name, 5, x - nx)
       K.text(name, nx, mb[2] + 1.6 + (5 - ns) * 0.5, ns, C.ink)
+      if r.winApp then K.text(name, nx + 0.25, mb[2] + 1.6 + (5 - ns) * 0.5, ns, C.ink) end
+    end
+  end
+
+  -- an app's window over the screen: the title strip with its close button, then the app
+  local function drawWindow(L, clock, portrait)
+    local G = K.graphics()
+    local wb, tb = L.win, L.winTitle
+    -- (the whole screen, its rounded corners; the menu bar is drawn over its top)
+    K.col(C.sheet)
+    K.box("fill", K.R(wb[1], wb[2] - 9, wb[3], wb[4] + 9), 3)
+    K.grad(tb, 0, C.sheet, C.sheetFoot)
+    K.col(BLACK, 0.1)
+    K.box("fill", K.R(tb[1], tb[2] + tb[4] - 0.4, tb[3], 0.4))
+    local cb = L.winClose
+    K.col(C.bad)
+    G.circle("fill", K.X(cb[1] + cb[3] / 2), K.Y(cb[2] + cb[4] / 2), 2.6 * K.sc)
+    K.col(BLACK, 0.35)
+    G.setLineWidth(max(1, 0.5 * K.sc))
+    local cx, cy, d = K.X(cb[1] + cb[3] / 2), K.Y(cb[2] + cb[4] / 2), 1.1 * K.sc
+    G.line(cx - d, cy - d, cx + d, cy + d)
+    G.line(cx - d, cy + d, cx + d, cy - d)
+    K.addHit(K.R(cb[1] - 2, cb[2] - 1, cb[3] + 4, cb[4] + 2), "winclose")
+    local title = r.win.title or r.winApp.label
+    K.text(title, tb[1], tb[2] + 2.4, 5, C.ink, "center", tb[3])
+    local body = L.winBody
+    local wa = r.winArea or {}
+    r.winArea = wa
+    wa[1], wa[2], wa[3], wa[4] = K.X(body[1]), K.Y(body[2]), body[3] * K.sc, body[4] * K.sc
+    K.scissor(body)
+    local ok, err = pcall(r.win.draw, body, clock, portrait)
+    K.scissor(nil)
+    G.setColor(1, 1, 1, 1)
+    if not ok and not r.winFailed then
+      r.winFailed = true
+      if deps.log then deps.log("the window's draw failed: %s", tostring(err)) end
     end
   end
 
@@ -824,16 +946,15 @@ return function(deps)
     local size = min(sb[4] * 0.34, sb[3] * 0.24)
     local cx, cy = sb[1] + sb[3] / 2, sb[2] + sb[4] / 2 - 6
     K.drawLogo(K.X(cx), K.Y(cy), size * K.sc, C.logo, la, C.logoSoft)
-    if out == 0 then
-      local fill = min(1, max(0, (into - 0.2) / (B.LOGO - 0.35)))
-      local bw = min(56, sb[3] * 0.36)
-      local bar = K.R(cx - bw / 2, cy + size * 0.31 + 10, bw, 2)
-      K.col(WHITE, 0.18 * la)
-      K.box("fill", bar, 1)
-      if fill > 0 then
-        K.col(WHITE, la)
-        K.box("fill", K.R(bar[1], bar[2], max(bar[4], bar[3] * fill), bar[4]), 1)
-      end
+    -- (through the reveal too, full and fading with the W: a skip never leaves it cut short)
+    local fill = D.bootFill(into)
+    local bw = min(56, sb[3] * 0.36)
+    local bar = K.R(cx - bw / 2, cy + size * 0.31 + 10, bw, 2)
+    K.col(WHITE, 0.18 * la)
+    K.box("fill", bar, 1)
+    if fill > 0 then
+      K.col(WHITE, la)
+      K.box("fill", K.R(bar[1], bar[2], max(bar[4], bar[3] * fill), bar[4]), 1)
     end
     G.setColor(1, 1, 1, 1)
   end
@@ -861,6 +982,11 @@ return function(deps)
     L.menubar = { sb[1], sb[2], sb[3], 9 }
     L.wbutton = { sb[1] + 2, sb[2] + 0.5, 11, 8 }
     L.menuB = { sb[1] + 2, sb[2] + 9.5, 72, 24 }
+    -- an app's window: the screen under the menu bar, a title strip, its body
+    L.win = { sb[1], sb[2] + 9, sb[3], sb[4] - 9 }
+    L.winTitle = { sb[1], sb[2] + 9, sb[3], 10 }
+    L.winClose = { sb[1] + 2, sb[2] + 9.5, 9, 9 }
+    L.winBody = { sb[1], sb[2] + 19, sb[3], sb[4] - 19 }
     local aw = min(140, sb[3] - 20)
     L.sheetB = { sb[1] + (sb[3] - aw) / 2, sb[2] + (sb[4] - 74) / 2, aw, 74 }
     -- the dock along the foot of the screen, the grid above it
@@ -905,9 +1031,13 @@ return function(deps)
     drawMonitor(L)
     local sb = L.screen
     drawWallpaper(sb)
+    if r.win then
+      drawWindow(L, clock, portrait)
+    else
+      drawGrid(L, clock)
+      drawDock(L)
+    end
     drawMenuBar(L, clock)
-    drawGrid(L, clock)
-    drawDock(L)
     -- an app zooming up from its icon (then it runs), or back down into it
     local z = r.zoom
     local launch
@@ -929,21 +1059,27 @@ return function(deps)
     if bt then drawBoot(L, bt) end
     -- the hints on the chin
     local hints
-    if bt and bt < bootLength() - D.BOOT.REVEAL then hints = TEXT.hints.boot
+    if bt and bt < revealAt() then hints = TEXT.hints.boot
     elseif r.sheet == "about" then hints = TEXT.hints.about
     elseif r.sheet then hints = TEXT.hints.sheet
     elseif r.menuOpen then hints = TEXT.hints.menu
+    elseif r.win then
+      local ok, got = true, nil
+      if r.win.hints then ok, got = pcall(r.win.hints) end
+      hints = ok and type(got) == "table" and got or TEXT.hints.window
     else hints = pages() > 1 and TEXT.hints.gridPages or TEXT.hints.grid
     end
     if portrait then
       K.hints(hints, L.hints, C.bar, true, C.ink, C.ink)
     else
-      local halves = HALVES[hints]
+      local halves = halvesOf(hints)
       K.hints(halves[1], L.hints, C.bar, false, C.ink, C.ink)
       K.hints(halves[2], L.hints2, C.bar, false, C.ink, C.ink)
     end
     g.setColor(1, 1, 1, 1)
-    if launch then
+    if launch and launch.window then
+      openWindow(launch)
+    elseif launch then
       r.ctx.app = launch.id
       local ok, err = pcall(launch.open, r.ctx)
       if not ok and deps.log then deps.log("the app %s failed to open: %s", launch.id, tostring(err)) end

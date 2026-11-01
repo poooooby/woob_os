@@ -4,6 +4,8 @@
 --     Center PC's menu (startMode "select") and the player's bedroom PC (opts.bedroom). Every other
 --     way in (the storage menu, the player's PC menu the scripts open after a choice) goes to the
 --     game's own menu as before. The PC's turn-on flicker and sounds stay the game's.
+--   - script.command skips the game's "booted up the PC" and "Which PC should be accessed?" lines
+--     in front of those two menus (the boot does their job); with the Desktop option off they stay
 --   - the wrapper is installed once per process on the module (PcMenu.__woobleOs) and calls the
 --     current mod instance's `impl`, so loading the mod again (another game) never wraps it twice
 --   - the desktop is a Gen 3 UI stack layer (it takes the buttons, holds the script) drawn over the
@@ -97,10 +99,11 @@ return function(mod, deps)
     if game:find("firered", 1, true) or game:find("leafgreen", 1, true) then return "frlg" end
     return "rse"
   end
+  local GAMES = { "firered", "leafgreen", "ruby", "sapphire", "emerald" }
   local function gameId()
     local GV = engine("src.core.GameVersion")
     local g = GV and GV.current and tostring(GV.current) or ""
-    for _, id in ipairs({ "firered", "leafgreen", "ruby", "sapphire", "emerald" }) do
+    for _, id in ipairs(GAMES) do
       if g:find(id, 1, true) then return id end
     end
     return g
@@ -151,18 +154,30 @@ return function(mod, deps)
     function ctx.logoff()
       if mode == "select" then ctx.finish(127) else ctx.done() end
     end
-    -- the game's own PC menu over the desktop (the desktop comes back when it closes)
-    function ctx.original(o)
+    -- one of the game's own screens over the desktop: open(onClose) opens it; the desktop comes
+    -- back (no boot, the app's icon zooming back) when it closes
+    function ctx.over(open)
       D.close()
       pop()
       local back = ctx.app
-      original({ session = opts.session, startMode = o.startMode, bedroom = o.bedroom, closeOnExit = true,
-                 silentClose = true, onClose = function()
-                   if closed then return end
-                   ctx.warm, ctx.back = true, back
-                   D.open(ctx)
-                   push()
-                 end })
+      local function reopen()
+        if closed then return end
+        ctx.warm, ctx.back = true, back
+        D.open(ctx)
+        push()
+      end
+      local ok, err = pcall(open, reopen)
+      if not ok then
+        if log then log:warn("the game's screen failed to open: %s", tostring(err)) end
+        reopen()
+      end
+    end
+    -- the game's own PC menu over the desktop
+    function ctx.original(o)
+      ctx.over(function(onClose)
+        original({ session = opts.session, startMode = o.startMode, bedroom = o.bedroom, closeOnExit = true,
+                   silentClose = true, onClose = onClose })
+      end)
     end
     function ctx.sheet(kind) D.sheet(kind) end
     if warm then
@@ -208,8 +223,50 @@ return function(mod, deps)
     return true
   end
 
+  -- the game's two lines before its PC menu ("X booted up the PC." and "Which PC should be
+  -- accessed?"): the boot does their job, so they're skipped. In the scripts (msgbox = loadword +
+  -- callstd 4): a Center PC is msgbox, goto <menu>; the menu is message, waitmessage, special
+  -- CreatePCMenu / ScriptMenu_CreatePCMultichoice; the bedroom PC is msgbox, special BedroomPC.
+  local PC_SPECIALS = { CreatePCMenu = true, ScriptMenu_CreatePCMultichoice = true, BedroomPC = true }
+  local function pcMenuAt(list, i)
+    local row = list and list[i]
+    if not (row and row.op == "special") then return false end
+    local N = engine("src.core.game3.scripting.natives")
+    local ok, name = pcall(N and N.specialName or error, row.id or row[1])
+    return ok and PC_SPECIALS[name] == true
+  end
+  local function promptAt(list, i)
+    local row = list and list[i]
+    if not row then return false end
+    if row.op == "message" then
+      return list[i + 1] ~= nil and list[i + 1].op == "waitmessage" and pcMenuAt(list, i + 2)
+    end
+    if row.op == "waitmessage" then return pcMenuAt(list, i + 1) end
+    return pcMenuAt(list, i)
+  end
+  -- (vm.ctx.pc.index is the row after this one by the time the hook runs)
+  function Sh.skips(vm, op, row)
+    if op ~= "message" and op ~= "waitmessage" and op ~= "callstd" then return false end
+    local pc = vm and vm.ctx and vm.ctx.pc
+    local list = pc and vm.scripts and vm.scripts[pc.listKey]
+    if not list then return false end
+    local i = pc.index
+    if op == "message" or op == "waitmessage" then return promptAt(list, i - 1) end
+    if tonumber(row and (row.std or row[1])) ~= 4 then return false end
+    if pcMenuAt(list, i) then return true end
+    local nxt = list[i]
+    return nxt ~= nil and nxt.op == "goto" and promptAt(vm.scripts[nxt.target], 1)
+  end
+
   -- the hooks (at load)
   function Sh.install()
+    mod.hooks:wrap("script.command", function(nxt, ctx, op, row, ...)
+      if (op == "message" or op == "waitmessage" or op == "callstd") and not (Sh.enabled and not Sh.enabled()) then
+        local ok, skip = pcall(Sh.skips, type(ctx) == "table" and (ctx.runner or ctx.vm), op, row)
+        if ok and skip then return false end
+      end
+      return nxt(ctx, op, row, ...)
+    end)
     mod.hooks:wrap("render.hud", function(nxt, game, viewport)
       local res = nxt(game, viewport)
       -- (the layer taken away under it, a reset: the desktop goes too)

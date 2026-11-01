@@ -3,6 +3,8 @@
 --   src/apps.lua     the app registry (mod.exports.apps) and the built-in apps
 --   src/desktop.lua  the desktop: monitor, boot, menu bar, home grid, dock, sheets, input
 --   src/shell.lua    the PC menu takeover, the UI stack layer, the render / pointer / wheel hooks
+--   src/inventory.lua, src/mailbox.lua   the item and mail models (the engine's Storage, Bag, Mail)
+--   src/apps/items.lua, src/apps/mail.lua the Items (PC | Bag) and Mail (inbox) windows
 
 local function loadSibling(mod, name)
   local source = mod:read(name)
@@ -28,6 +30,8 @@ return function(mod)
   if mod.generation ~= nil and mod.generation ~= 3 then return end
   local makeKit, makeApps = loadSibling(mod, "src/ui_kit.lua"), loadSibling(mod, "src/apps.lua")
   local makeDesktop, makeShell = loadSibling(mod, "src/desktop.lua"), loadSibling(mod, "src/shell.lua")
+  local makeInv, makeMb = loadSibling(mod, "src/inventory.lua"), loadSibling(mod, "src/mailbox.lua")
+  local itemsWindow, mailWindow = loadSibling(mod, "src/apps/items.lua"), loadSibling(mod, "src/apps/mail.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell) then return end
 
   local function option(key, default)
@@ -59,7 +63,87 @@ return function(mod)
       if SafeArea and SafeArea.windowRect then return SafeArea.windowRect() end
     end,
   })
-  local Apps = makeApps()
+  local function gameId() return Sh and Sh.gameId() or "" end
+  local function frlg()
+    local g = gameId()
+    return g == "firered" or g == "leafgreen"
+  end
+  local function session()
+    local Runtime = engine("src.core.game3.runtime")
+    return Runtime and Runtime.getSession and Runtime.getSession() or nil
+  end
+  -- the game's own item icon (24 px art), `size` units square at x, y (units); FireRed / LeafGreen's
+  -- images kept here (the engine's lookup makes garbage every call)
+  local frlgIcons, rseSheet, rseQuads = {}, nil, {}
+  local function itemIcon(id, x, y, size)
+    local G = Kit.graphics()
+    local k = size * Kit.sc / 24
+    if frlg() then
+      local img = frlgIcons[id]
+      if img == nil then
+        local Chrome = engine("src.ui.game3.bag_chrome")
+        local ok, got = pcall(Chrome and Chrome.iconImage or error, id)
+        img = ok and got or false
+        frlgIcons[id] = img
+      end
+      if img then
+        G.setColor(1, 1, 1, 1)
+        G.draw(img, Kit.X(x), Kit.Y(y), 0, k, k)
+      end
+      return
+    end
+    -- (Ruby / Sapphire / Emerald: one sheet of 24 px icons, by item id; its quads kept here)
+    if rseSheet == nil then
+      local Chrome, SceneKit = engine("src.ui.game3.rse.bag_chrome"), engine("src.ui.game3.rse.scene_kit")
+      local ok, m = pcall(Chrome and Chrome.manifest or error)
+      local icons = ok and m and m.icons
+      local img = icons and SceneKit and SceneKit.rgbaImage(icons.rgba, icons.w, icons.h)
+      rseSheet = img and { img = img, count = icons.count, w = icons.w, h = icons.h } or false
+    end
+    if not rseSheet then return end
+    local n = tonumber(id) or 0
+    if n < 0 or n >= rseSheet.count then n = rseSheet.count - 1 end
+    local q = rseQuads[n]
+    if not q then
+      q = love.graphics.newQuad(0, n * 24, 24, 24, rseSheet.w, rseSheet.h)
+      rseQuads[n] = q
+    end
+    G.setColor(1, 1, 1, 1)
+    G.draw(rseSheet.img, q, Kit.X(x), Kit.Y(y), 0, k, k)
+  end
+  -- a Pokémon's menu icon (its first frame), `size` units square (the engine keeps the images;
+  -- a species without one is remembered, not looked for every frame)
+  local noIcon = {}
+  local function monIcon(species, x, y, size)
+    if noIcon[species] then return end
+    local P = engine("src.core.game3.pokemon")
+    local e = P and P.icon and P.icon(species)
+    if not (e and e.image and e.quads) then
+      noIcon[species] = true
+      return
+    end
+    local G = Kit.graphics()
+    G.setColor(1, 1, 1, 1)
+    G.draw(e.image, e.quads[0], Kit.X(x), Kit.Y(y), 0, size * Kit.sc / e.w, size * Kit.sc / e.h)
+  end
+  local env = {
+    K = Kit, session = session, now = function() return love and love.timer and love.timer.getTime() or 0 end,
+    se = function(name) if Sh then Sh.se(name) end end, itemIcon = itemIcon, monIcon = monIcon,
+    inv = makeInv and makeInv(engine), mb = makeMb and makeMb(engine),
+  }
+  local Apps = makeApps({
+    items = env.inv and itemsWindow or nil,
+    mail = env.mb and mailWindow or nil,
+    -- (Ruby / Sapphire / Emerald: the bedroom PC's Decoration, the game's own menu)
+    decorate = function(ctx)
+      ctx.over(function(onClose)
+        local Rse = engine("src.core.game3.rse.init")
+        local impl = Rse and Rse.system and Rse.system("decorationMenu", "DoPlayerRoomDecorationMenu")
+        if not (impl and impl.open) then error("the game has no Decoration menu") end
+        impl.open({ session = ctx.session or session(), onClose = onClose })
+      end)
+    end,
+  })
   local glyphOpts = setmetatable({}, { __mode = "k" })
   local NONE = { 0, 0, 0, 0 }
   local CURRENCY_GLYPH, CURRENCY_EM, CURRENCY_DROP, CURRENCY_BOLD = 0xB7, 11, -0.04, 0.6
@@ -68,13 +152,11 @@ return function(mod)
     kit = Kit,
     apps = Apps,
     version = version,
-    se = function(name) if Sh then Sh.se(name) end end,
-    now = function() return love and love.timer and love.timer.getTime() or 0 end,
-    session = function()
-      local Runtime = engine("src.core.game3.runtime")
-      return Runtime and Runtime.getSession and Runtime.getSession() or nil
-    end,
-    gameId = function() return Sh and Sh.gameId() or "" end,
+    se = env.se,
+    now = env.now,
+    session = session,
+    gameId = gameId,
+    env = env,
     options = function()
       return { boot = option("boot", true) ~= false, clock24 = option("clock24", false) == true }
     end,
@@ -128,7 +210,9 @@ return function(mod)
   mod.events:on("map.entered", function() Sh.forget() end)
   mod.events:on("save.loaded", function() Sh.forget() end)
 
-  -- other mods add apps: exports.apps.register{ id, label, glyph, color, order, dock, available, open }
+  -- other mods add apps: exports.apps.register{ id, label, glyph, color, order, dock, available,
+  -- open | window }
   mod.exports.apps = { register = Apps.register, list = function() return Apps.apps end }
-  mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit }
+  mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb,
+                        env = env }
 end
