@@ -1,0 +1,24 @@
+{
+  "id": "wooble_os",
+  "name": "WoobleOS",
+  "version": "0.1.0",
+  "api": 2,
+  "entry": "main.lua",
+  "profile": "overhaul",
+  "category": "UI",
+  "games": [
+    "gen3"
+  ],
+  "game_version": ">=0.3.95",
+  "priority": 100,
+  "permissions": [
+    "engine_internals"
+  ],
+  "dependencies": [],
+  "optional_dependencies": [],
+  "conflicts": [],
+  "incompatible": [],
+  "experimental": false,
+  "options_schema": "options.lua",
+  "description": "FireRed, LeafGreen, Ruby, Sapphire and Emerald: the PC becomes a modern desktop in a monitor. It boots with the W, then shows a home screen of apps with a dock and a menu bar, made for touch and controllers and just as easy with a mouse and keyboard. The apps open the game's own Pokémon Storage, Item Storage, Hall of Fame and Prof. Oak's PC."
+}
