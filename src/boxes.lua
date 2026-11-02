@@ -1,11 +1,12 @@
--- The Pokémon model behind the Boxes app: the party and the PC's 14 boxes, through the engine's own
+-- The Pokémon model behind the Boxes app: the party and the PC's boxes (14, or as many as the engine
+-- has: WoobleDex's Bigger PC makes them 40), through the engine's own
 -- Storage (src.core.game3.storage), so the session changes as the game's own storage screens change
 -- it (a Pokémon going into a box is healed, the party stays packed, the quest log hears of it).
 -- The game's rules hold on all five games: the party keeps a Pokémon that can battle, a Pokémon
 -- holding mail stays out of the boxes, eggs and mail holders aren't released.
 --
 --   Bx = boxes(engine)        engine(name) -> an engine module or nil (kept by the caller)
---   Bx.BOXES, Bx.SLOTS, Bx.COLS, Bx.ROWS, Bx.PARTY
+--   Bx.BOXES (read live: the engine's Storage.TOTAL_BOXES_COUNT), Bx.SLOTS, Bx.COLS, Bx.ROWS, Bx.PARTY
 --   Bx.addr(loc, slot, box) -> the one address table for that place ({ loc, slot, boxId })
 --   Bx.get(s, addr) -> mon | nil ; Bx.party(s) ; Bx.boxMons(s, b) ; Bx.current(s) / Bx.setCurrent(s, b)
 --   Bx.count(s, b) ; Bx.boxName(s, b) ; Bx.rename(s, b, name) ; Bx.wallpaper(s, b) / Bx.setWallpaper(s, b, id)
@@ -26,25 +27,39 @@
 --       "cant_hold" | "no_item" | "needed" ; the words are lang/*.lua's "reason.box.<reason>"
 
 return function(engine)
-  local Bx = { BOXES = 14, SLOTS = 30, COLS = 6, ROWS = 5, PARTY = 6 }
+  local Bx = { SLOTS = 30, COLS = 6, ROWS = 5, PARTY = 6 }
   local floor = math.floor
 
   local function Storage() return engine("src.core.game3.storage") end
   local function Pokemon() return engine("src.core.game3.pokemon") end
   local function Mail() return engine("src.core.game3.mail") end
 
+  -- how many boxes the PC has: the engine's own count, which another mod may raise (WoobleDex's
+  -- Bigger PC: 40), read each time
+  local function boxCount()
+    local St = Storage()
+    local n = St and tonumber(St.TOTAL_BOXES_COUNT)
+    return n and n >= 1 and floor(n) or 14
+  end
+  Bx.boxCount = boxCount
+  setmetatable(Bx, { __index = function(_, k) if k == "BOXES" then return boxCount() end end })
+
   -- ------- places
 
+  -- (each place's address made once, a box's the first time it's asked for)
   local PARTY_ADDR, BOX_ADDR = {}, {}
   for i = 1, Bx.PARTY do PARTY_ADDR[i] = { loc = "party", slot = i } end
-  for b = 1, Bx.BOXES do
-    local row = {}
-    for i = 1, Bx.SLOTS do row[i] = { loc = "box", slot = i, boxId = b } end
-    BOX_ADDR[b] = row
-  end
   function Bx.addr(loc, slot, box)
     if loc == "party" then return PARTY_ADDR[slot] end
-    return BOX_ADDR[box] and BOX_ADDR[box][slot]
+    local b = tonumber(box)
+    if not b or b < 1 or b ~= floor(b) then return nil end
+    local row = BOX_ADDR[b]
+    if not row then
+      row = {}
+      for i = 1, Bx.SLOTS do row[i] = { loc = "box", slot = i, boxId = b } end
+      BOX_ADDR[b] = row
+    end
+    return row[slot]
   end
 
   local function storage(s)

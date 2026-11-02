@@ -1,5 +1,5 @@
 -- The Boxes app: the Pokémon Storage System in one window. The party on the left, a box in the
--- middle (any of the 14), the Pokémon under the cursor on the right. Three cursor modes, SELECT going
+-- middle (any of them: 14, or 40 with WoobleDex's Bigger PC), the Pokémon under the cursor on the right. Three cursor modes, SELECT going
 -- round them (or a tap on one of the mode icons under the box):
 --   Select (red)    A on a Pokémon: Move, Summary, Item (Take / Give), Release; A on the box's name
 --                   (or START): Jump to a box, Rename, Wallpaper

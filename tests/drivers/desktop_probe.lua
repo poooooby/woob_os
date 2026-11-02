@@ -230,6 +230,26 @@ local function body(game, log)
     check(bst.sheet and bst.sheet.kind == "wall", "Wallpaper: the game's wallpapers")
     shot("d2h_wallpaper")
     U.tap(game, "b"); U.wait(4)
+    -- WoobleDex's Bigger PC (on unless its option is off): every box, R round from 40 to 1
+    do
+      local Bx = X._test.bx
+      local St = require("src.core.game3.storage")
+      log(("  the PC's boxes: %d (the engine's TOTAL_BOXES_COUNT %s)"):format(Bx.BOXES, tostring(St.TOTAL_BOXES_COUNT)))
+      check(Bx.BOXES == (tonumber(St.TOTAL_BOXES_COUNT) or 14), "Boxes has every box the PC has")
+      if Bx.BOXES > 14 then
+        local box0 = bst.box
+        bst.box = Bx.BOXES - 1
+        Bx.setCurrent(s0, bst.box)
+        U.tap(game, "r"); U.wait(10)
+        check(bst.box == Bx.BOXES, "R to the last box (" .. tostring(bst.box) .. ")")
+        shot("d2h2_box_last")
+        U.tap(game, "r"); U.wait(6)
+        check(bst.box == 1, "then round to box 1")
+        bst.box = box0
+        Bx.setCurrent(s0, box0)
+        U.wait(4)
+      end
+    end
     -- the window's draw garbage
     local drawB, kbB, nB = D.draw, 0, 0
     D.draw = function(...)

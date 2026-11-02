@@ -3,7 +3,7 @@
 All notable changes to this mod are documented here, in
 [keep a changelog](https://keepachangelog.com/en/1.1.0/) format.
 
-## [Unreleased]
+## [0.2.0] - 2026-11-02
 
 ### Added
 - **GTS.** Wonder Trade (send one, get a surprise back from a Trainer somewhere in the world:
@@ -33,6 +33,10 @@ All notable changes to this mod are documented here, in
   need). A purchase appears on the pad and goes up into the Bag; Sell takes the Bag's items for
   half their price, and they leave off the pad. Ten Poké Balls at once come with a Premier Ball.
   Prices and names are the game's own.
+
+### Fixed
+- **Boxes with WoobleDex's Bigger PC.** All 40 boxes show (L and R go on past box 14), not only
+  the first 14; the GTS looks through all of them too.
 
 ## [0.1.1] - 2026-11-01
 

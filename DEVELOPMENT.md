@@ -115,6 +115,9 @@ once. Each drop saves.
 ## Boxes
 
 `src/boxes.lua` wraps the engine's `Storage`:
+- **How many boxes:** `Bx.BOXES` is read live (a metatable field) from the engine's
+  `Storage.TOTAL_BOXES_COUNT`, which WoobleDex's Bigger PC raises to 40; a box's addresses are made
+  the first time they're asked for.
 - **Moves:** `pickUpMon`-style taking, done by hand so a group is taken all or nothing; then
   `placeHeldMon` (healing in a box, compacting the party, the quest log) and `restoreHeldMon`.
 - **Rules,** applied on every game: the party keeps a Pokémon that can battle; mail holders stay

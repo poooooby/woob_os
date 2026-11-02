@@ -1353,6 +1353,24 @@ end
 
 -- ------- the Pokémon model (src/boxes.lua, on the engine's Storage)
 local Bx = X._test.bx
+-- (the PC's box count: the engine's, raised to 40 by WoobleDex's Bigger PC)
+do
+  local St = require("src.core.game3.storage")
+  local n0 = St.TOTAL_BOXES_COUNT
+  T.eq(Bx.BOXES, tonumber(n0) or 14, "the PC's own number of boxes")
+  St.TOTAL_BOXES_COUNT = 40
+  local bs = { party = {}, storage = St.new() }
+  St.ensure(bs)
+  T.eq(Bx.BOXES, 40, "WoobleDex's Bigger PC: 40 boxes")
+  Bx.setCurrent(bs, 30)
+  T.eq(Bx.current(bs), 30, "box 30 can be the current one")
+  Bx.setCurrent(bs, 41)
+  T.eq(Bx.current(bs), 1, "and past 40 it comes round to 1")
+  local addr = Bx.addr("box", 30, 40)
+  T.check(addr and addr.boxId == 40 and addr.slot == 30 and Bx.addr("box", 30, 40) == addr, "box 40's places, made once")
+  St.TOTAL_BOXES_COUNT = n0
+  T.eq(Bx.BOXES, tonumber(n0) or 14, "back to the PC's own")
+end
 local function newMon(species, hp, extra)
   local m = { species = species, level = 10, hp = hp, maxHp = 30, moves = { 33, 45 }, personality = 1234, otId = 1 }
   for k, v in pairs(extra or {}) do m[k] = v end
@@ -1574,6 +1592,28 @@ VP.width, VP.height = 480, 320
 draw(120)
 local perB = garbageOf(120)
 T.check(perB < 0.3, ("the Boxes window draws next to no garbage (%.3f KB a frame)"):format(perB))
+-- WoobleDex's Bigger PC: R goes on past box 14 to 15 ... 40, then round to 1
+do
+  local St = require("src.core.game3.storage")
+  local n0 = St.TOTAL_BOXES_COUNT
+  St.TOTAL_BOXES_COUNT = 40
+  St.ensure(s)
+  local b0 = bst.box
+  bst.box = 14
+  Bx.setCurrent(s, 14)
+  press("r")
+  T.eq(bst.box, 15, "Bigger PC: R from box 14 to box 15")
+  draw(2)
+  T.check(not D.state().winFailed, "and box 15 draws")
+  for _ = 1, 25 do press("r") end
+  T.eq(bst.box, 40, "on to box 40")
+  press("r")
+  T.eq(bst.box, 1, "then box 1 again")
+  St.TOTAL_BOXES_COUNT = n0
+  bst.box = b0
+  Bx.setCurrent(s, b0)
+  draw(2)
+end
 -- one of the game's screens over it (the summary, naming): the window back as it was
 bst.mode, bst.box = BW.SWAP, 2
 st.ctx.over(function(done) done() end, { mode = BW.SWAP, area = "box", pi = 1, bi = 1, box = 2 })

@@ -94,7 +94,7 @@ opens a desktop in a sleek monitor instead of a text menu.
   Bag, or give it to a Pokémon in your party. The Held folder shows the mail your Pokémon are
   carrying, and Take files a letter back in the inbox. Works in all five games.
 - 🔴 **Boxes:** the Pokémon Storage System in one window: your party on the left, a box in the
-  middle (L and R go through all 14), and the Pokémon under the cursor on the right, with its
+  middle (L and R go through all 14, or all 40 with WoobleDex's Bigger PC), and the Pokémon under the cursor on the right, with its
   picture, types, nature, ability, item and moves. With WoobleDex, its Dynamax Level shows as a
   gauge of ten, and a G-Max badge marks a Pokémon with the Gigantamax Factor. Three cursor modes, switched with SELECT or a
   tap on their icons under the box:
@@ -145,7 +145,7 @@ turn it on for your Generation 3 games.
   and results, your Rocket Tickets and a Pokémon you've put on the GTS, so you can turn the mod on and off whenever you like (bids still running wait for
   it to come back).
 - **Other mods:** other mods can add their own apps to the desktop.
-- **WoobleDex:** R-Bay auctions its Pokémon too, its legendaries and mythicals in their tiers. The
+- **WoobleDex:** Boxes shows every box of its Bigger PC (40 instead of 14). R-Bay auctions its Pokémon too, its legendaries and mythicals in their tiers. The
   Boxes preview shows a Pokémon's Dynamax Level and G-Max Factor (from
   WoobleDex's Dynamax Candy and Max Soup, or Max Raids' dens), as the game's summary does.
 
