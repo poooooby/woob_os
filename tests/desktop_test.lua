@@ -113,15 +113,15 @@ local function ctxWith(mode, rows)
   ctx.row = function(id) for i, row in ipairs(ctx.rows) do if row.id == id then return i - 1 end end end
   return ctx
 end
-T.eq(ids(Apps.list(ctxWith("select", rowsAll))), "storage items mail mart auction oak hall settings about logoff",
+T.eq(ids(Apps.list(ctxWith("select", rowsAll))), "storage items mail mart auction slots oak hall settings about logoff",
   "a cleared game's PC: every app")
 T.eq(ids(Apps.list(ctxWith("select", { { id = "storage" }, { id = "player" }, { id = "quit" } }))),
-  "storage items mail mart auction settings about logoff", "early on: no Oak's PC, no Hall of Fame")
-T.eq(ids(Apps.list(ctxWith("bedroom"))), "items mail mart auction settings about logoff", "the bedroom PC: Items, Mail, Mart, R-Bay, Settings")
+  "storage items mail mart auction slots settings about logoff", "early on: no Oak's PC, no Hall of Fame")
+T.eq(ids(Apps.list(ctxWith("bedroom"))), "items mail mart auction slots settings about logoff", "the bedroom PC: Items, Mail, Mart, R-Bay, Slots, Settings")
 do
   local c = ctxWith("bedroom")
   c.family = "rse"
-  T.eq(ids(Apps.list(c)), "items mail mart auction decorate settings about logoff", "Ruby / Sapphire / Emerald's bedroom: Decorate too")
+  T.eq(ids(Apps.list(c)), "items mail mart auction slots decorate settings about logoff", "Ruby / Sapphire / Emerald's bedroom: Decorate too")
 end
 T.check(not Apps.register({ id = "storage", open = noop }), "an id can't be taken twice")
 T.check(not Apps.register({ id = "x" }), "an app needs open()")
@@ -262,7 +262,7 @@ openPc({ startMode = "player_pc", bedroom = true })
 st = D.state()
 T.check(D.isOpen() and st.ctx.mode == "bedroom", "the bedroom PC opens the desktop")
 local rse = st.ctx.family == "rse"
-T.eq(#st.grid + #st.dock, rse and 8 or 7, "with Items, Mail, Mart, R-Bay, Settings, About and Log Off" .. (rse and ", Decorate" or ""))
+T.eq(#st.grid + #st.dock, rse and 9 or 8, "with Items, Mail, Mart, R-Bay, Slots, Settings, About and Log Off" .. (rse and ", Decorate" or ""))
 D.skipBoot()
 draw(40)
 if rse then
@@ -933,6 +933,15 @@ press("a")
 T.check(fakeSave.data.auction and fakeSave.data.auction.bids[chosen.key] and s.money == money0 - bidAmount,
   "A: the bid placed, the maximum held")
 T.eq(rs.focus, "list", "back in the list")
+if chosen.leader == 0 then
+  local live = 0
+  for _, p in ipairs(rs.particles) do if p.live then live = live + 1 end end
+  T.check(live > 0, "in the lead: confetti")
+end
+draw(2)
+T.check(rs.hotKey ~= nil, "a Hot Auction picked")
+press("select")
+T.check(rs.key == rs.hotKey and rs.rows[rs.cursor].key == rs.hotKey, "SELECT: to the Hot Auction")
 draw(2)
 press("r")
 T.eq(rs.tab, "mine", "R: My Bids")
@@ -967,6 +976,178 @@ Au.seen()
 draw(70)
 T.eq(auApp.badgeN, 0, "seen: no count")
 Au.store, Au.now = store0, now0
+
+-- ------- Rocket Slots: the machine's return, spins, the prize corner (src/slots.lua), its window
+local Sl = X._test.slots
+local slotsSave = { data = {} }
+function slotsSave.get(self, k) return self.data[k] end
+function slotsSave.set(self, k, v) self.data[k] = v end
+local slotsStore0, slotsRng0 = Sl.store, Sl.rng
+Sl.store = slotsSave
+do
+  -- every way the reels can stop: what comes back of a bet, how rare the jackpot is
+  local R1, R2, R3 = Sl.REELS[1], Sl.REELS[2], Sl.REELS[3]
+  local back, n, jack, rarest = 0, 0, 0, true
+  local count = {}
+  for _, a in ipairs(R1) do
+    for _, b in ipairs(R2) do
+      for _, c in ipairs(R3) do
+        n = n + 1
+        local x, _, j = Sl.payout(a, b, c)
+        back = back + x
+        if j then jack = jack + 1 end
+        if a == b and b == c then count[a] = (count[a] or 0) + 1 end
+      end
+    end
+  end
+  local rtp = back / n
+  T.check(#R1 == 20 and #R2 == 20 and #R3 == 20, "three reels of twenty")
+  T.check(rtp > 0.85 and rtp < 0.97, ("the machine pays back %.1f%% of what's bet"):format(rtp * 100))
+  for sym, k in pairs(count) do if sym ~= Sl.ROCKET and k < (count[Sl.ROCKET] or 0) then rarest = false end end
+  T.check(jack > 0 and rarest, "the jackpot can come up, rarest of all (1 in " .. math.floor(n / math.max(1, jack)) .. ")")
+end
+-- spins, with the reels told where to stop
+local queue = {}
+Sl.rng = function(nn) return table.remove(queue, 1) or 1 end
+local function stopsFor(a, b, c)
+  local function at(r, sym) for i, v in ipairs(Sl.REELS[r]) do if v == sym then return i end end end
+  queue = { at(1, a), at(2, b), at(3, c) }
+end
+local ss = newSession()
+ss.money = 40
+ok, why = Sl.spin(ss, 1)
+T.check(not ok and why == "money" and ss.money == 40, "less than the bet: no spin")
+ss.money = 10000
+stopsFor(1, 2, 3)
+ok = Sl.spin(ss, 2)
+T.check(ok and Sl.collect(ss) == 0 and ss.money == 9900, "a losing spin: only the bet goes")
+stopsFor(Sl.PIKACHU, Sl.PIKACHU, Sl.PIKACHU)
+ok = Sl.spin(ss, 2)
+T.eq(ss.money, 9800, "the win held back while the reels turn")
+local pays, tickets = Sl.collect(ss)
+T.check(pays == 7500 and ss.money == 17300, "three Pikachu: 75 times the bet (" .. tostring(pays) .. ")")
+T.check(tickets == 6 and Sl.tickets() == 6, "and Rocket Tickets: 3 a ₽50, ×2 (" .. tostring(tickets) .. ")")
+T.check(Sl.collect(ss) == 0, "paid once")
+stopsFor(Sl.ROCKET, Sl.ROCKET, Sl.ROCKET)
+ss.money = 999000
+local okJ, res = Sl.spin(ss, 4)
+Sl.collect(ss)
+T.check(okJ and res.jackpot and ss.money == 999999, "the jackpot, the money stops at 999,999")
+T.eq(Sl.stats().jackpots, 1, "counted")
+-- the prize corner
+local list = Sl.prizes()
+local candy, mon
+for i, p in ipairs(list) do
+  if p.kind == "item" and p.id == 68 then candy = i end
+  if p.kind == "mon" and not mon then mon = i end
+end
+T.check(#list >= 12 and candy and mon, "prizes: items, TMs, Pokémon (" .. #list .. ")")
+T.check(list[6].name:find(" ") ~= nil, "a TM named with its move (" .. tostring(list[6].name) .. ")")
+Sl.setTickets(5)
+ok, why = Sl.redeem(ss, candy)
+T.check(not ok and why == "tickets", "too few tickets: refused")
+Sl.setTickets(100)
+local candies = Bag.get(ss.bag, 68)
+ok, why = Sl.redeem(ss, candy)
+T.check(ok and why == "bag" and Bag.get(ss.bag, 68) == candies + 1 and Sl.tickets() == 100 - list[candy].cost,
+  "a Rare Candy into the Bag, its tickets taken")
+ss.party = {}
+ok, why = Sl.redeem(ss, mon)
+T.check(ok and why == "party" and ss.party[1] and ss.party[1].level == Sl.level(ss), "a Pokémon to the party, at its level")
+do
+  local give = Party.giveMonToPlayer
+  Party.giveMonToPlayer = function() return 2 end
+  local before = Sl.tickets()
+  ok, why = Sl.redeem(ss, mon)
+  Party.giveMonToPlayer = give
+  T.check(not ok and why == "no_room" and Sl.tickets() == before, "no room for it: refused, the tickets kept")
+end
+
+-- the window: a spin by buttons, the reels stopping in order, the win paid once; the bet; a prize
+s.money = 50000
+slotsSave.data = {}
+do
+  local at
+  for i, app in ipairs(st.grid) do if app.id == "slots" then at = i end end
+  T.check(at ~= nil, "Slots on the home screen")
+  D.launch("grid", at)
+end
+draw(30)
+local SW = D.window()
+T.check(SW and SW.title == "Slots", "Slots opens")
+local sws = SW.state
+press("left")
+T.eq(sws.bet, 1, "Left: a smaller bet")
+press("right")
+press("right")
+T.eq(sws.bet, 3, "Right: a bigger one (₽500)")
+stopsFor(Sl.PIKACHU, Sl.PIKACHU, Sl.PIKACHU)
+press("a")
+T.check(sws.spinning and s.money == 49500, "A: spinning, the bet taken")
+draw(40)
+T.check(sws.stopped[1] == false or sws.stopped[1] == true, "(the reels turning)")
+press("a")
+draw(1)
+T.check(sws.stopped[1] and not sws.stopped[3], "A again: the first reel stops")
+T.check(sws.tease and sws.stopAt[3] - sws.stopAt[2] > 1.5, "two Pikachu on the line: the last reel held back")
+for _ = 1, 600 do
+  if not sws.spinning then break end
+  draw(1)
+end
+T.check(not sws.spinning and sws.win and sws.win.pays == 37500 and s.money == 87000, "the reels stop: 75 times ₽500 paid")
+T.check(sws.win.tier and sws.win.tier.key == "slots.mega", "a MEGA WIN (" .. tostring(sws.win.tier and sws.win.tier.key) .. ")")
+draw(5)
+T.eq(Sl.tickets(), 30, "and 30 tickets")
+local mid = true
+for r = 1, 3 do mid = mid and Sl.REELS[r][((math.floor(sws.pos[r] + 0.5) - 1) % 20) + 1] == Sl.PIKACHU end
+T.check(mid, "the reels show three Pikachu on the line")
+press("start")
+T.check(sws.table, "START: the pay table")
+draw(2)
+press("b")
+T.check(not sws.table and D.window() == SW, "B: back to the machine")
+-- the garbage: idle, then spinning (warmed up)
+local FrlgFont3 = require("src.ui.game3.frlg_font")
+local realGlyph3 = FrlgFont3.drawGlyph
+FrlgFont3.drawGlyph = function() return 7 end
+draw(60)
+local perIdle = garbageOf(120)
+local perSpin = garbageOf(60, function()
+  draw(150)
+  stopsFor(1, 2, 3)
+  SW.input(input({ "a" }, { "a" }), {})
+  draw(30)
+end)
+draw(150)
+T.check(not sws.spinning, "(the last spin done)")
+press("r")
+T.eq(sws.tab, "prizes", "R: the prizes")
+draw(60)
+local perPrizes = garbageOf(120)
+FrlgFont3.drawGlyph = realGlyph3
+T.check(perIdle < 0.3 and perSpin < 0.3 and perPrizes < 0.3, ("Slots draws next to no garbage (%.3f idle, %.3f spinning, %.3f prizes KB a frame)"):format(
+  perIdle, perSpin, perPrizes))
+for i, p in ipairs(Sl.prizes()) do if p.id == 68 and p.kind == "item" then sws.cursor = i end end
+local candies2 = Bag.get(s.bag, 68)
+press("a")
+T.check(Bag.get(s.bag, 68) == candies2 + 1, "A: a Rare Candy redeemed")
+do
+  local n, dir, id = D.padState()
+  T.check(n >= 1 and dir == "in" and id == 68, "it appears on the pad")
+end
+for _, shape in ipairs({ { 480, 320 }, { 320, 480 }, { 900, 320 } }) do
+  VP.width, VP.height = shape[1], shape[2]
+  draw(2)
+  press("l")
+  draw(2)
+  T.check(not D.state().winFailed, "Slots draws " .. shape[1] .. "x" .. shape[2])
+  press("r")
+end
+VP.width, VP.height = 480, 320
+press("b")
+T.check(D.window() == nil, "B closes Slots")
+draw(30)
+Sl.store, Sl.rng = slotsStore0, slotsRng0
 
 -- ------- the Pokémon model (src/boxes.lua, on the engine's Storage)
 local Bx = X._test.bx
@@ -1244,10 +1425,11 @@ T.check(en and en["app.items"] == "Items", "English loads (lang/en.lua)")
 local missing, named = {}, 0
 local NOT_WORDS = { ["game.ready"] = true }   -- (an engine event's name)
 local PREFIX = { hint = 1, menu = 1, logoff = 1, button = 1, about = 1, nav = 1, game = 1, app = 1, items = 1,
-                 pocket = 1, reason = 1, mail = 1, settings = 1, wall = 1, failed = 1, mart = 1, auction = 1 }
+                 pocket = 1, reason = 1, mail = 1, settings = 1, wall = 1, failed = 1, mart = 1, auction = 1, slots = 1 }
 for _, file in ipairs({ "main.lua", "src/desktop.lua", "src/apps.lua", "src/apps/items.lua", "src/apps/mail.lua",
                         "src/apps/settings.lua", "src/apps/mart.lua", "src/mart.lua",
-                        "src/apps/auction.lua", "src/auction.lua" }) do
+                        "src/apps/auction.lua", "src/auction.lua",
+                        "src/apps/slots.lua", "src/slots.lua" }) do
   local src = readFile(file) or ""
   for key in src:gmatch('"([%a][%w_]*%.[%w_%.]+)"') do
     if PREFIX[key:match("^(%a+)")] and not key:match("%.$") and not key:match("%.lua$") and not NOT_WORDS[key] then
@@ -1262,6 +1444,9 @@ for _, k in ipairs({ "bag_full", "pc_full", "stack_full", "important", "gone" })
 end
 for _, k in ipairs({ "bag_full", "holding", "box_full", "gone" }) do
   if not en["reason.mail." .. k] then missing[#missing + 1] = "reason.mail." .. k end
+end
+for _, k in ipairs({ "money", "tickets", "bag_full", "no_room" }) do
+  if not en["reason.slots." .. k] then missing[#missing + 1] = "reason.slots." .. k end
 end
 for _, k in ipairs({ "too_low", "money", "ended" }) do
   if not en["reason.auction." .. k] then missing[#missing + 1] = "reason.auction." .. k end

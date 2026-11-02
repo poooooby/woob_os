@@ -6,13 +6,22 @@ All notable changes to this mod are documented here, in
 ## [Unreleased]
 
 ### Added
+- **Slots.** Team Rocket's slot machine, played with money (₽50 to ₽1,000 a spin): three reels,
+  three of a kind on the line pays up to the 500× Rocket jackpot, about 92% paid back over time.
+  The rarer wins drop Rocket Tickets for the prize corner: items, TMs, a Master Ball and six
+  Pokémon (their level grows with your badges), delivered onto the pad. Tickets are kept in the
+  save. The machine puts on a show: a pull-lever, reels that flash as they land, the last reel
+  held back when two match, tiered win banners with coin showers and a count-up, tickets flying
+  to their counter; prizes by rarity with a progress bar and confetti.
 - **R-Bay.** Team Rocket's auction house for Pokémon: twelve three-hour auctions at a time on
   the device's clock, a new one every fifteen minutes. Six tiers from Common to Mythical
   (WoobleDex's Pokémon too), levels that climb with your badges, IVs shown on each listing and
   reflected in the bidding. Rocket bidders compete (keener in the higher tiers); you set your
   maximum and R-Bay bids for you. The maximum is held, a win returns the change and sends the
   Pokémon to the party or the PC with its listed IVs, a loss refunds it all. My Bids, and a count
-  on the icon when an auction ends. Bids and results are kept in the save.
+  on the icon when an auction ends. Bids and results are kept in the save. The Hot Auction card
+  spotlights the most wanted listing (SELECT jumps to it); prices flash up on new bids, the last
+  ten minutes pulse red, taking the lead throws confetti, and losing it is announced.
 - **Mart.** A Poké Mart on the desktop: Poké Balls, medicine, battle items and Repels bought
   straight into the Bag, more of them with each Gym Badge (locked ones say how many badges they
   need). A purchase appears on the pad and goes up into the Bag; Sell takes the Bag's items for

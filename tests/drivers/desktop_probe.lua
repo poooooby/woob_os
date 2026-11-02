@@ -378,7 +378,8 @@ local function body(game, log)
     log(("  an item crossing the pad: %.3f KB per frame over %d frames"):format(kbP / math.max(1, nP), nP))
     check(kbP / math.max(1, nP) < 0.5, "an item crossing the pad makes next to no garbage")
   end
-  -- the window's draw garbage
+  -- the window's draw garbage (warmed up first: LuaJIT compiling new paths lands on the heap once)
+  U.wait(120)
   local drawW, kbW, nW = D.draw, 0, 0
   D.draw = function(...)
     local was = collectgarbage("isrunning")
@@ -562,6 +563,90 @@ local function body(game, log)
     s0.money = money0
     if Au.store then Au.store:set("auction", nil) end
     Au.now = now0
+    U.tap(game, "b")
+    waitFor(function() return D.window() == nil and D.state() and D.state().zoom == nil end, 600)
+    check(D.window() == nil and D.isOpen(), "B: the desktop again")
+  end
+  st = D.state()
+
+  -- Slots: a spin told to land on the jackpot (lent money), the pay table, a prize redeemed with lent
+  -- tickets onto the pad; everything put back after
+  local Sl = X._test.slots
+  for i, app in ipairs(st.grid) do if app.id == "slots" then st.focus, st.cursor = "grid", i end end
+  U.tap(game, "a")
+  waitFor(function() return D.window() ~= nil end, 600)
+  U.wait(10)
+  local SW = D.window()
+  check(SW and SW.title == "Slots", "Slots: its window")
+  if SW then
+    local ss = SW.state
+    local money0, rng0 = s0.money, Sl.rng
+    local tickets0 = Sl.tickets()
+    s0.money = 20000
+    shot("d13_slots")
+    local queue = {}
+    local function at(r, sym) for i, v in ipairs(Sl.REELS[r]) do if v == sym then return i end end end
+    Sl.rng = function() return table.remove(queue, 1) or 1 end
+    queue = { at(1, Sl.ROCKET), at(2, Sl.ROCKET), at(3, Sl.ROCKET) }
+    U.tap(game, "a"); U.wait(2)
+    check(ss.spinning and s0.money == 20000 - Sl.BETS[ss.bet], "A: spinning, the bet taken")
+    U.wait(20)
+    shot("d13b_slots_spin")
+    check(waitFor(function() return ss.tease and ss.stopped[2] and not ss.stopped[3] end, 600), "two R's: the last reel held back")
+    U.wait(30)
+    shot("d13b2_slots_tease")
+    check(waitFor(function() return not ss.spinning end, 600), "the reels stop")
+    U.wait(40)
+    check(ss.win and ss.win.jackpot and s0.money == 20000 - Sl.BETS[ss.bet] + Sl.BETS[ss.bet] * Sl.PAYS[Sl.ROCKET].x,
+      "the jackpot, paid")
+    shot("d13c_slots_jackpot")
+    U.wait(60)
+    shot("d13c2_slots_jackpot_coins")
+    U.tap(game, "start"); U.wait(6)
+    check(ss.table, "START: the pay table")
+    shot("d13d_slots_table")
+    U.tap(game, "b"); U.wait(4)
+    -- the draw's garbage: idle, then a spin (each warmed up)
+    local drawS, kbS, nS, on = D.draw, 0, 0, false
+    D.draw = function(...)
+      if not on then return drawS(...) end
+      local was = collectgarbage("isrunning")
+      collectgarbage("stop")
+      local kb0 = collectgarbage("count")
+      drawS(...)
+      kbS, nS = kbS + (collectgarbage("count") - kb0), nS + 1
+      if was then collectgarbage("restart") end
+    end
+    U.wait(240)
+    on = true
+    U.wait(60)
+    queue = { 1, 2, 3 }
+    U.tap(game, "a")
+    U.wait(90)
+    D.draw = drawS
+    log(("  the Slots window's draw: %.3f KB per frame over %d frames"):format(kbS / math.max(1, nS), nS))
+    check(kbS / math.max(1, nS) < 0.5, "the Slots window makes next to no garbage")
+    waitFor(function() return not ss.spinning end, 600)
+    U.tap(game, "r"); U.wait(6)
+    check(ss.tab == "prizes", "R: the prizes")
+    Sl.setTickets(500)
+    for i, p in ipairs(Sl.prizes()) do if p.kind == "mon" and p.cost == 200 then ss.cursor = i end end
+    U.wait(6)
+    shot("d13e_slots_prizes")
+    local candy
+    for i, p in ipairs(Sl.prizes()) do if p.kind == "item" and p.id == 68 then candy = i end end
+    ss.cursor = candy or 1
+    local candies0 = Bag.get(s0.bag, 68)
+    U.tap(game, "a"); U.wait(4)
+    check(Bag.get(s0.bag, 68) == candies0 + 1, "a Rare Candy redeemed into the Bag")
+    U.wait(6)
+    shot("d13f_slots_redeemed")
+    check(padAt("in", 0.3), "it appears on the pad")
+    -- put back
+    if Bag.get(s0.bag, 68) > candies0 then Bag.remove(s0.bag, 68, Bag.get(s0.bag, 68) - candies0) end
+    Sl.setTickets(tickets0)
+    s0.money = money0
+    Sl.rng = rng0
     U.tap(game, "b")
     waitFor(function() return D.window() == nil and D.state() and D.state().zoom == nil end, 600)
     check(D.window() == nil and D.isOpen(), "B: the desktop again")

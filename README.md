@@ -59,8 +59,22 @@ opens a desktop in a sleek monitor instead of a text menu.
   you can't win. Set the most you'll pay and R-Bay bids for you, one step at a time, like eBay.
   Your maximum is held when you bid. Win and you pay only the final price, the rest comes back,
   and the Pokémon joins your party (or the PC) with the IVs it was listed with. Lose and all of
-  it comes back. My Bids shows where you stand, and a count on R-Bay's icon tells you an auction
-  has ended.
+  it comes back. The Hot Auction sits at the top of Browse: the most wanted Pokémon on sale right
+  now, with its price and countdown (SELECT jumps to it). Prices flash up as rival bids land, the
+  clock turns red in the last ten minutes, taking the lead throws confetti and losing it tells you
+  at once. My Bids shows where you stand, and a count on R-Bay's icon tells you an auction has
+  ended.
+- 🎰 **Slots:** Team Rocket's slot machine, played with your money: ₽50, ₽100, ₽500 or ₽1,000 a
+  spin. Three of a kind on the gold line pays, from Poké Balls (10×) up to three Rocket R's (the
+  500× jackpot), and a Pikachu on the first reel gives your bet back. The rarer wins also drop
+  Rocket Tickets, more for bigger bets. Pull the lever (or press A) and the reels roll; A stops
+  them one by one, or let them land. Two good symbols on the line hold the last reel back while
+  the notes climb. Wins come as WIN, BIG WIN, MEGA WIN or JACKPOT: a banner, a shower of coins, the
+  payout counting up and your tickets flying to their counter. START shows the pay table. In the Prizes tab, trade tickets for Nuggets, Rare Candies, PP Ups,
+  TMs (Ice Beam, Thunderbolt, Flamethrower, Earthquake, Hyper Beam), a Master Ball, or Abra,
+  Clefairy, Scyther, Pinsir, Dratini and Porygon, whose level grows with your badges. Prizes are
+  sorted by rarity, a bar shows how close you are to the one you've picked, the Prizes tab counts
+  the ones you can afford, and a redeemed prize bursts into confetti and appears on the pad.
 - ✉️ **Mail:** your mailbox as an inbox. Read each letter on its own stationery, move it to the
   Bag, or give it to a Pokémon in your party. The Held folder shows the mail your Pokémon are
   carrying, and Take files a letter back in the inbox. Works in all five games.
@@ -90,7 +104,7 @@ opens a desktop in a sleek monitor instead of a text menu.
 - ℹ️ **About:** which version you're running.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
 
-Boxes, Items, Mart, R-Bay, Mail and Settings open in a window on the desktop, in the style of macOS and iOS:
+Boxes, Items, Mart, R-Bay, Slots, Mail and Settings open in a window on the desktop, in the style of macOS and iOS:
 white cards on a soft grey, segmented switches, and a blue ring round whatever the controller is
 on. B or the red button closes it. Oak's PC,
 Hall of Fame and Decorate open the game's own screens, and closing them brings you back to the
@@ -112,8 +126,8 @@ turn it on for your Generation 3 games.
 ## 🔗 Works With
 
 - **Any save:** items and mail move exactly as the game's own PC moves them, and the Mart spends
-  and pays money as a Poké Mart does. The only thing WoobOS keeps in your save is your R-Bay bids
-  and results, so you can turn the mod on and off whenever you like (bids still running wait for
+  and pays money as a Poké Mart does. The only things WoobOS keeps in your save are your R-Bay bids
+  and results and your Rocket Tickets, so you can turn the mod on and off whenever you like (bids still running wait for
   it to come back).
 - **Other mods:** other mods can add their own apps to the desktop.
 - **WoobleDex:** R-Bay auctions its Pokémon too, its legendaries and mythicals in their tiers. The

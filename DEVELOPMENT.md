@@ -18,6 +18,8 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/apps/settings.lua` | The Settings window: Language, Wallpaper |
 | `src/auction.lua` | R-Bay's market: auctions worked out from the save's seed and the clock, eBay proxy bidding, bids / results in `mod.save` |
 | `src/apps/auction.lua` | The R-Bay window: Browse \| My Bids, the IVs, the max-bid stepper |
+| `src/slots.lua` | Rocket Slots: the reels, the pay table, spins (the win held until the reels stop), tickets and the prize corner |
+| `src/apps/slots.lua` | The Slots window: the cabinet and its marquee, the reels' roll, the pay table, Prizes |
 | `src/mart.lua` | The shop model: the badge-gated stock, buy / sell on the session's money and the engine's `Bag` |
 | `src/apps/mart.lua` | The Mart window: Buy \| Sell, a tabbed list, the chosen item with its stepper |
 | `src/boxes.lua` | The Pokémon model: party and boxes through the engine's `Storage` (take / fits / place / putBack, release, items, the preview's words, the send-to box) |
@@ -65,7 +67,7 @@ wos.apps.register({
 
 `ctx`: `session`, `mode` (`"select"` / `"bedroom"`), `family` (`"frlg"` / `"rse"`), `row(id)`,
 `finish(row)`, `done()`, `logoff()`, `over(open)`, `original(opts)`, `sheet(kind)`. Glyphs: `ball`,
-`bag`, `mail`, `cart`, `rocket`, `home`, `trophy`, `dex`, `power`, `logo`, `gear`, or a function
+`bag`, `mail`, `cart`, `rocket`, `slots`, `home`, `trophy`, `dex`, `power`, `logo`, `gear`, or a function
 `(K, cx, cy, size, alpha)`.
 
 A window instead of `open`: `window = function(ctx, env) return win end`, where `win` has `title`,
@@ -196,8 +198,34 @@ the hidden value `V` (the tier's band x `0.6 + 0.8 q^2` x `1 + 0.08` per 31), an
   loss refunds it all. With no room anywhere, a win waits (`b.won = true`).
 - **The icon's count:** an app's `badge(ctx)` (read once a second) sets `app.badgeN`, which
   `appIcon` draws.
+- **The window's show** (`src/apps/auction.lua`): `pickHot` (once a second: tier rank, then
+  value, bids, ending within 30 min) names `st.hotKey` for the Hot Auction card; `watch(L)` keeps
+  `L.seenPrice` / `L.flashT` (a price that moved flashes up) and `L.wasLead` (losing the lead
+  toasts); taking the lead throws confetti from a fixed pool (`PARTICLES`).
 - **Tests** swap `Au.store` (a fake `mod.save`) and `Au.now` (the clock). The probe's garbage
   checks warm up first: LuaJIT compiling new paths' traces landed 0.5-3 KB one-off spikes.
+
+## Slots
+
+`src/slots.lua`: three fixed strips of 20 stops (6 Poké Balls, 4 Great, 3 Ultra, 2 Rare Candies,
+2 Pikachu, 1 Meowth, 1 Master Ball, 1 R each, in their own orders). Three of a kind on the middle
+row pays `PAYS[sym].x` × the bet and `PAYS[sym].t` tickets per ₽50 bet. A Pikachu on reel 1
+returns the bet (`ONE`), on reels 1 and 2 pays 8× (`TWO`). Walking all 8,000 stops gives a 91.8%
+return; the jackpot is 1 in 8,000. Tickets per ₽50 cost about ₽285 of expected loss whatever the
+bet, which prices the prize corner (Rare Candy 15 ≈ ₽4.3k, Porygon 200 ≈ ₽57k).
+
+- **A spin:** `Sl.spin(s, level)` takes the bet and draws the three stops at once (`Sl.rng`, else
+  `love.math.random`); the reels' stopping is only shown. The win is held until `Sl.collect(s)`
+  (when the last reel lands, or the window closes), so the menu bar's money doesn't give it away.
+- **Prizes:** `Sl.prizes()` (TMs named with their move, `Pokemon.moveFromTmItem`), `Sl.redeem`
+  (`Bag.add`, or `Party.giveMonToPlayer` at `10 + 3 × badges`); the tickets come off only after.
+- **Kept:** `mod.save` "slots" (`tickets`, `stats`). Tests swap `Sl.store` and script `Sl.rng`.
+- **The show** (`src/apps/slots.lua`): `st.tease` (reels 1 and 2 match an Ultra Ball or better)
+  holds reel 3 back `TEASE` seconds with rising `SE_NOTE_*`; `celebrate` picks a `TIERS` row by
+  × the bet (banner, count-up time, coins, rays, shake) and queues sounds with `seLater` (the
+  engine plays one at a time). Coins, confetti and flying tickets come from a fixed pool of
+  `PARTICLES` records; the payout counts up in twenty steps (the amount texts are cached). Text is
+  scaled with a transform (`scaleAbout`), never by font size, so no new fonts are made per frame.
 
 ## Words
 

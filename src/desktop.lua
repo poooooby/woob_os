@@ -895,6 +895,43 @@ return function(deps)
       G.arc("line", "open", cx + s * 0.03, (top + mid) / 2, (mid - top) / 2, -math.pi / 2, math.pi / 2)
       G.line(cx + s * 0.03, mid, x0, mid)
       G.line(cx - s * 0.01, mid, cx + s * 0.16, bot)
+    elseif kind == "slots" then
+      -- (a slot machine in colour: a white cabinet with a red crown, three reels each showing a
+      -- Poké Ball, the lever's red knob, a sparkle twinkling at its corner)
+      local w, h = s * 0.5, s * 0.46
+      local x0, y0 = cx - w / 2 - s * 0.05, cy - h / 2 + s * 0.04
+      G.setColor(1, 1, 1, a)
+      G.rectangle("fill", x0, y0, w, h, s * 0.06, s * 0.06)
+      G.setColor(0.86, 0.13, 0.19, a)
+      G.rectangle("fill", x0, y0, w, h * 0.24, s * 0.06, s * 0.06)
+      G.rectangle("fill", x0, y0 + h * 0.12, w, h * 0.12)
+      local cw = (w - s * 0.1) / 3
+      local ry = y0 + h * 0.34
+      for i = 0, 2 do
+        local rx = x0 + s * 0.035 + i * (cw + s * 0.015)
+        G.setColor(0.16, 0.13, 0.16, a)
+        G.rectangle("fill", rx, ry, cw, h * 0.52, s * 0.02, s * 0.02)
+        local bx, by, br = rx + cw / 2, ry + h * 0.26, cw * 0.36
+        G.setColor(0.95, 0.2, 0.22, a)
+        G.arc("fill", bx, by, br, math.pi, math.pi * 2)
+        G.setColor(1, 1, 1, a)
+        G.arc("fill", bx, by, br, 0, math.pi)
+        G.setColor(0.16, 0.13, 0.16, a)
+        G.rectangle("fill", bx - br, by - br * 0.12, br * 2, br * 0.24)
+        G.setColor(1, 1, 1, a)
+        G.circle("fill", bx, by, br * 0.3)
+      end
+      G.setColor(1, 1, 1, a)
+      G.setLineWidth(lw * 1.2)
+      G.line(x0 + w, cy + h * 0.15, x0 + w + s * 0.08, cy + h * 0.15, x0 + w + s * 0.08, cy - h * 0.42)
+      G.setColor(0.95, 0.2, 0.22, a)
+      G.circle("fill", x0 + w + s * 0.08, cy - h * 0.48, s * 0.05)
+      -- (the sparkle)
+      local tw = 0.55 + 0.45 * math.abs(math.sin((K.t or 0) * 2.6))
+      local sx, sy, r = x0 - s * 0.02, y0 - s * 0.06, s * 0.1 * tw
+      local q = r * 0.25
+      G.setColor(1, 1, 1, a * tw)
+      G.polygon("fill", sx, sy - r, sx + q, sy - q, sx + r, sy, sx + q, sy + q, sx, sy + r, sx - q, sy + q, sx - r, sy, sx - q, sy - q)
     elseif kind == "cart" then
       -- (a shopping cart: the handle, the basket, two wheels)
       G.line(cx - s * 0.32, cy - s * 0.2, cx - s * 0.24, cy - s * 0.2, cx - s * 0.13, cy + s * 0.1,

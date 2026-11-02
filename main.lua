@@ -9,6 +9,7 @@
 --   src/mart.lua, src/apps/mart.lua     the shop model (badge-gated stock, buy, sell), the Mart window
 --   src/auction.lua, src/apps/auction.lua   R-Bay: the auction market (worked out from a seed and the
 --                                       clock; the player's bids in the save), its window
+--   src/slots.lua, src/apps/slots.lua   Rocket Slots: the machine, its tickets and prize corner, its window
 --   src/boxes.lua, src/apps/boxes.lua, src/apps/boxes_view.lua   the Pokémon model, the Boxes window
 --   src/i18n.lua, lang/*.lua            the words, by language ; src/settings.lua the kept choices
 --   src/wallpaper.lua                   the drawn wallpapers and the wallpapers/ folder's pictures
@@ -46,6 +47,7 @@ return function(mod)
   local Arrange = loadSibling(mod, "src/arrange.lua")
   local makeMart, martWindow = loadSibling(mod, "src/mart.lua"), loadSibling(mod, "src/apps/mart.lua")
   local makeAuction, auctionWindow = loadSibling(mod, "src/auction.lua"), loadSibling(mod, "src/apps/auction.lua")
+  local makeSlots, slotsWindow = loadSibling(mod, "src/slots.lua"), loadSibling(mod, "src/apps/slots.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell) then return end
 
   local function warn(fmt, ...) mod.log:warn(fmt, ...) end
@@ -340,6 +342,13 @@ return function(mod)
       badges = function(s) return env.mart and env.mart.badges(s) or 0 end,
     })
   end
+  -- Rocket Slots: its tickets kept in the save; a Pokémon prize's level from the badges
+  if makeSlots then
+    env.slots = makeSlots(engine, {
+      save = mod.save,
+      badges = function(s) return env.mart and env.mart.badges(s) or 0 end,
+    })
+  end
   -- (the Boxes preview's Dynamax row: WoobleDex's levels and factors, when it's on)
   if env.bx then
     env.bx.dynamax = function()
@@ -354,6 +363,7 @@ return function(mod)
     mail = env.mb and mailWindow or nil,
     mart = env.mart and martWindow or nil,
     auction = env.auction and auctionWindow or nil,
+    slots = env.slots and slotsWindow or nil,
     auctionBadge = env.auction and function() return env.auction.unread() end or nil,
     settings = T and Settings and settingsWindow or nil,
     -- (Ruby / Sapphire / Emerald: the bedroom PC's Decoration, the game's own menu)
@@ -465,6 +475,6 @@ return function(mod)
   -- open | window }
   mod.exports.apps = { register = Apps.register, list = function() return Apps.apps end }
   mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
-                        mart = env.mart, auction = env.auction,
+                        mart = env.mart, auction = env.auction, slots = env.slots,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange }
 end

@@ -3,13 +3,13 @@
 -- Settings are our own windows; Decorate (Ruby / Sapphire / Emerald, the bedroom) opens the game's
 -- Decoration menu.
 --
---   A = Apps(deps)   deps: boxes / items / mail / mart / auction / settings = window(ctx, env) makers ;
+--   A = Apps(deps)   deps: boxes / items / mail / mart / auction / slots / settings = window(ctx, env) makers ;
 --                    auctionBadge(ctx) -> n ; decorate(ctx) (the
 --                    game's menu). Built-ins name themselves with labelKey (a lang/*.lua key)
 --   A.register(app) -> true | false, why    app = {
 --       id       unique string
 --       label    under its icon (short: about 10 letters) ; labelKey: a word of lang/*.lua instead
---       glyph    the icon's picture: "ball" | "bag" | "mail" | "cart" | "rocket" | "home" | "trophy" | "dex" |
+--       glyph    the icon's picture: "ball" | "bag" | "mail" | "cart" | "rocket" | "slots" | "home" | "trophy" | "dex" |
 --                "power" | "logo" | "gear",
 --                or a function(K, cx, cy, size, a) drawing it (window pixels, white on the tile)
 --       color    { r, g, b } the tile's colour
@@ -103,6 +103,12 @@ return function(deps)
     A.register({ id = "auction", labelKey = "app.auction", label = "R-Bay",
                  glyph = "rocket", color = { 196, 30, 44 }, order = 28,
                  window = deps.auction, badge = deps.auctionBadge })
+  end
+  -- Rocket Slots: a slot machine played with money, and a prize corner for its tickets
+  if deps.slots then
+    A.register({ id = "slots", labelKey = "app.slots", label = "Slots",
+                 glyph = "slots", color = { 232, 168, 32 }, order = 29,
+                 window = deps.slots })
   end
   -- the bedroom's Decoration (Ruby / Sapphire / Emerald): the game's own menu
   if deps.decorate then
