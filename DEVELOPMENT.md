@@ -88,6 +88,21 @@ A window may also have:
 `ctx.over(open, state)` opens one of the game's screens. When it closes, the window comes back at
 once, handed `ctx.resume = { app, state }`. Boxes uses this for Summary and Rename.
 
+## Arranging the desktop
+
+`src/arrange.lua` (Ar) is the model: `Ar.place(apps, dockText, gridText)` lays the available apps
+out by the kept arrangement (named apps in order, the rest by `app.dock`, the dock capped at
+`Ar.DOCK_MAX` = 6), `Ar.encode` writes it back (ids this PC doesn't show stay in their list), and
+`Ar.move` moves one app between the two lists. The texts are comma-separated ids in Settings
+(`dockApps`, `homeApps`), read and written through main.lua's `layout` / `saveLayout`.
+
+In desktop.lua, `r.edit` is the wiggle mode and `r.carry = { app, list, i, ptr, x, y }` the app in
+hand. The app stays in its list as it's carried: `carryTo(list, j)` moves it live, so the others
+make room. The pointer's target is worked out against the dock as wide as it will be with the app
+in it (`carryToPointer`), so it doesn't hop as the dock re-centres. A long press (`D.LONG_PRESS`,
+not moved past 4 px) is checked in `D.draw`; while arranging, a press on an icon picks it up at
+once. Each drop saves.
+
 ## Boxes
 
 `src/boxes.lua` wraps the engine's `Storage`:

@@ -20,6 +20,9 @@ return {
     ["hint.ten"] = "10",
     ["hint.folder"] = "Ordner",
     ["hint.fit"] = "Anpassen",
+    ["hint.arrange"] = "Anordnen",
+    ["hint.done"] = "Fertig",
+    ["desk.done"] = "Fertig",
 
     ["menu.about"] = "Über WoobleOS",
     ["menu.logoff"] = "Abmelden…",

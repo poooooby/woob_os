@@ -20,6 +20,9 @@ return {
     ["hint.ten"] = "10",
     ["hint.folder"] = "フォルダ",
     ["hint.fit"] = "ひょうじ",
+    ["hint.arrange"] = "並べ替え",
+    ["hint.done"] = "完了",
+    ["desk.done"] = "完了",
 
     ["menu.about"] = "WoobleOS について",
     ["menu.logoff"] = "ログオフ…",

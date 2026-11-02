@@ -40,6 +40,7 @@ return function(mod)
   local makeWall, settingsWindow = loadSibling(mod, "src/wallpaper.lua"), loadSibling(mod, "src/apps/settings.lua")
   local makeBx, boxesWindow = loadSibling(mod, "src/boxes.lua"), loadSibling(mod, "src/apps/boxes.lua")
   local boxesView = loadSibling(mod, "src/apps/boxes_view.lua")
+  local Arrange = loadSibling(mod, "src/arrange.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell) then return end
 
   local function warn(fmt, ...) mod.log:warn(fmt, ...) end
@@ -284,6 +285,17 @@ return function(mod)
     gameId = gameId,
     env = env,
     T = T, wall = Wall, wallpaper = wallpaper, wallpaperFit = wallpaperFit,
+    -- the player's arrangement of the dock and the home screen (src/arrange.lua), kept in Settings
+    arrange = Arrange,
+    layout = function()
+      if not Settings then return nil, nil end
+      return Settings.get("dockApps", nil), Settings.get("homeApps", nil)
+    end,
+    saveLayout = function(dockText, gridText)
+      if not Settings then return end
+      Settings.set("dockApps", dockText)
+      Settings.set("homeApps", gridText)
+    end,
     options = function()
       return { boot = option("boot", true) ~= false, clock24 = option("clock24", false) == true }
     end,
@@ -343,5 +355,5 @@ return function(mod)
   -- open | window }
   mod.exports.apps = { register = Apps.register, list = function() return Apps.apps end }
   mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
-                        env = env, i18n = T, settings = Settings, wall = Wall }
+                        env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange }
 end

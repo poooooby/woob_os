@@ -6,6 +6,10 @@ All notable changes to this mod are documented here, in
 ## [Unreleased]
 
 ### Added
+- **Arrange the desktop.** A long press on an app (or SELECT) and the icons wiggle: drag one
+  between the home screen and the dock (up to six there), or carry it with A and the D-pad. Held
+  at the grid's edge it turns the page. Done, B or a tap on nothing ends it; the arrangement is
+  kept in the installation's settings for every PC (an app a PC doesn't show keeps its place).
 - **A macOS / iOS look for every window.** A toolbar with the red, yellow and green lights; white
   cards on a soft grey; segmented switches (Bag | PC, Inbox | Held, Fill | Stretch); chevrons;
   hairline separators; capsule buttons with a blue focus ring for the controller; popover menus

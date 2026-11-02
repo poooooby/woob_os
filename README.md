@@ -26,6 +26,10 @@ opens a desktop in a sleek monitor instead of a text menu.
 - 🎮 **Made for controllers and touch:** move between icons with the D-pad, open with A, flip
   pages with L and R, and press START for the W menu. On a touch screen, tap an icon or swipe
   between pages. A mouse works too: click, hover and scroll.
+- 🗂️ **Arrange your apps:** press and hold an app (or press SELECT) and the icons wiggle. Drag an
+  app to a new place, from the home screen into the dock or back out again; with a controller,
+  A picks it up, the D-pad carries it and A puts it down. The dock holds up to six. Done, B or a
+  tap on an empty spot finishes, and every PC remembers the arrangement.
 - 📐 **Fits your screen:** wide windows, small windows and phones held upright all get a layout of
   their own.
 

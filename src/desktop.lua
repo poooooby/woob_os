@@ -2,7 +2,12 @@
 -- shows a home screen. A menu bar along the top (the W menu, the money, the clock), a grid of app
 -- icons in pages, a dock along the foot. Buttons, touch and the mouse all drive it:
 --   grid     D-pad moves (Up from the top row: the menu bar; Down from the bottom: the dock),
---            A opens, L / R change page, B asks to log off, START opens the W menu
+--            A opens, L / R change page, B asks to log off, START opens the W menu, SELECT arranges
+--   arrange  (a long press on an icon, or SELECT) the icons wiggle; A picks one up, the D-pad
+--            carries it (off the grid's foot into the dock, up out of it), A puts it down; with
+--            the pointer it follows the drag and lands where it's let go (held at the grid's edge:
+--            the next page); B / START / SELECT, Done or a tap on nothing ends it. Kept through
+--            deps.saveLayout (src/arrange.lua)
 --   dock     Left / Right, Up back to the grid, A opens
 --   menubar  A opens the W menu, Down back to the grid
 --   menu     Up / Down, A chooses, B / START close it
@@ -24,10 +29,11 @@
 --         gameId() -> "firered" | "leafgreen" | "ruby" | "sapphire" | "emerald" ;
 --         env (handed to an app's window(ctx, env): the kit, item and Pokémon icons, ...) ;
 --         T (src/i18n.lua: the words) ; wall (src/wallpaper.lua) ; wallpaper() -> the chosen id ;
---         wallpaperFit() -> "fill" | "stretch" (a picture's)
+--         wallpaperFit() -> "fill" | "stretch" (a picture's) ; arrange (src/arrange.lua) ;
+--         layout() -> dockText, gridText ; saveLayout(dockText, gridText)
 --   D.open(ctx) (ctx: src/apps.lua, plus warm = skip the boot, back = the app id to zoom back from)
 --   D.close() ; D.isOpen() ; D.input(input) ; D.pointer(ev) -> true ; D.wheel(dy) ; D.draw(G, vp)
---   D.state() (tests) ; D.booting() ; D.skipBoot() ; D.launch(i) ; D.tap(x, y)
+--   D.state() (tests) ; D.booting() ; D.skipBoot() ; D.launch(i) ; D.tap(x, y) ; D.arranging()
 --   D.padTransfer(itemId, "out" | "in") (an item across the shelf's pad; lit while a window has
 --   pad = true) ; D.padState() -> effects, way, item, light ; D.ballState() -> the pad's ball (win.ball)
 
@@ -37,6 +43,7 @@ return function(deps)
   local D = {}
   local WHITE, BLACK = K.WHITE, K.BLACK
   local mix, light, dark, fade = K.mix, K.light, K.dark, K.fade
+  local Ar = deps.arrange
 
   -- the boot (seconds): the screen black, the W with its progress bar (full FILL in, held full to
   -- the end of LOGO), the desktop fading up
@@ -99,8 +106,10 @@ return function(deps)
   local CLASSIC = { { 116, 144, 232 }, { 58, 48, 140 } }
   local TEXT = {
     hints = {
-      grid = { { "A", "hint.open" }, { "B", "hint.logoff" }, { "START", "hint.menu" } },
-      gridPages = { { "A", "hint.open" }, { "B", "hint.logoff" }, { "L R", "hint.page" }, { "START", "hint.menu" } },
+      grid = { { "A", "hint.open" }, { "B", "hint.logoff" }, { "SELECT", "hint.arrange" }, { "START", "hint.menu" } },
+      gridPages = { { "A", "hint.open" }, { "L R", "hint.page" }, { "SELECT", "hint.arrange" }, { "START", "hint.menu" } },
+      arrange = { { "A", "hint.pick" }, { "B", "hint.done" }, { "L R", "hint.page" } },
+      carry = { { "+", "hint.move" }, { "A", "hint.drop" } },
       menu = { { "A", "hint.choose" }, { "B", "hint.back" } },
       sheet = { { "< >", "hint.choose" }, { "A", "hint.ok" }, { "B", "hint.cancel" } },
       about = { { "A", "hint.ok" } },
@@ -147,8 +156,17 @@ return function(deps)
     ctx = ctx or {}
     local apps = deps.apps.list(ctx)
     local grid, dock = {}, {}
-    for _, app in ipairs(apps) do
-      if app.dock then dock[#dock + 1] = app else grid[#grid + 1] = app end
+    if Ar then
+      local dockText, gridText
+      if deps.layout then
+        local ok, d, g = pcall(deps.layout)
+        if ok then dockText, gridText = d, g end
+      end
+      grid, dock = Ar.place(apps, dockText, gridText)
+    else
+      for _, app in ipairs(apps) do
+        if app.dock then dock[#dock + 1] = app else grid[#grid + 1] = app end
+      end
     end
     local game = deps.gameId and deps.gameId() or ""
     r = { ctx = ctx, grid = grid, dock = dock, focus = grid[1] and "grid" or "dock", cursor = 1, dockCursor = 1,
@@ -228,6 +246,7 @@ return function(deps)
 
   -- open an app: it zooms up from its icon, then runs (a sheet opens at once)
   function D.launch(which, i)
+    if r and r.edit then return end
     if not r or r.zoom and not r.zoom.back then return end
     local app = appAt(which, i)
     if not app then return end
@@ -291,6 +310,115 @@ return function(deps)
     local e = r.padQ[1]
     if r.padN == 0 then return 0, nil, nil, r.padGlow end
     return r.padN, e.dir, e.id, r.padGlow, e.kind
+  end
+
+  -- ------- arranging: a long press on an icon (or SELECT) and the icons wiggle; one picked up
+  -- moves with the pointer or the D-pad, between the home screen and the dock (Ar.DOCK_MAX at
+  -- most); Done (B, START, SELECT, a tap on nothing or on Done) ends it. Each drop is kept.
+  D.LONG_PRESS = 0.5
+  local function saveLayout()
+    if not (Ar and deps.saveLayout) then return end
+    local dockText, gridText
+    if deps.layout then
+      local ok, d, g = pcall(deps.layout)
+      if ok then dockText, gridText = d, g end
+    end
+    local d, g = Ar.encode(r.dock, r.grid, dockText, gridText)
+    pcall(deps.saveLayout, d, g)
+  end
+  local function enterEdit()
+    if not Ar or r.edit then return end
+    r.edit = true
+    se("SE_SELECT")
+  end
+  local function pickUp(list, i, ptr, x, y)
+    local app = (list == "dock" and r.dock or r.grid)[i]
+    if not app then return end
+    r.carry = { app = app, list = list, i = i, ptr = ptr, x = x, y = y }
+    r.focus = list
+    if list == "dock" then r.dockCursor = i else r.cursor = i end
+    se("SE_SELECT")
+  end
+  local function drop()
+    if not r.carry then return end
+    r.carry = nil
+    saveLayout()
+    se("SE_SELECT")
+  end
+  local function exitEdit()
+    if r.carry then
+      r.carry = nil
+      saveLayout()
+    end
+    r.edit = nil
+    r.cursor = max(1, min(r.cursor, #r.grid))
+    r.dockCursor = max(1, min(r.dockCursor, #r.dock))
+    if r.focus == "grid" and #r.grid == 0 then r.focus = #r.dock > 0 and "dock" or "menubar" end
+    if r.focus == "dock" and #r.dock == 0 then r.focus = #r.grid > 0 and "grid" or "menubar" end
+    setPage(r.page, false)
+    se("SE_SELECT")
+  end
+  D.arranging = function() return r ~= nil and r.edit == true end
+  -- the carried app to `list` at j -> true when it moved (the grid's page follows when `follow`)
+  local LISTS = {}
+  local function carryTo(list, j, follow)
+    local c = r.carry
+    local into = list == "dock" and r.dock or r.grid
+    if list == "dock" and c.list ~= "dock" and #r.dock >= Ar.DOCK_MAX then return false end
+    j = max(1, min(#into + (c.list == list and 0 or 1), j))
+    if list == c.list and j == c.i then return false end
+    LISTS.grid, LISTS.dock = r.grid, r.dock
+    j = Ar.move(LISTS, c.list, c.i, list, j)
+    c.list, c.i = list, j
+    r.focus = list
+    if list == "dock" then
+      r.dockCursor = j
+    else
+      r.cursor = j
+      if follow then r.page = floor((j - 1) / r.perPage) + 1 end
+    end
+    return true
+  end
+  -- the D-pad carrying it: along its row, a row up or down, off the grid's foot into the dock and
+  -- up out of the dock onto the page shown
+  local function moveCarried(dir)
+    local c = r.carry
+    local moved = false
+    if c.list == "grid" then
+      local i, cols = c.i, r.cols
+      local row = floor(((i - 1) % r.perPage) / cols)
+      if dir == "left" then moved = i > 1 and carryTo("grid", i - 1, true)
+      elseif dir == "right" then moved = i < #r.grid and carryTo("grid", i + 1, true)
+      elseif dir == "up" then moved = row > 0 and carryTo("grid", i - cols, true)
+      elseif row >= r.rows - 1 or i + cols > #r.grid then moved = carryTo("dock", #r.dock + 1)
+      else moved = carryTo("grid", i + cols, true) end
+    else
+      local j = c.i
+      if dir == "left" then moved = j > 1 and carryTo("dock", j - 1)
+      elseif dir == "right" then moved = j < #r.dock and carryTo("dock", j + 1)
+      elseif dir == "up" then moved = carryTo("grid", min(#r.grid + 1, r.page * r.perPage), true) end
+    end
+    if moved then se("SE_SELECT") end
+  end
+  -- the pointer carrying it (units): over the dock's band the dock, else the cell under it on
+  -- the page shown
+  local function carryToPointer(ux, uy)
+    local L = r.layout
+    local c = r.carry
+    if not (L and c) then return end
+    if uy >= L.dockY - 3 then
+      -- (against the dock as wide as it will be with the app in it: it re-centres as it grows)
+      local s, sb = D.CELL.dockIcon, L.screen
+      local n = #r.dock + (c.list == "dock" and 0 or 1)
+      local left = sb[1] + (sb[3] - (n * (s + 5) + 5)) / 2
+      carryTo("dock", floor((ux - left - 2.5) / (s + 5)) + 1)
+      return
+    end
+    local area, cell = L.grid, D.CELL
+    if uy < area[2] - 4 or uy > area[2] + area[4] then return end
+    local col = max(0, min(r.cols - 1, floor((ux - area[1] - L.gridPad) / cell.w)))
+    local row = max(0, min(r.rows - 1, floor((uy - area[2]) / cell.h)))
+    carryTo("grid", (r.page - 1) * r.perPage + row * r.cols + col + 1)
   end
 
   local function openMenu()
@@ -416,6 +544,26 @@ return function(deps)
       if pressed("start") then return openMenu() end
       return
     end
+    -- arranging: A picks up and puts down, the D-pad carries; B, START or SELECT is Done
+    if r.edit then
+      if r.carry then
+        if pressed("a") or pressed("b") then return drop() end
+        if left then moveCarried("left")
+        elseif right then moveCarried("right")
+        elseif up then moveCarried("up")
+        elseif down then moveCarried("down")
+        end
+        return
+      end
+      if pressed("b") or pressed("start") or pressed("select") then return exitEdit() end
+      if pressed("a") then
+        if r.focus == "grid" then pickUp("grid", r.cursor, false)
+        elseif r.focus == "dock" then pickUp("dock", r.dockCursor, false) end
+        return
+      end
+    elseif pressed("select") and Ar then
+      return enterEdit()
+    end
     if pressed("start") then return openMenu() end
     if pressed("b") then
       se("SE_SELECT")
@@ -483,6 +631,12 @@ return function(deps)
   end
   local function tap(x, y)
     local h = hitAt(x, y)
+    -- (arranging: Done, a page's dot; a tap on nothing is Done too)
+    if r.edit then
+      if not h or h.kind == "editdone" then exitEdit()
+      elseif h.kind == "dot" then setPage(h.arg) end
+      return true
+    end
     if not h then return false end
     local kind, arg = h.kind, h.arg
     if kind == "skip" then D.skipBoot()
@@ -529,16 +683,35 @@ return function(deps)
     if ev.phase == "pressed" then
       local area, wa = r.gridArea, r.winArea
       local free = not r.sheet and not r.menuOpen
-      r.press = { id = ev.id, x = x, y = y, ly = y, drag = false,
+      r.press = { id = ev.id, x = x, y = y, ly = y, drag = false, t0 = now(), mx = x, my = y,
                   grid = not r.win and area ~= nil and free and K.inside(area, x, y),
                   win = r.win ~= nil and wa ~= nil and free and K.inside(wa, x, y) }
       if r.press.win and r.win.pointer then
         r.press.own = true
         winPointer("pressed", x, y)
       end
+      -- (on an icon: held still, it's picked up to arrange; already arranging, at once)
+      local h = not r.win and free and not booting() and hitAt(x, y)
+      if h and (h.kind == "grid" or h.kind == "dock") then
+        r.press.icon, r.press.arg = h.kind, h.arg
+        if r.edit and not r.carry then
+          pickUp(h.kind, h.arg, true, (x - K.ox) / K.sc, (y - K.oy) / K.sc)
+          r.press.carry = true
+        end
+      end
     elseif ev.phase == "moved" then
       r.mouseX, r.mouseY = x, y
-      if press and press.id == ev.id and press.own then
+      if press and press.id == ev.id then
+        press.mx, press.my = x, y
+        if abs(x - press.x) > 4 * K.sc or abs(y - press.y) > 4 * K.sc then press.moved = true end
+      end
+      if press and press.id == ev.id and press.carry then
+        local c = r.carry
+        if c then
+          c.x, c.y = (x - K.ox) / K.sc, (y - K.oy) / K.sc
+          carryToPointer(c.x, c.y)
+        end
+      elseif press and press.id == ev.id and press.own then
         if abs(x - press.x) > 4 * K.sc or abs(y - press.y) > 4 * K.sc then press.drag = true end
         winPointer("moved", x, y)
       elseif not press and r.win and r.win.pointer and r.winArea and K.inside(r.winArea, x, y) then
@@ -560,7 +733,10 @@ return function(deps)
         r.hoverArg = h and h.arg or nil
       end
     elseif ev.phase == "released" then
-      if press and press.id == ev.id and press.own then
+      if press and press.id == ev.id and press.carry then
+        r.press = nil
+        drop()
+      elseif press and press.id == ev.id and press.own then
         r.press = nil
         -- (a release the window didn't use is a tap)
         if not winPointer("released", x, y) and not press.drag then tap(x, y) end
@@ -579,6 +755,7 @@ return function(deps)
     elseif ev.phase == "cancelled" then
       if press and press.id == ev.id then
         if press.own then winPointer("cancelled", x, y) end
+        if press.carry then drop() end
         r.press, r.dragX = nil, nil
       end
     end
@@ -1208,6 +1385,51 @@ return function(deps)
     glyph(K.graphics(), app.glyph, K.X(x + w / 2), K.Y(y + h / 2), from[3] * K.sc * (1 + e * 1.4), 1 - e * 0.4)
   end
 
+  -- an icon on the home screen or in the dock: lifted under the cursor or the mouse; arranging,
+  -- it wiggles, the one carried by the pointer leaves its place empty (it follows the pointer)
+  -- and the one carried by the D-pad stands still, lifted higher
+  local function arrangedIcon(app, ix, iy, s, on, hover, lift, pad, rad, clock, seed)
+    local c = r.carry
+    if c and c.app == app then
+      if c.ptr then
+        K.col(WHITE, 0.22)
+        K.box("fill", K.R(ix, iy, s, s), s * 0.24)
+        return
+      end
+      appIcon(app, ix, iy, s, lift * 2)
+      focusRing(ix, iy, s, lift * 2, pad, rad)
+      return
+    end
+    if r.edit then
+      local G = K.graphics()
+      local cx, cy = K.X(ix + s / 2), K.Y(iy + s / 2)
+      G.push()
+      G.translate(cx, cy)
+      G.rotate(math.sin(clock * 17 + seed * 1.9) * 0.045)
+      G.translate(-cx, -cy)
+      appIcon(app, ix, iy, s, (on or hover) and lift or 0)
+      G.pop()
+    else
+      appIcon(app, ix, iy, s, (on or hover) and lift or 0)
+    end
+    if on then focusRing(ix, iy, s, lift, pad, rad) end
+  end
+
+  -- arranging: the app the pointer carries, over everything, and Done at the screen's top right
+  local function drawArranging(L)
+    local c = r.carry
+    if c and c.ptr then
+      local s = D.CELL.icon
+      appIcon(c.app, c.x - s / 2, c.y - s / 2, s, 0.18)
+    end
+    local sb = L.screen
+    local label = T("desk.done")
+    local w = K.width(label, 4.4) + 8
+    local b = K.R(sb[1] + sb[3] - w - 3, sb[2] + 11, w, 8)
+    K.button(b, label, "accent", false, 4.4)
+    K.addHit(b, "editdone")
+  end
+
   local function drawGrid(L, clock)
     local cell = D.CELL
     local area = L.grid
@@ -1238,13 +1460,12 @@ return function(deps)
         local on = r.focus == "grid" and i == r.cursor and not r.sheet and not r.menuOpen
         local hover = r.hover == "grid" and r.hoverArg == i
         local zooming = r.zoom and r.zoom.id == app.id
-        if not zooming then
-          appIcon(app, ix, iy, cell.icon, (on or hover) and 0.08 or 0)
-          if on then focusRing(ix, iy, cell.icon, 0.08, 1.4, 6) end
-        end
+        if not zooming then arrangedIcon(app, ix, iy, cell.icon, on, hover, 0.08, 1.4, 6, clock, i) end
         local label = labelOf(app)
         local ls = K.fit(label, 4.6, cell.w - 1)
-        K.label(label, cx, iy + cell.icon + 2.2 + (4.6 - ls) * 0.5, ls, WHITE, "center", cell.w)
+        if not (r.carry and r.carry.ptr and r.carry.app == app) then
+          K.label(label, cx, iy + cell.icon + 2.2 + (4.6 - ls) * 0.5, ls, WHITE, "center", cell.w)
+        end
         K.addHit(K.R(cx, cy, cell.w, cell.h), "grid", i, area)
       end
     end
@@ -1262,8 +1483,8 @@ return function(deps)
     end
   end
 
-  local function drawDock(L)
-    if #r.dock == 0 then return end
+  local function drawDock(L, clock)
+    if #r.dock == 0 and not r.edit then return end
     local db = L.dockB
     K.shadow(db, 7, 1, 0.18)
     K.col(WHITE, 0.26)
@@ -1281,10 +1502,7 @@ return function(deps)
       rec[1], rec[2], rec[3] = ix, iy, s
       local on = r.focus == "dock" and i == r.dockCursor and not r.sheet and not r.menuOpen
       local hover = r.hover == "dock" and r.hoverArg == i
-      if not (r.zoom and r.zoom.id == app.id) then
-        appIcon(app, ix, iy, s, (on or hover) and 0.1 or 0)
-        if on then focusRing(ix, iy, s, 0.1, 1.1, 5.5) end
-      end
+      if not (r.zoom and r.zoom.id == app.id) then arrangedIcon(app, ix, iy, s, on, hover, 0.1, 1.1, 5.5, clock, i + 7) end
       K.addHit(K.R(ix - 2, db[2], s + 4, db[4]), "dock", i)
     end
   end
@@ -1483,13 +1701,39 @@ return function(deps)
     local db = L.dockB or {}
     L.dockB = db
     local s = D.CELL.dockIcon
-    local dw = #r.dock * (s + 5) + 5
+    local dw = max(r.edit and 1 or 0, #r.dock) * (s + 5) + 5
     db[1], db[2], db[3], db[4] = L.screen[1] + (L.screen[3] - dw) / 2, L.dockY, dw, 24
     -- the pad: lit while the window uses it; its effects one after another
     local want = r.win and r.win.pad and 1 or 0
     local step = r.dt / D.PAD.light
     r.padGlow = want > r.padGlow and min(want, r.padGlow + step) or max(want, r.padGlow - step)
     if r.padN > 0 and clock - r.padQ[1].t0 >= padLength(r.padQ[1].dir) then padNext(clock) end
+
+    -- a long press on an icon: arranging, that icon in hand
+    local pr = r.press
+    if pr and pr.icon and not pr.moved and not pr.carry and not r.carry and not r.win
+       and now() - pr.t0 >= D.LONG_PRESS then
+      enterEdit()
+      pickUp(pr.icon, pr.arg, true, (pr.mx - K.ox) / K.sc, (pr.my - K.oy) / K.sc)
+      pr.carry = r.carry ~= nil
+    end
+    -- (carried to the grid's edge and held there: the next page)
+    local c = r.carry
+    if c and c.ptr and c.y < L.dockY - 3 then
+      local area = L.grid
+      local edge = c.x < area[1] + 5 and -1 or (c.x > area[1] + area[3] - 5 and 1 or 0)
+      if edge == 0 or edge ~= c.edge then
+        c.edge, c.edgeT = edge, clock
+      elseif clock - c.edgeT >= 0.6 then
+        c.edgeT = clock
+        local p = r.page + edge
+        if p >= 1 and p <= pages() then
+          r.page = p
+          se("SE_SELECT")
+          carryToPointer(c.x, c.y)
+        end
+      end
+    end
 
     drawMonitor(L, clock)
     local sb = L.screen
@@ -1498,7 +1742,8 @@ return function(deps)
       drawWindow(L, clock, portrait)
     else
       drawGrid(L, clock)
-      drawDock(L)
+      drawDock(L, clock)
+      if r.edit then drawArranging(L) end
     end
     drawMenuBar(L, clock)
     -- an app zooming up from its icon (then it runs), or back down into it
@@ -1531,6 +1776,8 @@ return function(deps)
       local ok, got = true, nil
       if r.win.hints then ok, got = pcall(r.win.hints) end
       hints = ok and type(got) == "table" and got or T.list(TEXT.hints.window)
+    elseif r.carry then hints = T.list(TEXT.hints.carry)
+    elseif r.edit then hints = T.list(TEXT.hints.arrange)
     else hints = T.list(pages() > 1 and TEXT.hints.gridPages or TEXT.hints.grid)
     end
     if portrait then

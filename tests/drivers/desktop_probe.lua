@@ -472,6 +472,45 @@ local function body(game, log)
   D.draw = drawR
   log(("  the desktop's draw on Ribbon: %.3f KB per frame over %d frames"):format(kbR / math.max(1, nR), nR))
   check(kbR / math.max(1, nR) < 0.5, "a drawn wallpaper makes next to no garbage")
+  -- arranging: a long press on the first app, dragged into the dock and let go; Done
+  do
+    st = D.state()
+    local grid0, dock0 = {}, {}
+    for i, a in ipairs(st.grid) do grid0[i] = a end
+    for i, a in ipairs(st.dock) do dock0[i] = a end
+    local function hitOf(kind, arg)
+      for _, h in ipairs(st.hit) do if h.kind == kind and h.arg == arg then return h end end
+    end
+    local g1, d1 = hitOf("grid", 1), hitOf("dock", 1)
+    local app = st.grid[1]
+    if g1 and d1 then
+      local gx, gy = g1[1] + g1[3] / 2, g1[2] + g1[4] / 2
+      D.pointer({ id = 7, phase = "pressed", x = gx, y = gy })
+      check(waitFor(function() return D.arranging() and st.carry ~= nil end, 600), "a long press: arranging, the app in hand")
+      U.wait(20)
+      shot("d10_arrange_lift")
+      local dx, dy = d1[1] + d1[3] / 2, d1[2] + d1[4] / 2
+      for k = 1, 8 do
+        D.pointer({ id = 7, phase = "moved", x = gx + (dx - gx) * k / 8, y = gy + (dy - gy) * k / 8 })
+        U.wait(2)
+      end
+      check(st.carry and st.carry.list == "dock", "dragged into the dock")
+      shot("d10b_arrange_dock")
+      D.pointer({ id = 7, phase = "released", x = dx, y = dy })
+      U.wait(10)
+      local inDock = false
+      for _, a in ipairs(st.dock) do if a == app then inDock = true end end
+      check(st.carry == nil and inDock, "let go: it stays in the dock")
+      shot("d10c_arranged")
+      U.tap(game, "b"); U.wait(6)
+      check(not D.arranging(), "B: done")
+    end
+    -- (the arrangement as it was)
+    Set.set("dockApps", nil)
+    Set.set("homeApps", nil)
+    st.grid, st.dock = grid0, dock0
+    st.cursor, st.dockCursor, st.focus = 1, 1, "grid"
+  end
   Env.setWallpaper("classic")
   if Set.cache then
     if savedSettings then Set.cache:write("settings.lua", savedSettings) else Set.cache:delete("settings.lua") end

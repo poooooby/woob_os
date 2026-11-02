@@ -25,6 +25,9 @@ return {
     ["hint.ten"] = "10",
     ["hint.folder"] = "Folder",
     ["hint.fit"] = "Fit",
+    ["hint.arrange"] = "Arrange",
+    ["hint.done"] = "Done",
+    ["desk.done"] = "Done",
 
     -- the desktop: the W menu, the sheets
     ["menu.about"] = "About WoobleOS",

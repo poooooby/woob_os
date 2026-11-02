@@ -67,6 +67,21 @@ local function draw(n, step)
     D.draw(G, VP)
   end
 end
+-- KB a frame the draw makes over n frames: measured twice, the lower kept (a trace LuaJIT compiles
+-- in the middle of one lands on the heap once; garbage the draw makes shows in both)
+local function garbageOf(n, setup)
+  local best = math.huge
+  for _ = 1, 2 do
+    if setup then setup() end
+    collectgarbage("collect")
+    collectgarbage("stop")
+    local kb = collectgarbage("count")
+    draw(n)
+    best = math.min(best, (collectgarbage("count") - kb) / n)
+    collectgarbage("restart")
+  end
+  return best
+end
 local function input(press, down)
   local p, d = {}, {}
   for _, k in ipairs(press or {}) do p[k] = true end
@@ -554,23 +569,15 @@ T.check(IW.state.menu ~= nil, "START: the menu")
 press("b")
 T.check(IW.state.menu == nil and D.window() == IW, "B: the menu closes, the window stays")
 draw(30)
-collectgarbage("collect")
-collectgarbage("stop")
-local kbW = collectgarbage("count")
-draw(120)
-local perW = (collectgarbage("count") - kbW) / 120
-collectgarbage("restart")
+local perW = garbageOf(120)
 T.check(perW < 0.3, ("the Items window draws next to no garbage (%.3f KB a frame)"):format(perW))
 T.eq(D.padState(), 0, "the pad's effects play out")
--- an effect on its own, warm, measured as it plays
-D.padTransfer(POTION, "out")
-draw(2)
-collectgarbage("collect")
-collectgarbage("stop")
-local kbP = collectgarbage("count")
-draw(60)
-local perP = (collectgarbage("count") - kbP) / 60
-collectgarbage("restart")
+-- an effect on its own, warm, measured as it plays (each pass a new one)
+local perP = garbageOf(60, function()
+  draw(120)
+  D.padTransfer(POTION, "out")
+  draw(2)
+end)
 T.check(perP < 0.3, ("an item crossing the pad makes next to no garbage (%.3f KB a frame)"):format(perP))
 for _, shape in ipairs({ { 480, 320 }, { 320, 480 }, { 900, 320 } }) do
   VP.width, VP.height = shape[1], shape[2]
@@ -830,12 +837,7 @@ for _, shape in ipairs({ { 480, 320 }, { 320, 480 }, { 900, 320 } }) do
 end
 VP.width, VP.height = 480, 320
 draw(120)
-collectgarbage("collect")
-collectgarbage("stop")
-local kbB = collectgarbage("count")
-draw(120)
-local perB = (collectgarbage("count") - kbB) / 120
-collectgarbage("restart")
+local perB = garbageOf(120)
 T.check(perB < 0.3, ("the Boxes window draws next to no garbage (%.3f KB a frame)"):format(perB))
 -- one of the game's screens over it (the summary, naming): the window back as it was
 bst.mode, bst.box = BW.SWAP, 2
@@ -979,6 +981,84 @@ T.eq(Wall.choices()[1].id, "classic", "the wallpapers: Classic first")
 T.eq(#Wall.choices(), 6, "then the five drawn ones (no pictures in wallpapers/)")
 T.check(not Wall.draw("ribbon", 0, 0, 100, 60, 3), "headless (no canvases): the classic colours instead")
 
+-- ------- arranging the desktop (kept in the stand-in cache)
+do
+  local Ar = X._test.arrange
+  local A1 = { { id = "a", dock = true }, { id = "b" }, { id = "c", dock = true }, { id = "d" } }
+  local g, d = Ar.place(A1, nil, nil)
+  T.eq(ids(d) .. " | " .. ids(g), "a c | b d", "no arrangement: each app where it says")
+  g, d = Ar.place(A1, "b,zz", "c,a")
+  T.eq(ids(d) .. " | " .. ids(g), "b | c a d", "an arrangement: the named apps in order, the rest after")
+  local dt, gt = Ar.encode(d, g, "b,zz", "c,a,yy")
+  T.eq(dt .. " | " .. gt, "b,zz | c,a,d,yy", "kept: apps this PC doesn't show keep their place")
+  local full = {}
+  for i = 1, 8 do full[i] = { id = "x" .. i, dock = true } end
+  g, d = Ar.place(full, nil, nil)
+  T.eq(#d .. " " .. #g, Ar.DOCK_MAX .. " " .. (8 - Ar.DOCK_MAX), "a full dock: the rest on the home screen")
+end
+local function reopen()
+  st.ctx.logoff()
+  openPc({ startMode = "select" })
+  st = D.state()
+  D.skipBoot()
+  draw(30)
+  D.input(input({}, {}))
+end
+reopen()
+T.check(D.isOpen() and not D.window() and #st.grid > 0, "(the home screen)")
+-- the buttons: SELECT, A picks the first app up, Down into the dock, A puts it there
+local firstApp = st.grid[1]
+st.focus, st.cursor = "grid", 1
+D.setPage(1)
+press("select")
+T.check(D.arranging(), "SELECT: arranging")
+press("a")
+T.check(st.carry and st.carry.app == firstApp and not st.carry.ptr, "A picks the app up")
+for _ = 1, 5 do if st.carry.list ~= "dock" then press("down") end end
+T.eq(st.carry.list, "dock", "Down off the grid's foot: into the dock")
+T.eq(st.dock[#st.dock], firstApp, "at its end")
+press("left")
+T.eq(st.dock[#st.dock - 1], firstApp, "Left: along the dock")
+press("a")
+T.check(st.carry == nil and D.arranging(), "A puts it down, still arranging")
+T.check((Set.get("dockApps") or ""):find(firstApp.id, 1, true) ~= nil, "the dock's arrangement kept")
+press("b")
+T.check(not D.arranging(), "B: done")
+reopen()
+T.eq(st.dock[#st.dock - 1], firstApp, "the next PC keeps it")
+-- the pointer: a long press on it in the dock, dragged to the home screen's first place
+local function hitOf(kind, arg)
+  for _, h in ipairs(st.hit) do if h.kind == kind and h.arg == arg then return h end end
+end
+draw(2)
+local dh = hitOf("dock", #st.dock - 1)
+local hx, hy = dh[1] + dh[3] / 2, dh[2] + dh[4] / 2
+D.pointer({ id = 3, phase = "pressed", x = hx, y = hy })
+draw(10)
+T.check(not D.arranging(), "a short hold: nothing yet")
+draw(30)
+T.check(D.arranging() and st.carry and st.carry.app == firstApp and st.carry.ptr, "a long press: arranging, the app in hand")
+local g1 = hitOf("grid", 1)
+local gx, gy = g1[1] + g1[3] / 2, g1[2] + g1[4] / 2
+D.pointer({ id = 3, phase = "moved", x = (hx + gx) / 2, y = (hy + gy) / 2 })
+D.pointer({ id = 3, phase = "moved", x = gx, y = gy })
+draw(1)
+T.eq(st.grid[1], firstApp, "dragged onto the home screen's first place")
+D.pointer({ id = 3, phase = "released", x = gx, y = gy })
+T.check(st.carry == nil and D.arranging(), "let go: put down, still arranging")
+T.eq((Set.get("homeApps") or ""):match("^[^,]+"), firstApp.id, "the home screen's arrangement kept")
+-- the draw while arranging makes next to no garbage
+draw(60)
+local perA = garbageOf(120)
+T.check(perA < 0.3, ("arranging draws next to no garbage (%.3f KB a frame)"):format(perA))
+D.tap(2, 2)
+T.check(not D.arranging(), "a tap on nothing: done")
+-- (the defaults again)
+Set.set("dockApps", nil)
+Set.set("homeApps", nil)
+reopen()
+T.eq(st.dock[1] and st.dock[1].id, "storage", "no arrangement kept: Boxes first in the dock again")
+
 -- ------- the Settings window: choose French, a wallpaper, back
 for i, app in ipairs(st.grid) do if app.id == "settings" then st.focus, st.cursor = "grid", i end end
 D.input(input({}, {}))
@@ -1026,12 +1106,7 @@ end
 VP.width, VP.height = 480, 320
 -- (warm: the shapes above made new font sizes and wallpaper keys)
 draw(120)
-collectgarbage("collect")
-collectgarbage("stop")
-local kbS = collectgarbage("count")
-draw(120)
-local perS = (collectgarbage("count") - kbS) / 120
-collectgarbage("restart")
+local perS = garbageOf(120)
 T.check(perS < 0.3, ("the Settings window draws next to no garbage (%.3f KB a frame)"):format(perS))
 press("b")
 press("b")
@@ -1043,12 +1118,7 @@ draw(30)
 
 -- ------- garbage: the draw, warm
 draw(120)
-collectgarbage("collect")
-collectgarbage("stop")
-local kb0 = collectgarbage("count")
-draw(300)
-local per = (collectgarbage("count") - kb0) / 300
-collectgarbage("restart")
+local per = garbageOf(300)
 T.check(per < 0.2, ("the draw makes next to no garbage (%.3f KB a frame)"):format(per))
 
 st.ctx.logoff()

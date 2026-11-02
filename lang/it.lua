@@ -19,6 +19,9 @@ return {
     ["hint.ten"] = "10",
     ["hint.folder"] = "Cartella",
     ["hint.fit"] = "Adatta",
+    ["hint.arrange"] = "Organizza",
+    ["hint.done"] = "Fine",
+    ["desk.done"] = "Fine",
 
     ["menu.about"] = "Informazioni su WoobleOS",
     ["menu.logoff"] = "Spegni…",
