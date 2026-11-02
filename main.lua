@@ -1,4 +1,4 @@
--- WoobleOS (wooble_os): the Gen 3 PC as a modern desktop.
+-- WoobOS (woob_os): the Gen 3 PC as a modern desktop.
 --   src/ui_kit.lua   the drawing kit (layout on the window, cached gradients, pools, text, the W)
 --   src/apps.lua     the app registry (mod.exports.apps) and the built-in apps
 --   src/desktop.lua  the desktop: monitor, boot, menu bar, home grid, dock, sheets, input

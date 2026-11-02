@@ -6,7 +6,7 @@
 --     game's own menu as before. The PC's turn-on flicker and sounds stay the game's.
 --   - script.command skips the game's "booted up the PC" and "Which PC should be accessed?" lines
 --     in front of those two menus (the boot does their job); with the Desktop option off they stay
---   - the wrapper is installed once per process on the module (PcMenu.__woobleOs) and calls the
+--   - the wrapper is installed once per process on the module (PcMenu.__woobOs) and calls the
 --     current mod instance's `impl`, so loading the mod again (another game) never wraps it twice
 --   - the desktop is a Gen 3 UI stack layer (it takes the buttons, holds the script) drawn over the
 --     whole window from render.hud; taps and clicks from input.pointer, the wheel from input.wheel;
@@ -24,7 +24,7 @@ return function(mod, deps)
   local req = deps.require or require
   local log = deps.log
   local D, A = deps.desktop, deps.apps
-  local Sh = { LAYER_ID = "wooble_os" }
+  local Sh = { LAYER_ID = "woob_os" }
 
   local engineMods = {}
   local function engine(name)
@@ -219,10 +219,10 @@ return function(mod, deps)
       if log then log:warn("the game's PC menu wasn't found: the PC keeps its own menu") end
       return false
     end
-    local w = rawget(PcMenu, "__woobleOs")
+    local w = rawget(PcMenu, "__woobOs")
     if not w then
       w = { orig = PcMenu.show }
-      PcMenu.__woobleOs = w
+      PcMenu.__woobOs = w
       PcMenu.show = function(opts)
         local impl = w.impl
         if impl then

@@ -1,4 +1,4 @@
--- WoobleOS in italiano. Le chiavi a sinistra restano come sono; cambiano solo le parole a destra.
+-- WoobOS in italiano. Le chiavi a sinistra restano come sono; cambiano solo le parole a destra.
 -- Tieni ogni %s (lì va un nome o un numero). Le parole mancanti appaiono in inglese.
 return {
   name = "Italiano",
@@ -23,7 +23,7 @@ return {
     ["hint.done"] = "Fine",
     ["desk.done"] = "Fine",
 
-    ["menu.about"] = "Informazioni su WoobleOS",
+    ["menu.about"] = "Informazioni su WoobOS",
     ["menu.logoff"] = "Spegni…",
     ["logoff.title"] = "Spegnere?",
     ["logoff.body"] = "Il PC si spegne e torni al gioco.",
@@ -103,8 +103,8 @@ return {
 
     ["settings.language"] = "Lingua",
     ["settings.wallpaper"] = "Sfondo",
-    ["settings.languageNote"] = "Le parole di WoobleOS. Il testo del gioco non cambia.",
-    ["settings.wallpaperNote"] = "Aggiungi i tuoi: metti immagini PNG o JPG in mods/wooble_os/wallpapers/",
+    ["settings.languageNote"] = "Le parole di WoobOS. Il testo del gioco non cambia.",
+    ["settings.wallpaperNote"] = "Aggiungi i tuoi: metti immagini PNG o JPG in mods/woob_os/wallpapers/",
     ["settings.fill"] = "Riempi",
     ["settings.stretch"] = "Allunga",
     ["wall.classic"] = "Classico",

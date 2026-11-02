@@ -1,4 +1,4 @@
-Your own wallpapers for WoobleOS.
+Your own wallpapers for WoobOS.
 
 Put PNG or JPG pictures in this folder, then open Settings > Wallpaper on the PC's desktop: each
 picture shows up there under its file name. With one of your pictures chosen, switch between:

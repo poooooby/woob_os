@@ -4,7 +4,7 @@
 -- player walks again. Then the mouse alone (a dock icon, the power button, Log Off), the bedroom
 -- PC's desktop, window shapes, and the garbage its draw makes. Shots d*.png.
 --   SHOT_DIR=<dir> POKEPORT_GAME=firered POKEPORT_VERSION=firered \
---   POKEPORT_DRIVER=mods/wooble_os/tests/drivers/desktop_probe.lua love .
+--   POKEPORT_DRIVER=mods/woob_os/tests/drivers/desktop_probe.lua love .
 
 local CENTER = { frlg = "VIRIDIAN_CITY_POKEMON_CENTER_1F", rse = "OLDALE_TOWN_POKEMON_CENTER_1F" }
 
@@ -36,9 +36,9 @@ local function body(game, log)
   local PcMenu = require("src.ui.game3.pc_menu")
   local s0 = Runtime.getSession()
   s0.money = 12345
-  local X = game.mods.exports.wooble_os
+  local X = game.mods.exports.woob_os
   local D = X and X._test and X._test.desktop
-  if not D then log("FAIL wooble_os has no _test.desktop"); return end
+  if not D then log("FAIL woob_os has no _test.desktop"); return end
   local Sh = X._test.shell
   local gid = Sh.gameId()
   local family = (gid == "firered" or gid == "leafgreen") and "frlg" or "rse"
@@ -86,7 +86,7 @@ local function body(game, log)
   U.wait(40)
   shot("d1_desktop")
   local st = D.state()
-  check(Stack.has("wooble_os") and Field.isLocked and Field.isLocked(), "on the UI stack, the field held")
+  check(Stack.has("woob_os") and Field.isLocked and Field.isLocked(), "on the UI stack, the field held")
 
   -- the draw's garbage, measured around each call
   local draw, drawKb, draws = D.draw, 0, 0
@@ -551,7 +551,7 @@ local function body(game, log)
   check(st.menuOpen, "a click on the W: its menu")
   shot("d6_wmenu")
   click("menuRow", 1)
-  check(st.sheet == "about", "About WoobleOS")
+  check(st.sheet == "about", "About WoobOS")
   shot("d7_about")
   click("ok")
   click("power")

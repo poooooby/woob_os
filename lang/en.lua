@@ -1,4 +1,4 @@
--- WoobleOS in English: the master list of its words. Every word the desktop and its apps show
+-- WoobOS in English: the master list of its words. Every word the desktop and its apps show
 -- comes from here (the game's own text, such as item names, mail and Pokémon, stays the cart's).
 --
 -- To make another language: copy this file to lang/<code>.lua (fr, de, pt-br, ...), set `name`
@@ -30,7 +30,7 @@ return {
     ["desk.done"] = "Done",
 
     -- the desktop: the W menu, the sheets
-    ["menu.about"] = "About WoobleOS",
+    ["menu.about"] = "About WoobOS",
     ["menu.logoff"] = "Log Off…",
     ["logoff.title"] = "Log off?",
     ["logoff.body"] = "The PC turns off and you go back to the game.",
@@ -115,8 +115,8 @@ return {
     -- Settings
     ["settings.language"] = "Language",
     ["settings.wallpaper"] = "Wallpaper",
-    ["settings.languageNote"] = "WoobleOS's own words. The game's text stays as it is.",
-    ["settings.wallpaperNote"] = "Add your own: put PNG or JPG pictures in mods/wooble_os/wallpapers/",
+    ["settings.languageNote"] = "WoobOS's own words. The game's text stays as it is.",
+    ["settings.wallpaperNote"] = "Add your own: put PNG or JPG pictures in mods/woob_os/wallpapers/",
     ["settings.fill"] = "Fill",
     ["settings.stretch"] = "Stretch",
     ["wall.classic"] = "Classic",

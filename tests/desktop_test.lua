@@ -1,4 +1,4 @@
--- Standalone: luajit mods/wooble_os/tests/desktop_test.lua [game] (from the gen1recomp root; needs
+-- Standalone: luajit mods/woob_os/tests/desktop_test.lua [game] (from the gen1recomp root; needs
 -- that cart imported, FireRed by default).
 --
 -- The desktop in place of the game's PC menu (src/shell.lua, src/desktop.lua, src/apps.lua): the
@@ -51,14 +51,14 @@ do
   end
 end
 
-local run = T.sdk.loadMods({ "mods/wooble_os" }, { data = {}, generation = 3 })
+local run = T.sdk.loadMods({ "mods/woob_os" }, { data = {}, generation = 3 })
 T.eq(#run.errors, 0, "loads clean (" .. tostring(run.errors[1]) .. ")")
 run.loader.events:emit("game.ready", {})
-local X = run.loader.exports.wooble_os
+local X = run.loader.exports.woob_os
 local D, Sh, Apps = X._test.desktop, X._test.shell, X._test.apps
 local PcMenu = require("src.ui.game3.pc_menu")
 local Stack = require("src.ui.game3.stack")
-T.check(rawget(PcMenu, "__woobleOs") ~= nil, "the PC menu is wrapped")
+T.check(rawget(PcMenu, "__woobOs") ~= nil, "the PC menu is wrapped")
 
 local VP = { width = 480, height = 320 }
 local function draw(n, step)
@@ -129,7 +129,7 @@ T.check(not Apps.register({ id = "x" }), "an app needs open()")
 -- ------- the Pokémon Center PC
 
 openPc({ startMode = "select" })
-T.check(D.isOpen() and Stack.has("wooble_os"), "the PC menu opens the desktop, on the UI stack")
+T.check(D.isOpen() and Stack.has("woob_os"), "the PC menu opens the desktop, on the UI stack")
 local st = D.state()
 T.check(D.booting(), "it boots first")
 press("a")
@@ -158,7 +158,7 @@ draw(30)
 -- the app's icon zooming back
 st.ctx.app = "storage"
 st.ctx.finish(st.ctx.row("storage"))
-T.check(not D.isOpen() and not Stack.has("wooble_os"), "a row to the script: the desktop closes")
+T.check(not D.isOpen() and not Stack.has("woob_os"), "a row to the script: the desktop closes")
 T.eq(last(), st.ctx.row("storage"), "and the script gets the row (" .. tostring(last()) .. ")")
 openPc({ startMode = "select" })
 st = D.state()
@@ -277,7 +277,7 @@ if rse then
   draw(30)
   T.check(opened ~= nil and not D.isOpen(), "Decorate opens the game's Decoration menu")
   if opened then opened.onClose() end
-  T.check(D.isOpen() and Stack.has("wooble_os") and not D.booting(), "and closing it comes back to the desktop")
+  T.check(D.isOpen() and Stack.has("woob_os") and not D.booting(), "and closing it comes back to the desktop")
   Rse._systems.decorationMenu = was
   st = D.state()
   draw(30)
@@ -878,7 +878,7 @@ draw(30)
 
 -- ------- the words (lang/*.lua through src/i18n.lua)
 local I18n, Set, Wall = X._test.i18n, X._test.settings, X._test.wall
-local MOD = "mods/wooble_os/"
+local MOD = "mods/woob_os/"
 local function readFile(path)
   local f = io.open(MOD .. path, "rb")
   if not f then return nil end
@@ -1123,4 +1123,4 @@ T.check(per < 0.2, ("the draw makes next to no garbage (%.3f KB a frame)"):forma
 
 st.ctx.logoff()
 run.release()
-T.finish("wooble_os desktop (" .. GAME .. ")")
+T.finish("woob_os desktop (" .. GAME .. ")")

@@ -1,4 +1,4 @@
--- WoobleOS auf Deutsch. Die Schlüssel links bleiben, wie sie sind; nur die Wörter rechts ändern
+-- WoobOS auf Deutsch. Die Schlüssel links bleiben, wie sie sind; nur die Wörter rechts ändern
 -- sich. Jedes %s bleibt stehen (dort steht ein Name oder eine Zahl). Fehlende Wörter erscheinen
 -- auf Englisch.
 return {
@@ -24,7 +24,7 @@ return {
     ["hint.done"] = "Fertig",
     ["desk.done"] = "Fertig",
 
-    ["menu.about"] = "Über WoobleOS",
+    ["menu.about"] = "Über WoobOS",
     ["menu.logoff"] = "Abmelden…",
     ["logoff.title"] = "Abmelden?",
     ["logoff.body"] = "Der PC wird ausgeschaltet und du kehrst ins Spiel zurück.",
@@ -104,8 +104,8 @@ return {
 
     ["settings.language"] = "Sprache",
     ["settings.wallpaper"] = "Hintergrund",
-    ["settings.languageNote"] = "Die Wörter von WoobleOS. Der Text des Spiels bleibt, wie er ist.",
-    ["settings.wallpaperNote"] = "Eigene hinzufügen: PNG- oder JPG-Bilder in mods/wooble_os/wallpapers/ legen",
+    ["settings.languageNote"] = "Die Wörter von WoobOS. Der Text des Spiels bleibt, wie er ist.",
+    ["settings.wallpaperNote"] = "Eigene hinzufügen: PNG- oder JPG-Bilder in mods/woob_os/wallpapers/ legen",
     ["settings.fill"] = "Füllen",
     ["settings.stretch"] = "Strecken",
     ["wall.classic"] = "Klassisch",

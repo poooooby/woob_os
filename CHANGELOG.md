@@ -5,6 +5,10 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Changed
+
+- **Renamed WoobOS** (mod id `woob_os`), from WoobleOS (`wooble_os`).
+
 ### Added
 - **Arrange the desktop.** A long press on an app (or SELECT) and the icons wiggle: drag one
   between the home screen and the dock (up to six there), or carry it with A and the D-pad. Held

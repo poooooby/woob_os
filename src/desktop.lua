@@ -117,7 +117,7 @@ return function(deps)
       window = { { "B", "hint.close" }, { "START", "hint.menu" } },
     },
     menu = { "menu.about", "menu.logoff" },
-    aboutName = "WoobleOS",
+    aboutName = "WoobOS",
   }
   D.TEXT = TEXT
   -- an app's name, in the language (another mod's app: its own label)

@@ -1,4 +1,4 @@
--- Mod Manager option schema for wooble_os.
+-- Mod Manager option schema for woob_os.
 -- Labels are limited to 14 characters.
 
 return {
@@ -7,7 +7,7 @@ return {
     label = "Desktop",
     type = "toggle",
     default = true,
-    description = "The PC opens the WoobleOS desktop. Off: the game's own PC menu.",
+    description = "The PC opens the WoobOS desktop. Off: the game's own PC menu.",
   },
   {
     key = "boot",

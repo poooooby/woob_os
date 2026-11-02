@@ -1,4 +1,4 @@
--- WoobleOS em português do Brasil. As chaves à esquerda ficam como estão; só as palavras à
+-- WoobOS em português do Brasil. As chaves à esquerda ficam como estão; só as palavras à
 -- direita mudam. Mantenha cada %s (ali entra um nome ou um número). O que faltar aparece em inglês.
 return {
   name = "Português (Brasil)",
@@ -23,7 +23,7 @@ return {
     ["hint.done"] = "Concluir",
     ["desk.done"] = "OK",
 
-    ["menu.about"] = "Sobre o WoobleOS",
+    ["menu.about"] = "Sobre o WoobOS",
     ["menu.logoff"] = "Desligar…",
     ["logoff.title"] = "Desligar?",
     ["logoff.body"] = "O PC desliga e você volta ao jogo.",
@@ -103,8 +103,8 @@ return {
 
     ["settings.language"] = "Idioma",
     ["settings.wallpaper"] = "Papel de parede",
-    ["settings.languageNote"] = "As palavras do WoobleOS. O texto do jogo continua como está.",
-    ["settings.wallpaperNote"] = "Adicione os seus: coloque imagens PNG ou JPG em mods/wooble_os/wallpapers/",
+    ["settings.languageNote"] = "As palavras do WoobOS. O texto do jogo continua como está.",
+    ["settings.wallpaperNote"] = "Adicione os seus: coloque imagens PNG ou JPG em mods/woob_os/wallpapers/",
     ["settings.fill"] = "Preencher",
     ["settings.stretch"] = "Esticar",
     ["wall.classic"] = "Clássico",

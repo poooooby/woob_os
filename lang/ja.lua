@@ -1,4 +1,4 @@
--- WoobleOS の にほんご。ひだりの キーは そのまま、みぎの ことばだけを かえてください。
+-- WoobOS の にほんご。ひだりの キーは そのまま、みぎの ことばだけを かえてください。
 -- %s は のこしてください（なまえや かずが はいります）。ない ことばは えいごで でます。
 -- (Kana mostly, as the GBA games write it; the glyphs come from the engine's Plain Pixel font.)
 return {
@@ -24,7 +24,7 @@ return {
     ["hint.done"] = "完了",
     ["desk.done"] = "完了",
 
-    ["menu.about"] = "WoobleOS について",
+    ["menu.about"] = "WoobOS について",
     ["menu.logoff"] = "ログオフ…",
     ["logoff.title"] = "ログオフ しますか？",
     ["logoff.body"] = "パソコンの でんげんを きって ゲームに もどります。",
@@ -104,8 +104,8 @@ return {
 
     ["settings.language"] = "げんご",
     ["settings.wallpaper"] = "かべがみ",
-    ["settings.languageNote"] = "WoobleOS の ことばです。ゲームの テキストは かわりません。",
-    ["settings.wallpaperNote"] = "じぶんの かべがみ: PNG か JPG の がぞうを mods/wooble_os/wallpapers/ に いれてください",
+    ["settings.languageNote"] = "WoobOS の ことばです。ゲームの テキストは かわりません。",
+    ["settings.wallpaperNote"] = "じぶんの かべがみ: PNG か JPG の がぞうを mods/woob_os/wallpapers/ に いれてください",
     ["settings.fill"] = "ぜんめん",
     ["settings.stretch"] = "ひきのばし",
     ["wall.classic"] = "クラシック",

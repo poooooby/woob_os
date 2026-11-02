@@ -34,7 +34,7 @@ return function(deps)
     local keys = {}
     for k in pairs(values) do keys[#keys + 1] = k end
     table.sort(keys)
-    local lines = { "-- WoobleOS's settings (the Settings app writes this file).", "return {" }
+    local lines = { "-- WoobOS's settings (the Settings app writes this file).", "return {" }
     for _, k in ipairs(keys) do
       local v = values[k]
       lines[#lines + 1] = ("  [%q] = %s,"):format(k, type(v) == "string" and ("%q"):format(v) or tostring(v))

@@ -1,5 +1,5 @@
 -- The Settings app, after a phone's or a Mac's: a list of settings beside the open one.
---   Language   WoobleOS's words in another language (lang/*.lua; the game's own text stays)
+--   Language   WoobOS's words in another language (lang/*.lua; the game's own text stays)
 --   Wallpaper  the classic colours, five drawn wallpapers, the pictures in wallpapers/ (a picture
 --              shows Fill | Stretch by the title: SELECT or a tap switches)
 -- A choice takes effect at once and is kept for the installation (src/settings.lua).

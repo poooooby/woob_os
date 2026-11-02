@@ -1,4 +1,4 @@
--- WoobleOS's words, by language: lang/<code>.lua files, lang/en.lua the master (every key; what
+-- WoobOS's words, by language: lang/<code>.lua files, lang/en.lua the master (every key; what
 -- any other language leaves out). Each file is data only, loaded with an empty environment, so a
 -- file a player drops in can return words and do nothing else.
 --

@@ -1,4 +1,4 @@
-# WoobleOS: development notes
+# WoobOS: development notes
 
 For people working on the mod. Players want [README.md](README.md).
 
@@ -26,7 +26,7 @@ For people working on the mod. Players want [README.md](README.md).
 
 The game's PC scripts open their menu through `src.ui.game3.pc_menu`'s `show(opts)`, looked up when
 they run (`scripting/adapters.lua` `openPc`). The shell wraps that one function, once per process
-(`PcMenu.__woobleOs`, which calls the current mod instance), and opens the desktop for
+(`PcMenu.__woobOs`, which calls the current mod instance), and opens the desktop for
 `startMode == "select"` (a Pokémon Center PC's menu) and `opts.bedroom` (the bedroom PC). Every other
 call (the storage menu, the player's PC menu the scripts open after a choice) is the game's own.
 
@@ -51,7 +51,7 @@ does); a Pokémon holding an item can't take mail.
 ## Adding an app (from another mod)
 
 ```lua
-local wos = game.mods.exports.wooble_os
+local wos = game.mods.exports.woob_os
 wos.apps.register({
   id = "my_app", label = "My App", glyph = "gear", color = { 90, 160, 120 }, order = 60,
   available = function(ctx) return ctx.mode == "select" end,
@@ -146,7 +146,7 @@ Timings in `D.PAD`; `D.padState()` for tests.
 
 ## Words
 
-Every word WoobleOS shows is a key of `lang/en.lua`: `T("app.items")` in code, or a key in a
+Every word WoobOS shows is a key of `lang/en.lua`: `T("app.items")` in code, or a key in a
 constant list passed through `T.list(...)` (the hints, the menus), which keeps one translated copy
 per language so a draw makes no tables. Built-in apps name themselves with `labelKey`; another
 mod's app keeps its plain `label`. `T.f(key, ...)` formats (toasts: an action, not a draw). The
@@ -187,13 +187,13 @@ frame on FireRed and 0.33 KB on Emerald.
 
 ## Tests
 
-From the gen1recomp root (the mod is linked as `mods/wooble_os`):
+From the gen1recomp root (the mod is linked as `mods/woob_os`):
 
 ```bash
-luajit mods/wooble_os/tests/desktop_test.lua [firered|leafgreen|ruby|sapphire|emerald]
+luajit mods/woob_os/tests/desktop_test.lua [firered|leafgreen|ruby|sapphire|emerald]
 SHOT_DIR=<dir> POKEPORT_GAME=firered POKEPORT_VERSION=firered \
-  POKEPORT_DRIVER=mods/wooble_os/tests/drivers/desktop_probe.lua love .
-python tools/modkit.py lint mods/wooble_os
+  POKEPORT_DRIVER=mods/woob_os/tests/drivers/desktop_probe.lua love .
+python tools/modkit.py lint mods/woob_os
 ```
 
 The headless test draws through a stand-in for `love.graphics` and checks the rows, the boot, the
