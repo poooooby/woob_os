@@ -421,6 +421,71 @@ local function body(game, log)
   shot("d4e_dock_focus")
   st = D.state()
 
+  -- Mart: no badges yet (a Great Ball locked), then all eight lent; three Great Balls onto the pad,
+  -- one sold back off it; the Bag and the money put back after
+  for i, app in ipairs(st.grid) do if app.id == "mart" then st.focus, st.cursor = "grid", i end end
+  U.tap(game, "a")
+  waitFor(function() return D.window() ~= nil end, 600)
+  U.wait(10)
+  local TW = D.window()
+  check(TW and TW.title == "Mart", "Mart: its window")
+  if TW then
+    local ts = TW.state
+    local money0, great0 = s0.money, Bag.get(s0.bag, 3)
+    local great = TW.state.rows[2] and TW.state.rows[2].price or 0
+    check(ts.badges == 0 and great > 0, "a new game: no badges (" .. tostring(ts.badges) .. "), a Great Ball's price " .. great)
+    shot("d11_mart")
+    U.tap(game, "down"); U.wait(2)
+    U.tap(game, "a"); U.wait(6)
+    check(ts.focus == "list" and ts.toast and ts.toast.bad, "a Great Ball with no badges: locked")
+    shot("d11b_mart_locked")
+    ts.badges = 8
+    U.tap(game, "a"); U.wait(2)
+    U.tap(game, "right"); U.wait(2)
+    U.tap(game, "right"); U.wait(2)
+    check(ts.focus == "step" and ts.qty == 3, "how many: three (" .. tostring(ts.qty) .. ")")
+    shot("d11c_mart_step")
+    U.tap(game, "a"); U.wait(2)
+    check(Bag.get(s0.bag, 3) == great0 + 3 and s0.money == money0 - 3 * great, "three Great Balls bought")
+    check(padAt("in", 0.3), "they appear on the pad")
+    shot("d11d_mart_pad")
+    U.tap(game, "start"); U.wait(4)
+    for i, p in ipairs(ts.pockets) do if p.id == "POKE_BALLS" then ts.sellTab = i end end
+    TW.refresh()
+    for i, r in ipairs(ts.rows) do if r.id == 3 then ts.cursor = i end end
+    TW.refresh()
+    U.wait(4)
+    shot("d11e_mart_sell")
+    U.tap(game, "a"); U.wait(2)
+    U.tap(game, "a"); U.wait(2)
+    check(Bag.get(s0.bag, 3) == great0 + 2 and s0.money == money0 - 3 * great + math.floor(great / 2),
+      "one sold back for half its price")
+    check(padAt("out", 0.15), "it leaves off the pad")
+    shot("d11f_mart_out")
+    waitFor(function() return D.padState() == 0 end, 1200)
+    -- the window's draw garbage
+    local drawM, kbM, nM = D.draw, 0, 0
+    D.draw = function(...)
+      local was = collectgarbage("isrunning")
+      collectgarbage("stop")
+      local kb0 = collectgarbage("count")
+      drawM(...)
+      kbM, nM = kbM + (collectgarbage("count") - kb0), nM + 1
+      if was then collectgarbage("restart") end
+    end
+    U.wait(120)
+    D.draw = drawM
+    log(("  the Mart window's draw: %.3f KB per frame over %d frames"):format(kbM / math.max(1, nM), nM))
+    check(kbM / math.max(1, nM) < 0.5, "the Mart window makes next to no garbage")
+    local extra = Bag.get(s0.bag, 3) - great0
+    if extra > 0 then Bag.remove(s0.bag, 3, extra) end
+    s0.money = money0
+    U.tap(game, "b")
+    waitFor(function() return D.window() == nil and D.state() and D.state().zoom == nil end, 600)
+    check(D.window() == nil and D.isOpen(), "B: the desktop again")
+  end
+  st = D.state()
+
   -- Settings: French, every wallpaper (a picture the run put in wallpapers/ too), then the
   -- installation's settings file back as it was
   local XT = X._test

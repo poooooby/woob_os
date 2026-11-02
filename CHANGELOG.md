@@ -3,6 +3,15 @@
 All notable changes to this mod are documented here, in
 [keep a changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [Unreleased]
+
+### Added
+- **Mart.** A Poké Mart on the desktop: Poké Balls, medicine, battle items and Repels bought
+  straight into the Bag, more of them with each Gym Badge (locked ones say how many badges they
+  need). A purchase appears on the pad and goes up into the Bag; Sell takes the Bag's items for
+  half their price, and they leave off the pad. Ten Poké Balls at once come with a Premier Ball.
+  Prices and names are the game's own.
+
 ## [0.1.1] - 2026-11-01
 
 ### Changed

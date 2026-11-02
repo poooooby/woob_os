@@ -1,14 +1,15 @@
 -- The apps on the desktop: a registry other mods can add to (mod.exports.apps), and the built-in
--- ones: Oak's PC and Hall of Fame open the game's own PC screens; Boxes, Items, Mail and Settings
--- are our own windows; Decorate (Ruby / Sapphire / Emerald, the bedroom) opens the game's
+-- ones: Oak's PC and Hall of Fame open the game's own PC screens; Boxes, Items, Mail, Mart and
+-- Settings are our own windows; Decorate (Ruby / Sapphire / Emerald, the bedroom) opens the game's
 -- Decoration menu.
 --
---   A = Apps(deps)   deps: boxes / items / mail / settings = window(ctx, env) makers ; decorate(ctx) (the
+--   A = Apps(deps)   deps: boxes / items / mail / mart / settings = window(ctx, env) makers ; decorate(ctx) (the
 --                    game's menu). Built-ins name themselves with labelKey (a lang/*.lua key)
 --   A.register(app) -> true | false, why    app = {
 --       id       unique string
 --       label    under its icon (short: about 10 letters) ; labelKey: a word of lang/*.lua instead
---       glyph    the icon's picture: "ball" | "bag" | "trophy" | "dex" | "power" | "logo" | "gear",
+--       glyph    the icon's picture: "ball" | "bag" | "mail" | "cart" | "home" | "trophy" | "dex" |
+--                "power" | "logo" | "gear",
 --                or a function(K, cx, cy, size, a) drawing it (window pixels, white on the tile)
 --       color    { r, g, b } the tile's colour
 --       order    sorts the apps (lower first; built-ins 10..90)
@@ -22,7 +23,8 @@
 --                        -> true for a release it used), pad = true (the shelf's pad lit) }
 --                draw adds its hits as K.addHit(rect, "win", arg); nav = { up, down, left, right }
 --                (repeating); env = { K, session(), se(name), now(), itemIcon(id, x, y, size),
---                monIcon(species, x, y, size), inv, mb } }
+--                monIcon(species, x, y, size), inv, mb, mart, amount(n, x, y, size, c, measure)
+--                (money with the game's sign -> its width) } }
 --   A.list(ctx) -> the available apps, sorted ; A.byId(id)
 --
 --   ctx (handed by the desktop): session ; mode ("select": a Pokémon Center PC's menu, "bedroom":
@@ -87,6 +89,12 @@ return function(deps)
     A.register({ id = "mail", labelKey = "app.mail", label = "Mail",
                  glyph = "mail", color = { 64, 178, 236 }, order = 25, dock = true,
                  window = deps.mail })
+  end
+  -- the Mart: the Poké Mart's goods into the Bag (more with each Gym Badge), the Bag's items sold
+  if deps.mart then
+    A.register({ id = "mart", labelKey = "app.mart", label = "Mart",
+                 glyph = "cart", color = { 72, 190, 120 }, order = 27,
+                 window = deps.mart })
   end
   -- the bedroom's Decoration (Ruby / Sapphire / Emerald): the game's own menu
   if deps.decorate then

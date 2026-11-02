@@ -16,6 +16,8 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/apps/items.lua` | The Items window: Bag \| PC commander |
 | `src/apps/mail.lua` | The Mail window: folders, list, the open letter, the party picker |
 | `src/apps/settings.lua` | The Settings window: Language, Wallpaper |
+| `src/mart.lua` | The shop model: the badge-gated stock, buy / sell on the session's money and the engine's `Bag` |
+| `src/apps/mart.lua` | The Mart window: Buy \| Sell, a tabbed list, the chosen item with its stepper |
 | `src/boxes.lua` | The Pokémon model: party and boxes through the engine's `Storage` (take / fits / place / putBack, release, items, the preview's words, the send-to box) |
 | `src/apps/boxes.lua`, `src/apps/boxes_view.lua` | The Boxes window: state, buttons, pointer, modes (`boxes.lua`); its drawing (`boxes_view.lua`) |
 | `src/i18n.lua`, `lang/*.lua` | The words, by language (`lang/en.lua` the master) |
@@ -61,7 +63,7 @@ wos.apps.register({
 
 `ctx`: `session`, `mode` (`"select"` / `"bedroom"`), `family` (`"frlg"` / `"rse"`), `row(id)`,
 `finish(row)`, `done()`, `logoff()`, `over(open)`, `original(opts)`, `sheet(kind)`. Glyphs: `ball`,
-`bag`, `mail`, `home`, `trophy`, `dex`, `power`, `logo`, `gear`, or a function
+`bag`, `mail`, `cart`, `home`, `trophy`, `dex`, `power`, `logo`, `gear`, or a function
 `(K, cx, cy, size, alpha)`.
 
 A window instead of `open`: `window = function(ctx, env) return win end`, where `win` has `title`,
@@ -69,8 +71,8 @@ A window instead of `open`: `window = function(ctx, env) return win end`, where 
 `input(input, nav)` (true when handled; a B it leaves closes the window), `tap(arg, x, y)`,
 `scroll(dy, x, y)`, `hints()` and `close()`. `env` has `K`, `session()`, `se(name)`, `now()`,
 `itemIcon(id, x, y, size, alpha)`, `monIcon(species, x, y, size)`, `monIconOf(mon, x, y, size, frame,
-alpha)`, `boxWall(id, x, y, w, h)`, `itemName(id)` and `pad.transfer(id, dir, kind)` (kind `"ball"`: a Poké Ball
-instead of an item). The garbage rules below apply.
+alpha)`, `boxWall(id, x, y, w, h)`, `itemName(id)`, `amount(n, x, y, size, c, measure)` (money with the game's sign -> its width) and
+`pad.transfer(id, dir, kind)` (kind `"ball"`: a Poké Ball instead of an item). The garbage rules below apply.
 
 **The look.** Windows share the kit's macOS / iOS pieces, so a window from another mod can match:
 `K.UI` (the system colours), `K.card`, `K.selection` (accent while the list has the focus, grey
@@ -137,12 +139,32 @@ the screen keeps its size in units). In its middle is the pad, used for the Pok�
   phase. It sinks into the pad while a Pokémon crosses and rises again after (`D.PAD.ball`).
 - **Sizes.** The ball and the item on the pad are both `D.SHELF.item` units across.
 
-The pad lights up while the open window has `pad = true` (Items does), and
+The pad lights up while the open window has `pad = true` (Items and the Mart do), and
 `env.pad.transfer(itemId, "out" | "in")` plays an item crossing it. "out" (Bag to PC) drops the
 item onto the pad and digitizes it away (`SE_WARP_OUT`); "in" (PC to Bag) digitizes it in
 (`SE_WARP_IN`), holds it, and fades it into the Bag. One effect plays at a time, at most two
 wait, and a waiting one going the same way is replaced, so the pad shows the last item chosen.
-Timings in `D.PAD`; `D.padState()` for tests.
+Timings in `D.PAD`; `D.padState()` for tests. The Mart uses the same two: a purchase is "in", a
+sale "out".
+
+## The Mart
+
+`src/mart.lua` holds the stock: four tabs (Balls, Medicine, Battle, Field) of `{ item id, badges
+needed }`, laid out like the later games' badge-tiered Marts. Prices and names come from the
+engine's `ItemsData.info` when the tabs are first built (an item without a price is dropped), so
+they're each game's own. Badges: `Flags.countBadges` on the live script store
+(`scripting.space`'s `getStore()`), read once when the window opens (`st.badges`).
+
+- **Buy:** badges, then money (`session.money`), then `Bag.canAdd`; `Bag.add` before the money is
+  taken. Ten or more Poké Balls add a Premier Ball when it fits (the Gen 3 shop's bonus).
+- **Sell:** half the price, floored; nothing priced 0 or important. `Bag.remove`, then
+  `Prize.apply` (capped at 999,999). The last one sold stops being the registered item.
+- **Money in a window:** `env.amount(n, x, y, size, c, measure)` (`D.amount`: the game's
+  Pokédollar glyph and the digits, as the menu bar draws them).
+
+Headless the cart's font isn't there and the engine's glyph draw tries loading it again on every
+call (about 0.26 KB each), so the test stands in for it while measuring the Mart's garbage; the
+probe measures the real one (about 0.06 KB a frame).
 
 ## Words
 
@@ -150,8 +172,8 @@ Every word WoobOS shows is a key of `lang/en.lua`: `T("app.items")` in code, or 
 constant list passed through `T.list(...)` (the hints, the menus), which keeps one translated copy
 per language so a draw makes no tables. Built-in apps name themselves with `labelKey`; another
 mod's app keeps its plain `label`. `T.f(key, ...)` formats (toasts: an action, not a draw). The
-models (`inventory.lua`, `mailbox.lua`) return reason codes; the windows show
-`reason.item.<code>` / `reason.mail.<code>`. A new word: add it to `lang/en.lua` and the other
+models (`inventory.lua`, `mailbox.lua`, `mart.lua`) return reason codes; the windows show
+`reason.item.<code>` / `reason.mail.<code>` / `reason.mart.<code>`. A new word: add it to `lang/en.lua` and the other
 four. The test checks every key the code names is in English and every language has every key
 with the same `%s`.
 

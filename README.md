@@ -19,8 +19,9 @@ opens a desktop in a sleek monitor instead of a text menu.
   and the time.
 - 🧲 **A shelf under the monitor:** a digitization pad in its middle. Open Boxes and a Poké Ball
   drops onto the pad, its button slowly glowing red; close it and the button flashes green before
-  the ball lifts off. The pad lights up while Items is open. An item you send to the PC drops onto
-  it and digitizes away, and an item you take out digitizes onto it before fading into your Bag.
+  the ball lifts off. The pad lights up while Items or the Mart is open. An item you send to the PC
+  (or sell) drops onto it and digitizes away, and an item you take out (or buy) digitizes onto it
+  before fading into your Bag.
 - ⚡ **A boot screen:** the PC starts up with the W logo and a loading bar before the desktop fades
   in. Any button or a tap skips it, and it only plays when you first turn the PC on.
 - 🎮 **Made for controllers and touch:** move between icons with the D-pad, open with A, flip
@@ -40,6 +41,14 @@ opens a desktop in a sleek monitor instead of a text menu.
   move the whole stack. L and R flip through the Bag's pockets, and START sorts the PC by name or
   pocket or tosses an item. Important items stay in the Bag. Items other mods add (WoobDex's
   candies and Max Mushrooms) show with their own pictures.
+- 🛒 **Mart:** a Poké Mart in your PC. Buy Poké Balls, medicine, battle items and Repels straight
+  into your Bag, and watch each purchase appear on the pad. The shelves fill up as you earn Gym
+  Badges, as in the later games: Poké Balls, Potions and the status heals from the start, Great
+  Balls and Super Potions after your first badge, all the way to Max Potions and Full Restores.
+  Locked items show how many badges they need. Pick how many (Left and Right one at a time, Up
+  and Down ten at a time, SELECT as many as your money buys). Ten Poké Balls at once come with a
+  free Premier Ball. Switch to Sell (START, or the switch at the top) to sell what's in your Bag
+  for half its price. Prices and item names are your game's own.
 - ✉️ **Mail:** your mailbox as an inbox. Read each letter on its own stationery, move it to the
   Bag, or give it to a Pokémon in your party. The Held folder shows the mail your Pokémon are
   carrying, and Take files a letter back in the inbox. Works in all five games.
@@ -69,7 +78,7 @@ opens a desktop in a sleek monitor instead of a text menu.
 - ℹ️ **About:** which version you're running.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
 
-Boxes, Items, Mail and Settings open in a window on the desktop, in the style of macOS and iOS:
+Boxes, Items, Mart, Mail and Settings open in a window on the desktop, in the style of macOS and iOS:
 white cards on a soft grey, segmented switches, and a blue ring round whatever the controller is
 on. B or the red button closes it. Oak's PC,
 Hall of Fame and Decorate open the game's own screens, and closing them brings you back to the
@@ -91,7 +100,7 @@ turn it on for your Generation 3 games.
 ## 🔗 Works With
 
 - **Any save:** the mod keeps no data of its own in your save. Items and mail move exactly as the
-  game's own PC moves them, so you can turn the mod on and off whenever you like.
+  game's own PC moves them, the Mart spends and pays money as a Poké Mart does, so you can turn the mod on and off whenever you like.
 - **Other mods:** other mods can add their own apps to the desktop.
 - **WoobleDex:** the Boxes preview shows a Pokémon's Dynamax Level and G-Max Factor (from
   WoobleDex's Dynamax Candy and Max Soup, or Max Raids' dens), as the game's summary does.

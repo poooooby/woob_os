@@ -3,7 +3,7 @@
 -- whole stack. Landscape: Bag | PC; portrait: one pane at a time under a Bag | PC switch.
 --   buttons  Left / Right the pane, Up / Down the item, L / R the Bag's pocket, A move, SELECT move
 --            all, START the menu (sort, toss), B close
---   stepper  Up / Down one more or less, Left / Right ten, A move, B back
+--   stepper  Left / Right one more or less, Up / Down ten, A move, B back
 --   touch    tap an item, tap it again to move it; the stepper's - / + / All / Move; < > the pocket;
 --            drag (or the wheel) scrolls a list
 -- The model is src/inventory.lua (env.inv); rows are made again only after a change.

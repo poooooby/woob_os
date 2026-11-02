@@ -827,6 +827,17 @@ return function(deps)
     if not measure then K.text("$", x, y, size, c) end
     return K.width("$", size)
   end
+  -- an amount of money for the windows: the sign then the digits (units), its left at x -> its
+  -- width (measure: only the width)
+  function D.amount(n, x, y, size, c, measure)
+    local digits = amountText(max(0, floor(tonumber(n) or 0)))
+    local sw = sign(0, 0, size, c, true)
+    if not measure then
+      sign(x, y, size, c)
+      K.text(digits, x + sw, y, size, c)
+    end
+    return sw + K.width(digits, size)
+  end
 
   -- an app's picture, white, centred on cx, cy (window pixels), `s` the tile's size (pixels)
   local function glyph(G, kind, cx, cy, s, a)
@@ -872,6 +883,14 @@ return function(deps)
       local x0, y0 = cx - w / 2, cy - h / 2
       G.rectangle("line", x0, y0, w, h, s * 0.05, s * 0.05)
       G.line(x0 + lw * 0.3, y0 + lw * 0.3, cx, cy + h * 0.08, x0 + w - lw * 0.3, y0 + lw * 0.3)
+    elseif kind == "cart" then
+      -- (a shopping cart: the handle, the basket, two wheels)
+      G.line(cx - s * 0.32, cy - s * 0.2, cx - s * 0.24, cy - s * 0.2, cx - s * 0.13, cy + s * 0.1,
+        cx + s * 0.2, cy + s * 0.1)
+      G.polygon("line", cx - s * 0.21, cy - s * 0.12, cx + s * 0.3, cy - s * 0.12, cx + s * 0.2, cy + s * 0.1,
+        cx - s * 0.13, cy + s * 0.1)
+      G.circle("fill", cx - s * 0.08, cy + s * 0.2, s * 0.05)
+      G.circle("fill", cx + s * 0.16, cy + s * 0.2, s * 0.05)
     elseif kind == "home" then
       local w, h = s * 0.46, s * 0.3
       local x0, y0 = cx - w / 2, cy - h * 0.2

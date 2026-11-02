@@ -6,6 +6,7 @@
 --   src/inventory.lua, src/mailbox.lua   the item and mail models (the engine's Storage, Bag, Mail)
 --   src/apps/items.lua, src/apps/mail.lua the Items (Bag | PC) and Mail (inbox) windows
 --   src/apps/settings.lua               the Settings window (Language, Wallpaper)
+--   src/mart.lua, src/apps/mart.lua     the shop model (badge-gated stock, buy, sell), the Mart window
 --   src/boxes.lua, src/apps/boxes.lua, src/apps/boxes_view.lua   the Pokémon model, the Boxes window
 --   src/i18n.lua, lang/*.lua            the words, by language ; src/settings.lua the kept choices
 --   src/wallpaper.lua                   the drawn wallpapers and the wallpapers/ folder's pictures
@@ -41,6 +42,7 @@ return function(mod)
   local makeBx, boxesWindow = loadSibling(mod, "src/boxes.lua"), loadSibling(mod, "src/apps/boxes.lua")
   local boxesView = loadSibling(mod, "src/apps/boxes_view.lua")
   local Arrange = loadSibling(mod, "src/arrange.lua")
+  local makeMart, martWindow = loadSibling(mod, "src/mart.lua"), loadSibling(mod, "src/apps/mart.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell) then return end
 
   local function warn(fmt, ...) mod.log:warn(fmt, ...) end
@@ -288,6 +290,7 @@ return function(mod)
     K = Kit, session = session, now = function() return love and love.timer and love.timer.getTime() or 0 end,
     se = function(name) if Sh then Sh.se(name) end end, itemIcon = itemIcon, monIcon = monIcon,
     inv = makeInv and makeInv(engine), mb = makeMb and makeMb(engine), bx = makeBx and makeBx(engine),
+    mart = makeMart and makeMart(engine),
     monIconOf = monIconOf, boxWall = boxWall, boxWallCount = boxWallCount, itemName = itemName,
     T = T, wall = Wall, gameId = gameId, wallpaper = wallpaper,
     language = function() return T and T.code() or "en" end,
@@ -310,6 +313,7 @@ return function(mod)
       and function(ctx, e) return boxesWindow(ctx, e, boxesView) end or nil,
     items = env.inv and itemsWindow or nil,
     mail = env.mb and mailWindow or nil,
+    mart = env.mart and martWindow or nil,
     settings = T and Settings and settingsWindow or nil,
     -- (Ruby / Sapphire / Emerald: the bedroom PC's Decoration, the game's own menu)
     decorate = function(ctx)
@@ -388,6 +392,8 @@ return function(mod)
   })
   -- the shelf's item pad, for the apps: an item crossing it ("out" to the PC, "in" to the Bag)
   env.pad = { transfer = function(id, dir, kind) Desktop.padTransfer(id, dir, kind) end }
+  -- (money in a window, with the game's sign: the Mart)
+  env.amount = function(n, x, y, size, c, measure) return Desktop.amount(n, x, y, size, c, measure) end
   Sh = makeShell(mod, { require = require, log = mod.log, desktop = Desktop, apps = Apps })
   Sh.enabled = function() return option("desktop", true) ~= false end
 
@@ -405,5 +411,6 @@ return function(mod)
   -- open | window }
   mod.exports.apps = { register = Apps.register, list = function() return Apps.apps end }
   mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
+                        mart = env.mart,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange }
 end

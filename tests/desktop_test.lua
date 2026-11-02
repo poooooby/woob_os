@@ -113,15 +113,15 @@ local function ctxWith(mode, rows)
   ctx.row = function(id) for i, row in ipairs(ctx.rows) do if row.id == id then return i - 1 end end end
   return ctx
 end
-T.eq(ids(Apps.list(ctxWith("select", rowsAll))), "storage items mail oak hall settings about logoff",
+T.eq(ids(Apps.list(ctxWith("select", rowsAll))), "storage items mail mart oak hall settings about logoff",
   "a cleared game's PC: every app")
 T.eq(ids(Apps.list(ctxWith("select", { { id = "storage" }, { id = "player" }, { id = "quit" } }))),
-  "storage items mail settings about logoff", "early on: no Oak's PC, no Hall of Fame")
-T.eq(ids(Apps.list(ctxWith("bedroom"))), "items mail settings about logoff", "the bedroom PC: Items, Mail, Settings")
+  "storage items mail mart settings about logoff", "early on: no Oak's PC, no Hall of Fame")
+T.eq(ids(Apps.list(ctxWith("bedroom"))), "items mail mart settings about logoff", "the bedroom PC: Items, Mail, Mart, Settings")
 do
   local c = ctxWith("bedroom")
   c.family = "rse"
-  T.eq(ids(Apps.list(c)), "items mail decorate settings about logoff", "Ruby / Sapphire / Emerald's bedroom: Decorate too")
+  T.eq(ids(Apps.list(c)), "items mail mart decorate settings about logoff", "Ruby / Sapphire / Emerald's bedroom: Decorate too")
 end
 T.check(not Apps.register({ id = "storage", open = noop }), "an id can't be taken twice")
 T.check(not Apps.register({ id = "x" }), "an app needs open()")
@@ -262,7 +262,7 @@ openPc({ startMode = "player_pc", bedroom = true })
 st = D.state()
 T.check(D.isOpen() and st.ctx.mode == "bedroom", "the bedroom PC opens the desktop")
 local rse = st.ctx.family == "rse"
-T.eq(#st.grid + #st.dock, rse and 6 or 5, "with Items, Mail, Settings, About and Log Off" .. (rse and ", Decorate" or ""))
+T.eq(#st.grid + #st.dock, rse and 7 or 6, "with Items, Mail, Mart, Settings, About and Log Off" .. (rse and ", Decorate" or ""))
 D.skipBoot()
 draw(40)
 if rse then
@@ -620,6 +620,128 @@ press("b")
 T.check(D.window() == nil, "B closes Mail")
 draw(30)
 
+-- ------- the Mart: the stock by badges, buying, selling (src/mart.lua), then its window
+local Mt = X._test.mart
+do
+  local tabs = Mt.tabs()
+  T.eq(#tabs, 4, "the Mart's four tabs")
+  T.check(tabs[1].rows[1].id == 4 and tabs[1].rows[1].price == 200, "Poké Balls first, at the game's price")
+  local priced = true
+  for _, t in ipairs(tabs) do for _, r in ipairs(t.rows) do priced = priced and r.price > 0 end end
+  T.check(priced, "everything on sale has a price")
+end
+local ms = newSession()
+ms.money = 5000
+ok, why = Mt.buy(ms, 3, 1, 0)
+T.check(not ok and why == "badges" and ms.money == 5000, "no badges: no Great Balls (" .. tostring(why) .. ")")
+local great = Mt.price(3)
+T.check(Mt.buy(ms, 3, 3, 1) and Bag.get(ms.bag, 3) == 3 and ms.money == 5000 - 3 * great,
+  "one badge: three Great Balls into the Bag, paid for")
+ms.money = 100
+ok, why = Mt.buy(ms, POTION, 1, 0)
+T.check(not ok and why == "money" and Bag.get(ms.bag, POTION) == 0 and ms.money == 100,
+  "too little money: nothing bought (" .. tostring(why) .. ")")
+ms.money = 5000
+do
+  local okB, bonus = Mt.buy(ms, 4, 10, 0)
+  T.check(okB and bonus and Bag.get(ms.bag, 4) == 10 and Bag.get(ms.bag, Mt.PREMIER) == 1 and ms.money == 3000,
+    "ten Poké Balls: a Premier Ball thrown in")
+end
+do
+  local fs = newSession()
+  fs.money = 5000
+  for _, id in ipairs(plain) do
+    if not Bag.canAdd(fs.bag, id, 1) then break end
+    Bag.add(fs.bag, id, 1)
+  end
+  ok, why = Mt.buy(fs, POTION, 1, 0)
+  T.check(not ok and why == "bag_full" and fs.money == 5000, "a full Bag: nothing bought (" .. tostring(why) .. ")")
+end
+ms.money = 0
+Bag.add(ms.bag, POTION, 3)
+do
+  local okS, earned = Mt.sell(ms, POTION, 2)
+  local half = math.floor(Mt.price(POTION) / 2)
+  T.check(okS and earned == 2 * half and Bag.get(ms.bag, POTION) == 1 and ms.money == 2 * half,
+    "two Potions sold for half their price (" .. tostring(earned) .. ")")
+end
+Bag.add(ms.bag, keyItem, 1)
+ok, why = Mt.sell(ms, keyItem, 1)
+T.check(not ok and why == "cant_sell" and Bag.get(ms.bag, keyItem) == 1, "a key item can't be sold")
+ok, why = Mt.sell(ms, POTION, 5)
+T.check(not ok and why == "gone", "nor more than there are")
+ms.money = 999990
+T.check(Mt.sell(ms, POTION, 1) and ms.money == 999999, "the money stops at 999,999")
+T.eq(Mt.sellRows(ms, "POKE_BALLS")[1].price, Mt.sellPrice(Mt.sellRows(ms, "POKE_BALLS")[1].id), "the Bag's rows, priced to sell")
+
+-- the window: a locked item, a purchase onto the pad, a sale off it
+s.money = 10000
+do
+  local at
+  for i, app in ipairs(st.grid) do if app.id == "mart" then at = i end end
+  T.check(at ~= nil, "Mart on the home screen")
+  D.launch("grid", at)
+end
+draw(30)
+local MartW = D.window()
+T.check(MartW and MartW.title == "Mart", "the Mart opens")
+local ms2 = MartW.state
+ms2.badges = 0
+T.eq(ms2.rows[1].id, 4, "Poké Balls first")
+press("down")
+press("a")
+T.check(ms2.focus == "list" and ms2.toast and ms2.toast.bad, "a Great Ball with no badges: why not, not how many")
+ms2.badges = 8
+press("a")
+T.eq(ms2.focus, "step", "with the badges: how many")
+press("right")
+press("right")
+press("up")
+press("down")
+T.eq(ms2.qty, 3, "Right twice: three (Up ten, Down ten)")
+local before = Bag.get(s.bag, 3)
+press("a")
+T.check(Bag.get(s.bag, 3) == before + 3 and s.money == 10000 - 3 * great, "A: three Great Balls bought")
+do
+  local n, dir, id = D.padState()
+  T.check(n >= 1 and dir == "in" and id == 3, "they appear on the pad (" .. tostring(dir) .. ")")
+end
+T.eq(ms2.focus, "list", "back in the list")
+press("start")
+T.eq(ms2.mode, "sell", "START: Sell")
+for i, p in ipairs(ms2.pockets) do if p.id == "POKE_BALLS" then ms2.sellTab = i end end
+MartW.refresh()
+for i, r in ipairs(ms2.rows) do if r.id == 3 then ms2.cursor = i end end
+MartW.refresh()
+press("a")
+press("a")
+T.eq(Bag.get(s.bag, 3), before + 2, "a Great Ball sold")
+T.eq(s.money, 10000 - 3 * great + math.floor(great / 2), "for half its price")
+draw(90)
+do
+  local n, dir = D.padState()
+  T.check(n >= 1 and dir == "out", "it leaves off the pad (" .. tostring(dir) .. ")")
+end
+press("start")
+draw(30)
+-- (headless the cart's font isn't there, and the engine's glyph draw tries loading it again on
+-- every call: a stand-in for the Pokédollar sign while measuring; the probe measures the real one)
+local FrlgFont = require("src.ui.game3.frlg_font")
+local realGlyph = FrlgFont.drawGlyph
+FrlgFont.drawGlyph = function() return 7 end
+local perM = garbageOf(120)
+FrlgFont.drawGlyph = realGlyph
+T.check(perM < 0.3, ("the Mart draws next to no garbage (%.3f KB a frame)"):format(perM))
+for _, shape in ipairs({ { 480, 320 }, { 320, 480 }, { 900, 320 } }) do
+  VP.width, VP.height = shape[1], shape[2]
+  draw(2)
+  T.check(not D.state().winFailed, "the Mart draws " .. shape[1] .. "x" .. shape[2])
+end
+VP.width, VP.height = 480, 320
+press("b")
+T.check(D.window() == nil, "B closes the Mart")
+draw(30)
+
 -- ------- the Pokémon model (src/boxes.lua, on the engine's Storage)
 local Bx = X._test.bx
 local function newMon(species, hp, extra)
@@ -896,9 +1018,9 @@ T.check(en and en["app.items"] == "Items", "English loads (lang/en.lua)")
 local missing, named = {}, 0
 local NOT_WORDS = { ["game.ready"] = true }   -- (an engine event's name)
 local PREFIX = { hint = 1, menu = 1, logoff = 1, button = 1, about = 1, nav = 1, game = 1, app = 1, items = 1,
-                 pocket = 1, reason = 1, mail = 1, settings = 1, wall = 1, failed = 1 }
+                 pocket = 1, reason = 1, mail = 1, settings = 1, wall = 1, failed = 1, mart = 1 }
 for _, file in ipairs({ "main.lua", "src/desktop.lua", "src/apps.lua", "src/apps/items.lua", "src/apps/mail.lua",
-                        "src/apps/settings.lua" }) do
+                        "src/apps/settings.lua", "src/apps/mart.lua", "src/mart.lua" }) do
   local src = readFile(file) or ""
   for key in src:gmatch('"([%a][%w_]*%.[%w_%.]+)"') do
     if PREFIX[key:match("^(%a+)")] and not key:match("%.$") and not key:match("%.lua$") and not NOT_WORDS[key] then
@@ -913,6 +1035,9 @@ for _, k in ipairs({ "bag_full", "pc_full", "stack_full", "important", "gone" })
 end
 for _, k in ipairs({ "bag_full", "holding", "box_full", "gone" }) do
   if not en["reason.mail." .. k] then missing[#missing + 1] = "reason.mail." .. k end
+end
+for _, k in ipairs({ "badges", "money", "bag_full", "cant_sell", "gone" }) do
+  if not en["reason.mart." .. k] then missing[#missing + 1] = "reason.mart." .. k end
 end
 for _, k in ipairs({ "ITEMS", "KEY_ITEMS", "POKE_BALLS", "TM_CASE", "BERRY_POUCH" }) do
   if not en["pocket." .. k] then missing[#missing + 1] = "pocket." .. k end
