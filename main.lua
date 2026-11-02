@@ -7,6 +7,8 @@
 --   src/apps/items.lua, src/apps/mail.lua the Items (Bag | PC) and Mail (inbox) windows
 --   src/apps/settings.lua               the Settings window (Language, Wallpaper)
 --   src/mart.lua, src/apps/mart.lua     the shop model (badge-gated stock, buy, sell), the Mart window
+--   src/auction.lua, src/apps/auction.lua   R-Bay: the auction market (worked out from a seed and the
+--                                       clock; the player's bids in the save), its window
 --   src/boxes.lua, src/apps/boxes.lua, src/apps/boxes_view.lua   the Pokémon model, the Boxes window
 --   src/i18n.lua, lang/*.lua            the words, by language ; src/settings.lua the kept choices
 --   src/wallpaper.lua                   the drawn wallpapers and the wallpapers/ folder's pictures
@@ -43,6 +45,7 @@ return function(mod)
   local boxesView = loadSibling(mod, "src/apps/boxes_view.lua")
   local Arrange = loadSibling(mod, "src/arrange.lua")
   local makeMart, martWindow = loadSibling(mod, "src/mart.lua"), loadSibling(mod, "src/apps/mart.lua")
+  local makeAuction, auctionWindow = loadSibling(mod, "src/auction.lua"), loadSibling(mod, "src/apps/auction.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell) then return end
 
   local function warn(fmt, ...) mod.log:warn(fmt, ...) end
@@ -203,17 +206,18 @@ return function(mod)
     G.setColor(1, 1, 1, a or 1)
     G.draw(rseSheet.img, q, Kit.X(x), Kit.Y(y), 0, k, k)
   end
-  -- a Pokémon's menu icon (its first frame), `size` units square (the engine keeps the images;
-  -- a species without one is remembered, not looked for every frame)
-  local noIcon = {}
+  -- a Pokémon's menu icon (its first frame), `size` units square (kept per species: the engine's
+  -- lookup makes garbage every call; a species without one is remembered too)
+  local iconFor = {}
   local function monIcon(species, x, y, size)
-    if noIcon[species] then return end
-    local P = engine("src.core.game3.pokemon")
-    local e = P and P.icon and P.icon(species)
-    if not (e and e.image and e.quads) then
-      noIcon[species] = true
-      return
+    local e = iconFor[species]
+    if e == nil then
+      local P = engine("src.core.game3.pokemon")
+      local ok, got = pcall(P and P.icon or error, species)
+      e = ok and type(got) == "table" and got.image and got.quads and got or false
+      iconFor[species] = e
     end
+    if not e then return end
     local G = Kit.graphics()
     G.setColor(1, 1, 1, 1)
     G.draw(e.image, e.quads[0], Kit.X(x), Kit.Y(y), 0, size * Kit.sc / e.w, size * Kit.sc / e.h)
@@ -272,6 +276,23 @@ return function(mod)
     end)
     return ok and type(names) == "table" and #names > 0 and #names or 16
   end
+  -- a species' front picture (64 px), `size` units square at x, y -> true when drawn (kept per species)
+  local pics = {}
+  local function monPic(species, x, y, size, a)
+    local pic = pics[species]
+    if pic == nil then
+      local P = engine("src.core.game3.pokemon")
+      local ok, got = pcall(P and P.monFrontPic or error, { species = species }, nil, "box")
+      pic = ok and type(got) == "table" and got.image and got or false
+      pics[species] = pic
+    end
+    if not pic then return false end
+    local G = Kit.graphics()
+    local k = size * Kit.sc / (pic.w or 64)
+    G.setColor(1, 1, 1, a or 1)
+    G.draw(pic.image, Kit.X(x), Kit.Y(y), 0, k, k)
+    return true
+  end
   local function itemName(id)
     local I = engine("src.core.game3.items_data")
     local ok, name = pcall(I and I.displayName or error, id)
@@ -291,7 +312,7 @@ return function(mod)
     se = function(name) if Sh then Sh.se(name) end end, itemIcon = itemIcon, monIcon = monIcon,
     inv = makeInv and makeInv(engine), mb = makeMb and makeMb(engine), bx = makeBx and makeBx(engine),
     mart = makeMart and makeMart(engine),
-    monIconOf = monIconOf, boxWall = boxWall, boxWallCount = boxWallCount, itemName = itemName,
+    monIconOf = monIconOf, monPic = monPic, boxWall = boxWall, boxWallCount = boxWallCount, itemName = itemName,
     T = T, wall = Wall, gameId = gameId, wallpaper = wallpaper,
     language = function() return T and T.code() or "en" end,
     setLanguage = function(code)
@@ -301,6 +322,24 @@ return function(mod)
     wallpaperFit = wallpaperFit,
     setWallpaperFit = function(fit) if Settings then Settings.set("wallpaperFit", fit) end end,
   }
+  -- R-Bay's market: this save's seed (its playthrough), the device's clock, WoobleDex's species
+  if makeAuction then
+    env.auction = makeAuction(engine, {
+      save = mod.save,
+      now = os.time,
+      seed = function(s)
+        local id = s and s.meta and s.meta.playthroughId
+        if type(id) == "string" and id ~= "" then
+          local h = 0
+          for i = 1, #id do h = (h * 131 + id:byte(i)) % 2147483647 end
+          return h
+        end
+        return (tonumber(s and s.trainerId) or 0) * 65536 + (tonumber(s and s.secretId) or 0) + 1
+      end,
+      dex = function() return mod.find("national_dex_gen3") end,
+      badges = function(s) return env.mart and env.mart.badges(s) or 0 end,
+    })
+  end
   -- (the Boxes preview's Dynamax row: WoobleDex's levels and factors, when it's on)
   if env.bx then
     env.bx.dynamax = function()
@@ -314,6 +353,8 @@ return function(mod)
     items = env.inv and itemsWindow or nil,
     mail = env.mb and mailWindow or nil,
     mart = env.mart and martWindow or nil,
+    auction = env.auction and auctionWindow or nil,
+    auctionBadge = env.auction and function() return env.auction.unread() end or nil,
     settings = T and Settings and settingsWindow or nil,
     -- (Ruby / Sapphire / Emerald: the bedroom PC's Decoration, the game's own menu)
     decorate = function(ctx)
@@ -329,7 +370,8 @@ return function(mod)
   local NONE = { 0, 0, 0, 0 }
   local CURRENCY_GLYPH, CURRENCY_EM, CURRENCY_DROP, CURRENCY_BOLD = 0xB7, 11, -0.04, 0.6
   local signAdvance, signAdvanceFor
-  local Desktop = makeDesktop({
+  local Desktop
+  Desktop = makeDesktop({
     kit = Kit,
     apps = Apps,
     version = version,
@@ -389,6 +431,14 @@ return function(mod)
       return signAdvance * px / CURRENCY_EM
     end,
     log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+    -- (once a second while the desktop is open: R-Bay's ended auctions settled, a win's Poké Ball
+    -- onto the pad)
+    tick = function(ctx)
+      if not env.auction then return end
+      local s = ctx and ctx.session or session()
+      local won, _, sp = env.auction.settle(s)
+      if won > 0 and sp then Desktop.padTransfer(sp, "in", "ball") end
+    end,
   })
   -- the shelf's item pad, for the apps: an item crossing it ("out" to the PC, "in" to the Bag)
   env.pad = { transfer = function(id, dir, kind) Desktop.padTransfer(id, dir, kind) end }
@@ -405,12 +455,16 @@ return function(mod)
   end)
   -- (a new map or a loaded save: the next PC boots again)
   mod.events:on("map.entered", function() Sh.forget() end)
-  mod.events:on("save.loaded", function() Sh.forget() end)
+  mod.events:on("save.loaded", function(ev)
+    Sh.forget()
+    -- (auctions that ended while the game was closed: settled with the save they belong to)
+    if env.auction then pcall(env.auction.settle, ev and ev.save or session()) end
+  end)
 
   -- other mods add apps: exports.apps.register{ id, label, glyph, color, order, dock, available,
   -- open | window }
   mod.exports.apps = { register = Apps.register, list = function() return Apps.apps end }
   mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
-                        mart = env.mart,
+                        mart = env.mart, auction = env.auction,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange }
 end

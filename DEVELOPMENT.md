@@ -16,6 +16,8 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/apps/items.lua` | The Items window: Bag \| PC commander |
 | `src/apps/mail.lua` | The Mail window: folders, list, the open letter, the party picker |
 | `src/apps/settings.lua` | The Settings window: Language, Wallpaper |
+| `src/auction.lua` | R-Bay's market: auctions worked out from the save's seed and the clock, eBay proxy bidding, bids / results in `mod.save` |
+| `src/apps/auction.lua` | The R-Bay window: Browse \| My Bids, the IVs, the max-bid stepper |
 | `src/mart.lua` | The shop model: the badge-gated stock, buy / sell on the session's money and the engine's `Bag` |
 | `src/apps/mart.lua` | The Mart window: Buy \| Sell, a tabbed list, the chosen item with its stepper |
 | `src/boxes.lua` | The Pokémon model: party and boxes through the engine's `Storage` (take / fits / place / putBack, release, items, the preview's words, the send-to box) |
@@ -63,7 +65,7 @@ wos.apps.register({
 
 `ctx`: `session`, `mode` (`"select"` / `"bedroom"`), `family` (`"frlg"` / `"rse"`), `row(id)`,
 `finish(row)`, `done()`, `logoff()`, `over(open)`, `original(opts)`, `sheet(kind)`. Glyphs: `ball`,
-`bag`, `mail`, `cart`, `home`, `trophy`, `dex`, `power`, `logo`, `gear`, or a function
+`bag`, `mail`, `cart`, `rocket`, `home`, `trophy`, `dex`, `power`, `logo`, `gear`, or a function
 `(K, cx, cy, size, alpha)`.
 
 A window instead of `open`: `window = function(ctx, env) return win end`, where `win` has `title`,
@@ -71,7 +73,8 @@ A window instead of `open`: `window = function(ctx, env) return win end`, where 
 `input(input, nav)` (true when handled; a B it leaves closes the window), `tap(arg, x, y)`,
 `scroll(dy, x, y)`, `hints()` and `close()`. `env` has `K`, `session()`, `se(name)`, `now()`,
 `itemIcon(id, x, y, size, alpha)`, `monIcon(species, x, y, size)`, `monIconOf(mon, x, y, size, frame,
-alpha)`, `boxWall(id, x, y, w, h)`, `itemName(id)`, `amount(n, x, y, size, c, measure)` (money with the game's sign -> its width) and
+alpha)`, `boxWall(id, x, y, w, h)`, `itemName(id)`, `monPic(species, x, y, size)` (its front picture -> true when drawn),
+`amount(n, x, y, size, c, measure)` (money with the game's sign -> its width) and
 `pad.transfer(id, dir, kind)` (kind `"ball"`: a Poké Ball instead of an item). The garbage rules below apply.
 
 **The look.** Windows share the kit's macOS / iOS pieces, so a window from another mod can match:
@@ -166,14 +169,44 @@ Headless the cart's font isn't there and the engine's glyph draw tries loading i
 call (about 0.26 KB each), so the test stands in for it while measuring the Mart's garbage; the
 probe measures the real one (about 0.06 KB a frame).
 
+## R-Bay
+
+`src/auction.lua` stores nothing about an auction. Slot `k` (0-11) runs auction number
+`n = floor((t - EPOCH - k * 900) / 10800)`: three hours each, staggered fifteen minutes apart.
+`generate(s, k, n)` makes it from a Park-Miller generator seeded by the save (`meta.playthroughId`)
+and `k`, `n`: the tier (weights 34/26/20/11/6/3), the Pokémon from that tier's pool, the level
+(tier range + 3 per badge, at least its evolution level), the IVs (the best of 1-3 rolls by tier),
+the hidden value `V` (the tier's band x `0.6 + 0.8 q^2` x `1 + 0.08` per 31), and the bidders
+(a count and keenness by tier, maximums at most `1.35 V`, some sniping in the last ten minutes).
+
+- **Pools,** built once: the cart's #1-386 by evolution stage (`Pokemon.evolutions` inverted;
+  first stages Common, middle and lone Uncommon, finals Rare), our own Legendary / Mythical /
+  Prized lists, and WoobleDex's `listSpecies` (its `legendary` / `mythical` flags) with
+  `evolutionsOf` for the stages. Shedinja never sells.
+- **Pricing:** `sim(L, t, mine)` replays the bids up to `t` in time order, the player's
+  `steps` (time, max pairs) among them: eBay's proxy rule (one `step(price)` over the
+  second-highest maximum, capped at the highest; a tie goes to the earlier bid). No tables made;
+  the last five bids kept in two ring arrays.
+- **The player's part** is `mod.save` "auction" (`session.modData.woob_os`): `bids[key]` (the
+  listing's species / level / IVs copied, `max`, `steps`), `results` (newest first, 20 kept),
+  `unread`. It rewinds with the save, as the money and the party do. `Au.bid` takes the
+  difference from the money; `Au.settle` (on `save.loaded`, and the desktop's once-a-second
+  `deps.tick`) gives a win through `Party.giveMonToPlayer`, then writes the listed IVs into
+  `mon.ivs`, `Pokemon.applyStats` and full HP, and pays the change back with `Prize.apply`. A
+  loss refunds it all. With no room anywhere, a win waits (`b.won = true`).
+- **The icon's count:** an app's `badge(ctx)` (read once a second) sets `app.badgeN`, which
+  `appIcon` draws.
+- **Tests** swap `Au.store` (a fake `mod.save`) and `Au.now` (the clock). The probe's garbage
+  checks warm up first: LuaJIT compiling new paths' traces landed 0.5-3 KB one-off spikes.
+
 ## Words
 
 Every word WoobOS shows is a key of `lang/en.lua`: `T("app.items")` in code, or a key in a
 constant list passed through `T.list(...)` (the hints, the menus), which keeps one translated copy
 per language so a draw makes no tables. Built-in apps name themselves with `labelKey`; another
 mod's app keeps its plain `label`. `T.f(key, ...)` formats (toasts: an action, not a draw). The
-models (`inventory.lua`, `mailbox.lua`, `mart.lua`) return reason codes; the windows show
-`reason.item.<code>` / `reason.mail.<code>` / `reason.mart.<code>`. A new word: add it to `lang/en.lua` and the other
+models (`inventory.lua`, `mailbox.lua`, `mart.lua`, `auction.lua`) return reason codes; the windows
+show `reason.item.<code>` / `reason.mail.<code>` / `reason.mart.<code>` / `reason.auction.<code>`. A new word: add it to `lang/en.lua` and the other
 four. The test checks every key the code names is in English and every language has every key
 with the same `%s`.
 

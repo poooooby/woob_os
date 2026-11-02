@@ -113,15 +113,15 @@ local function ctxWith(mode, rows)
   ctx.row = function(id) for i, row in ipairs(ctx.rows) do if row.id == id then return i - 1 end end end
   return ctx
 end
-T.eq(ids(Apps.list(ctxWith("select", rowsAll))), "storage items mail mart oak hall settings about logoff",
+T.eq(ids(Apps.list(ctxWith("select", rowsAll))), "storage items mail mart auction oak hall settings about logoff",
   "a cleared game's PC: every app")
 T.eq(ids(Apps.list(ctxWith("select", { { id = "storage" }, { id = "player" }, { id = "quit" } }))),
-  "storage items mail mart settings about logoff", "early on: no Oak's PC, no Hall of Fame")
-T.eq(ids(Apps.list(ctxWith("bedroom"))), "items mail mart settings about logoff", "the bedroom PC: Items, Mail, Mart, Settings")
+  "storage items mail mart auction settings about logoff", "early on: no Oak's PC, no Hall of Fame")
+T.eq(ids(Apps.list(ctxWith("bedroom"))), "items mail mart auction settings about logoff", "the bedroom PC: Items, Mail, Mart, R-Bay, Settings")
 do
   local c = ctxWith("bedroom")
   c.family = "rse"
-  T.eq(ids(Apps.list(c)), "items mail mart decorate settings about logoff", "Ruby / Sapphire / Emerald's bedroom: Decorate too")
+  T.eq(ids(Apps.list(c)), "items mail mart auction decorate settings about logoff", "Ruby / Sapphire / Emerald's bedroom: Decorate too")
 end
 T.check(not Apps.register({ id = "storage", open = noop }), "an id can't be taken twice")
 T.check(not Apps.register({ id = "x" }), "an app needs open()")
@@ -262,7 +262,7 @@ openPc({ startMode = "player_pc", bedroom = true })
 st = D.state()
 T.check(D.isOpen() and st.ctx.mode == "bedroom", "the bedroom PC opens the desktop")
 local rse = st.ctx.family == "rse"
-T.eq(#st.grid + #st.dock, rse and 7 or 6, "with Items, Mail, Mart, Settings, About and Log Off" .. (rse and ", Decorate" or ""))
+T.eq(#st.grid + #st.dock, rse and 8 or 7, "with Items, Mail, Mart, R-Bay, Settings, About and Log Off" .. (rse and ", Decorate" or ""))
 D.skipBoot()
 draw(40)
 if rse then
@@ -742,6 +742,232 @@ press("b")
 T.check(D.window() == nil, "B closes the Mart")
 draw(30)
 
+-- ------- R-Bay: the market from a seed and the clock, bids, settling (src/auction.lua), its window
+local Au = X._test.auction
+local Party = require("src.core.game3.party")
+local PokemonM = require("src.core.game3.pokemon")
+local fakeSave = { data = {} }
+function fakeSave.get(self, k) return self.data[k] end
+function fakeSave.set(self, k, v) self.data[k] = v end
+local store0, now0 = Au.store, Au.now
+Au.store = fakeSave
+local T0 = 1800000000
+local tnow = T0
+Au.now = function() return tnow end
+local as = newSession()
+as.meta = { playthroughId = "test-run" }
+as.money = 0
+do
+  local list = Au.listings(as, T0)
+  T.eq(#list, 12, "twelve auctions at once")
+  local ok3h, spaced = true, true
+  for i, L in ipairs(list) do
+    ok3h = ok3h and L.finish - L.start == 3 * 3600 and L.start <= T0 and T0 < L.finish
+    if i > 1 then spaced = spaced and L.finish - list[i - 1].finish == 900 end
+  end
+  T.check(ok3h, "each runs three hours, all running now")
+  T.check(spaced, "one ends every fifteen minutes")
+  local a, b = Au.generate(as, 3, 9000, 0), Au.generate(as, 3, 9000, 0)
+  T.check(a.sp == b.sp and a.ivSum == b.ivSum and a.value == b.value and #a.bidders == #b.bidders,
+    "the same seed, the same auction")
+  local other = { meta = { playthroughId = "another-run" } }
+  local c = Au.generate(other, 3, 9000, 0)
+  T.check(c.sp ~= a.sp or c.ivSum ~= a.ivSum or c.value ~= a.value, "another save, another auction")
+  local keys = {}
+  for _, L in ipairs(list) do keys[L.key] = true end
+  local changed = 0
+  for _, L in ipairs(Au.listings(as, T0 + 900)) do if not keys[L.key] then changed = changed + 1 end end
+  T.eq(changed, 1, "fifteen minutes on: one new auction")
+end
+do
+  local pools = Au.pools()
+  local legend = {}
+  for _, e in ipairs(pools.legendary) do legend[e.sp] = true end
+  T.check(legend[PokemonM.speciesFromNational(150)] and legend[PokemonM.speciesFromNational(384)],
+    "Mewtwo and Rayquaza are legendary")
+  local myth = {}
+  for _, e in ipairs(pools.mythical) do myth[e.sp] = true end
+  T.check(myth[PokemonM.speciesFromNational(151)] and not legend[PokemonM.speciesFromNational(151)], "Mew is mythical")
+  local seen, capped, mono = {}, true, true
+  local hiQ, loQ, hiN, loN = 0, 0, 0, 0
+  for n = 9000, 9030 do
+    for k = 0, 11 do
+      local L = Au.generate(as, k, n, 0)
+      seen[L.tier] = true
+      if L.tier == "legendary" and not legend[L.sp] then mono = false end
+      for _, bd in ipairs(L.bidders) do capped = capped and bd.max <= L.value * Au.CAP + 10 end
+      if L.tier == "rare" then
+        if L.ivSum >= 93 then hiQ, hiN = hiQ + L.value, hiN + 1 else loQ, loN = loQ + L.value, loN + 1 end
+      end
+      -- (the price only goes up)
+      local last = 0
+      for t = L.start, L.finish, 600 do
+        local p = Au.sim(L, t, nil)
+        if p < last then mono = false end
+        last = p
+      end
+    end
+  end
+  T.check(seen.common and seen.uncommon and seen.rare and seen.prized and seen.legendary and seen.mythical,
+    "every tier turns up over a few days")
+  T.check(capped, "no fake bidder goes past 1.35 times the value")
+  T.check(mono, "prices only go up; legendaries only as legendary")
+  T.check(hiN > 0 and loN > 0 and hiQ / hiN > loQ / loN, ("better IVs, a higher value (%d vs %d)"):format(
+    math.floor(hiQ / math.max(1, hiN)), math.floor(loQ / math.max(1, loN))))
+end
+-- a bid: too low, too dear, then a winning maximum; a raise takes only the difference
+local Lw
+for _, L in ipairs(Au.listings(as, T0)) do
+  if not Lw and #L.bidders > 0 and L.tier ~= "legendary" and L.tier ~= "mythical" then Lw = L end
+end
+T.check(Lw ~= nil, "an auction to bid on")
+tnow = Lw.start + 10
+Au.listings(as, tnow)
+as.money = 10
+ok, why = Au.bid(as, Lw, Au.minBid(Lw) - 1, tnow)
+T.check(not ok and why == "too_low", "under the least bid: refused (" .. tostring(why) .. ")")
+ok, why = Au.bid(as, Lw, Au.minBid(Lw) + 100000, tnow)
+T.check(not ok and why == "money" and as.money == 10, "more than the money: refused (" .. tostring(why) .. ")")
+local top = 0
+for _, bd in ipairs(Lw.bidders) do top = math.max(top, bd.max) end
+local myMax = top + 5000
+as.money = 900000
+T.check(Au.bid(as, Lw, myMax, tnow) and as.money == 900000 - myMax, "a maximum over them all: held from the money")
+T.check(Au.bid(as, Lw, myMax + 2000, tnow + 5) and as.money == 900000 - myMax - 2000, "a raise takes only the difference")
+myMax = myMax + 2000
+ok, why = Au.bid(as, Lw, myMax - 1, tnow + 6)
+T.check(not ok and why == "too_low", "a maximum can't come down")
+local price = Au.sim(Lw, Lw.finish, fakeSave.data.auction.bids[Lw.key])
+T.check(price <= top + Au.step(top) and price >= Lw.startPrice, "the price: one step over the best of the rest (" .. price .. ")")
+-- the end: the Pokémon to the party with the listed IVs, the change back
+as.party = {}
+local before = as.money
+local won, lost = Au.settle(as, Lw.finish - 1)
+T.check(won == 0 and lost == 0, "not before it ends")
+won, lost = Au.settle(as, Lw.finish)
+T.check(won == 1 and lost == 0, "it ends: won")
+local got = as.party[1]
+T.check(got and tonumber(got.species) == Lw.sp and got.level == Lw.level, "the Pokémon joins the party")
+local same = got ~= nil
+for _, key in ipairs(Au.IV_KEYS) do same = same and got.ivs[key] == Lw.ivs[key] end
+T.check(same and got.hp == got.maxHp and (got.maxHp or 0) > 0, "with the listed IVs, its stats again, full HP")
+T.eq(as.money, before + myMax - price, "the change comes back")
+T.eq(Au.results()[1].won, true, "a result: won")
+T.check(Au.unread() >= 1, "unread")
+won, lost = Au.settle(as, Lw.finish + 60)
+T.check(won == 0 and lost == 0 and #as.party == 1, "settled once only")
+-- a loss: the whole maximum back
+local Ll
+for _, L in ipairs(Au.listings(as, Lw.finish)) do
+  local hi = 0
+  for _, bd in ipairs(L.bidders) do hi = math.max(hi, bd.max) end
+  if not Ll and hi > L.startPrice + Au.step(L.startPrice) * 2 then Ll = L end
+end
+T.check(Ll ~= nil, "an auction to lose")
+tnow = math.max(Lw.finish, Ll.start + 5)
+Au.listings(as, tnow)
+as.money = 500000
+local lowMax = Au.minBid(Ll)
+local outbidLater = false
+for _, bd in ipairs(Ll.bidders) do outbidLater = outbidLater or bd.max > lowMax end
+T.check(outbidLater and Au.bid(as, Ll, lowMax, tnow) and as.money == 500000 - lowMax, "a low maximum, held")
+won, lost = Au.settle(as, Ll.finish)
+T.check(won == 0 and lost == 1 and as.money == 500000, "outbid at the end: all of it back")
+T.eq(Au.results()[1].won, false, "a result: lost")
+-- a win with no room: it waits, then arrives
+do
+  local Lp = Au.listings(as, Ll.finish)[12]
+  tnow = Ll.finish
+  as.money = 999999
+  T.check(Au.bid(as, Lp, 999000, tnow), "(a bid nobody beats)")
+  local give = Party.giveMonToPlayer
+  Party.giveMonToPlayer = function() return 2 end
+  won = Au.settle(as, Lp.finish)
+  local waiting = fakeSave.data.auction.bids[Lp.key]
+  T.check(won == 0 and waiting and waiting.won == true, "no room anywhere: the win waits")
+  Party.giveMonToPlayer = give
+  as.party = {}
+  won = Au.settle(as, Lp.finish + 10)
+  T.check(won == 1 and as.party[1] and fakeSave.data.auction.bids[Lp.key] == nil, "then it arrives")
+end
+-- WoobleDex's species join the pools (a stand-in for its exports)
+do
+  local makeAu = dofile("mods/woob_os/src/auction.lua")
+  local Au2 = makeAu(function(n) return require(n) end, { dex = function()
+    return { exports = { apiVersion = 2,
+      listSpecies = function() return { { dex = 480, slot = 999, name = "UXIE", legendary = true },
+                                         { dex = 387, slot = 998, name = "TURTWIG" } } end,
+      evolutionsOf = function(d) if d == 387 then return { evolvesInto = { { id = "grotle" } } } end end } }
+  end })
+  local p = Au2.pools()
+  local inL, inP = false, false
+  for _, e in ipairs(p.legendary) do inL = inL or e.sp == 999 end
+  for _, e in ipairs(p.prized) do inP = inP or e.sp == 998 end
+  T.check(inL and inP, "WoobleDex's legendaries and starters join the market")
+end
+
+-- the window: browse, bid with the buttons, My Bids, the count on the icon
+s.money = 900000
+tnow = T0
+fakeSave.data = {}
+do
+  local at
+  for i, app in ipairs(st.grid) do if app.id == "auction" then at = i end end
+  T.check(at ~= nil, "R-Bay on the home screen")
+  D.launch("grid", at)
+end
+draw(30)
+local RW = D.window()
+T.check(RW and RW.title == "R-Bay", "R-Bay opens")
+local rs = RW.state
+T.eq(#rs.rows, 12, "twelve auctions listed")
+local chosen = rs.rows[1]
+press("a")
+T.eq(rs.focus, "step", "A: your maximum")
+T.eq(rs.amount, Au.minBid(chosen), "starting at the least bid")
+press("right")
+T.check(rs.amount == Au.minBid(chosen) + Au.step(Au.minBid(chosen)), "Right: one step more")
+local money0 = s.money
+local bidAmount = rs.amount
+press("a")
+T.check(fakeSave.data.auction and fakeSave.data.auction.bids[chosen.key] and s.money == money0 - bidAmount,
+  "A: the bid placed, the maximum held")
+T.eq(rs.focus, "list", "back in the list")
+draw(2)
+press("r")
+T.eq(rs.tab, "mine", "R: My Bids")
+draw(2)
+T.check(rs.mineN >= 1 and rs.mineRows[1].key == chosen.key, "the bid in My Bids")
+local FrlgFont2 = require("src.ui.game3.frlg_font")
+local realGlyph2 = FrlgFont2.drawGlyph
+FrlgFont2.drawGlyph = function() return 7 end
+draw(60)
+local perMine = garbageOf(120)
+press("l")
+draw(60)
+local perBrowse = garbageOf(120)
+FrlgFont2.drawGlyph = realGlyph2
+T.check(perBrowse < 0.3 and perMine < 0.3, ("R-Bay draws next to no garbage (%.3f browsing, %.3f My Bids KB a frame)"):format(
+  perBrowse, perMine))
+for _, shape in ipairs({ { 480, 320 }, { 320, 480 }, { 900, 320 } }) do
+  VP.width, VP.height = shape[1], shape[2]
+  draw(2)
+  T.check(not D.state().winFailed, "R-Bay draws " .. shape[1] .. "x" .. shape[2])
+end
+VP.width, VP.height = 480, 320
+press("b")
+T.check(D.window() == nil, "B closes R-Bay")
+-- it ends while the desktop is open: settled on the tick, a count on the icon
+tnow = chosen.finish + 1
+draw(90)
+local auApp = Apps.byId("auction")
+T.check(#Au.results() >= 1 and (auApp.badgeN or 0) >= 1, "it ends: settled, a count on R-Bay's icon (" ..
+  tostring(auApp.badgeN) .. ")")
+Au.seen()
+draw(70)
+T.eq(auApp.badgeN, 0, "seen: no count")
+Au.store, Au.now = store0, now0
+
 -- ------- the Pokémon model (src/boxes.lua, on the engine's Storage)
 local Bx = X._test.bx
 local function newMon(species, hp, extra)
@@ -1018,9 +1244,10 @@ T.check(en and en["app.items"] == "Items", "English loads (lang/en.lua)")
 local missing, named = {}, 0
 local NOT_WORDS = { ["game.ready"] = true }   -- (an engine event's name)
 local PREFIX = { hint = 1, menu = 1, logoff = 1, button = 1, about = 1, nav = 1, game = 1, app = 1, items = 1,
-                 pocket = 1, reason = 1, mail = 1, settings = 1, wall = 1, failed = 1, mart = 1 }
+                 pocket = 1, reason = 1, mail = 1, settings = 1, wall = 1, failed = 1, mart = 1, auction = 1 }
 for _, file in ipairs({ "main.lua", "src/desktop.lua", "src/apps.lua", "src/apps/items.lua", "src/apps/mail.lua",
-                        "src/apps/settings.lua", "src/apps/mart.lua", "src/mart.lua" }) do
+                        "src/apps/settings.lua", "src/apps/mart.lua", "src/mart.lua",
+                        "src/apps/auction.lua", "src/auction.lua" }) do
   local src = readFile(file) or ""
   for key in src:gmatch('"([%a][%w_]*%.[%w_%.]+)"') do
     if PREFIX[key:match("^(%a+)")] and not key:match("%.$") and not key:match("%.lua$") and not NOT_WORDS[key] then
@@ -1035,6 +1262,12 @@ for _, k in ipairs({ "bag_full", "pc_full", "stack_full", "important", "gone" })
 end
 for _, k in ipairs({ "bag_full", "holding", "box_full", "gone" }) do
   if not en["reason.mail." .. k] then missing[#missing + 1] = "reason.mail." .. k end
+end
+for _, k in ipairs({ "too_low", "money", "ended" }) do
+  if not en["reason.auction." .. k] then missing[#missing + 1] = "reason.auction." .. k end
+end
+for _, k in ipairs({ "common", "uncommon", "rare", "prized", "legendary", "mythical" }) do
+  if not en["auction.tier." .. k] then missing[#missing + 1] = "auction.tier." .. k end
 end
 for _, k in ipairs({ "badges", "money", "bag_full", "cant_sell", "gone" }) do
   if not en["reason.mart." .. k] then missing[#missing + 1] = "reason.mart." .. k end

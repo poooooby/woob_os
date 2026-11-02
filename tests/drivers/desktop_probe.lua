@@ -88,7 +88,9 @@ local function body(game, log)
   local st = D.state()
   check(Stack.has("woob_os") and Field.isLocked and Field.isLocked(), "on the UI stack, the field held")
 
-  -- the draw's garbage, measured around each call
+  -- the draw's garbage, measured around each call (warmed up first: LuaJIT compiling the new
+  -- paths' traces lands on the heap once)
+  U.wait(60)
   local draw, drawKb, draws = D.draw, 0, 0
   D.draw = function(...)
     local was = collectgarbage("isrunning")
@@ -463,7 +465,8 @@ local function body(game, log)
     check(padAt("out", 0.15), "it leaves off the pad")
     shot("d11f_mart_out")
     waitFor(function() return D.padState() == 0 end, 1200)
-    -- the window's draw garbage
+    -- the window's draw garbage (warmed up first: LuaJIT compiling new paths lands on the heap once)
+    U.wait(120)
     local drawM, kbM, nM = D.draw, 0, 0
     D.draw = function(...)
       local was = collectgarbage("isrunning")
@@ -480,6 +483,85 @@ local function body(game, log)
     local extra = Bag.get(s0.bag, 3) - great0
     if extra > 0 then Bag.remove(s0.bag, 3, extra) end
     s0.money = money0
+    U.tap(game, "b")
+    waitFor(function() return D.window() == nil and D.state() and D.state().zoom == nil end, 600)
+    check(D.window() == nil and D.isOpen(), "B: the desktop again")
+  end
+  st = D.state()
+
+  -- R-Bay: the market; a bid nobody beats (lent money), its end (the model's clock moved past it):
+  -- the Pokémon arrives, a Poké Ball onto the pad; everything put back after
+  local Au = X._test.auction
+  for i, app in ipairs(st.grid) do if app.id == "auction" then st.focus, st.cursor = "grid", i end end
+  U.tap(game, "a")
+  waitFor(function() return D.window() ~= nil end, 600)
+  U.wait(10)
+  local RW = D.window()
+  check(RW and RW.title == "R-Bay" and #RW.state.rows == 12, "R-Bay: its window, twelve auctions")
+  if RW then
+    local rs = RW.state
+    shot("d12_rbay")
+    for i, L in ipairs(rs.rows) do
+      if L.tier == "legendary" or L.tier == "mythical" or L.tier == "prized" then rs.cursor, rs.key = i, L.key end
+    end
+    U.wait(4)
+    shot("d12b_rbay_pick")
+    local money0, party0 = s0.money, #(s0.party or {})
+    s0.money = 999999
+    U.tap(game, "a"); U.wait(2)
+    U.tap(game, "right"); U.wait(2)
+    shot("d12c_rbay_step")
+    U.tap(game, "select"); U.wait(2)
+    local L = rs.rows[rs.cursor]
+    U.tap(game, "a"); U.wait(6)
+    check(L.mine ~= nil and L.leader == 0, "a bid nobody beats: in the lead")
+    shot("d12d_rbay_bid")
+    U.tap(game, "r"); U.wait(6)
+    check(rs.tab == "mine" and rs.mineN >= 1, "My Bids: the bid")
+    shot("d12e_rbay_mine")
+    -- the window's draw garbage, on My Bids, then Browse (each warmed up first: LuaJIT compiling
+    -- the new paths' traces lands on the heap once)
+    local drawA, kbA, nA, on = D.draw, 0, 0, false
+    D.draw = function(...)
+      if not on then return drawA(...) end
+      local was = collectgarbage("isrunning")
+      collectgarbage("stop")
+      local kb0 = collectgarbage("count")
+      drawA(...)
+      kbA, nA = kbA + (collectgarbage("count") - kb0), nA + 1
+      if was then collectgarbage("restart") end
+    end
+    U.wait(120)
+    on = true
+    U.wait(90)
+    on = false
+    local kbMine, nMine = kbA, nA
+    U.tap(game, "l")
+    U.wait(120)
+    on = true
+    U.wait(90)
+    D.draw = drawA
+    log(("  the R-Bay window's draw: %.3f KB per frame over %d frames (My Bids %.3f, Browse %.3f)"):format(
+      kbA / math.max(1, nA), nA, kbMine / math.max(1, nMine), (kbA - kbMine) / math.max(1, nA - nMine)))
+    check(kbA / math.max(1, nA) < 0.5, "the R-Bay window makes next to no garbage")
+    -- its end
+    local now0 = Au.now
+    Au.now = function() return L.finish + 1 end
+    check(waitFor(function() return #Au.results() > 0 end, 300), "it ends: settled on the desktop's tick")
+    local res = Au.results()[1]
+    check(res and res.won and res.sp == L.sp, "won: " .. tostring(res and res.name))
+    check(#(s0.party or {}) == party0 + 1 and s0.party[#s0.party].ivs.hp == L.ivs.hp, "it joins the party, with its IVs")
+    check(waitFor(function() local n, _, _, _, kind = D.padState(); return n > 0 and kind == "ball" end, 120),
+      "a Poké Ball onto the pad")
+    U.wait(20)
+    shot("d12f_rbay_won")
+    U.tap(game, "r"); U.wait(6)
+    shot("d12g_rbay_result")
+    -- put back: the party, the money, the save's R-Bay data, the clock
+    if #s0.party == party0 + 1 then s0.party[#s0.party] = nil end
+    s0.money = money0
+    if Au.store then Au.store:set("auction", nil) end
+    Au.now = now0
     U.tap(game, "b")
     waitFor(function() return D.window() == nil and D.state() and D.state().zoom == nil end, 600)
     check(D.window() == nil and D.isOpen(), "B: the desktop again")

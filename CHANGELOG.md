@@ -6,6 +6,13 @@ All notable changes to this mod are documented here, in
 ## [Unreleased]
 
 ### Added
+- **R-Bay.** Team Rocket's auction house for Pokémon: twelve three-hour auctions at a time on
+  the device's clock, a new one every fifteen minutes. Six tiers from Common to Mythical
+  (WoobleDex's Pokémon too), levels that climb with your badges, IVs shown on each listing and
+  reflected in the bidding. Rocket bidders compete (keener in the higher tiers); you set your
+  maximum and R-Bay bids for you. The maximum is held, a win returns the change and sends the
+  Pokémon to the party or the PC with its listed IVs, a loss refunds it all. My Bids, and a count
+  on the icon when an auction ends. Bids and results are kept in the save.
 - **Mart.** A Poké Mart on the desktop: Poké Balls, medicine, battle items and Repels bought
   straight into the Bag, more of them with each Gym Badge (locked ones say how many badges they
   need). A purchase appears on the pad and goes up into the Bag; Sell takes the Bag's items for

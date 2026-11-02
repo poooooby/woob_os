@@ -31,6 +31,7 @@
 --         T (src/i18n.lua: the words) ; wall (src/wallpaper.lua) ; wallpaper() -> the chosen id ;
 --         wallpaperFit() -> "fill" | "stretch" (a picture's) ; arrange (src/arrange.lua) ;
 --         layout() -> dockText, gridText ; saveLayout(dockText, gridText)
+--         tick(ctx) (once a second while open: R-Bay settles its auctions)
 --   D.open(ctx) (ctx: src/apps.lua, plus warm = skip the boot, back = the app id to zoom back from)
 --   D.close() ; D.isOpen() ; D.input(input) ; D.pointer(ev) -> true ; D.wheel(dy) ; D.draw(G, vp)
 --   D.state() (tests) ; D.booting() ; D.skipBoot() ; D.launch(i) ; D.tap(x, y) ; D.arranging()
@@ -96,6 +97,7 @@ return function(deps)
     ballRed = { 228, 64, 58 }, ballRedDark = { 176, 36, 40 }, ballRedLight = { 246, 122, 108 },
     ballWhite = { 248, 248, 250 }, ballShade = { 184, 186, 196 }, ballInk = { 40, 40, 48 },
     ballEdge = { 70, 72, 80 }, ballGlowRed = { 255, 46, 46 }, ballGlowGreen = { 60, 236, 110 },
+    badge = { 255, 59, 48 },
     padGlow = { 90, 214, 255 }, padLight = { 150, 236, 255 },
     beamTop = { 90, 214, 255, 0 }, beamFoot = { 90, 214, 255, 0.7 },
   }
@@ -772,6 +774,7 @@ return function(deps)
     until k == 0
     return s
   end)
+  local badgeText = K.textCache(function(n) return tostring(n) end)
   local clockText = K.textCache(function(key)
     local h, m, h24 = floor(key / 100), key % 100, key >= 10000
     h = h % 100
@@ -883,6 +886,15 @@ return function(deps)
       local x0, y0 = cx - w / 2, cy - h / 2
       G.rectangle("line", x0, y0, w, h, s * 0.05, s * 0.05)
       G.line(x0 + lw * 0.3, y0 + lw * 0.3, cx, cy + h * 0.08, x0 + w - lw * 0.3, y0 + lw * 0.3)
+    elseif kind == "rocket" then
+      -- (Team Rocket's R: the stem, the bowl, the leg)
+      G.setLineWidth(lw * 1.7)
+      local x0, top, bot, mid = cx - s * 0.13, cy - s * 0.25, cy + s * 0.25, cy + s * 0.02
+      G.line(x0, top, x0, bot)
+      G.line(x0, top, cx + s * 0.03, top)
+      G.arc("line", "open", cx + s * 0.03, (top + mid) / 2, (mid - top) / 2, -math.pi / 2, math.pi / 2)
+      G.line(cx + s * 0.03, mid, x0, mid)
+      G.line(cx - s * 0.01, mid, cx + s * 0.16, bot)
     elseif kind == "cart" then
       -- (a shopping cart: the handle, the basket, two wheels)
       G.line(cx - s * 0.32, cy - s * 0.2, cx - s * 0.24, cy - s * 0.2, cx - s * 0.13, cy + s * 0.1,
@@ -921,6 +933,15 @@ return function(deps)
     K.grad(K.R(x + 0.8, y + 0.6, s - 1.6, s * 0.48), rad * 0.85, C.gloss, C.clear, a)
     K.ring(b, rad, WHITE, 0.22 * (a or 1), 0.5)
     glyph(G, app.glyph, K.X(x + s / 2), K.Y(y + s / 2), s * K.sc, a or 1)
+    -- (a count on the corner, as a phone shows one: R-Bay's ended auctions)
+    local n = app.badgeN
+    if n and n > 0 then
+      local br = s * 0.17
+      local bx, by = x + s - br * 0.6, y + br * 0.6
+      K.col(C.badge, a)
+      G.circle("fill", K.X(bx), K.Y(by), br * K.sc)
+      K.text(badgeText(min(n, 99)), bx - br, by - br * 0.62, br * 1.2, WHITE, "center", br * 2, a)
+    end
   end
 
   -- the focus ring, centred on the icon as appIcon lifts it (`pad` units clear of it all round)
@@ -1727,6 +1748,19 @@ return function(deps)
     local step = r.dt / D.PAD.light
     r.padGlow = want > r.padGlow and min(want, r.padGlow + step) or max(want, r.padGlow - step)
     if r.padN > 0 and clock - r.padQ[1].t0 >= padLength(r.padQ[1].dir) then padNext(clock) end
+    -- (once a second: the apps' own ticks (R-Bay settles its ended auctions) and their icons' counts)
+    if not r.tickAt or clock - r.tickAt >= 1 or clock < r.tickAt then
+      r.tickAt = clock
+      if deps.tick then pcall(deps.tick, r.ctx) end
+      local ng = #r.grid
+      for i = 1, ng + #r.dock do
+        local app = i <= ng and r.grid[i] or r.dock[i - ng]
+        if app.badge then
+          local ok, n = pcall(app.badge, r.ctx)
+          app.badgeN = ok and tonumber(n) or 0
+        end
+      end
+    end
 
     -- a long press on an icon: arranging, that icon in hand
     local pr = r.press

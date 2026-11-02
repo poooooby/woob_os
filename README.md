@@ -49,6 +49,18 @@ opens a desktop in a sleek monitor instead of a text menu.
   and Down ten at a time, SELECT as many as your money buys). Ten Poké Balls at once come with a
   free Premier Ball. Switch to Sell (START, or the switch at the top) to sell what's in your Bag
   for half its price. Prices and item names are your game's own.
+- 🚀 **R-Bay:** Team Rocket's auction house for Pokémon. Twelve auctions run at once, each for
+  three hours, and a new one opens every fifteen minutes, on your device's clock, so the market
+  keeps moving while the game is off. Pokémon come in six tiers: Common (first stages), Uncommon,
+  Rare (fully evolved), Prized (starters, pseudo-legendaries, fossils, Eevee), Legendary and
+  Mythical, with WoobleDex's Pokémon in the mix when it's installed. Each listing shows the
+  Pokémon's level, which climbs with your badges, and its IVs, and better IVs draw more bidders
+  and higher prices. Rocket bidders compete, harder in the higher tiers, but never so hard that
+  you can't win. Set the most you'll pay and R-Bay bids for you, one step at a time, like eBay.
+  Your maximum is held when you bid. Win and you pay only the final price, the rest comes back,
+  and the Pokémon joins your party (or the PC) with the IVs it was listed with. Lose and all of
+  it comes back. My Bids shows where you stand, and a count on R-Bay's icon tells you an auction
+  has ended.
 - ✉️ **Mail:** your mailbox as an inbox. Read each letter on its own stationery, move it to the
   Bag, or give it to a Pokémon in your party. The Held folder shows the mail your Pokémon are
   carrying, and Take files a letter back in the inbox. Works in all five games.
@@ -78,7 +90,7 @@ opens a desktop in a sleek monitor instead of a text menu.
 - ℹ️ **About:** which version you're running.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
 
-Boxes, Items, Mart, Mail and Settings open in a window on the desktop, in the style of macOS and iOS:
+Boxes, Items, Mart, R-Bay, Mail and Settings open in a window on the desktop, in the style of macOS and iOS:
 white cards on a soft grey, segmented switches, and a blue ring round whatever the controller is
 on. B or the red button closes it. Oak's PC,
 Hall of Fame and Decorate open the game's own screens, and closing them brings you back to the
@@ -99,10 +111,13 @@ turn it on for your Generation 3 games.
 
 ## 🔗 Works With
 
-- **Any save:** the mod keeps no data of its own in your save. Items and mail move exactly as the
-  game's own PC moves them, the Mart spends and pays money as a Poké Mart does, so you can turn the mod on and off whenever you like.
+- **Any save:** items and mail move exactly as the game's own PC moves them, and the Mart spends
+  and pays money as a Poké Mart does. The only thing WoobOS keeps in your save is your R-Bay bids
+  and results, so you can turn the mod on and off whenever you like (bids still running wait for
+  it to come back).
 - **Other mods:** other mods can add their own apps to the desktop.
-- **WoobleDex:** the Boxes preview shows a Pokémon's Dynamax Level and G-Max Factor (from
+- **WoobleDex:** R-Bay auctions its Pokémon too, its legendaries and mythicals in their tiers. The
+  Boxes preview shows a Pokémon's Dynamax Level and G-Max Factor (from
   WoobleDex's Dynamax Candy and Max Soup, or Max Raids' dens), as the game's summary does.
 
 ## 📌 Good to Know
@@ -123,6 +138,10 @@ turn it on for your Generation 3 games.
   `lang/pt.lua`), write the language's name at the top and translate the words. It shows up in
   Settings. The other languages' files can be edited the same way.
 - Your Settings choices are kept for the whole game, not per save file.
+- **R-Bay and your save:** your bids are saved when you save the game. Load an older save and its
+  bids and money come back with it. Auctions keep their own time, so one may have ended while you
+  were away: it settles when you load the save or open the PC. If both your party and the PC are
+  full, a won Pokémon waits until there's room.
 
 ## 🪪 Credits
 

@@ -3,17 +3,19 @@
 -- Settings are our own windows; Decorate (Ruby / Sapphire / Emerald, the bedroom) opens the game's
 -- Decoration menu.
 --
---   A = Apps(deps)   deps: boxes / items / mail / mart / settings = window(ctx, env) makers ; decorate(ctx) (the
+--   A = Apps(deps)   deps: boxes / items / mail / mart / auction / settings = window(ctx, env) makers ;
+--                    auctionBadge(ctx) -> n ; decorate(ctx) (the
 --                    game's menu). Built-ins name themselves with labelKey (a lang/*.lua key)
 --   A.register(app) -> true | false, why    app = {
 --       id       unique string
 --       label    under its icon (short: about 10 letters) ; labelKey: a word of lang/*.lua instead
---       glyph    the icon's picture: "ball" | "bag" | "mail" | "cart" | "home" | "trophy" | "dex" |
+--       glyph    the icon's picture: "ball" | "bag" | "mail" | "cart" | "rocket" | "home" | "trophy" | "dex" |
 --                "power" | "logo" | "gear",
 --                or a function(K, cx, cy, size, a) drawing it (window pixels, white on the tile)
 --       color    { r, g, b } the tile's colour
 --       order    sorts the apps (lower first; built-ins 10..90)
 --       dock     true: in the dock, not the home grid
+--       badge(ctx) -> n   a count on the icon's corner (read once a second; nil / 0: none)
 --       available(ctx) -> bool   (nil: always)
 --       open(ctx)                ctx below; an app ends with ctx.finish / ctx.done / its own screen
 --       window(ctx, env) -> win  instead of open: a window in the desktop's screen (src/desktop.lua)
@@ -95,6 +97,12 @@ return function(deps)
     A.register({ id = "mart", labelKey = "app.mart", label = "Mart",
                  glyph = "cart", color = { 72, 190, 120 }, order = 27,
                  window = deps.mart })
+  end
+  -- R-Bay: Team Rocket's auctions for Pokémon (a count on its icon: ended auctions not looked at)
+  if deps.auction then
+    A.register({ id = "auction", labelKey = "app.auction", label = "R-Bay",
+                 glyph = "rocket", color = { 196, 30, 44 }, order = 28,
+                 window = deps.auction, badge = deps.auctionBadge })
   end
   -- the bedroom's Decoration (Ruby / Sapphire / Emerald): the game's own menu
   if deps.decorate then
