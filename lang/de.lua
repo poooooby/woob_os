@@ -18,6 +18,7 @@ return {
     ["hint.all"] = "Alle",
     ["hint.pocket"] = "Tasche",
     ["hint.ten"] = "10",
+    ["hint.one"] = "1",
     ["hint.folder"] = "Ordner",
     ["hint.fit"] = "Anpassen",
     ["hint.arrange"] = "Anordnen",

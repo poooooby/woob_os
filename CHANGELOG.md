@@ -3,6 +3,17 @@
 All notable changes to this mod are documented here, in
 [keep a changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [0.1.1] - 2026-11-01
+
+### Changed
+- **Items: how many.** Left and Right change it by one, Up and Down by ten (they were the other
+  way round).
+
+### Fixed
+- **Items from other mods have their pictures.** WoobDex's Exp. Candies, Dynamax Candy, Max
+  Mushrooms and the rest showed blank in Items and on the pad: the icon now comes from the Bag's
+  own drawing, which those mods add their art to (painted once and kept).
+
 ## [0.1.0] - 2026-11-01
 
 ### Added

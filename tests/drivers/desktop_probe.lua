@@ -288,6 +288,44 @@ local function body(game, log)
   check(IW and IW.title == "Items", "Items: its window, in the desktop")
   check(waitFor(function() return select(4, D.padState()) > 0.99 end, 600), "the shelf's pad lights up")
   shot("d4_items")
+  -- items other mods add (WoobDex's Exp. Candy, Dynamax Candy, Max Mushrooms): their own pictures,
+  -- lent to the PC for a shot, then taken back
+  do
+    local items0 = {}
+    for i, e in ipairs(pcItems) do items0[i] = e end
+    for _, id in ipairs({ 950, 955, 956 }) do pcItems[#pcItems + 1] = { id = id, qty = 3 } end
+    IW.refresh()
+    IW.state.focus = "pc"
+    U.wait(10)
+    shot("d4m_mod_items")
+    local Env0 = X._test.env
+    local okMod = love.graphics.newCanvas ~= nil
+    for _, id in ipairs({ 950, 955, 956 }) do
+      local got = false
+      local G = love.graphics
+      G.push("all")
+      local okC, canvas = pcall(G.newCanvas, 24, 24)
+      if okC and canvas then
+        G.setCanvas(canvas)
+        G.origin()
+        G.clear(0, 0, 0, 0)
+        -- (drawn as the window draws it, in the kit's units: the canvas's 24 px at its corner)
+        local K = Env0.K
+        pcall(Env0.itemIcon, id, -K.ox / K.sc, -K.oy / K.sc, 24 / K.sc, 1)
+        G.setCanvas()
+        local data = canvas:newImageData()
+        for py = 0, 23 do for px = 0, 23 do if select(4, data:getPixel(px, py)) > 0 then got = true end end end
+      end
+      G.pop()
+      log(("  item %d: %s"):format(id, got and "a picture" or "none"))
+      okMod = okMod and got
+    end
+    check(okMod, "WoobDex's items have their pictures (950, 955, 956)")
+    for i = #pcItems, 1, -1 do pcItems[i] = nil end
+    for i, e in ipairs(items0) do pcItems[i] = e end
+    IW.refresh()
+    U.wait(4)
+  end
   -- the pad: the Poké Ball resting on it while there's a party (a party lent for the shot, then put back)
   do
     local party0 = s0.party

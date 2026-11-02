@@ -23,6 +23,7 @@ return {
     ["hint.all"] = "All",
     ["hint.pocket"] = "Pocket",
     ["hint.ten"] = "10",
+    ["hint.one"] = "1",
     ["hint.folder"] = "Folder",
     ["hint.fit"] = "Fit",
     ["hint.arrange"] = "Arrange",

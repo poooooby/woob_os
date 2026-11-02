@@ -36,9 +36,10 @@ opens a desktop in a sleek monitor instead of a text menu.
 ### Apps
 
 - 🎒 **Items:** your Bag and your PC's item storage side by side. Pick an item and send it across:
-  choose how many, or press SELECT to move the whole stack. L and R flip through the Bag's
-  pockets, and START sorts the PC by name or pocket or tosses an item. Important items stay in
-  the Bag.
+  choose how many (Left and Right one at a time, Up and Down ten at a time), or press SELECT to
+  move the whole stack. L and R flip through the Bag's pockets, and START sorts the PC by name or
+  pocket or tosses an item. Important items stay in the Bag. Items other mods add (WoobDex's
+  candies and Max Mushrooms) show with their own pictures.
 - ✉️ **Mail:** your mailbox as an inbox. Read each letter on its own stationery, move it to the
   Bag, or give it to a Pokémon in your party. The Held folder shows the mail your Pokémon are
   carrying, and Take files a letter back in the inbox. Works in all five games.

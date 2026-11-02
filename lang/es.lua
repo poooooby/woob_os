@@ -17,6 +17,7 @@ return {
     ["hint.all"] = "Todo",
     ["hint.pocket"] = "Bolsillo",
     ["hint.ten"] = "10",
+    ["hint.one"] = "1",
     ["hint.folder"] = "Carpeta",
     ["hint.fit"] = "Ajuste",
     ["hint.arrange"] = "Organizar",

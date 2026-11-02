@@ -18,6 +18,7 @@ return {
     ["hint.all"] = "ぜんぶ",
     ["hint.pocket"] = "ポケット",
     ["hint.ten"] = "10",
+    ["hint.one"] = "1",
     ["hint.folder"] = "フォルダ",
     ["hint.fit"] = "ひょうじ",
     ["hint.arrange"] = "並べ替え",

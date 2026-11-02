@@ -22,7 +22,7 @@ local MENU_ROW, SORT_BUTTON = 2020, 2030
 -- (the words are keys of lang/*.lua, through env.T)
 local HINTS = {
   main = { { "A", "hint.move" }, { "SELECT", "hint.all" }, { "L R", "hint.pocket" }, { "START", "hint.menu" } },
-  step = { { "< >", "hint.ten" }, { "A", "hint.ok" }, { "B", "hint.back" } },
+  step = { { "< >", "hint.one" }, { "^ v", "hint.ten" }, { "A", "hint.ok" }, { "B", "hint.back" } },
   menu = { { "A", "hint.choose" }, { "B", "hint.back" } },
 }
 local MENU = { "items.sortName", "items.sortPocket", "items.tossMenu" }
@@ -181,10 +181,10 @@ return function(ctx, env)
       return true
     end
     if st.step then
-      if nav.up then stepBy(1)
-      elseif nav.down then stepBy(-1)
-      elseif nav.right then stepBy(10)
-      elseif nav.left then stepBy(-10)
+      if nav.right then stepBy(1)
+      elseif nav.left then stepBy(-1)
+      elseif nav.up then stepBy(10)
+      elseif nav.down then stepBy(-10)
       elseif pressed("select") then st.step.qty = st.step.max
       elseif pressed("a") then act(st.step.qty, st.step.toss)
       elseif pressed("b") then

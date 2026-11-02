@@ -115,6 +115,47 @@ return function(mod)
   -- the game's own item icon (24 px art), `size` units square at x, y (units), alpha `a`; FireRed / LeafGreen's
   -- images kept here (the engine's lookup makes garbage every call)
   local frlgIcons, rseSheet, rseQuads = {}, nil, {}
+  -- an item the game has no picture for (another mod's: WoobDex's Exp. Candies, Dynamax Candy,
+  -- Max Mushrooms ...): the Bag's own drawItemIcon, which such a mod wraps to draw its items,
+  -- painted once into a 24 px canvas and kept (false: nobody drew it)
+  local modIcons = {}
+  local function modIcon(id, rse)
+    local got = modIcons[id]
+    if got ~= nil then return got end
+    got = false
+    local G = love and love.graphics
+    local Chrome = engine(rse and "src.ui.game3.rse.bag_chrome" or "src.ui.game3.bag_chrome")
+    local okC, canvas = pcall(G and G.newCanvas or error, 24, 24)
+    if okC and canvas and Chrome and Chrome.drawItemIcon then
+      G.push("all")
+      local ok, drawn = pcall(function()
+        G.setCanvas(canvas)
+        G.origin()
+        G.setScissor()
+        G.clear(0, 0, 0, 0)
+        if rse then
+          Chrome.drawItemIcon(id, 0, 0)
+          return true
+        end
+        return Chrome.drawItemIcon(id, 0, 0, 1)
+      end)
+      G.pop()
+      local okD, data = false, nil
+      if ok and drawn then okD, data = pcall(canvas.newImageData, canvas) end
+      if okD and data then
+        for py = 0, 23 do
+          for px = 0, 23 do
+            local _, _, _, alpha = data:getPixel(px, py)
+            if alpha > 0 then got = canvas break end
+          end
+          if got then break end
+        end
+      end
+      if got then pcall(canvas.setFilter, canvas, "nearest", "nearest") end
+    end
+    modIcons[id] = got
+    return got
+  end
   local function itemIcon(id, x, y, size, a)
     local G = Kit.graphics()
     local k = size * Kit.sc / 24
@@ -124,6 +165,7 @@ return function(mod)
         local Chrome = engine("src.ui.game3.bag_chrome")
         local ok, got = pcall(Chrome and Chrome.iconImage or error, id)
         img = ok and got or false
+        if not img then img = modIcon(id, false) end
         frlgIcons[id] = img
       end
       if img then
@@ -142,7 +184,15 @@ return function(mod)
     end
     if not rseSheet then return end
     local n = tonumber(id) or 0
-    if n < 0 or n >= rseSheet.count then n = rseSheet.count - 1 end
+    if n < 0 or n >= rseSheet.count then
+      local img = modIcon(id, true)
+      if img then
+        G.setColor(1, 1, 1, a or 1)
+        G.draw(img, Kit.X(x), Kit.Y(y), 0, k, k)
+        return
+      end
+      n = rseSheet.count - 1
+    end
     local q = rseQuads[n]
     if not q then
       q = love.graphics.newQuad(0, n * 24, 24, 24, rseSheet.w, rseSheet.h)
