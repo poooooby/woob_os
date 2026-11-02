@@ -6,6 +6,12 @@ All notable changes to this mod are documented here, in
 ## [Unreleased]
 
 ### Added
+- **GTS.** Wonder Trade (send one, get a surprise back from a Trainer somewhere in the world:
+  a globe search, the Poké Balls swapping on the pad, the reveal) and the Global Trade Station
+  (Trainers' listings every half hour; deposit one of yours asking for a species and level,
+  answered in real time when the ask is fair). Received Pokémon are traded ones (their own OT:
+  more EXP, obedience by badges) and trade evolutions play the game's own scene. A deposit is kept
+  in the save.
 - **Slots.** Team Rocket's slot machine, played with money (₽50 to ₽1,000 a spin): three reels,
   three of a kind on the line pays up to the 500× Rocket jackpot, about 92% paid back over time.
   The rarer wins drop Rocket Tickets for the prize corner: items, TMs, a Master Ball and six

@@ -19,6 +19,7 @@
 --       ivSum, perfect, start, finish, price, nbids, leader (0: the player; i: bidders[i]; nil),
 --       mine (the player's bid or nil), histN, histWho, histAmt, bidders = { { name, max, at } } }
 --   Au.step(price) -> the least raise          Au.minBid(L) -> the least the player may bid now
+--   Au.pools() -> { tier = { { sp, name } } } ; Au.tierOf(sp) ; Au.minLevel(sp) (an evolution's level)
 --   Au.bid(s, L, max, now) -> true | false, reason ("too_low" | "money" | "ended")
 --   Au.settle(s, now) -> won, lost, lastSpecies   (ended auctions the player bid on)
 --   Au.mine(s, now) -> { bid records, soonest first }   Au.results() -> { newest first }
@@ -230,6 +231,20 @@ return function(engine, deps)
     return pools
   end
   Au.pools = poolsNow
+  -- a species' tier on the market and the least level it's seen at (for other apps: the GTS)
+  local tierFor
+  function Au.tierOf(sp)
+    local all = poolsNow()
+    if not tierFor or tierFor.pools ~= all then
+      tierFor = { pools = all }
+      for t, pool in pairs(all) do for _, e in ipairs(pool) do tierFor[e.sp] = t end end
+    end
+    return tierFor[sp]
+  end
+  function Au.minLevel(sp)
+    poolsNow()
+    return minLevel and minLevel[sp] or 0
+  end
 
   -- ------- one auction, from the seed, its slot and its number
 
@@ -238,6 +253,7 @@ return function(engine, deps)
     v = tonumber(v) or 1
     return v % M
   end
+  Au.seedOf = seedOf
   local function typesText(sp)
     local P = Pokemon()
     local Types = engine("src.core.game3.battle.types")

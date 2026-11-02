@@ -3,13 +3,13 @@
 -- Settings are our own windows; Decorate (Ruby / Sapphire / Emerald, the bedroom) opens the game's
 -- Decoration menu.
 --
---   A = Apps(deps)   deps: boxes / items / mail / mart / auction / slots / settings = window(ctx, env) makers ;
---                    auctionBadge(ctx) -> n ; decorate(ctx) (the
+--   A = Apps(deps)   deps: boxes / items / mail / mart / gts / auction / slots / settings = window(ctx, env) makers ;
+--                    auctionBadge(ctx) / gtsBadge(ctx) -> n ; decorate(ctx) (the
 --                    game's menu). Built-ins name themselves with labelKey (a lang/*.lua key)
 --   A.register(app) -> true | false, why    app = {
 --       id       unique string
 --       label    under its icon (short: about 10 letters) ; labelKey: a word of lang/*.lua instead
---       glyph    the icon's picture: "ball" | "bag" | "mail" | "cart" | "rocket" | "slots" | "home" | "trophy" | "dex" |
+--       glyph    the icon's picture: "ball" | "bag" | "mail" | "cart" | "rocket" | "slots" | "globe" | "home" | "trophy" | "dex" |
 --                "power" | "logo" | "gear",
 --                or a function(K, cx, cy, size, a) drawing it (window pixels, white on the tile)
 --       color    { r, g, b } the tile's colour
@@ -97,6 +97,13 @@ return function(deps)
     A.register({ id = "mart", labelKey = "app.mart", label = "Mart",
                  glyph = "cart", color = { 72, 190, 120 }, order = 27,
                  window = deps.mart })
+  end
+  -- GTS: the Global Trade Station and Wonder Trade, with trainers from around the world (a count on
+  -- its icon: a deposit traded, waiting to be collected)
+  if deps.gts then
+    A.register({ id = "gts", labelKey = "app.gts", label = "GTS",
+                 glyph = "globe", color = { 30, 120, 220 }, order = 26,
+                 window = deps.gts, badge = deps.gtsBadge })
   end
   -- R-Bay: Team Rocket's auctions for Pokémon (a count on its icon: ended auctions not looked at)
   if deps.auction then

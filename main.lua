@@ -10,6 +10,7 @@
 --   src/auction.lua, src/apps/auction.lua   R-Bay: the auction market (worked out from a seed and the
 --                                       clock; the player's bids in the save), its window
 --   src/slots.lua, src/apps/slots.lua   Rocket Slots: the machine, its tickets and prize corner, its window
+--   src/gts.lua, src/apps/gts.lua       the GTS: Wonder Trade and the Global Trade Station, its window
 --   src/boxes.lua, src/apps/boxes.lua, src/apps/boxes_view.lua   the Pokémon model, the Boxes window
 --   src/i18n.lua, lang/*.lua            the words, by language ; src/settings.lua the kept choices
 --   src/wallpaper.lua                   the drawn wallpapers and the wallpapers/ folder's pictures
@@ -48,6 +49,7 @@ return function(mod)
   local makeMart, martWindow = loadSibling(mod, "src/mart.lua"), loadSibling(mod, "src/apps/mart.lua")
   local makeAuction, auctionWindow = loadSibling(mod, "src/auction.lua"), loadSibling(mod, "src/apps/auction.lua")
   local makeSlots, slotsWindow = loadSibling(mod, "src/slots.lua"), loadSibling(mod, "src/apps/slots.lua")
+  local makeGts, gtsWindow = loadSibling(mod, "src/gts.lua"), loadSibling(mod, "src/apps/gts.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell) then return end
 
   local function warn(fmt, ...) mod.log:warn(fmt, ...) end
@@ -349,6 +351,16 @@ return function(mod)
       badges = function(s) return env.mart and env.mart.badges(s) or 0 end,
     })
   end
+  -- the GTS: strangers' Pokémon (R-Bay's species and tiers), the deposit kept in the save
+  if makeGts and env.auction and env.bx then
+    env.gts = makeGts(engine, {
+      save = mod.save,
+      now = os.time,
+      seed = function(s) return env.auction and env.auction.seedOf and env.auction.seedOf(s) or 1 end,
+      pools = env.auction.pools, tierOf = env.auction.tierOf, minLevel = env.auction.minLevel,
+      frlg = frlg, bx = env.bx,
+    })
+  end
   -- (the Boxes preview's Dynamax row: WoobleDex's levels and factors, when it's on)
   if env.bx then
     env.bx.dynamax = function()
@@ -364,6 +376,8 @@ return function(mod)
     mart = env.mart and martWindow or nil,
     auction = env.auction and auctionWindow or nil,
     slots = env.slots and slotsWindow or nil,
+    gts = env.gts and gtsWindow or nil,
+    gtsBadge = env.gts and function() return env.gts.waiting() end or nil,
     auctionBadge = env.auction and function() return env.auction.unread() end or nil,
     settings = T and Settings and settingsWindow or nil,
     -- (Ruby / Sapphire / Emerald: the bedroom PC's Decoration, the game's own menu)
@@ -448,6 +462,7 @@ return function(mod)
       local s = ctx and ctx.session or session()
       local won, _, sp = env.auction.settle(s)
       if won > 0 and sp then Desktop.padTransfer(sp, "in", "ball") end
+      if env.gts then pcall(env.gts.settle, s) end
     end,
   })
   -- the shelf's item pad, for the apps: an item crossing it ("out" to the PC, "in" to the Bag)
@@ -469,12 +484,13 @@ return function(mod)
     Sh.forget()
     -- (auctions that ended while the game was closed: settled with the save they belong to)
     if env.auction then pcall(env.auction.settle, ev and ev.save or session()) end
+    if env.gts then pcall(env.gts.settle, ev and ev.save or session()) end
   end)
 
   -- other mods add apps: exports.apps.register{ id, label, glyph, color, order, dock, available,
   -- open | window }
   mod.exports.apps = { register = Apps.register, list = function() return Apps.apps end }
   mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
-                        mart = env.mart, auction = env.auction, slots = env.slots,
+                        mart = env.mart, auction = env.auction, slots = env.slots, gts = env.gts,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange }
 end

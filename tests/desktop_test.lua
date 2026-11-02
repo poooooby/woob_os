@@ -113,15 +113,15 @@ local function ctxWith(mode, rows)
   ctx.row = function(id) for i, row in ipairs(ctx.rows) do if row.id == id then return i - 1 end end end
   return ctx
 end
-T.eq(ids(Apps.list(ctxWith("select", rowsAll))), "storage items mail mart auction slots oak hall settings about logoff",
+T.eq(ids(Apps.list(ctxWith("select", rowsAll))), "storage items mail gts mart auction slots oak hall settings about logoff",
   "a cleared game's PC: every app")
 T.eq(ids(Apps.list(ctxWith("select", { { id = "storage" }, { id = "player" }, { id = "quit" } }))),
-  "storage items mail mart auction slots settings about logoff", "early on: no Oak's PC, no Hall of Fame")
-T.eq(ids(Apps.list(ctxWith("bedroom"))), "items mail mart auction slots settings about logoff", "the bedroom PC: Items, Mail, Mart, R-Bay, Slots, Settings")
+  "storage items mail gts mart auction slots settings about logoff", "early on: no Oak's PC, no Hall of Fame")
+T.eq(ids(Apps.list(ctxWith("bedroom"))), "items mail gts mart auction slots settings about logoff", "the bedroom PC: Items, Mail, GTS, Mart, R-Bay, Slots, Settings")
 do
   local c = ctxWith("bedroom")
   c.family = "rse"
-  T.eq(ids(Apps.list(c)), "items mail mart auction slots decorate settings about logoff", "Ruby / Sapphire / Emerald's bedroom: Decorate too")
+  T.eq(ids(Apps.list(c)), "items mail gts mart auction slots decorate settings about logoff", "Ruby / Sapphire / Emerald's bedroom: Decorate too")
 end
 T.check(not Apps.register({ id = "storage", open = noop }), "an id can't be taken twice")
 T.check(not Apps.register({ id = "x" }), "an app needs open()")
@@ -262,7 +262,7 @@ openPc({ startMode = "player_pc", bedroom = true })
 st = D.state()
 T.check(D.isOpen() and st.ctx.mode == "bedroom", "the bedroom PC opens the desktop")
 local rse = st.ctx.family == "rse"
-T.eq(#st.grid + #st.dock, rse and 9 or 8, "with Items, Mail, Mart, R-Bay, Slots, Settings, About and Log Off" .. (rse and ", Decorate" or ""))
+T.eq(#st.grid + #st.dock, rse and 10 or 9, "with Items, Mail, GTS, Mart, R-Bay, Slots, Settings, About and Log Off" .. (rse and ", Decorate" or ""))
 D.skipBoot()
 draw(40)
 if rse then
@@ -1149,6 +1149,208 @@ T.check(D.window() == nil, "B closes Slots")
 draw(30)
 Sl.store, Sl.rng = slotsStore0, slotsRng0
 
+-- ------- the GTS: strangers' Pokémon, the rules, Wonder Trade, deposits, listings (src/gts.lua), its window
+do
+local Gx = X._test.gts
+local BxG = X._test.bx
+local gtsSave = { data = {} }
+function gtsSave.get(self, k) return self.data[k] end
+function gtsSave.set(self, k, v) self.data[k] = v end
+local gtsStore0, gtsRng0, gtsNow0 = Gx.store, Gx.rng, Gx.now
+Gx.store = gtsSave
+local lcg = 12345
+Gx.rng = function(n)
+  lcg = (lcg * 1103515245 + 12345) % 2147483648
+  return lcg % n + 1
+end
+local gnow = 1800000000
+Gx.now = function() return gnow end
+local PokeG = require("src.core.game3.pokemon")
+local function spOf(nat) return PokeG.speciesFromNational(nat) end
+local frlgGame = GAME == "firered" or GAME == "leafgreen"
+local gs = newSession()
+gs.trainerId, gs.secretId, gs.name = 4321, 8765, "WOS"
+gs.dex = { seen = {}, owned = {}, caught = {} }
+Party.giveMon(gs, spOf(16), 10)
+-- a stranger's Pokémon: theirs, met in a trade
+do
+  local recv = Gx.make(gs, spOf(63), 20, Gx.STRANGERS[1], 0x0ABC1234)
+  T.check(recv and recv.otName == "Yuki" and recv.metLocation == 0xFE and (recv.maxHp or 0) > 0, "a stranger's Abra: their OT, met in a trade")
+  T.check(PokeG.isTradedMon(recv, gs), "the game counts it as traded (more EXP; obedience by badges)")
+end
+-- what may go
+ok, why = Gx.canSend(gs, BxG.addr("party", 1))
+T.check(not ok and why == "last", "the last Pokémon stays (" .. tostring(why) .. ")")
+Party.giveMon(gs, spOf(19), 10)
+T.check(Gx.canSend(gs, BxG.addr("party", 2)), "with two, one may go")
+do
+  local egg = { species = spOf(19), isEgg = true, level = 1, hp = 10 }
+  gs.party[3] = egg
+  ok, why = Gx.canSend(gs, BxG.addr("party", 3))
+  T.check(not ok and why == "egg", "an Egg stays (" .. tostring(why) .. ")")
+  gs.party[3] = nil
+  local box = Storage.ensure(gs).boxes[1]
+  box.mons[1] = { species = spOf(152), level = 5, hp = 10 }
+  ok, why = Gx.canSend(gs, BxG.addr("box", 1, 1))
+  if frlgGame then
+    T.check(not ok and why == "national", "FireRed: Chikorita needs the National Pokédex (" .. tostring(why) .. ")")
+  else
+    T.check(ok, "Emerald: Chikorita may go")
+  end
+  box.mons[1] = nil
+end
+-- Wonder Trade: a party slot, a box cell; again and again, the mix by tier
+ok, why = Gx.wonder(gs, BxG.addr("party", 2))
+local got = gs.party[2]
+T.check(ok and got and PokeG.isTradedMon(got, gs), "Wonder Trade: a stranger's Pokémon in the slot (" .. tostring(why and why.otName) .. ")")
+T.check(got.level >= 2 and got.level <= 100 and gs.dex.seen[tonumber(got.species)], "at a level near yours, in the Pokédex")
+do
+  local box = Storage.ensure(gs).boxes[1]
+  local r = Party.giveMon({ party = {}, name = "WOS", trainerId = 4321 }, spOf(16), 12)
+  local _, _, mon = Party.giveMon({ party = {}, name = "WOS", trainerId = 4321, dex = { seen = {}, owned = {}, caught = {} } }, spOf(16), 12)
+  box.mons[2] = mon
+  local okB, recvB = Gx.wonder(gs, BxG.addr("box", 2, 1))
+  T.check(okB and box.mons[2] == recvB and recvB ~= mon, "Wonder Trade from a box: the cell holds theirs")
+  local _ = r
+end
+do
+  local counts, kanto = {}, true
+  for _ = 1, 400 do
+    local okW, recv = Gx.wonder(gs, BxG.addr("party", 2))
+    if okW then
+      local tier = Au.tierOf(tonumber(recv.species)) or "?"
+      counts[tier] = (counts[tier] or 0) + 1
+      if frlgGame and (PokeG.national(tonumber(recv.species)) or 0) > 151 then kanto = false end
+    end
+  end
+  local legends = (counts.legendary or 0) + (counts.mythical or 0)
+  T.check((counts.common or 0) > 100 and legends < 30, ("the mix: %d common, %d legendary or mythical of 400"):format(counts.common or 0, legends))
+  T.check(kanto, "without the National Pokédex, FireRed gets only Kanto's 151")
+end
+-- the GTS: deposit, a fair ask answered, collected; an absurd one never, withdrawn
+local pidgey = spOf(16)
+local before = #gs.party
+ok, why = Gx.deposit(gs, BxG.addr("party", 2), pidgey, 1, gnow)
+T.check(ok and #gs.party == before - 1 and Gx.posted() and Gx.posted().matchAt, "deposited, asking for a Pidgey: off the party, a match coming")
+ok, why = Gx.deposit(gs, BxG.addr("party", 1), pidgey, 1, gnow)
+T.check(not ok and why == "busy", "one at a time")
+T.check(not Gx.settle(gs, gnow + 1) and Gx.waiting() == 0, "not yet")
+T.check(Gx.settle(gs, Gx.posted().matchAt) and Gx.waiting() == 1, "answered: it waits to be collected")
+ok, why = Gx.withdraw(gs)
+T.check(not ok and why == "traded", "it can't be withdrawn now")
+local okC, recvC = Gx.collect(gs)
+T.check(okC and tonumber(recvC.species) == pidgey and PokeG.isTradedMon(recvC, gs) and Gx.waiting() == 0 and not Gx.posted(),
+  "collected: a stranger's Pidgey")
+local mewtwo = spOf(150)
+before = #gs.party
+ok = Gx.deposit(gs, BxG.addr("party", #gs.party), mewtwo, 1, gnow)
+T.check(ok and Gx.posted().matchAt == false, "asking a Mewtwo for that: nobody answers")
+T.check(not Gx.settle(gs, gnow + 10 * 86400), "not even in ten days")
+ok = Gx.withdraw(gs)
+T.check(ok and #gs.party == before and not Gx.posted(), "withdrawn: it's back")
+-- the strangers' listings: the same for the same half hour; answering one
+do
+  local a = Gx.offers(gs, gnow)
+  local keys = {}
+  for i, L in ipairs(a) do keys[i] = L.key .. ":" .. tostring(L.sp) .. ":" .. tostring(L.ask) end
+  local b = Gx.offers(gs, gnow + 60)
+  local same = #a == #b
+  for i, L in ipairs(b) do same = same and keys[i] == L.key .. ":" .. tostring(L.sp) .. ":" .. tostring(L.ask) end
+  T.check(#a >= 6 and same, "ten listings each half hour, the same within it (" .. #a .. ")")
+  local L = a[1]
+  local range = Gx.LEVELS[L.levels]
+  Party.giveMon(gs, L.ask, math.max(2, range[1]))
+  local mineAddr = BxG.addr("party", #gs.party)
+  ok, why = Gx.accept(gs, L, BxG.addr("party", 1))
+  if tonumber(gs.party[1].species) ~= L.ask then T.check(not ok and why == "wrong", "the wrong Pokémon: refused") end
+  local list = Gx.offers(gs, gnow + 120)
+  local canDo = false
+  for _, M in ipairs(list) do if M.key == L.key then canDo = M.canDo end end
+  T.check(canDo, "having what it asks: it can be answered")
+  ok = Gx.accept(gs, L, mineAddr)
+  T.check(ok and tonumber(gs.party[#gs.party].species) == L.sp, "answered: their Pokémon in its place")
+  list = Gx.offers(gs, gnow + 180)
+  local done = false
+  for _, M in ipairs(list) do if M.key == L.key then done = M.done end end
+  T.check(done, "and that listing is done")
+end
+-- a trade evolution: Kadabra
+do
+  local kad = Gx.make(gs, spOf(64), 30, Gx.STRANGERS[2], 0x0BCD2345)
+  T.eq(Gx.evolveTarget(gs, kad), spOf(65), "a Kadabra received evolves (Alakazam)")
+end
+
+-- the window: Wonder Trade by buttons, the search, the pad, the reveal; the tabs
+Gx.store = gtsSave
+gtsSave.data = {}
+s.party = {}
+Party.giveMon(s, spOf(16), 10)
+Party.giveMon(s, spOf(19), 12)
+local evolve0 = Gx.evolveTarget
+Gx.evolveTarget = function() return nil end
+do
+  local at
+  for i, app in ipairs(st.grid) do if app.id == "gts" then at = i end end
+  T.check(at ~= nil, "GTS on the home screen")
+  D.launch("grid", at)
+end
+draw(30)
+local GW = D.window()
+T.check(GW and GW.title == "GTS", "GTS opens")
+local gw = GW.state
+T.check(#gw.rows >= 2 and gw.tab == "wonder", "Wonder Trade: your Pokémon to choose from")
+press("down")
+press("a")
+T.check(gw.confirm and gw.confirm.kind == "wonder", "A: send it?")
+press("a")
+T.check(gw.search and not gw.search.found, "yes: searching the world")
+draw(20)
+press("a")
+draw(2)
+T.check(gw.search and gw.search.found, "A skips the search: found")
+do
+  local n, dir, _, _, kind = D.padState()
+  T.check(n >= 1 and kind == "ball", "the Poké Balls cross the pad (" .. tostring(dir) .. ")")
+end
+for _ = 1, 300 do
+  if gw.reveal then break end
+  draw(1)
+end
+T.check(gw.reveal and gw.reveal.mon == s.party[2], "the newcomer revealed, in your party")
+press("a")
+T.check(not gw.reveal, "A: done")
+local FrlgFont4 = require("src.ui.game3.frlg_font")
+local realGlyph4 = FrlgFont4.drawGlyph
+FrlgFont4.drawGlyph = function() return 7 end
+draw(60)
+local perWonder = garbageOf(120)
+press("start")
+T.eq(gw.tab, "browse", "START: the GTS listings")
+draw(60)
+local perBrowseG = garbageOf(120)
+press("start")
+T.eq(gw.tab, "deposit", "START: My Deposit")
+draw(60)
+local perDeposit = garbageOf(120)
+FrlgFont4.drawGlyph = realGlyph4
+T.check(perWonder < 0.3 and perBrowseG < 0.3 and perDeposit < 0.3,
+  ("GTS draws next to no garbage (%.3f, %.3f, %.3f KB a frame)"):format(perWonder, perBrowseG, perDeposit))
+for _, shape in ipairs({ { 480, 320 }, { 320, 480 }, { 900, 320 } }) do
+  VP.width, VP.height = shape[1], shape[2]
+  for _ = 1, 3 do
+    draw(2)
+    press("start")
+  end
+  T.check(not D.state().winFailed, "GTS draws " .. shape[1] .. "x" .. shape[2])
+end
+VP.width, VP.height = 480, 320
+press("b")
+T.check(D.window() == nil, "B closes the GTS")
+draw(30)
+Gx.evolveTarget = evolve0
+Gx.store, Gx.rng, Gx.now = gtsStore0, gtsRng0, gtsNow0
+end
+
 -- ------- the Pokémon model (src/boxes.lua, on the engine's Storage)
 local Bx = X._test.bx
 local function newMon(species, hp, extra)
@@ -1425,11 +1627,12 @@ T.check(en and en["app.items"] == "Items", "English loads (lang/en.lua)")
 local missing, named = {}, 0
 local NOT_WORDS = { ["game.ready"] = true }   -- (an engine event's name)
 local PREFIX = { hint = 1, menu = 1, logoff = 1, button = 1, about = 1, nav = 1, game = 1, app = 1, items = 1,
-                 pocket = 1, reason = 1, mail = 1, settings = 1, wall = 1, failed = 1, mart = 1, auction = 1, slots = 1 }
+                 pocket = 1, reason = 1, mail = 1, settings = 1, wall = 1, failed = 1, mart = 1, auction = 1, slots = 1, gts = 1 }
 for _, file in ipairs({ "main.lua", "src/desktop.lua", "src/apps.lua", "src/apps/items.lua", "src/apps/mail.lua",
                         "src/apps/settings.lua", "src/apps/mart.lua", "src/mart.lua",
                         "src/apps/auction.lua", "src/auction.lua",
-                        "src/apps/slots.lua", "src/slots.lua" }) do
+                        "src/apps/slots.lua", "src/slots.lua",
+                        "src/apps/gts.lua", "src/gts.lua" }) do
   local src = readFile(file) or ""
   for key in src:gmatch('"([%a][%w_]*%.[%w_%.]+)"') do
     if PREFIX[key:match("^(%a+)")] and not key:match("%.$") and not key:match("%.lua$") and not NOT_WORDS[key] then
@@ -1444,6 +1647,12 @@ for _, k in ipairs({ "bag_full", "pc_full", "stack_full", "important", "gone" })
 end
 for _, k in ipairs({ "bag_full", "holding", "box_full", "gone" }) do
   if not en["reason.mail." .. k] then missing[#missing + 1] = "reason.mail." .. k end
+end
+for _, k in ipairs({ "last", "egg", "national", "mail", "invalid", "gone", "busy", "traded", "no_room", "wrong" }) do
+  if not en["reason.gts." .. k] then missing[#missing + 1] = "reason.gts." .. k end
+end
+for _, k in ipairs({ "kanto", "johto", "hoenn", "sinnoh", "unova", "kalos", "alola", "galar", "paldea" }) do
+  if not en["gts.region." .. k] then missing[#missing + 1] = "gts.region." .. k end
 end
 for _, k in ipairs({ "money", "tickets", "bag_full", "no_room" }) do
   if not en["reason.slots." .. k] then missing[#missing + 1] = "reason.slots." .. k end

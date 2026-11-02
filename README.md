@@ -41,6 +41,21 @@ opens a desktop in a sleek monitor instead of a text menu.
   move the whole stack. L and R flip through the Bag's pockets, and START sorts the PC by name or
   pocket or tosses an item. Important items stay in the Bag. Items other mods add (WoobDex's
   candies and Max Mushrooms) show with their own pictures.
+- 🌐 **GTS:** trade with Trainers from around the world.
+  - **Wonder Trade:** pick any Pokémon from your party or a box and send it off. The globe spins
+    while it searches, a Trainer from somewhere (Yuki from Johto, Pierre from Kalos …) is found,
+    the Poké Balls swap on the pad, and you see who you got: usually something everyday, now and
+    then a rare one, very rarely a legend.
+  - **GTS listings:** Trainers' offers, refreshed every half hour, each saying what they want in
+    return. The ones you can answer light up.
+  - **My Deposit:** put one of yours up and ask for a species you've seen, at a level range.
+    Someone answers in real time if the deal is fair (ask for a legend in exchange for a Pidgey
+    and you'll wait forever); collect your new Pokémon, or withdraw yours any time before.
+  - **As in a real trade:** what you receive belongs to its original Trainer. It gains more EXP,
+    a high-level one may not obey until you have the badges, and Pokémon that evolve by trading
+    (Kadabra, Machoke …) evolve as they arrive. The game's rules hold: you keep a Pokémon that can
+    battle, Eggs and mail holders stay, and without the National Pokédex FireRed and LeafGreen
+    trade only Kanto's 151.
 - 🛒 **Mart:** a Poké Mart in your PC. Buy Poké Balls, medicine, battle items and Repels straight
   into your Bag, and watch each purchase appear on the pad. The shelves fill up as you earn Gym
   Badges, as in the later games: Poké Balls, Potions and the status heals from the start, Great
@@ -104,7 +119,7 @@ opens a desktop in a sleek monitor instead of a text menu.
 - ℹ️ **About:** which version you're running.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
 
-Boxes, Items, Mart, R-Bay, Slots, Mail and Settings open in a window on the desktop, in the style of macOS and iOS:
+Boxes, Items, GTS, Mart, R-Bay, Slots, Mail and Settings open in a window on the desktop, in the style of macOS and iOS:
 white cards on a soft grey, segmented switches, and a blue ring round whatever the controller is
 on. B or the red button closes it. Oak's PC,
 Hall of Fame and Decorate open the game's own screens, and closing them brings you back to the
@@ -127,7 +142,7 @@ turn it on for your Generation 3 games.
 
 - **Any save:** items and mail move exactly as the game's own PC moves them, and the Mart spends
   and pays money as a Poké Mart does. The only things WoobOS keeps in your save are your R-Bay bids
-  and results and your Rocket Tickets, so you can turn the mod on and off whenever you like (bids still running wait for
+  and results, your Rocket Tickets and a Pokémon you've put on the GTS, so you can turn the mod on and off whenever you like (bids still running wait for
   it to come back).
 - **Other mods:** other mods can add their own apps to the desktop.
 - **WoobleDex:** R-Bay auctions its Pokémon too, its legendaries and mythicals in their tiers. The

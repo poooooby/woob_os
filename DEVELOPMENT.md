@@ -18,6 +18,8 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/apps/settings.lua` | The Settings window: Language, Wallpaper |
 | `src/auction.lua` | R-Bay's market: auctions worked out from the save's seed and the clock, eBay proxy bidding, bids / results in `mod.save` |
 | `src/apps/auction.lua` | The R-Bay window: Browse \| My Bids, the IVs, the max-bid stepper |
+| `src/gts.lua` | The GTS: strangers and their Pokémon (traded, their OT), the trade rules, Wonder Trade, the deposit and its match, the listings |
+| `src/apps/gts.lua` | The GTS window: Wonder Trade's picker, the globe search and the reveal; the listings; My Deposit |
 | `src/slots.lua` | Rocket Slots: the reels, the pay table, spins (the win held until the reels stop), tickets and the prize corner |
 | `src/apps/slots.lua` | The Slots window: the cabinet and its marquee, the reels' roll, the pay table, Prizes |
 | `src/mart.lua` | The shop model: the badge-gated stock, buy / sell on the session's money and the engine's `Bag` |
@@ -67,7 +69,7 @@ wos.apps.register({
 
 `ctx`: `session`, `mode` (`"select"` / `"bedroom"`), `family` (`"frlg"` / `"rse"`), `row(id)`,
 `finish(row)`, `done()`, `logoff()`, `over(open)`, `original(opts)`, `sheet(kind)`. Glyphs: `ball`,
-`bag`, `mail`, `cart`, `rocket`, `slots`, `home`, `trophy`, `dex`, `power`, `logo`, `gear`, or a function
+`bag`, `mail`, `cart`, `rocket`, `slots`, `globe`, `home`, `trophy`, `dex`, `power`, `logo`, `gear`, or a function
 `(K, cx, cy, size, alpha)`.
 
 A window instead of `open`: `window = function(ctx, env) return win end`, where `win` has `title`,
@@ -226,6 +228,35 @@ bet, which prices the prize corner (Rare Candy 15 ≈ ₽4.3k, Porygon 200 ≈ �
   engine plays one at a time). Coins, confetti and flying tickets come from a fixed pool of
   `PARTICLES` records; the payout counts up in twenty steps (the amount texts are cached). Text is
   scaled with a transform (`scaleAbout`), never by font size, so no new fonts are made per frame.
+
+## GTS
+
+`src/gts.lua` (Gx): Wonder Trade and the Global Trade Station with made-up Trainers (`STRANGERS`:
+a name of seven letters at most, a home region, a gender; each trade a fresh 32-bit OT ID that is
+never the player's).
+
+- **Their Pokémon:** `Gx.make` builds it the way the engine's NPC trades do (`Trade.createTradeMon`):
+  `Party.giveMon` on a throwaway session (the real party and Pokédex untouched), then the OT name,
+  ID, gender, `metLocation = 0xFE`, sometimes a held item, `applyStats`. `Pokemon.isTradedMon` is then
+  true: the game's 1.5x EXP and badge obedience apply on their own.
+- **The rules:** `Gx.canSend` asks the game's `Trade.canTradeSelectedMon` (a box Pokémon through a
+  two-Pokémon stand-in party; the National Pokédex check only on FireRed / LeafGreen, whose rule it
+  is), plus our own: an Egg, a mail holder, the last Pokémon that can battle stay. What may come in:
+  `Gx.allowed` (Kanto's 151 on FRLG without the National Pokédex).
+- **The swap:** a party slot through `Trade.tradeMons` (mail, friendship 70, the Pokédex); a box cell
+  by hand (healed, the Pokédex); `Trade.noteLinkTrade` counts it.
+- **Wonder Trade:** a tier by weight (45 / 30 / 15 / 8 / 1.5 / 0.5 %), a species from R-Bay's pools
+  (`Au.pools`, `Au.tierOf`, `Au.minLevel`), the level within 5 of yours.
+- **Your deposit:** the Pokémon itself kept in `mod.save` "gts".deposit while posted. `matchAt` from
+  the ask's fairness (the tier rank asked minus given, +1 for a level range well above): within an
+  hour, within four, a 30% chance within six, or never. `Gx.settle` (the desktop's tick,
+  `save.loaded`) makes the stranger's Pokémon when it's time; `Gx.collect` places it.
+- **Listings:** ten per half hour from the save's seed (R-Bay's `Au.seedOf`), 40% asking for a species
+  the player owns; `done` keys per window.
+- **Trade evolution:** `Gx.evolveTarget` (`Evolution.tradeTarget`), then the window's reveal opens
+  `Gx.openEvolution` (the game's `EvolutionScene`) through `ctx.over` and comes back via `ctx.resume`.
+- **Tests** swap `Gx.store`, `Gx.rng`, `Gx.now`; the probe scripts `Gx.rng` for a legendary and a
+  Kadabra (its evolution scene in the engine).
 
 ## Words
 

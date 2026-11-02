@@ -90,7 +90,7 @@ local function body(game, log)
 
   -- the draw's garbage, measured around each call (warmed up first: LuaJIT compiling the new
   -- paths' traces lands on the heap once)
-  U.wait(60)
+  U.wait(180)
   local draw, drawKb, draws = D.draw, 0, 0
   D.draw = function(...)
     local was = collectgarbage("isrunning")
@@ -650,6 +650,155 @@ local function body(game, log)
     U.tap(game, "b")
     waitFor(function() return D.window() == nil and D.state() and D.state().zoom == nil end, 600)
     check(D.window() == nil and D.isOpen(), "B: the desktop again")
+  end
+  st = D.state()
+
+  -- GTS: a party lent; a Wonder Trade told to bring a legendary (search, found, reveal), one that
+  -- brings a Kadabra (the game's evolution scene, then the window again); the listings; a deposit
+  -- (asking a Pidgey) answered and collected; everything put back after
+  do
+    local Gx, Au = X._test.gts, X._test.auction
+    local Party = require("src.core.game3.party")
+    local P = require("src.core.game3.pokemon")
+    local party0 = s0.party
+    local scratch = { party = {}, name = s0.name, trainerId = s0.trainerId, secretId = s0.secretId,
+                      dex = { seen = {}, owned = {}, caught = {} } }
+    Party.giveMon(scratch, P.speciesFromNational(16), 12)
+    Party.giveMon(scratch, P.speciesFromNational(19), 14)
+    Party.giveMon(scratch, P.speciesFromNational(21), 15)
+    s0.party = scratch.party
+    local gtsData0 = Gx.store and Gx.store:get("gts")
+    local rng0, now0 = Gx.rng, Gx.now
+    local queue = {}
+    local R = love.math.random
+    Gx.rng = function(n)
+      local v = table.remove(queue, 1)
+      if v then return math.max(1, math.min(n, v)) end
+      return R(1, n)
+    end
+    local function poolIndex(nat)
+      local sp = P.speciesFromNational(nat)
+      for tier, pool in pairs(Au.pools()) do
+        for i, e in ipairs(pool) do if e.sp == sp then return tier, i end end
+      end
+    end
+    for i, app in ipairs(st.grid) do if app.id == "gts" then st.focus, st.cursor = "grid", i end end
+    U.tap(game, "a")
+    waitFor(function() return D.window() ~= nil end, 600)
+    U.wait(10)
+    local GW = D.window()
+    check(GW and GW.title == "GTS", "GTS: its window")
+    if GW then
+      local gw = GW.state
+      shot("d14_gts_wonder")
+      -- (a legendary: the tier roll, then the first of that pool)
+      queue = { 990, 1 }
+      gw.cursor = 2
+      U.tap(game, "a"); U.wait(4)
+      shot("d14b_gts_confirm")
+      U.tap(game, "a"); U.wait(40)
+      shot("d14c_gts_search")
+      check(waitFor(function() return gw.search and gw.search.found end, 600), "the search finds a trainer")
+      U.wait(30)
+      shot("d14d_gts_found")
+      check(waitFor(function() return gw.reveal ~= nil end, 600), "the newcomer revealed")
+      U.wait(30)
+      shot("d14e_gts_reveal")
+      check(gw.reveal and Au.tierOf(tonumber(gw.reveal.mon.species)) == "legendary" and P.isTradedMon(gw.reveal.mon, s0),
+        "a legendary, from a stranger")
+      U.tap(game, "a"); U.wait(10)
+      -- (a Kadabra: the game's evolution scene, then this window again)
+      local tier, idx = poolIndex(64)
+      local base = { common = 1, uncommon = 451, rare = 751, prized = 901, legendary = 981, mythical = 996 }
+      queue = { base[tier] or 451, idx }
+      gw.cursor = 1
+      U.tap(game, "a"); U.wait(4)
+      U.tap(game, "a"); U.wait(4)
+      U.tap(game, "a")
+      check(waitFor(function() return gw.reveal ~= nil end, 900), "a Kadabra revealed")
+      check(gw.reveal and gw.reveal.evolve ~= nil, "it's going to evolve")
+      U.wait(20)
+      shot("d14f_gts_kadabra")
+      U.tap(game, "a")
+      local Scene = require("src.ui.game3.evolution_scene")
+      check(waitFor(function() return Scene.isOpen() end, 300), "the game's evolution scene")
+      U.wait(120)
+      shot("d14g_gts_evolving")
+      waitFor(function()
+        if Scene.isOpen() then U.tap(game, "a") end
+        return not Scene.isOpen() and D.window() ~= nil
+      end, 3000)
+      GW = D.window()
+      gw = GW and GW.state
+      local alakazam = false
+      for _, m in ipairs(s0.party) do if tonumber(m.species) == P.speciesFromNational(65) then alakazam = true end end
+      check(alakazam and GW and GW.title == "GTS", "Alakazam, and the GTS again")
+      U.wait(20)
+      -- the listings
+      U.tap(game, "start"); U.wait(30)
+      check(gw.tab == "browse" and #gw.listings > 0, "the GTS listings")
+      shot("d14h_gts_browse")
+      -- the window's draw garbage (warmed up)
+      local drawG, kbG, nG, on = D.draw, 0, 0, false
+      D.draw = function(...)
+        if not on then return drawG(...) end
+        local was = collectgarbage("isrunning")
+        collectgarbage("stop")
+        local kb0 = collectgarbage("count")
+        drawG(...)
+        kbG, nG = kbG + (collectgarbage("count") - kb0), nG + 1
+        if was then collectgarbage("restart") end
+      end
+      U.wait(120)
+      on = true
+      U.wait(120)
+      D.draw = drawG
+      log(("  the GTS window's draw: %.3f KB per frame over %d frames"):format(kbG / math.max(1, nG), nG))
+      check(kbG / math.max(1, nG) < 0.5, "the GTS window makes next to no garbage")
+      -- a deposit: one of yours for a Pidgey, any level; answered; collected
+      s0.dex = s0.dex or { seen = {}, owned = {}, caught = {} }
+      s0.dex.seen = s0.dex.seen or {}
+      local pidgeySeen0 = s0.dex.seen[P.speciesFromNational(16)]
+      s0.dex.seen[P.speciesFromNational(16)] = true
+      U.tap(game, "start"); U.wait(10)
+      check(gw.tab == "deposit", "My Deposit")
+      shot("d14i_gts_deposit_empty")
+      U.tap(game, "a"); U.wait(6)
+      gw.cursor = #gw.rows
+      U.tap(game, "a"); U.wait(6)
+      -- (a Pidgey, seen for the run: a fair ask, always answered, nothing to evolve)
+      for i, sp in ipairs(gw.species) do if sp == P.speciesFromNational(16) then gw.scursor = i end end
+      U.wait(4)
+      shot("d14j_gts_species")
+      U.tap(game, "a"); U.wait(6)
+      shot("d14k_gts_levels")
+      U.tap(game, "a"); U.wait(4)
+      U.tap(game, "a"); U.wait(20)
+      local dep = Gx.posted()
+      check(dep and dep.matchAt, "posted, a match coming")
+      shot("d14l_gts_waiting")
+      if dep and dep.matchAt then
+        local at = dep.matchAt
+        Gx.now = function() return at + 1 end
+        check(waitFor(function() return Gx.waiting() == 1 end, 300), "answered on the desktop's tick")
+        U.wait(30)
+        shot("d14m_gts_traded")
+        U.tap(game, "a")
+        check(waitFor(function() return gw.reveal ~= nil end, 600), "collected: revealed")
+        U.wait(20)
+        U.tap(game, "a"); U.wait(6)
+      end
+      -- put back
+      s0.dex.seen[P.speciesFromNational(16)] = pidgeySeen0
+      s0.party = party0
+      if Gx.store then Gx.store:set("gts", gtsData0) end
+      Gx.rng, Gx.now = rng0, now0
+      U.tap(game, "b")
+      waitFor(function() return D.window() == nil and D.state() and D.state().zoom == nil end, 600)
+      check(D.window() == nil and D.isOpen(), "B: the desktop again")
+    end
+    s0.party = party0
+    Gx.rng, Gx.now = rng0, now0
   end
   st = D.state()
 

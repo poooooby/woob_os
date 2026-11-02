@@ -895,6 +895,27 @@ return function(deps)
       G.arc("line", "open", cx + s * 0.03, (top + mid) / 2, (mid - top) / 2, -math.pi / 2, math.pi / 2)
       G.line(cx + s * 0.03, mid, x0, mid)
       G.line(cx - s * 0.01, mid, cx + s * 0.16, bot)
+    elseif kind == "globe" then
+      -- (a globe: its meridians and parallels, a ring round it with a gold Poké Ball on it)
+      local rad = s * 0.27
+      G.circle("line", cx, cy, rad)
+      G.ellipse("line", cx, cy, rad * 0.45, rad)
+      G.line(cx, cy - rad, cx, cy + rad)
+      G.line(cx - rad, cy, cx + rad, cy)
+      G.line(cx - rad * 0.87, cy - rad * 0.5, cx + rad * 0.87, cy - rad * 0.5)
+      G.line(cx - rad * 0.87, cy + rad * 0.5, cx + rad * 0.87, cy + rad * 0.5)
+      G.push()
+      G.translate(cx, cy)
+      G.rotate(-0.4)
+      G.setColor(1, 0.86, 0.35, a)
+      G.ellipse("line", 0, 0, rad * 1.45, rad * 0.38)
+      local ra = (K.t or 0) * 1.2
+      local bx, by = math.cos(ra) * rad * 1.45, math.sin(ra) * rad * 0.38
+      G.setColor(0.95, 0.2, 0.22, a)
+      G.arc("fill", bx, by, s * 0.05, math.pi, math.pi * 2)
+      G.setColor(1, 1, 1, a)
+      G.arc("fill", bx, by, s * 0.05, 0, math.pi)
+      G.pop()
     elseif kind == "slots" then
       -- (a slot machine in colour: a white cabinet with a red crown, three reels each showing a
       -- Poké Ball, the lever's red knob, a sparkle twinkling at its corner)
