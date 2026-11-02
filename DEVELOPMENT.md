@@ -213,21 +213,25 @@ the hidden value `V` (the tier's band x `0.6 + 0.8 q^2` x `1 + 0.08` per 31), an
 ## Slots
 
 `src/slots.lua`: three fixed strips of 20 stops (6 Poké Balls, 4 Great, 3 Ultra, 2 Rare Candies,
-2 Pikachu, 1 Meowth, 1 Master Ball, 1 R each, in their own orders). Three of a kind on the middle
-row pays `PAYS[sym].x` × the bet and `PAYS[sym].t` tickets per ₽50 bet. A Pikachu on reel 1
+2 Pikachu, 1 Meowth, 1 Master Ball, 1 R each, in their own orders). `LINES` are rows per reel
+(-1 top, 0 middle, 1 bottom: the middle, top, bottom, then the two diagonals); one, three or five
+are played (`LINE_SETS`), the bet on each, and `Sl.at(r, stop, row)` reads a line. Three of a kind
+on a played line pays `PAYS[sym].x` × the bet and `PAYS[sym].t` tickets per ₽50 bet. A Pikachu on reel 1
 returns the bet (`ONE`), on reels 1 and 2 pays 8× (`TWO`). Walking all 8,000 stops gives a 91.8%
 return; the jackpot is 1 in 8,000. Tickets per ₽50 cost about ₽285 of expected loss whatever the
 bet, which prices the prize corner (Rare Candy 15 ≈ ₽4.3k, Porygon 200 ≈ ₽57k).
 
-- **A spin:** `Sl.spin(s, level)` takes the bet and draws the three stops at once (`Sl.rng`, else
+- **A spin:** `Sl.spin(s, level, lines)` takes the bet × the lines and draws the three stops at once (`Sl.rng`, else
   `love.math.random`); the reels' stopping is only shown. The win is held until `Sl.collect(s)`
   (when the last reel lands, or the window closes), so the menu bar's money doesn't give it away.
+  `result.won[l]` is each line's ×; every line's distribution is the middle's (each reel's stop is
+  uniform), so the return is the same on any number of lines (the test walks each).
 - **Prizes:** `Sl.prizes()` (TMs named with their move, `Pokemon.moveFromTmItem`), `Sl.redeem`
   (`Bag.add`, or `Party.giveMonToPlayer` at `10 + 3 × badges`); the tickets come off only after.
 - **Kept:** `mod.save` "slots" (`tickets`, `stats`). Tests swap `Sl.store` and script `Sl.rng`.
 - **The show** (`src/apps/slots.lua`): `st.tease` (reels 1 and 2 match an Ultra Ball or better)
-  holds reel 3 back `TEASE` seconds with rising `SE_NOTE_*`; `celebrate` picks a `TIERS` row by
-  × the bet (banner, count-up time, coins, rays, shake) and queues sounds with `seLater` (the
+  (on any played line) holds reel 3 back `TEASE` seconds with rising `SE_NOTE_*`; `celebrate` picks a `TIERS` row by
+  × everything bet (banner, count-up time, coins, rays, shake) and queues sounds with `seLater` (the
   engine plays one at a time). Coins, confetti and flying tickets come from a fixed pool of
   `PARTICLES` records; the payout counts up in twenty steps (the amount texts are cached). Text is
   scaled with a transform (`scaleAbout`), never by font size, so no new fonts are made per frame.

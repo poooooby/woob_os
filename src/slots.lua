@@ -1,5 +1,6 @@
 -- Rocket Slots, the model behind the Slots app: a three-reel machine played with money, and a prize
--- corner. Three of a kind on the middle line pays; the rarer kinds drop Rocket Tickets too, which
+-- corner. One, three or five lines are played (the middle; the top and bottom rows; the two
+-- diagonals), the bet on each; three of a kind on a line pays; the rarer kinds drop Rocket Tickets too, which
 -- the prize corner trades for TMs, rare items and a few Pokémon. The outcome is drawn when the
 -- spin starts (stopping the reels is only shown). Tickets and the machine's counts are kept in the
 -- save (mod.save "slots"), so they rewind with the money they came from.
@@ -7,10 +8,13 @@
 --   Sl = slots(engine, deps)   deps: save (mod.save), rng(n) -> 1..n, badges(s) -> 0..8
 --   Sl.BETS { 50, 100, 500, 1000 }   Sl.SYMBOLS   Sl.REELS (three strips of symbol numbers)
 --   Sl.PAYS (three of a kind: × the bet, tickets × bet / 50)   Sl.ONE, Sl.TWO (Pikachu from the left)
+--   Sl.LINES (each line's row on each reel: -1 top, 0 middle, 1 bottom)   Sl.LINE_SETS { 1, 3, 5 }
+--   Sl.at(r, stop, row) -> the symbol on reel r at that row when it stops at `stop`
 --   Sl.payout(a, b, c) -> × the bet, tickets per ₽50, jackpot (the symbols on the line)
---   Sl.spin(s, level) -> true, result | false, "money"   (the bet taken; the win held back until
---       Sl.collect(s), when the reels have stopped, so the money doesn't tell before they do)
---       result = { stops = { 1..20 x3 }, symbol (three of a kind) | nil, pays (money), tickets, jackpot }
+--   Sl.spin(s, level, lines) -> true, result | false, "money"   (the bet × the lines taken; the win
+--       held back until Sl.collect(s), when the reels have stopped, so the money doesn't tell before)
+--       result = { stops = { 1..20 x3 }, lines, won = { × per line, 0 if none } x5, symbol (the
+--       best three of a kind on a line) | nil, pays (money), tickets, jackpot }
 --   Sl.collect(s) -> pays, tickets (the held win, paid once; 0, 0 without one) ; Sl.result (the last)
 --   Sl.speciesOf(symbol) -> the engine's species for a Pokémon symbol (kept)
 --   Sl.prizes() -> { { kind = "item" | "mon", id, cost, name, level } ... }   (made once)
@@ -43,6 +47,9 @@ local REELS = {
   { 1, 3, 2, 5, 1, 6, 2, 4, 1, 3, 8, 1, 2, 4, 5, 1, 3, 7, 2, 1 },
 }
 local BETS = { 50, 100, 500, 1000 }
+-- the lines: the middle, the top and bottom rows, then the diagonals (rows on reels 1, 2, 3)
+local LINES = { { 0, 0, 0 }, { -1, -1, -1 }, { 1, 1, 1 }, { -1, 0, 1 }, { 1, 0, -1 } }
+local LINE_SETS = { 1, 3, 5 }
 
 -- the prize corner: items by id, Pokémon by National Dex number; tickets each
 local PRIZES = {
@@ -57,7 +64,8 @@ local PRIZES = {
 return function(engine, deps)
   deps = deps or {}
   local Sl = { BETS = BETS, SYMBOLS = SYMBOLS, REELS = REELS, PAYS = PAYS, ONE = ONE, TWO = TWO,
-               PIKACHU = PIKACHU, ROCKET = ROCKET, store = deps.save, rng = deps.rng }
+               PIKACHU = PIKACHU, ROCKET = ROCKET,
+               LINES = LINES, LINE_SETS = LINE_SETS, store = deps.save, rng = deps.rng }
 
   local loose
   local function data()
@@ -89,6 +97,11 @@ return function(engine, deps)
     return 0, 0, false
   end
 
+  function Sl.at(r, stop, row)
+    local reel = REELS[r]
+    return reel[(stop - 1 + row) % #reel + 1]
+  end
+
   local function roll(n)
     if Sl.rng then return Sl.rng(n) end
     local R = love and love.math and love.math.random
@@ -96,7 +109,8 @@ return function(engine, deps)
   end
   local function money(s) return max(0, floor(tonumber(s and s.money) or 0)) end
 
-  local result = { stops = { 1, 1, 1 }, symbol = nil, pays = 0, tickets = 0, jackpot = false }
+  local result = { stops = { 1, 1, 1 }, lines = 1, won = { 0, 0, 0, 0, 0 }, symbol = nil, pays = 0, tickets = 0,
+                   jackpot = false }
   Sl.result = result
   local held = false
   function Sl.collect(s)
@@ -114,23 +128,35 @@ return function(engine, deps)
     end
     return pays, tickets
   end
-  function Sl.spin(s, level)
+  function Sl.spin(s, level, lines)
     Sl.collect(s)
     local bet = BETS[level] or BETS[1]
-    if not s or money(s) < bet then return false, "money" end
-    s.money = money(s) - bet
+    lines = max(1, min(#LINES, floor(tonumber(lines) or 1)))
+    local cost = bet * lines
+    if not s or money(s) < cost then return false, "money" end
+    s.money = money(s) - cost
     local st = result.stops
     for r = 1, 3 do st[r] = roll(#REELS[r]) end
-    local a, b, c = REELS[1][st[1]], REELS[2][st[2]], REELS[3][st[3]]
-    local x, t, jackpot = Sl.payout(a, b, c)
-    local pays = x * bet
+    local pays, tickets, jackpot, symbol = 0, 0, false, nil
+    local won = result.won
+    for l = 1, #LINES do
+      won[l] = 0
+      if l <= lines then
+        local row = LINES[l]
+        local a, b, c = Sl.at(1, st[1], row[1]), Sl.at(2, st[2], row[2]), Sl.at(3, st[3], row[3])
+        local x, t, j = Sl.payout(a, b, c)
+        won[l] = x
+        pays, tickets = pays + x * bet, tickets + t * floor(bet / 50)
+        if j then jackpot = true end
+        if a == b and b == c and (not symbol or a > symbol) then symbol = a end
+      end
+    end
     local d = data()
-    local tickets = t * floor(bet / 50)
     local sd = d.stats
-    sd.spins, sd.bet, sd.won = (sd.spins or 0) + 1, (sd.bet or 0) + bet, (sd.won or 0) + pays
+    sd.spins, sd.bet, sd.won = (sd.spins or 0) + 1, (sd.bet or 0) + cost, (sd.won or 0) + pays
     if jackpot then sd.jackpots = (sd.jackpots or 0) + 1 end
     save(d)
-    result.symbol = (a == b and b == c) and a or nil
+    result.lines, result.symbol = lines, symbol
     result.pays, result.tickets, result.jackpot = pays, tickets, jackpot
     held = true
     return true, result

@@ -3,6 +3,13 @@
 All notable changes to this mod are documented here, in
 [keep a changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [0.2.1] - 2026-11-02
+
+### Added
+- **Slots: more lines.** Play one, three or five lines (Up / Down, or the LINES button): the
+  middle row, the top and bottom rows, both diagonals, each line its own bet. Every line pays the
+  same share back; the winning ones glow after the banner.
+
 ## [0.2.0] - 2026-11-02
 
 ### Added

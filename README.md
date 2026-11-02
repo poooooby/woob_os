@@ -80,7 +80,9 @@ opens a desktop in a sleek monitor instead of a text menu.
   at once. My Bids shows where you stand, and a count on R-Bay's icon tells you an auction has
   ended.
 - 🎰 **Slots:** Team Rocket's slot machine, played with your money: ₽50, ₽100, ₽500 or ₽1,000 a
-  spin. Three of a kind on the gold line pays, from Poké Balls (10×) up to three Rocket R's (the
+  line, on one, three or five lines (Up / Down or the LINES button: the middle row, then the top
+  and bottom rows, then both diagonals; each line costs its own bet). Three of a kind on a gold
+  line pays, from Poké Balls (10×) up to three Rocket R's (the
   500× jackpot), and a Pikachu on the first reel gives your bet back. The rarer wins also drop
   Rocket Tickets, more for bigger bets. Pull the lever (or press A) and the reels roll; A stops
   them one by one, or let them land. Two good symbols on the line hold the last reel back while

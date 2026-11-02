@@ -1005,6 +1005,20 @@ do
   T.check(rtp > 0.85 and rtp < 0.97, ("the machine pays back %.1f%% of what's bet"):format(rtp * 100))
   for sym, k in pairs(count) do if sym ~= Sl.ROCKET and k < (count[Sl.ROCKET] or 0) then rarest = false end end
   T.check(jack > 0 and rarest, "the jackpot can come up, rarest of all (1 in " .. math.floor(n / math.max(1, jack)) .. ")")
+  -- every line pays back the same: more lines, the same return, only bigger swings
+  local same = true
+  for l = 2, #Sl.LINES do
+    local row, backL = Sl.LINES[l], 0
+    for s1 = 1, 20 do
+      for s2 = 1, 20 do
+        for s3 = 1, 20 do
+          backL = backL + Sl.payout(Sl.at(1, s1, row[1]), Sl.at(2, s2, row[2]), Sl.at(3, s3, row[3]))
+        end
+      end
+    end
+    if backL ~= back then same = false end
+  end
+  T.check(#Sl.LINES == 5 and same, "five lines, each paying back the same")
 end
 -- spins, with the reels told where to stop
 local queue = {}
@@ -1034,6 +1048,35 @@ local okJ, res = Sl.spin(ss, 4)
 Sl.collect(ss)
 T.check(okJ and res.jackpot and ss.money == 999999, "the jackpot, the money stops at 999,999")
 T.eq(Sl.stats().jackpots, 1, "counted")
+-- more lines: the bet on each; three Great Balls on the top row pay only when it's played
+do
+  local function above(r, sym) for i, v in ipairs(Sl.REELS[r]) do if v == sym then return i % 20 + 1 end end end
+  local function expect(lines, bet)
+    local total = 0
+    for l = 1, lines do
+      local row = Sl.LINES[l]
+      total = total + Sl.payout(Sl.at(1, queue[1], row[1]), Sl.at(2, queue[2], row[2]), Sl.at(3, queue[3], row[3])) * bet
+    end
+    return total
+  end
+  queue = { above(1, 2), above(2, 2), above(3, 2) }
+  local want1 = expect(1, 100)
+  ss.money = 10000
+  ok = Sl.spin(ss, 2, 1)
+  T.check(ok and ss.money == 9900 and Sl.result.won[2] == 0, "one line: the top row isn't played")
+  T.eq(Sl.collect(ss), want1, "one line: only the middle pays")
+  queue = { above(1, 2), above(2, 2), above(3, 2) }
+  local want3 = expect(3, 100)
+  ss.money = 10000
+  ok = Sl.spin(ss, 2, 3)
+  T.check(ok and ss.money == 9700, "three lines: three bets taken")
+  T.check(Sl.result.won[2] == 20 and Sl.result.symbol ~= nil, "the top line: three Great Balls, 20 times its bet")
+  local p3 = Sl.collect(ss)
+  T.check(p3 == want3 and p3 >= 2000, "paid line by line (" .. tostring(p3) .. ")")
+  ss.money = 400
+  ok, why = Sl.spin(ss, 2, 5)
+  T.check(not ok and why == "money" and ss.money == 400, "five lines of ₽100 with ₽400: no spin")
+end
 -- the prize corner
 local list = Sl.prizes()
 local candy, mon
@@ -1106,6 +1149,30 @@ T.check(sws.table, "START: the pay table")
 draw(2)
 press("b")
 T.check(not sws.table and D.window() == SW, "B: back to the machine")
+-- the lines: Up / Down, the LINES button going round
+press("up")
+press("up")
+T.eq(Sl.LINE_SETS[sws.lines], 5, "Up: five lines")
+press("up")
+T.eq(Sl.LINE_SETS[sws.lines], 5, "(no more than five)")
+press("down")
+T.eq(Sl.LINE_SETS[sws.lines], 3, "Down: three")
+SW.tap(2008)
+T.eq(Sl.LINE_SETS[sws.lines], 5, "LINES: five")
+SW.tap(2008)
+T.eq(Sl.LINE_SETS[sws.lines], 1, "LINES again: round to one")
+press("up")
+do
+  local m0 = s.money
+  stopsFor(1, 2, 3)
+  press("a")
+  T.check(sws.spinning and s.money == m0 - 3 * Sl.BETS[sws.bet], "three lines: the bet three times")
+  for _ = 1, 600 do
+    if not sws.spinning then break end
+    draw(1)
+  end
+  T.check(not sws.spinning, "(stopped)")
+end
 -- the garbage: idle, then spinning (warmed up)
 local FrlgFont3 = require("src.ui.game3.frlg_font")
 local realGlyph3 = FrlgFont3.drawGlyph

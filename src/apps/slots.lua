@@ -1,5 +1,6 @@
 -- Rocket Slots: Team Rocket's slot machine, played with money (the model is src/slots.lua,
--- env.slots). Three reels; three of a kind on the gold line pays, the rarer kinds with Rocket
+-- env.slots). Three reels and one, three or five gold lines, the bet on each; three of a kind on a
+-- line pays, the rarer kinds with Rocket
 -- Tickets too, and the Prizes tab trades the tickets for TMs, rare items and Pokémon (onto the pad).
 --
 -- The show: the lever pulls, the reels roll and land with a flash; two good symbols on the line hold
@@ -7,9 +8,9 @@
 -- JACKPOT (a banner, rays behind the big ones, the cabinet shaking), coins burst from the line, the
 -- payout counts up and the tickets fly to their counter. The prize shop: prizes by rarity (a shimmer
 -- on the best), the chosen one on a glow with a bar towards it, confetti when it's redeemed.
---   buttons  Slots: A spin (A again stops the next reel), < > the bet, START the pay table;
+--   buttons  Slots: A spin (A again stops the next reel), < > the bet, ^ v the lines, START the pay table;
 --            Prizes: Up / Down the prize, A redeem; L / R Slots | Prizes, B close
---   touch    SPIN or the lever (a reel, to stop it), the bet's arrows, "?" the pay table; a prize, Redeem
+--   touch    SPIN or the lever (a reel, to stop it), the bet's arrows, LINES, "?" the pay table; a prize, Redeem
 --
 --   window(ctx, env) -> win (src/apps.lua)
 
@@ -23,7 +24,7 @@ local BOUNCE = 0.28
 local LEVER = 0.45
 local PARTICLES = 90
 -- hit args
-local SEG_SLOTS, SEG_PRIZES, BET_DOWN, BET_UP, SPIN, PAYTABLE, REDEEM = 2001, 2002, 2003, 2004, 2005, 2006, 2007
+local SEG_SLOTS, SEG_PRIZES, BET_DOWN, BET_UP, SPIN, PAYTABLE, REDEEM, LINES_BTN = 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008
 local REEL = 2100   -- + r
 local PRIZE = 3000  -- + i
 
@@ -55,7 +56,7 @@ local TIERS = {
 }
 
 local HINTS = {
-  slots = { { "A", "hint.spin" }, { "< >", "hint.bet" }, { "START", "hint.payTable" }, { "L R", "hint.tab" } },
+  slots = { { "A", "hint.spin" }, { "< >", "hint.bet" }, { "^ v", "hint.lines" }, { "START", "hint.payTable" }, { "L R", "hint.tab" } },
   spinning = { { "A", "hint.stop" } },
   prizes = { { "A", "hint.redeem" }, { "L R", "hint.tab" }, { "B", "hint.close" } },
   table = { { "B", "hint.back" } },
@@ -70,7 +71,7 @@ return function(ctx, env)
   local function now() return env.now and env.now() or 0 end
 
   local st = {
-    tab = "slots", bet = 2, spinning = false, t0 = 0, stopAt = { 0, 0, 0 }, stopped = { true, true, true },
+    tab = "slots", bet = 2, lines = 1, spinning = false, t0 = 0, stopAt = { 0, 0, 0 }, stopped = { true, true, true },
     landT = { -10, -10, -10 }, pos = { 1, 1, 1 }, final = { 1, 1, 1 }, tease = false, win = nil, table = false,
     cursor = 1, top = 0, visible = 6, toast = nil, leverT = -10, shownTickets = nil, ticketPop = -10,
     noteAt = 0, note = 0, redeemT = -10, redeemId = nil,
@@ -142,7 +143,7 @@ return function(ctx, env)
       end
       return
     end
-    local ok, res = Sl.spin(session(), st.bet)
+    local ok, res = Sl.spin(session(), st.bet, Sl.LINE_SETS[st.lines])
     if not ok then return toast(T("reason.slots.money"), true) end
     local t = now()
     st.spinning, st.t0, st.win, st.leverT = true, t, nil, t
@@ -151,9 +152,13 @@ return function(ctx, env)
       st.stopAt[r] = t + STOP1 + STOP_GAP * (r - 1)
       st.stopped[r] = false
     end
-    -- (the first two reels show something good on the line: the last one is held back)
-    local a, b = REELS[1][res.stops[1]], REELS[2][res.stops[2]]
-    st.tease = a == b and a >= 3
+    -- (the first two reels show something good on a line: the last one is held back)
+    st.tease = false
+    for l = 1, res.lines do
+      local row = Sl.LINES[l]
+      local a, b = Sl.at(1, res.stops[1], row[1]), Sl.at(2, res.stops[2], row[2])
+      if a == b and a >= 3 then st.tease = true end
+    end
     if st.tease then st.stopAt[3] = st.stopAt[3] + TEASE end
     st.note = 0
     se("SE_BALL_TRAY_ENTER")
@@ -162,19 +167,38 @@ return function(ctx, env)
   -- the win, as it lands: its tier, its banner, coins from the line, the tickets flying
   local NOTES = { "SE_NOTE_C", "SE_NOTE_D", "SE_NOTE_E", "SE_NOTE_F", "SE_NOTE_G", "SE_NOTE_A", "SE_NOTE_B", "SE_NOTE_C_HIGH" }
   local lineAt = { x = 0, y = 0, w = 0 }
+  local lineY = { 0, 0, 0, 0, 0 }   -- each line's height at the middle reel (drawMachine)
+  -- the n-th winning line of the last spin (round and round)
+  local function nthWin(n)
+    local won, wins = Sl.result.won, 0
+    for l = 1, #won do if won[l] > 0 then wins = wins + 1 end end
+    if wins == 0 then return 1 end
+    n = (n - 1) % wins + 1
+    for l = 1, #won do
+      if won[l] > 0 then
+        n = n - 1
+        if n == 0 then return l end
+      end
+    end
+    return 1
+  end
   local function celebrate(t, pays, tickets, jackpot)
-    local bet = Sl.BETS[st.bet]
+    -- (the size against everything bet: five lines and one small win is a WIN, not a BIG one)
+    local bet = Sl.BETS[st.bet] * (Sl.result.lines or 1)
     local x = pays / max(1, bet)
     local tier = TIERS[#TIERS]
     for _, tr in ipairs(TIERS) do
       if x >= tr.x then tier = tr break end
     end
     if jackpot then tier = TIERS[1] end
-    st.win = { pays = pays, tickets = tickets, jackpot = jackpot, t = t, tier = tier, x = x }
+    local key = tier.key
+    if tier == TIERS[#TIERS] and pays < bet then key = "slots.win" end
+    st.win = { pays = pays, tickets = tickets, jackpot = jackpot, t = t, tier = tier, x = x, key = key }
+    -- (the coins burst from the winning lines)
     for i = 1, tier.coins do
       local a = -pi / 2 + (i / tier.coins - 0.5) * 2.4 + sin(i * 7.1) * 0.2
       local v = 45 + (i * 37 % 40)
-      emit(COIN, lineAt.x + lineAt.w * ((i * 0.618) % 1), lineAt.y, cos(a) * v, sin(a) * v, 2.2, nil)
+      emit(COIN, lineAt.x + lineAt.w * ((i * 0.618) % 1), lineY[nthWin(i)], cos(a) * v, sin(a) * v, 2.2, nil)
     end
     for i = 1, min(tickets, 10) do
       local p = emit(TICKET, lineAt.x + lineAt.w / 2, lineAt.y, 0, 0, 0.8, nil)
@@ -235,6 +259,16 @@ return function(ctx, env)
     if i ~= st.bet then
       st.bet = i
       se("SE_SELECT")
+    end
+  end
+  -- 1, 3 or 5 lines (wrap: true goes round from 5 to 1, for the touch button)
+  local function setLines(i, wrap)
+    if st.spinning then return end
+    local n = #Sl.LINE_SETS
+    if wrap then i = (i - 1) % n + 1 else i = max(1, min(n, i)) end
+    if i ~= st.lines then
+      st.lines, st.linesT = i, now()
+      se(i > 1 and "SE_BALL_TRAY_BALL" or "SE_SELECT")
     end
   end
 
@@ -305,6 +339,8 @@ return function(ctx, env)
       if pressed("a") then spin()
       elseif nav.left then setBet(st.bet - 1)
       elseif nav.right then setBet(st.bet + 1)
+      elseif nav.up then setLines(st.lines + 1)
+      elseif nav.down then setLines(st.lines - 1)
       elseif pressed("start") and not st.spinning then
         st.table = true
         se("SE_SELECT")
@@ -334,6 +370,7 @@ return function(ctx, env)
     if arg == SEG_PRIZES then return setTab("prizes") end
     if arg == BET_DOWN then return setBet(st.bet - 1) end
     if arg == BET_UP then return setBet(st.bet + 1) end
+    if arg == LINES_BTN then return setLines(st.lines + 1, true) end
     if arg == SPIN or (arg > REEL and arg <= REEL + 3) then return spin() end
     if arg == PAYTABLE and not st.spinning then
       st.table = true
@@ -474,6 +511,20 @@ return function(ctx, env)
     end
   end
 
+  -- is this reel's row (-1, 0, 1) on a line that came up three of a kind?
+  local function onThreeOfAKind(r, row)
+    local res = Sl.result
+    for l = 1, res.lines do
+      local line = Sl.LINES[l]
+      if res.won[l] > 0 and line[r] == row then
+        local stops = res.stops
+        local a = Sl.at(1, stops[1], line[1])
+        if a == Sl.at(2, stops[2], line[2]) and a == Sl.at(3, stops[3], line[3]) then return true end
+      end
+    end
+    return false
+  end
+
   -- one reel's window: three symbols, the strip moving through it; it flashes as it lands, and
   -- glows while it's the one held back
   local function drawReel(r, x, y, cs, clock)
@@ -484,12 +535,12 @@ return function(ctx, env)
     local pos = st.pos[r]
     local base = floor(pos)
     local rolling = st.spinning and not st.stopped[r]
-    local win = st.win and (clock - st.win.t) < 3.5 and Sl.result and Sl.result.symbol
+    local win = st.win and (clock - st.win.t) < st.win.tier.count + 3.2 and Sl.result and Sl.result.symbol
     for i = base - 2, base + 2 do
       local sy = y + cs + (i - pos) * cs
       if sy > y - cs and sy < y + cs * 3 then
         local s = cs * 0.76
-        local onLine = win and abs(i - st.final[r]) < 0.01 and not st.spinning
+        local onLine = win and not st.spinning and onThreeOfAKind(r, i - st.final[r])
         if onLine then
           -- (the winning symbols bounce)
           local k = 1 + 0.16 * abs(sin((clock - st.win.t) * 7))
@@ -555,6 +606,41 @@ return function(ctx, env)
     K.addHit(K.R(x - 5, min(tipY, baseY) - 5, 10, h * 0.55 + 10), "win", SPIN)
   end
 
+  -- the gold pay lines being played, through the reels' middles and out past the frame; on a win
+  -- the winning ones glow and the rest dim; a line just added flashes in
+  local function drawLines(rx, ry, rw, cs, clock)
+    local g = G()
+    -- (still glowing a while after the banner has gone, so the winning lines can be seen)
+    local win = st.win and (clock - st.win.t) < st.win.tier.count + 3.2 and st.win or nil
+    local res = Sl.result
+    local n = st.spinning and res.lines or Sl.LINE_SETS[st.lines]
+    local x0, x1 = rx - 3.5, rx + rw + 3.5
+    local c1, c3 = rx + cs / 2, rx + 2 * (cs + 4) + cs / 2
+    local pulse = 0.6 + 0.4 * sin(clock * 14)
+    local added = clock - (st.linesT or -10)
+    for l = n, 1, -1 do
+      local line = Sl.LINES[l]
+      local y1, y3 = ry + cs * (1.5 + line[1]), ry + cs * (1.5 + line[3])
+      local k = (y3 - y1) / (c3 - c1)
+      local ya, yb = y1 + (x0 - c1) * k, y1 + (x1 - c1) * k
+      lineY[l] = ry + cs * (1.5 + line[2])
+      local won = win and res.won[l] > 0
+      local a = l == 1 and 0.85 or 0.6
+      if win then a = won and pulse or 0.2 end
+      if added < 0.4 and l > 1 and l <= n then a = max(a, 1 - added / 0.4) end
+      if won then
+        K.col(C.gold, 0.3 * pulse)
+        g.setLineWidth(4 * K.sc)
+        g.line(K.X(x0), K.Y(ya), K.X(x1), K.Y(yb))
+      end
+      K.col(l == 1 and C.gold or C.goldTop, a)
+      g.setLineWidth((l == 1 and 0.9 or 0.7) * K.sc)
+      g.line(K.X(x0), K.Y(ya), K.X(x1), K.Y(yb))
+      g.polygon("fill", K.X(x0 - 2), K.Y(ya - 2.2), K.X(x0 + 1.5), K.Y(ya), K.X(x0 - 2), K.Y(ya + 2.2))
+      g.polygon("fill", K.X(x1 + 2), K.Y(yb - 2.2), K.X(x1 - 1.5), K.Y(yb), K.X(x1 + 2), K.Y(yb + 2.2))
+    end
+  end
+
   local function drawMachine(x, y, w, h, clock)
     -- (a big win shakes the cabinet)
     local win = st.win
@@ -591,18 +677,7 @@ return function(ctx, env)
     K.box("fill", K.R(rx - 1.6, ry - 1.6, rw + 3.2, cs * 3 + 3.2), 2.5)
     for r = 1, 3 do drawReel(r, rx + (r - 1) * (cs + 4), ry, cs, clock) end
     lineAt.x, lineAt.y, lineAt.w = rx, ry + cs * 1.5, rw
-    -- the gold pay line, glowing on a win
-    local glow = win and (clock - win.t) < 3 and (0.6 + 0.4 * sin(clock * 14)) or 0.85
-    local g = G()
-    if win and (clock - win.t) < 3 then
-      K.col(C.gold, 0.3 * glow)
-      K.box("fill", K.R(rx - 3.5, ry + cs * 1.5 - 2, rw + 7, 4))
-    end
-    K.col(C.gold, glow)
-    K.box("fill", K.R(rx - 3.5, ry + cs * 1.5 - 0.45, rw + 7, 0.9))
-    g.polygon("fill", K.X(rx - 5.5), K.Y(ry + cs * 1.5 - 2.2), K.X(rx - 2), K.Y(ry + cs * 1.5), K.X(rx - 5.5), K.Y(ry + cs * 1.5 + 2.2))
-    g.polygon("fill", K.X(rx + rw + 5.5), K.Y(ry + cs * 1.5 - 2.2), K.X(rx + rw + 2), K.Y(ry + cs * 1.5),
-      K.X(rx + rw + 5.5), K.Y(ry + cs * 1.5 + 2.2))
+    drawLines(rx, ry, rw, cs, clock)
     return rx, ry, rw, cs
   end
 
@@ -635,7 +710,7 @@ return function(ctx, env)
     K.box("fill", bb, 4)
     K.ring(bb, 4, C.gold, a, 0.9)
     local color = tier == TIERS[1] and CONFETTI[floor(clock * 10) % 4 + 1] or C.gold
-    outlined(T(tier.key), bb[1], bb[2] + 2, size, color, bb[3], a)
+    outlined(T(win.key or tier.key), bb[1], bb[2] + 2, size, color, bb[3], a)
     -- the payout counting up (in twenty steps), then the tickets
     local f = min(1, age / max(0.1, tier.count))
     local amount = floor(floor(win.pays * f * 20 / max(1, win.pays) + 0.5) * win.pays / 20 / 10) * 10
@@ -708,21 +783,34 @@ return function(ctx, env)
     K.scissor(nil)
   end
 
-  -- under the machine: the bet (< ₽100 >), "?", SPIN (it breathes while it waits, a shine across it)
+  -- under the machine: the bet (< ₽100 >, everything bet: the bet on a line × the lines), LINES,
+  -- "?", SPIN (it breathes while it waits, a shine across it)
   local function drawControls(x, y, w, clock)
     local bw = 46
+    local lines = Sl.LINE_SETS[st.lines]
     K.grad(K.R(x, y, bw, 11), 3, C.cardHi, C.card)
     K.chevron(x + 4.5, y + 5.5, 4, st.spinning and C.faint or C.gold, -1)
     K.chevron(x + bw - 4.5, y + 5.5, 4, st.spinning and C.faint or C.gold, 1)
     K.addHit(K.R(x, y, 11, 11), "win", BET_DOWN)
     K.addHit(K.R(x + bw - 11, y, 11, 11), "win", BET_UP)
     K.text(T("slots.bet"), x, y + 0.6, 3.2, C.soft, "center", bw)
-    money(Sl.BETS[st.bet], x + bw / 2, y + 4.6, 5, C.goldTop, "center")
-    local qb = K.R(x + bw + 3, y, 11, 11)
+    money(Sl.BETS[st.bet] * lines, x + bw / 2, y + 4.6, 5, C.goldTop, "center")
+    -- (the lines: a count that pops as it changes, a bar for each)
+    local lb = K.R(x + bw + 3, y, 18, 11)
+    K.grad(lb, 3, C.cardHi, C.card)
+    if lines > 1 then K.ring(lb, 3, C.gold, 0.35 + 0.15 * sin(clock * 3), 0.5) end
+    K.text(T("slots.lines"), lb[1], lb[2] + 0.6, 3.2, C.soft, "center", lb[3])
+    local added = clock - (st.linesT or -10)
+    local pop = added >= 0 and added < 0.3 and 1 + 0.4 * (1 - added / 0.3) or 1
+    scaleAbout(lb[1] + lb[3] / 2, lb[2] + 6.6, pop)
+    K.bold(numText(lines), lb[1], lb[2] + 4.2, 5, st.spinning and C.faint or C.goldTop, "center", lb[3])
+    G().pop()
+    K.addHit(lb, "win", LINES_BTN)
+    local qb = K.R(lb[1] + lb[3] + 3, y, 11, 11)
     K.grad(qb, 3, C.cardHi, C.card)
     K.bold("?", qb[1], qb[2] + 2.5, 5.5, st.spinning and C.faint or C.gold, "center", qb[3])
     K.addHit(qb, "win", PAYTABLE)
-    local sb = K.R(x + bw + 17, y, w - bw - 17, 11)
+    local sb = K.R(qb[1] + qb[3] + 3, y, w - (qb[1] + qb[3] + 3 - x), 11)
     local idle = not st.spinning
     if idle then
       local p = 0.5 + 0.5 * sin(clock * 4)
@@ -758,6 +846,8 @@ return function(ctx, env)
     K.grad(K.R(tx, ty, tw, th), 5, C.cardHi, C.card)
     K.ring(K.R(tx, ty, tw, th), 5, C.gold, 0.6, 0.6)
     K.bold(T("slots.payTable"), tx, ty + 2.5, 5, C.gold, "center", tw)
+    -- (on each line, × that line's bet)
+    K.text(T("slots.perLine"), tx + 4, ty + 3.4, 3.2, C.faint)
     -- (the tickets column: per ₽50 bet)
     K.text(T("slots.ticketNote"), tx + tw - 40, ty + 3.4, 3.2, C.faint, "right", 36)
     local rows = #Sl.PAYS + 2

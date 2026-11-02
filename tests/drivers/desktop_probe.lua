@@ -626,6 +626,27 @@ local function body(game, log)
     check(ss.table, "START: the pay table")
     shot("d13d_slots_table")
     U.tap(game, "b"); U.wait(4)
+    -- five lines: three Meowth down the diagonal
+    local nowS = function() return love.timer.getTime() end
+    waitFor(function() return nowS() - ss.win.t > ss.win.tier.count + 2.2 end, 3000)
+    U.tap(game, "up"); U.wait(3)
+    U.tap(game, "up"); U.wait(20)
+    check(Sl.LINE_SETS[ss.lines] == 5, "Up, Up: five lines")
+    shot("d13d2_slots_five_lines")
+    local n = #Sl.REELS[1]
+    local i1, i2, i3 = at(1, 6), at(2, 6), at(3, 6)
+    queue = { i1 % n + 1, i2, (i3 - 2) % n + 1 }
+    local before = s0.money
+    U.tap(game, "a"); U.wait(2)
+    check(s0.money == before - 5 * Sl.BETS[ss.bet], "five lines: five bets")
+    check(waitFor(function() return not ss.spinning end, 900), "the reels stop")
+    U.wait(30)
+    check(Sl.result.won[4] == Sl.PAYS[6].x and ss.win and ss.win.pays >= Sl.PAYS[6].x * Sl.BETS[ss.bet],
+      "the diagonal pays")
+    shot("d13d3_slots_diagonal")
+    waitFor(function() return nowS() - ss.win.t > ss.win.tier.count + 2.3 end, 3000)
+    shot("d13d4_slots_diagonal_line")
+    U.wait(150)
     -- the draw's garbage: idle, then a spin (each warmed up)
     local drawS, kbS, nS, on = D.draw, 0, 0, false
     D.draw = function(...)
