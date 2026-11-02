@@ -40,7 +40,7 @@ local NO_T = setmetatable({ list = function(l) return l end, f = string.format }
 
 return function(ctx, env, makeView)
   local K, Bx, T = env.K, env.bx, env.T or NO_T
-  local W = { title = "Boxes", pad = true }
+  local W = { title = "Boxes", pad = true, ball = true }
   local function session() return ctx.session or (env.session and env.session()) end
   local function se(name) if env.se then pcall(env.se, name) end end
   local function now() return env.now and env.now() or 0 end
@@ -606,7 +606,7 @@ return function(ctx, env, makeView)
       st.arrowSince = clock
     end
     view.draw(body, clock, portrait, W.previewMon(), modeColor[st.mode], T(MODE_KEYS[st.mode]))
-    if st.toast and not K.toast(st.toast, clock, body, view.C.bad, view.C.good, view.C.ink) then
+    if st.toast and not K.toast(st.toast, clock, body, view.C.bad, view.C.good, K.UI.hud) then
       st.toast = nil
     end
   end

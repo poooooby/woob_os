@@ -17,10 +17,10 @@ opens a desktop in a sleek monitor instead of a text menu.
 - 🖥️ **A desktop in a monitor:** an aluminium screen with a black glass border, a home screen of
   app icons, a dock along the bottom and a menu bar along the top showing your name, your money
   and the time.
-- 🧲 **A shelf under the monitor:** a digitization pad in its middle, with a Poké Ball resting
-  on it while an app's window is open and you have a party. The pad lights up while Items is open. An item you send to the PC
-  drops onto it and digitizes away, and an item you take out digitizes onto it before fading into
-  your Bag. The ball sinks into the pad while an item crosses.
+- 🧲 **A shelf under the monitor:** a digitization pad in its middle. Open Boxes and a Poké Ball
+  drops onto the pad, its button slowly glowing red; close it and the button flashes green before
+  the ball lifts off. The pad lights up while Items is open. An item you send to the PC drops onto
+  it and digitizes away, and an item you take out digitizes onto it before fading into your Bag.
 - ⚡ **A boot screen:** the PC starts up with the W logo and a loading bar before the desktop fades
   in. Any button or a tap skips it, and it only plays when you first turn the PC on.
 - 🎮 **Made for controllers and touch:** move between icons with the D-pad, open with A, flip
@@ -64,7 +64,9 @@ opens a desktop in a sleek monitor instead of a text menu.
 - ℹ️ **About:** which version you're running.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
 
-Boxes, Items, Mail and Settings open in a window on the desktop: B or the red button closes it. Oak's PC,
+Boxes, Items, Mail and Settings open in a window on the desktop, in the style of macOS and iOS:
+white cards on a soft grey, segmented switches, and a blue ring round whatever the controller is
+on. B or the red button closes it. Oak's PC,
 Hall of Fame and Decorate open the game's own screens, and closing them brings you back to the
 desktop.
 

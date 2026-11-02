@@ -6,6 +6,10 @@ All notable changes to this mod are documented here, in
 ## [Unreleased]
 
 ### Added
+- **A macOS / iOS look for every window.** A toolbar with the red, yellow and green lights; white
+  cards on a soft grey; segmented switches (Bag | PC, Inbox | Held, Fill | Stretch); chevrons;
+  hairline separators; capsule buttons with a blue focus ring for the controller; popover menus
+  and alerts for the sheets; a System Settings sidebar.
 
 - **The PC as a desktop.** Every Pokémon Center PC and the bedroom PC open a desktop in a monitor:
   a boot screen with the W, a home screen of apps, a dock and a menu bar with your name, money and
@@ -27,7 +31,7 @@ All notable changes to this mod are documented here, in
 - **A shelf under the monitor,** with a digitization pad in its middle:
   - It lights up while Items is open.
   - It shows each item crossing: dropping onto it and digitizing away into the PC, or digitizing in and fading into the Bag.
-  - A Poké Ball rests on it while an app's window is open and you have a party (never on the home screen), and sinks into it while an item crosses. The ball is a placeholder until a Box app.
+  - Opening Boxes drops a Poké Ball onto it (with a bounce), and its button slowly glows red while Boxes is open; closing Boxes flashes the button green and lifts the ball off. It sinks into the pad while a Pokémon crosses.
 - **Mail:** the mailbox as an inbox: read a letter, move it to the Bag, give it to a Pokémon; a
   Held folder for the party's mail, with Take. FireRed and LeafGreen included.
 - **Decorate** on Ruby, Sapphire and Emerald's bedroom PC: the game's Decoration menu.

@@ -151,6 +151,13 @@ local function body(game, log)
       Bx.dynamax = function() return Dx end
     end
     log("  Dynamax from " .. (realDx and "WoobleDex" or "a stand-in"))
+    -- the pad's Poké Ball: dropped on, its button glowing red once it's had time
+    check(waitFor(function() return D.ballState() == "drop" or D.ballState() == "on" end, 600), "the Poké Ball drops onto the pad")
+    if D.ballState() == "drop" then shot("d2_ball_drop") end
+    check(waitFor(function() return D.ballState() == "on" end, 600), "it lands")
+    local onAt = love.timer.getTime()
+    waitFor(function() return love.timer.getTime() - onAt > D.BALL.glow + 0.2 end, 1200)
+    shot("d2_ball_glow")
     Bx.forget(lent[1])
     bst.area, bst.bi = "box", 1
     U.wait(10)
@@ -253,7 +260,13 @@ local function body(game, log)
       "B: back into Boxes, box 2, Select")
     U.wait(10)
     shot("d2j_boxes_back")
+    check(D.ballState() == "on", "the Poké Ball still on the pad after the Summary")
     U.tap(game, "b")
+    check(waitFor(function() return D.ballState() == "done" end, 600), "closed: the button flashes green")
+    shot("d2k_ball_green")
+    check(waitFor(function() return D.ballState() == "lift" end, 600), "then the ball lifts off")
+    shot("d2l_ball_lift")
+    check(waitFor(function() return D.ballState() == "off" end, 600), "and it's gone")
     waitFor(function() return D.window() == nil and D.state() and D.state().zoom == nil end, 600)
   end
   -- (the session's own party and boxes back)
@@ -279,8 +292,8 @@ local function body(game, log)
   do
     local party0 = s0.party
     s0.party = { { species = 1 }, { species = 4 }, { species = 7 } }
-    check(waitFor(function() return D.state().balls == 3 and D.state().ballK == 1 end, 1200), "the pad: the Poké Ball on it")
-    shot("d4h_ball")
+    check(waitFor(function() return D.state().balls == 3 end, 1200) and D.ballState() == "off",
+      "Items holds no Pokémon: no Poké Ball on the pad")
     s0.party = party0
   end
   -- (the pad's effects run on the wall clock: wait for their moments)

@@ -12,11 +12,6 @@
 
 local floor, max, min = math.floor, math.max, math.min
 
-local C = {
-  ink = { 30, 32, 44 }, soft = { 104, 108, 128 }, faint = { 150, 154, 170 }, accent = { 64, 132, 246 },
-  pane = { 255, 255, 255 }, head = { 238, 240, 245 }, headFoot = { 226, 229, 236 }, bad = { 220, 62, 74 },
-  good = { 120, 230, 160 }, toastInk = { 30, 32, 44 }, wash = { 64, 132, 246, 0.12 }, chip = { 214, 220, 232 },
-}
 local ROW_H, HEAD_H, FOOT_H = 10, 10, 16
 -- hit args: PC rows 1.., Bag rows BAG + i, the rest below
 local BAG = 1000
@@ -279,184 +274,154 @@ return function(ctx, env)
 
   -- ------- drawing (no tables made here)
 
+  local UI = K.UI
+
+  -- a pane's rows inside its card (x, y, w, h: the list's room); the highlight inset, the rows
+  -- parted by hairlines from the name on
   local function drawList(p, name, x, y, w, h, focused)
     local base = name == "bag" and BAG or 0
     local clip = K.R(x, y, w, h)
     K.scissor(clip)
     local top = p.top
     local first = floor(top) + 1
-    for i = first, min(#p.rows, first + st.visible + 1) do
+    local last = min(#p.rows, first + st.visible + 1)
+    for i = first, last do
       local row = p.rows[i]
       local ry = y + (i - 1 - top) * ROW_H
-      local rb = K.R(x + 1, ry + 0.5, w - 2, ROW_H - 1)
+      local rb = K.R(x + 1.5, ry + 0.4, w - 3, ROW_H - 0.8)
       local on = i == p.cursor
-      if on and focused then
-        K.col(C.accent)
-        K.box("fill", rb, 2.5)
-      elseif on then
-        K.col(C.wash)
-        K.box("fill", rb, 2.5)
+      if on then
+        K.selection(rb, focused)
+      elseif i < #p.rows and i + 1 ~= p.cursor then
+        K.hairline(x + 13, ry + ROW_H - 0.1, w - 15)
       end
-      local ink = (on and focused) and K.WHITE or C.ink
-      if env.itemIcon then pcall(env.itemIcon, row.id, x + 2, ry + 1, 8) end
+      local ink = (on and focused) and K.WHITE or UI.label
+      if env.itemIcon then pcall(env.itemIcon, row.id, x + 3, ry + 1, 8) end
       local qw = row.showQty and 14 or 0
-      local ns = K.fit(row.name, 4.6, w - 14 - qw)
-      K.text(row.name, x + 12, ry + 2.6 + (4.6 - ns) * 0.5, ns, ink)
-      if row.showQty then K.text(qtyText(row.qty), x + w - 16, ry + 2.6, 4.4, ink, "right", 13) end
+      local ns = K.fit(row.name, 4.6, w - 16 - qw)
+      K.text(row.name, x + 13, ry + 2.6 + (4.6 - ns) * 0.5, ns, ink)
+      if row.showQty then
+        K.text(qtyText(row.qty), x + w - 17, ry + 2.6, 4.4, (on and focused) and K.WHITE or UI.secondary, "right", 13)
+      end
       K.addHit(rb, "win", base + i, clip)
     end
     if #p.rows == 0 then
-      K.text(T(name == "pc" and "items.emptyPc" or "items.emptyPocket"), x, y + h / 2 - 3, 4.6, C.faint,
+      K.text(T(name == "pc" and "items.emptyPc" or "items.emptyPocket"), x, y + h / 2 - 3, 4.6, UI.tertiary,
         "center", w)
     end
-    -- the scroll bar
-    if #p.rows > st.visible then
-      local frac = st.visible / #p.rows
-      local bh = max(6, h * frac)
-      local by = y + (h - bh) * (top / max(1, #p.rows - st.visible))
-      K.col(K.BLACK, 0.18)
-      K.box("fill", K.R(x + w - 1.6, by, 1.2, bh), 0.6)
-    end
+    K.scrollbar(x + w, y, h, top, st.visible, #p.rows)
     K.scissor(nil)
   end
 
+  -- a card's head: the Bag's pocket between two chevrons, or the PC's count and its Sort button
   local function drawHead(name, x, y, w, focused)
-    local hb = K.R(x, y, w, HEAD_H)
-    K.grad(hb, 2, C.head, C.headFoot)
-    if focused then
-      K.col(C.accent)
-      K.box("fill", K.R(x + 2, y + HEAD_H - 1.2, w - 4, 1), 0.5)
-    end
     if name == "pc" then
-      K.text(st.pcHead, x + 4, y + 2.4, 4.8, focused and C.accent or C.ink)
-      local sb = K.R(x + w - 18, y + 1.5, 16, HEAD_H - 3)
-      K.col(C.chip)
-      K.box("fill", sb, 3.5)
-      local sl = T("items.sort")
-      K.text(sl, sb[1], sb[2] + 1.5, K.fit(sl, 4, sb[3] - 2), C.ink, "center", sb[3])
+      K.bold(st.pcHead, x + 4, y + 2.6, 4.8, UI.label)
+      local sb = K.R(x + w - 19, y + 1.8, 16, HEAD_H - 3.4)
+      K.button(sb, T("items.sort"), "tinted", false, 4)
       K.addHit(sb, "win", SORT_BUTTON)
     else
-      K.text("<", x + 3, y + 2.2, 5, C.soft)
+      K.chevron(x + 5, y + HEAD_H / 2 + 0.3, 4, UI.accent, -1)
       K.addHit(K.R(x, y, 12, HEAD_H), "win", POCKET_PREV)
-      K.text(">", x + w - 7, y + 2.2, 5, C.soft)
+      K.chevron(x + w - 5, y + HEAD_H / 2 + 0.3, 4, UI.accent, 1)
       K.addHit(K.R(x + w - 12, y, 12, HEAD_H), "win", POCKET_NEXT)
       local pname = T(st.pocketKey)
       local ps = K.fit(pname, 4.8, w - 26)
-      K.text(pname, x + 12, y + 2.4 + (4.8 - ps) * 0.5, ps, focused and C.accent or C.ink, "center", w - 24)
+      K.bold(pname, x + 12, y + 2.6 + (4.8 - ps) * 0.5, ps, UI.label, "center", w - 24)
     end
+    K.hairline(x, y + HEAD_H, w)
   end
 
+  -- a pane: the card, its head, its rows
+  local function drawPane(name, x, y, w, h, focused, head)
+    K.card(K.R(x, y, w, h), 4)
+    local top = y
+    if head then
+      drawHead(name, x, y, w, focused)
+      top = y + HEAD_H + 0.5
+    end
+    local p = st[name]
+    st.visible = max(1, floor((y + h - 1 - top) / ROW_H))
+    clampPane(p)
+    drawList(p, name, x, top, w, y + h - 1 - top, focused)
+  end
+
+  -- the foot: the item's words, or how many (a stepper, All, Move / Toss)
   local function drawFoot(x, y, w)
-    local fb = K.R(x, y, w, FOOT_H)
-    K.col(C.head)
-    K.box("fill", fb)
-    K.col(K.BLACK, 0.08)
-    K.box("fill", K.R(x, y, w, 0.4))
     local sp = st.step
     if sp then
       local label = T(sp.toss and "items.tossHowMany" or "items.howMany")
-      K.text(label, x + 4, y + 5.5, 4.8, C.ink)
-      local bx = x + w - 4
-      local go = K.R(bx - 22, y + 3, 22, 10)
-      K.col(sp.toss and C.bad or C.accent)
-      K.box("fill", go, 5)
-      local gl = T(sp.toss and "items.toss" or "items.move")
-      K.text(gl, go[1], go[2] + 2.4, K.fit(gl, 4.8, go[3] - 2), K.WHITE, "center", go[3])
+      K.text(label, x + 4, y + 5.5, 4.8, UI.label)
+      local go = K.R(x + w - 26, y + 3, 22, 10)
+      K.button(go, T(sp.toss and "items.toss" or "items.move"), sp.toss and "danger" or "accent", false, 4.8)
       K.addHit(go, "win", STEP_GO)
-      local all = K.R(go[1] - 17, y + 3, 15, 10)
-      K.col(C.chip)
-      K.box("fill", all, 5)
-      local al = T("items.all")
-      K.text(al, all[1], all[2] + 2.4, K.fit(al, 4.6, all[3] - 1), C.ink, "center", all[3])
+      local all = K.R(go[1] - 18, y + 3, 16, 10)
+      K.button(all, T("items.all"), "gray", false, 4.6)
       K.addHit(all, "win", STEP_ALL)
-      local plus = K.R(all[1] - 12, y + 3, 10, 10)
-      K.col(C.chip)
-      K.box("fill", plus, 5)
-      K.text("+", plus[1], plus[2] + 1.6, 6, C.ink, "center", plus[3])
-      K.addHit(plus, "win", STEP_PLUS)
-      local qx = plus[1] - 26
-      K.text(stepText(sp.qty * 1000 + sp.max), qx, y + 5.3, 5, C.ink, "center", 26)
-      local minus = K.R(qx - 10, y + 3, 10, 10)
-      K.col(C.chip)
-      K.box("fill", minus, 5)
-      K.text("-", minus[1], minus[2] + 1.4, 6, C.ink, "center", minus[3])
-      K.addHit(minus, "win", STEP_MINUS)
+      -- (the stepper: minus | plus in one capsule, the count before it)
+      local sb = K.R(all[1] - 24, y + 3, 22, 10)
+      K.col(UI.fill)
+      K.box("fill", sb, 3.2)
+      K.vline(sb[1] + 11, sb[2] + 2.2, 5.6, UI.tertiary)
+      K.text("-", sb[1], sb[2] + 1.4, 6, UI.label, "center", 11)
+      K.text("+", sb[1] + 11, sb[2] + 1.6, 6, UI.label, "center", 11)
+      K.addHit(K.R(sb[1], sb[2], 11, 10), "win", STEP_MINUS)
+      K.addHit(K.R(sb[1] + 11, sb[2], 11, 10), "win", STEP_PLUS)
+      K.bold(stepText(sp.qty * 1000 + sp.max), sb[1] - 28, y + 5.3, 5, UI.label, "center", 26)
       return
     end
     local p = pane()
     local row = p.rows[p.cursor]
     if row then
-      K.text(row.desc, x + 4, y + 1.8, 4.2, C.soft, "left", w - 8)
+      K.text(row.desc, x + 5, y + 1.6, 4.2, UI.secondary, "left", w - 10)
     end
   end
 
+  -- START's menu: a popover under the pane's head
   local function drawMenu(body)
     local m = st.menu
     if not m then return end
-    local mb = K.R(body[1] + 4, body[2] + HEAD_H + 2, 62, #MENU * 10 + 4)
-    K.shadow(mb, 4, 1.2, 0.3)
-    K.col(C.pane)
-    K.box("fill", mb, 4)
-    K.ring(mb, 4, K.BLACK, 0.12, 0.5)
+    local mb = K.R(body[1] + 5, body[2] + HEAD_H + 4, 64, #MENU * 10 + 4)
+    K.sheet(mb, 4)
     for i, key in ipairs(MENU) do
       local label = T(key)
       local rb = K.R(mb[1] + 2, mb[2] + 2 + (i - 1) * 10, mb[3] - 4, 10)
+      local danger = i == 3
       if i == m.cursor then
-        K.col(i == 3 and C.bad or C.accent)
-        K.box("fill", rb, 2.5)
+        K.selection(rb, true, 2.5, danger and UI.red or UI.accent)
       end
-      K.text(label, rb[1] + 4, rb[2] + 2.4, 4.8, i == m.cursor and K.WHITE or (i == 3 and C.bad or C.ink))
+      if danger and i > 1 then K.hairline(rb[1] + 2, rb[2] - 0.1, rb[3] - 4) end
+      K.text(label, rb[1] + 4, rb[2] + 2.4, 4.8, i == m.cursor and K.WHITE or (danger and UI.red or UI.label))
       K.addHit(rb, "win", MENU_ROW + i - 1)
     end
   end
 
+  local M = 3
   function W.draw(body, clock, portrait)
     st.portrait = portrait
     local x, y, w, h = body[1], body[2], body[3], body[4]
-    local listTop = y + HEAD_H + 1
-    local listH = h - HEAD_H - 1 - FOOT_H
-    st.visible = max(1, floor(listH / ROW_H))
+    local paneH = h - FOOT_H - M
     if portrait then
       -- the Bag | PC switch, then the one pane
-      local half = (w - 8) / 2
-      for k = 1, 2 do
-        local name = k == 1 and "bag" or "pc"
-        local sb = K.R(x + 4 + (k - 1) * half, y + 1.5, half, HEAD_H - 3)
-        local on = st.focus == name
-        K.col(on and C.accent or C.chip)
-        K.box("fill", sb, 3.5)
-        K.text(name == "pc" and st.pcHead or T("items.bag"), sb[1], sb[2] + 1.6, 4.4, on and K.WHITE or C.ink,
-          "center", sb[3])
-        K.addHit(sb, "win", name == "pc" and SEG_PC or SEG_BAG)
-      end
+      K.segmented(x + M, y + 2, w - M * 2, HEAD_H - 2.5, st.focus == "bag" and 1 or 2, "win",
+        SEG_BAG, T("items.bag"), SEG_PC, st.pcHead)
       local name = st.focus
-      local top = listTop
-      if name == "bag" then
-        drawHead("bag", x, y + HEAD_H, w, true)
-        top = listTop + HEAD_H
-      end
-      local p = st[name]
-      st.visible = max(1, floor((y + h - FOOT_H - top) / ROW_H))
-      clampPane(p)
-      drawList(p, name, x, top, w, y + h - FOOT_H - top, true)
+      local top = y + HEAD_H + 1
+      drawPane(name, x + M, top, w - M * 2, y + paneH - top, true, name == "bag")
       K.scissor(body)
     else
-      local pw = (w - 1) / 2
-      st.bag.x1, st.bag.x2 = K.X(x), K.X(x + pw)
-      st.pc.x1, st.pc.x2 = K.X(x + pw + 1), K.X(x + w)
+      local pw = (w - M * 3) / 2
+      st.bag.x1, st.bag.x2 = K.X(x), K.X(x + M + pw + M / 2)
+      st.pc.x1, st.pc.x2 = K.X(x + M + pw + M / 2), K.X(x + w)
       for k = 1, 2 do
         local name = k == 1 and "bag" or "pc"
-        local px = x + (k - 1) * (pw + 1)
-        drawHead(name, px, y, pw, st.focus == name)
-        drawList(st[name], name, px, listTop, pw, listH, st.focus == name)
+        drawPane(name, x + M + (k - 1) * (pw + M), y + M, pw, paneH - M, st.focus == name, true)
         K.scissor(body)
       end
-      K.col(K.BLACK, 0.1)
-      K.box("fill", K.R(x + pw, y, 1, h - FOOT_H))
     end
     drawFoot(x, y + h - FOOT_H, w)
     drawMenu(body)
-    if st.toast and not K.toast(st.toast, clock, K.R(x, y, w, h - FOOT_H), C.bad, C.good, C.toastInk) then
+    if st.toast and not K.toast(st.toast, clock, K.R(x, y, w, h - FOOT_H), UI.red, UI.green, UI.hud) then
       st.toast = nil
     end
   end

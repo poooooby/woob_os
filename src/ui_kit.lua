@@ -22,6 +22,12 @@
 --   K.drawLogo(cx, cy, size, accent, a, soft) (window pixels: the W)
 --   K.hints(list, box, keyInk, center, wordColor, keyFill) (wordColor nil: white, shadowed)
 --   K.toast(state, clock, area, badColor, goodColor) ; K.repeater(start, every) -> fn(input, key, held)
+--   the windows' look (macOS / iOS): K.UI (the system colours: label, secondary, tertiary, separator,
+--   grouped, card, sidebar, fill, accent, red, green, ...) ; K.bold(text args) ; K.hairline(x, y, w) /
+--   K.vline(x, y, h) ; K.chevron(cx, cy, s, c, dir) ; K.card(b, rad) ; K.selection(b, focused, rad, c) ;
+--   K.focusRing(b, rad, a) ; K.button(b, label, "accent" | "danger" | "gray" | "tinted", focused, size) ;
+--   K.segmented(x, y, w, h, sel, kind, arg1, words1, arg2, words2 [, arg3, words3]) ; K.dim(b) ;
+--   K.sheet(b, rad) ; K.scrollbar(x, y, h, top, visible, total)
 
 return function(deps)
   deps = deps or {}
@@ -509,6 +515,123 @@ return function(deps)
     local fs = K.fit(state.text, 5.5, tb[3] - 14)
     text(state.text, tb[1] + 6, tb[2] + 2.6 + (5.5 - fs) * 0.5, fs, WHITE, "center", tb[3] - 8, a)
     return true
+  end
+
+  -- ------- the windows' look (macOS / iOS): one palette and the controls every window shares
+
+  local UI = {
+    label = { 28, 28, 30 }, secondary = { 112, 112, 120 }, tertiary = { 162, 162, 170 },
+    separator = { 60, 60, 67, 0.16 }, grouped = { 242, 242, 247 }, card = { 255, 255, 255 },
+    sidebar = { 232, 232, 237 }, fill = { 118, 118, 128, 0.13 }, fillOn = { 118, 118, 128, 0.22 },
+    accent = { 10, 132, 255 }, red = { 255, 59, 48 }, green = { 52, 199, 89 }, orange = { 255, 149, 0 },
+    yellow = { 255, 189, 46 }, toolbar = { 252, 252, 253 }, toolbarFoot = { 240, 240, 244 },
+    accentSoft = { 10, 132, 255, 0.13 }, hud = { 36, 36, 40 },
+  }
+  K.UI = UI
+
+  -- text a touch heavier (drawn twice, under a pixel apart): titles, the chosen segment
+  function K.bold(s, x, y, size, c, align, w, a)
+    text(s, x, y, size, c, align, w, a)
+    return text(s, x + 0.55 / sc, y, size, c, align, w, a)
+  end
+  -- a one-pixel rule (a list's separator), across or down
+  function K.hairline(x, y, w, c, a)
+    col(c or UI.separator, a)
+    G.rectangle("fill", X(x), floor(Y(y)), w * sc, max(1, 0.25 * sc))
+  end
+  function K.vline(x, y, h, c, a)
+    col(c or UI.separator, a)
+    G.rectangle("fill", floor(X(x)), Y(y), max(1, 0.25 * sc), h * sc)
+  end
+  -- a chevron `s` units tall centred on cx, cy: dir 1 right, -1 left, 2 down
+  function K.chevron(cx, cy, s, c, dir, a)
+    col(c, a)
+    G.setLineWidth(max(1, s * 0.17 * sc))
+    local h, d = s * 0.5, s * 0.28
+    local x, y = X(cx), Y(cy)
+    if dir == 2 then
+      G.line(x - h * sc, y - d * sc, x, y + d * sc, x + h * sc, y - d * sc)
+    else
+      G.line(x - dir * d * sc, y - h * sc, x + dir * d * sc, y, x - dir * d * sc, y + h * sc)
+    end
+  end
+  -- a white rounded card on the grouped ground
+  function K.card(b, rad)
+    col(UI.card)
+    box("fill", b, rad or 4)
+  end
+  -- a list row's highlight: the accent while its list has the focus, grey when it doesn't
+  function K.selection(b, focused, rad, c)
+    col(focused and (c or UI.accent) or UI.fillOn)
+    box("fill", b, rad or 2.5)
+  end
+  -- the keyboard-focus ring macOS draws round a control
+  function K.focusRing(b, rad, a)
+    ring(R(b[1] - 1, b[2] - 1, b[3] + 2, b[4] + 2), (rad or 0) + 1, UI.accent, (a or 1) * 0.6, 0.9)
+  end
+  -- a capsule button: style "accent" | "danger" (filled) | "gray" (a grey fill, dark words) |
+  -- "tinted" (a pale accent fill, accent words); `focused` rings it
+  function K.button(b, label, style, focused, size)
+    local rad = min(b[4] / 2, 3.2)
+    if style == "accent" or style == "danger" then
+      col(style == "danger" and UI.red or UI.accent)
+    elseif style == "tinted" then
+      col(UI.accentSoft)
+    else
+      col(UI.fill)
+    end
+    box("fill", b, rad)
+    if focused then K.focusRing(b, rad) end
+    size = size or 4.6
+    local fs = K.fit(label, size, b[3] - 3)
+    local ink = (style == "accent" or style == "danger") and WHITE or (style == "tinted" and UI.accent or UI.label)
+    K.bold(label, b[1], b[2] + (b[4] - fs * 1.2) / 2, fs, ink, "center", b[3])
+  end
+  -- the segmented control: up to three segments (each its hit arg and words), `sel` raised
+  function K.segmented(x, y, w, h, sel, kind, a1, l1, a2, l2, a3, l3)
+    local n = a3 and 3 or 2
+    local tb = R(x, y, w, h)
+    local rad = min(h / 2, 2.6)
+    col(UI.fill)
+    box("fill", tb, rad)
+    local sw = (w - 1) / n
+    for i = 1, n do
+      local sb = R(x + 0.5 + (i - 1) * sw, y + 0.5, sw, h - 1)
+      local label = i == 1 and l1 or (i == 2 and l2 or l3)
+      local fs = K.fit(label, 4.3, sw - 2)
+      local ty = sb[2] + (sb[4] - fs * 1.2) / 2
+      if i == sel then
+        col(BLACK, 0.1)
+        box("fill", R(sb[1], sb[2] + 0.3, sb[3], sb[4]), rad - 0.5)
+        col(WHITE)
+        box("fill", sb, rad - 0.5)
+        K.bold(label, sb[1], ty, fs, UI.label, "center", sb[3])
+      else
+        if i > 1 and i - 1 ~= sel then K.vline(sb[1], sb[2] + 1.5, sb[4] - 3) end
+        text(label, sb[1], ty, fs, UI.label, "center", sb[3])
+      end
+      K.addHit(sb, kind, i == 1 and a1 or (i == 2 and a2 or a3))
+    end
+  end
+  -- a sheet or popover over a dimmed window: the dim, then the card with its shadow
+  function K.dim(b, a)
+    col(BLACK, a or 0.22)
+    box("fill", b)
+  end
+  function K.sheet(b, rad)
+    rad = rad or 6
+    K.shadow(b, rad, 1.6, 0.3)
+    col(UI.card)
+    box("fill", b, rad)
+    ring(b, rad, BLACK, 0.06, 0.4)
+  end
+  -- a thin scroll indicator at the right of a list
+  function K.scrollbar(x, y, h, top, visible, total)
+    if total <= visible then return end
+    local bh = max(6, h * visible / total)
+    local by = y + (h - bh) * (top / max(1, total - visible))
+    col(BLACK, 0.22)
+    box("fill", R(x - 1.6, by + 0.5, 1.1, bh - 1), 0.55)
   end
 
   return K

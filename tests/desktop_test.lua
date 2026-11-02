@@ -515,16 +515,8 @@ do
   local party0 = s.party
   s.party = { { species = 25 }, { speciesId = 1 }, { species = 0 } }
   draw(70)
-  T.eq(st.balls, 2, "the pad: the Poké Ball while there's a party (" .. tostring(st.balls) .. " Pokémon)")
-  T.eq(st.ballK, 1, "resting on it under the window")
-  -- (the home screen: the pad empty; the window again: the ball back)
-  D.closeWindow()
-  draw(40)
-  T.eq(st.ballK, 0, "the home screen's pad stays empty")
-  press("a")
-  draw(40)
-  IW = D.window()
-  T.check(IW and IW.title == "Items" and st.ballK == 1, "Items again: the ball back on the pad")
+  T.eq(st.balls, 2, "the party read for the pad's Poké Ball (" .. tostring(st.balls) .. " Pokémon)")
+  T.eq(D.ballState(), "off", "Items holds no Pokémon: no ball on the pad")
   s.party = party0
 end
 press("a")
@@ -723,6 +715,16 @@ press("a")
 draw(30)
 local BW = D.window()
 T.check(BW and BW.title == "Boxes", "Boxes over a session")
+-- the pad's Poké Ball: it drops on, its button glows red
+do
+  local seen = {}
+  for _ = 1, 150 do
+    draw(1)
+    seen[D.ballState()] = true
+    if D.ballState() == "on" then break end
+  end
+  T.check(seen.drop and D.ballState() == "on", "Boxes: the Poké Ball drops onto the pad and stays")
+end
 local bst = BW.state
 T.eq(bst.mode, BW.SELECT, "Select first")
 press("select")
@@ -843,6 +845,8 @@ draw(1)
 local BW2 = D.window()
 T.check(BW2 and BW2.title == "Boxes" and BW2 ~= BW, "back from the game's screen: the Boxes window again")
 T.check(BW2.state.mode == BW.SWAP and BW2.state.box == 2 and BW2.state.bi == 1, "as it was (mode, box, cursor)")
+draw(70)
+T.eq(D.ballState(), "on", "and the Poké Ball already on the pad (no second drop)")
 -- closing never leaves a Pokémon in the hand
 D.input(input({}, {}))
 press("a")
@@ -854,6 +858,15 @@ T.check(D.window() == nil, "B, B: closed")
 local found = false
 for b = 1, Bx.BOXES do for i = 1, Bx.SLOTS do if Bx.get(s, Bx.addr("box", i, b)) == heldMon then found = true end end end
 T.check(found, "and the Pokémon it held is back in a box")
+do
+  local seen = {}
+  for _ = 1, 150 do
+    draw(1)
+    seen[D.ballState()] = true
+    if D.ballState() == "off" then break end
+  end
+  T.check(seen.done and seen.lift and D.ballState() == "off", "closed: the button flashes green, the ball lifts off")
+end
 draw(30)
 st.ctx.logoff()
 openPc({ startMode = "select" })

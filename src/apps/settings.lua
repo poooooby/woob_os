@@ -13,11 +13,8 @@
 
 local floor, max, min = math.floor, math.max, math.min
 
-local C = {
-  ink = { 30, 32, 44 }, soft = { 104, 108, 128 }, faint = { 150, 154, 170 }, accent = { 64, 132, 246 },
-  pane = { 255, 255, 255 }, ground = { 242, 242, 247 }, line = { 0, 0, 0 }, wash = { 64, 132, 246, 0.12 },
-  langTile = { 64, 132, 246 }, wallTile = { 172, 96, 220 }, chev = { 196, 198, 206 },
-}
+-- the sections' tiles (the rest of the look is the kit's K.UI)
+local C = { langTile = { 10, 132, 255 }, wallTile = { 175, 82, 222 } }
 local SECTIONS = {
   { id = "language", key = "settings.language", tile = C.langTile },
   { id = "wallpaper", key = "settings.wallpaper", tile = C.wallTile },
@@ -197,31 +194,24 @@ return function(ctx, env)
     end
   end
 
+  local UI = K.UI
+
+  -- the sidebar (System Settings'): a tile and a name per section, the chosen one highlighted
   local function drawSide(x, y, w, h)
-    K.col(C.ground)
+    K.col(UI.sidebar)
     K.box("fill", K.R(x, y, w, h))
     for i, sec in ipairs(SECTIONS) do
       local rb = K.R(x + 3, y + 3 + (i - 1) * (ROW_H + 1), w - 6, ROW_H)
       local on = i == st.section
-      if on and st.focus == "side" then
-        K.col(C.accent)
-        K.box("fill", rb, 3)
-      elseif on then
-        K.col(C.wash)
-        K.box("fill", rb, 3)
-      else
-        K.col(C.pane)
-        K.box("fill", rb, 3)
-      end
+      if on then K.selection(rb, st.focus == "side", 3) end
       local tb = K.R(rb[1] + 2.5, rb[2] + 2, ROW_H - 4, ROW_H - 4)
       K.col(sec.tile)
       K.box("fill", tb, 2.2)
       tileGlyph(sec.id, tb[1], tb[2], tb[3])
       local label = T(sec.key)
-      local ink = (on and st.focus == "side") and K.WHITE or C.ink
-      local ls = K.fit(label, 4.8, rb[3] - ROW_H - 8)
+      local ink = (on and st.focus == "side") and K.WHITE or UI.label
+      local ls = K.fit(label, 4.8, rb[3] - ROW_H - 4)
       K.text(label, rb[1] + ROW_H + 1, rb[2] + 3.4 + (4.8 - ls) * 0.5, ls, ink)
-      K.text(">", rb[1] + rb[3] - 6, rb[2] + 3, 5, (on and st.focus == "side") and K.WHITE or C.chev)
       K.addHit(rb, "win", SIDE + i - 1)
     end
   end
@@ -236,24 +226,22 @@ return function(ctx, env)
   local function drawLanguage(x, y, w, h)
     local n = #st.langs
     local gb = K.R(x + 4, y + 13, w - 8, n * LANG_H)
-    K.col(C.pane)
-    K.box("fill", gb, 4)
+    K.card(gb, 4)
     local code = env.language and env.language() or "en"
     for i, l in ipairs(st.langs) do
       local rb = K.R(gb[1], gb[2] + (i - 1) * LANG_H, gb[3], LANG_H)
-      if i == st.langCursor and st.focus == "detail" then
-        K.col(C.wash)
-        K.box("fill", rb, 4)
+      local focused = st.focus == "detail"
+      local on = focused and i == st.langCursor
+      if on then
+        K.selection(K.R(rb[1] + 1, rb[2] + 0.5, rb[3] - 2, rb[4] - 1), true, 3)
+      elseif i > 1 and not (focused and i - 1 == st.langCursor) then
+        K.hairline(rb[1] + 5, rb[2], rb[3] - 5)
       end
-      if i > 1 then
-        K.col(C.line, 0.08)
-        K.box("fill", K.R(rb[1] + 5, rb[2], rb[3] - 5, 0.4))
-      end
-      K.text(l.name, rb[1] + 5, rb[2] + 2.6, 5, C.ink)
-      if l.code == code then check(rb[1] + rb[3] - 10, rb[2] + 3, 5, C.accent) end
+      K.text(l.name, rb[1] + 5, rb[2] + 2.6, 5, on and K.WHITE or UI.label)
+      if l.code == code then check(rb[1] + rb[3] - 10, rb[2] + 3, 5, on and K.WHITE or UI.accent) end
       K.addHit(rb, "win", LANG + i)
     end
-    K.text(T("settings.languageNote"), x + 6, gb[2] + gb[4] + 3, 4.2, C.soft, "left", w - 12)
+    K.text(T("settings.languageNote"), x + 6, gb[2] + gb[4] + 3, 4.2, UI.secondary, "left", w - 12)
   end
 
   local function drawWallpaper(x, y, w, h)
@@ -281,54 +269,37 @@ return function(ctx, env)
         local tb = K.R(x + 4 + c * (tw + gap), ty + 1.5, tw, th)
         local drawn = false
         if wp.id ~= "classic" and Wall then
-          local ok, got = pcall(Wall.draw, wp.id, K.X(tb[1]), K.Y(tb[2]), tb[3] * K.sc, tb[4] * K.sc, 2 * K.sc,
+          local ok, got = pcall(Wall.draw, wp.id, K.X(tb[1]), K.Y(tb[2]), tb[3] * K.sc, tb[4] * K.sc, 2.5 * K.sc,
             fit())
           drawn = ok and got
         end
-        if not drawn and top then K.grad(tb, 2, top, foot) end
+        if not drawn and top then K.grad(tb, 2.5, top, foot) end
         if wp.id == current then
-          K.ring(K.R(tb[1] - 1.2, tb[2] - 1.2, tb[3] + 2.4, tb[4] + 2.4), 3, C.accent, 1, 1)
-        elseif i == st.wallCursor and st.focus == "detail" then
-          K.ring(K.R(tb[1] - 1.2, tb[2] - 1.2, tb[3] + 2.4, tb[4] + 2.4), 3, C.accent, K.pulse() * 0.6, 0.8)
+          K.ring(K.R(tb[1] - 1.2, tb[2] - 1.2, tb[3] + 2.4, tb[4] + 2.4), 3.5, UI.accent, 1, 1)
         end
-        if i == st.wallCursor and st.focus == "detail" and wp.id == current then
-          K.ring(K.R(tb[1] - 2.4, tb[2] - 2.4, tb[3] + 4.8, tb[4] + 4.8), 4, C.accent, K.pulse() * 0.5, 0.6)
+        if i == st.wallCursor and st.focus == "detail" then
+          K.focusRing(K.R(tb[1] - 1.4, tb[2] - 1.4, tb[3] + 2.8, tb[4] + 2.8), 3.6, K.pulse())
         end
         local name = wp.key and T(wp.key) or wp.name
         local ns = K.fit(name, 4.2, tw)
-        K.text(name, tb[1], tb[2] + th + 1.5, ns, wp.id == current and C.accent or C.ink, "center", tw)
+        local ink = wp.id == current and UI.accent or UI.label
+        if wp.id == current then K.bold(name, tb[1], tb[2] + th + 1.5, ns, ink, "center", tw)
+        else K.text(name, tb[1], tb[2] + th + 1.5, ns, ink, "center", tw) end
         K.addHit(K.R(tb[1], tb[2], tw, cellH - 1), "win", WALL + i, clip)
       end
     end
     K.scissor(nil)
-    K.text(T("settings.wallpaperNote"), x + 6, y + h - noteH + 1, 4, C.soft, "left", w - 12)
+    K.text(T("settings.wallpaperNote"), x + 6, y + h - noteH + 1, 4, UI.secondary, "left", w - 12)
   end
 
   local function drawDetail(x, y, w, h)
-    K.col(C.ground)
-    K.box("fill", K.R(x, y, w, h))
     local sec = SECTIONS[st.section]
-    K.text(T(sec.key), x + 6, y + 3, 6.5, C.ink)
-    K.text(T(sec.key), x + 6.25, y + 3, 6.5, C.ink)
+    K.bold(T(sec.key), x + 6, y + 3, 6.5, UI.label)
     -- a picture: Fill | Stretch, by the title
     if sec.id == "wallpaper" and picture() then
-      local f = fit()
       local sw = min(64, w * 0.5)
-      local half = sw / 2
-      local bx = x + w - sw - 5
-      K.col(C.chev, 0.5)
-      K.box("fill", K.R(bx, y + 2.5, sw, 8), 4)
-      for i, id in ipairs(FITS) do
-        local sb = K.R(bx + (i - 1) * half + 0.6, y + 3.1, half - 1.2, 6.8)
-        local on = id == f
-        if on then
-          K.col(C.pane)
-          K.box("fill", sb, 3.4)
-        end
-        local label = T(id == "fill" and "settings.fill" or "settings.stretch")
-        K.text(label, sb[1], sb[2] + 1.2, K.fit(label, 4.2, sb[3] - 2), on and C.accent or C.ink, "center", sb[3])
-        K.addHit(sb, "win", FIT + i - 1)
-      end
+      K.segmented(x + w - sw - 5, y + 2.5, sw, 8, fit() == "fill" and 1 or 2, "win",
+        FIT, T("settings.fill"), FIT + 1, T("settings.stretch"))
     end
     if sec.id == "language" then drawLanguage(x, y, w, h) else drawWallpaper(x, y, w, h) end
   end
@@ -341,16 +312,16 @@ return function(ctx, env)
         drawDetail(x, y + 10, w, h - 10)
         K.scissor(body)
         local label = T("nav.back")
-        K.text(label, x + 4, y + 2, 4.6, C.accent)
-        K.addHit(K.R(x + 2, y, K.width(label, 4.6) + 6, 10), "win", BACK)
+        K.chevron(x + 5, y + 5, 4, UI.accent, -1)
+        K.text(label, x + 8.5, y + 2.4, 4.6, UI.accent)
+        K.addHit(K.R(x + 2, y, K.width(label, 4.6) + 10, 10), "win", BACK)
       else
         drawSide(x, y, w, h)
       end
     else
       local sw = min(90, floor(w * 0.36))
       drawSide(x, y, sw, h)
-      K.col(C.line, 0.1)
-      K.box("fill", K.R(x + sw, y, 0.6, h))
+      K.vline(x + sw, y, h)
       drawDetail(x + sw + 0.6, y, w - sw - 0.6, h)
     end
   end

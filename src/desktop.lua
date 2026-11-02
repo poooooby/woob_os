@@ -29,7 +29,7 @@
 --   D.close() ; D.isOpen() ; D.input(input) ; D.pointer(ev) -> true ; D.wheel(dy) ; D.draw(G, vp)
 --   D.state() (tests) ; D.booting() ; D.skipBoot() ; D.launch(i) ; D.tap(x, y)
 --   D.padTransfer(itemId, "out" | "in") (an item across the shelf's pad; lit while a window has
---   pad = true) ; D.padState() -> effects, way, item, light
+--   pad = true) ; D.padState() -> effects, way, item, light ; D.ballState() -> the pad's ball (win.ball)
 
 return function(deps)
   local K = deps.kit
@@ -57,6 +57,9 @@ return function(deps)
   -- the item pad (seconds): its light coming on / off; an item going out (dropping onto it,
   -- digitizing away, a flash) and coming in (digitizing in, a moment, fading into the Bag)
   -- (ball: the Poké Ball sinking into the pad / rising back)
+  -- the Poké Ball on the pad (a window with `ball`: Boxes): its drop and bounce, its button's glow
+  -- coming up red, the green flash on closing, the lift off (seconds); the drop's height (units)
+  D.BALL = { drop = 0.5, glow = 1.6, flash = 0.5, lift = 0.45, height = 16 }
   D.PAD = { ball = 0.3, light = 0.25, drop = 0.25, out = 0.55, flash = 0.2, inn = 0.55, hold = 0.25, fade = 0.35, gap = 0.1 }
   local function padLength(dir)
     local P = D.PAD
@@ -85,7 +88,7 @@ return function(deps)
     shelfBack = { 150, 154, 166 }, shelfTop = { 214, 217, 225 }, lipTop = { 196, 200, 210 }, lipFoot = { 132, 136, 150 },
     ballRed = { 228, 64, 58 }, ballRedDark = { 176, 36, 40 }, ballRedLight = { 246, 122, 108 },
     ballWhite = { 248, 248, 250 }, ballShade = { 184, 186, 196 }, ballInk = { 40, 40, 48 },
-    ballEdge = { 70, 72, 80 },
+    ballEdge = { 70, 72, 80 }, ballGlowRed = { 255, 46, 46 }, ballGlowGreen = { 60, 236, 110 },
     padGlow = { 90, 214, 255 }, padLight = { 150, 236, 255 },
     beamTop = { 90, 214, 255, 0 }, beamFoot = { 90, 214, 255, 0.7 },
   }
@@ -163,7 +166,7 @@ return function(deps)
       end
       for i, app in ipairs(grid) do if app.id == resume.app then r.cursor = i end end
       local app = deps.apps.byId(resume.app)
-      if app and app.window then r.resumeApp = app end
+      if app and app.window then r.resumeApp, r.ballSkip = app, true end
     elseif ctx.back then
       for i, app in ipairs(grid) do if app.id == ctx.back then r.cursor = i end end
       for i, app in ipairs(dock) do
@@ -281,6 +284,8 @@ return function(deps)
     if r.padN > 0 then Q[1].t0, Q[1].sounded = clock, false end
   end
   -- -> waiting + playing, the playing one's way and item, the light, its kind (nil: an item; "ball")
+  -- the pad's Poké Ball: "off" | "drop" | "on" (glowing red) | "done" (the green flash) | "lift"
+  function D.ballState() return r and r.ballPhase or "off" end
   function D.padState()
     if not r then return 0 end
     local e = r.padQ[1]
@@ -749,7 +754,7 @@ return function(deps)
 
   -- a Poké Ball facing us, `rad` units round, at cx, cy: a glossy red top lit from the top left,
   -- a white foot shading to grey, the band and the button (each half shaded inside a scissor)
-  local function drawBall(G, cx, cy, rad, a)
+  local function drawBall(G, cx, cy, rad, a, lit, litK)
     local x, y, R = K.X(cx), K.Y(cy), rad * K.sc
     local sx, sy, sw, sh = G.getScissor()
     local band, b = R * 0.09, R * 0.93
@@ -780,15 +785,33 @@ return function(deps)
     G.circle("line", x, y, R * 0.13)
     K.col(WHITE, 0.75 * (a or 1))
     G.ellipse("fill", x - R * 0.42, y - R * 0.56, R * 0.15, R * 0.1)
+    -- (the button lit: its colour, a brighter heart, a soft halo round it)
+    if lit and litK and litK > 0 then
+      local k = litK * (a or 1)
+      G.setBlendMode("add")
+      K.col(lit, 0.22 * k)
+      G.circle("fill", x, y, R * 0.62)
+      K.col(lit, 0.3 * k)
+      G.circle("fill", x, y, R * 0.4)
+      G.setBlendMode("alpha")
+      K.col(dark(lit, 0.15), k)
+      G.circle("fill", x, y, R * 0.21)
+      K.col(lit, k)
+      G.circle("fill", x, y, R * 0.17)
+      K.col(light(lit, 0.45), 0.9 * k)
+      G.circle("fill", x - R * 0.04, y - R * 0.05, R * 0.07)
+    end
   end
   -- a Poké Ball as the pad's effects draw an item: s units square at x, y (its top left)
   local function ballIcon(_, x, y, s, a)
     drawBall(K.graphics(), x + s / 2, y + s / 2, s / 2, a)
   end
 
-  -- the Poké Ball resting on the pad while a window is open and there's a party (until the Box
-  -- app gives it a job; the party read once a second). It sinks into the pad while an item
-  -- crosses, and when the window closes; the home screen's pad stays empty
+  -- the Poké Ball on the pad, for a window that holds the party (`win.ball`: Boxes) when there is
+  -- one (read once a second): it drops onto the pad as the window opens and bounces, its button
+  -- slowly glows red while the window is open; when it closes the button flashes green and the
+  -- ball lifts off. Coming back from the game's Summary it is already there. It sinks into the
+  -- pad while a Pokémon crosses it; the home screen's pad stays empty
   local function drawPadBall(L, clock)
     local G = K.graphics()
     if not r.ballsAt or clock - r.ballsAt >= 1 or clock < r.ballsAt then
@@ -804,18 +827,69 @@ return function(deps)
       end
       r.balls = n
     end
-    -- (never on the home screen: only under an open window)
-    local want = r.win and r.balls > 0 and r.padN == 0 and 1 or 0
-    if not r.ballK then r.ballK = want end
+    local B = D.BALL
+    local want = r.win and r.win.ball and r.balls > 0
+    local phase, t = r.ballPhase or "off", clock - (r.ballT0 or clock)
+    if want then
+      if phase == "off" and r.ballSkip then phase, t = "on", B.glow
+      elseif phase == "off" or phase == "lift" then phase, t = "drop", 0
+      elseif phase == "done" then phase, t = "on", 0 end
+    elseif phase == "drop" or phase == "on" then
+      phase, t = "done", 0
+    end
+    if phase == "drop" and t >= B.drop then
+      phase, t = "on", t - B.drop
+    elseif phase == "done" and t >= B.flash then
+      phase, t = "lift", t - B.flash
+    elseif phase == "lift" and t >= B.lift then
+      phase, t = "off", 0
+    end
+    if phase ~= r.ballPhase then
+      if phase == "on" and r.ballPhase == "drop" then se("SE_BALL_BOUNCE_1") end
+      if phase == "done" then se("SE_BALL_CLICK") end
+      r.ballPhase, r.ballT0, r.ballSkip = phase, clock - t, nil
+    end
+    -- (sunk while a Pokémon crosses the pad)
+    local sinkWant = r.padN == 0 and 1 or 0
+    if not r.ballK then r.ballK = sinkWant end
     local step = r.dt / D.PAD.ball
-    r.ballK = want > r.ballK and min(want, r.ballK + step) or max(want, r.ballK - step)
-    if r.ballK <= 0 then return end
+    r.ballK = sinkWant > r.ballK and min(sinkWant, r.ballK + step) or max(sinkWant, r.ballK - step)
+    if phase == "off" or r.ballK <= 0 then return end
     local p = L.padC
     local rad = D.SHELF.item / 2
     local rest = p[2] + 1 - rad
+    local off, a, lit, litK = 0, 1, C.ballGlowRed, 0
+    if phase == "drop" then
+      -- falling under gravity to the pad, then one small bounce
+      local k = t / B.drop
+      if k < 0.72 then
+        local e = k / 0.72
+        off = -B.height * (1 - e * e)
+      else
+        off = -2.4 * math.sin(math.pi * (k - 0.72) / 0.28)
+      end
+      a = min(1, k / 0.3)
+    elseif phase == "on" then
+      local up = min(1, t / B.glow)
+      litK = up * up * (3 - 2 * up) * (0.82 + 0.18 * math.sin(clock * 2.4))
+    elseif phase == "done" then
+      -- the green flash: bright at once, a second blink, held to the end
+      lit = C.ballGlowGreen
+      local k = t / B.flash
+      litK = k < 0.25 and 1 or (k < 0.45 and 0.35 or 1)
+    else
+      local k = t / B.lift
+      off = -B.height * 0.8 * k * k
+      a = 1 - k
+      lit, litK = C.ballGlowGreen, 1 - k
+    end
+    -- (its shadow on the pad: smaller and fainter the higher it is)
+    local hk = max(0, 1 + off / B.height)
+    K.col(BLACK, 0.22 * hk * a * r.ballK)
+    G.ellipse("fill", K.X(p[1]), K.Y(p[2] + 0.6), rad * (0.55 + 0.45 * hk) * K.sc, rad * 0.3 * (0.55 + 0.45 * hk) * K.sc)
     local k = 1 - (1 - r.ballK) * (1 - r.ballK)
     if r.ballK < 1 then G.setScissor(0, 0, K.ww, floor(K.Y(p[2] + 1))) end
-    drawBall(G, p[1], rest + (1 - k) * (rad * 2 + 1), rad)
+    drawBall(G, p[1], rest + off + (1 - k) * (rad * 2 + 1), rad, a, lit, litK)
     if r.ballK < 1 then G.setScissor() end
   end
 
@@ -1076,27 +1150,37 @@ return function(deps)
     end
   end
 
-  -- an app's window over the screen: the title strip with its close button, then the app
+  -- an app's window over the screen: a macOS toolbar (the close, minimise and zoom lights, the
+  -- title), then the app on the grouped grey
   local function drawWindow(L, clock, portrait)
     local G = K.graphics()
+    local UI = K.UI
     local wb, tb = L.win, L.winTitle
     -- (the whole screen, its rounded corners; the menu bar is drawn over its top)
-    K.col(C.sheet)
+    K.col(UI.grouped)
     K.box("fill", K.R(wb[1], wb[2] - 9, wb[3], wb[4] + 9), D.SCREEN_RADIUS)
-    K.grad(tb, 0, C.sheet, C.sheetFoot)
-    K.col(BLACK, 0.1)
-    K.box("fill", K.R(tb[1], tb[2] + tb[4] - 0.4, tb[3], 0.4))
+    K.grad(tb, 0, UI.toolbar, UI.toolbarFoot)
+    K.hairline(tb[1], tb[2] + tb[4] - 0.25, tb[3])
+    -- (only the red one does anything: the window is the whole screen)
     local cb = L.winClose
-    K.col(C.bad)
-    G.circle("fill", K.X(cb[1] + cb[3] / 2), K.Y(cb[2] + cb[4] / 2), 2.6 * K.sc)
-    K.col(BLACK, 0.35)
-    G.setLineWidth(max(1, 0.5 * K.sc))
-    local cx, cy, d = K.X(cb[1] + cb[3] / 2), K.Y(cb[2] + cb[4] / 2), 1.1 * K.sc
-    G.line(cx - d, cy - d, cx + d, cy + d)
-    G.line(cx - d, cy + d, cx + d, cy - d)
+    local cx, cy = cb[1] + cb[3] / 2, cb[2] + cb[4] / 2
+    for i = 1, 3 do
+      local c = i == 1 and UI.red or (i == 2 and UI.yellow or UI.green)
+      local lx = cx + (i - 1) * 6.2
+      K.col(c)
+      G.circle("fill", K.X(lx), K.Y(cy), 2.2 * K.sc)
+      K.col(dark(c, 0.25), 0.55)
+      G.setLineWidth(max(1, 0.3 * K.sc))
+      G.circle("line", K.X(lx), K.Y(cy), 2.2 * K.sc)
+    end
+    K.col(dark(UI.red, 0.55), 0.75)
+    G.setLineWidth(max(1, 0.45 * K.sc))
+    local px, py, d = K.X(cx), K.Y(cy), 0.95 * K.sc
+    G.line(px - d, py - d, px + d, py + d)
+    G.line(px - d, py + d, px + d, py - d)
     K.addHit(K.R(cb[1] - 2, cb[2] - 1, cb[3] + 4, cb[4] + 2), "winclose")
     local title = labelOf(r.winApp) or r.win.title
-    K.text(title, tb[1], tb[2] + 2.4, 5, C.ink, "center", tb[3])
+    K.bold(title, tb[1], tb[2] + 2.5, 4.8, UI.label, "center", tb[3])
     local body = L.winBody
     local wa = r.winArea or {}
     r.winArea = wa

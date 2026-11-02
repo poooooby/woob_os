@@ -8,16 +8,15 @@
 
 local floor, max, min, abs = math.floor, math.max, math.min, math.abs
 
+-- (the system colours of the kit's K.UI, the macOS / iOS look every window shares)
 local C = {
-  ink = { 30, 32, 44 }, soft = { 104, 108, 128 }, faint = { 150, 154, 170 }, card = { 255, 255, 255 },
-  slot = { 255, 255, 255, 0.72 }, slotEmpty = { 255, 255, 255, 0.32 }, head = { 238, 240, 245 },
-  headFoot = { 226, 229, 236 }, bad = { 220, 62, 74 }, good = { 120, 230, 160 }, accent = { 64, 132, 246 },
-  red = { 232, 72, 72 }, blue = { 64, 132, 246 }, green = { 60, 186, 106 }, chip = { 214, 220, 232 },
-  hpGood = { 88, 208, 120 }, hpMid = { 240, 196, 60 }, hpLow = { 232, 80, 72 }, hpBack = { 0, 0, 0, 0.18 },
-  male = { 64, 132, 246 }, female = { 236, 88, 120 }, shiny = { 250, 196, 40 }, picBack = { 238, 241, 248 },
-  dim = { 0, 0, 0 }, sheetRow = { 64, 132, 246 },
-  -- the window's own white (the box's rounded corners are cut in it), the box's bezel
-  body = { 248, 248, 251 }, bezel = { 204, 208, 218 }, bezelIn = { 146, 152, 168 },
+  ink = { 28, 28, 30 }, soft = { 112, 112, 120 }, faint = { 162, 162, 170 }, card = { 255, 255, 255 },
+  bad = { 255, 59, 48 }, good = { 52, 199, 89 }, accent = { 10, 132, 255 },
+  red = { 255, 69, 58 }, blue = { 10, 132, 255 }, green = { 52, 199, 89 },
+  hpGood = { 52, 199, 89 }, hpMid = { 255, 204, 0 }, hpLow = { 255, 59, 48 }, hpBack = { 118, 118, 128, 0.2 },
+  male = { 10, 132, 255 }, female = { 255, 55, 95 }, shiny = { 255, 190, 30 }, picBack = { 242, 242, 247 },
+  -- the window's grouped grey (the box's rounded corners are cut in it), the box's bezel
+  body = { 242, 242, 247 }, bezel = { 210, 210, 218 }, bezelIn = { 150, 150, 162 },
   -- Dynamax (WoobleDex's): the level's segments, the empty ones, the G-Max badge
   dmax = { 255, 140, 24 }, dmaxEmpty = { 214, 218, 228 }, gmax = { 214, 28, 64 },
 }
@@ -105,6 +104,8 @@ return function(K, env, T, Bx, st, A)
   local function drawParty(x, y, w, portrait, clock, color)
     local s, g = session(), st.geo
     local party = Bx.party(s)
+    if portrait then K.card(K.R(g.partyX, g.partyY, g.slotW * Bx.PARTY - 1, g.slotH - 1), 4)
+    else K.card(K.R(g.partyX, g.partyY, g.partyW, g.slotH * Bx.PARTY - 1), 4) end
     for i = 1, Bx.PARTY do
       local sx, sy, sw, sh
       if portrait then
@@ -114,8 +115,8 @@ return function(K, env, T, Bx, st, A)
       end
       local rb = K.R(sx, sy, sw, sh)
       local mon = party[i]
-      K.col(mon and C.slot or C.slotEmpty)
-      K.box("fill", rb, 2.5)
+      if i > 1 and not portrait then K.hairline(sx + 2, sy - 0.5, sw - 4) end
+      if i > 1 and portrait then K.vline(sx - 0.5, sy + 2, sh - 4) end
       if mon then
         local on = st.area == "party" and st.pi == i
         local frame = on and floor(clock * 4) % 2 or 0
@@ -127,7 +128,7 @@ return function(K, env, T, Bx, st, A)
           local is = sh * 1.25
           icon(mon, sx - 1, sy + (sh - is) / 2 - 0.5, is, frame)
           local info = Bx.info(mon, T)
-          K.text(info.levelText, sx + is - 1, sy + 1.6, 3.8, C.ink)
+          K.bold(info.levelText, sx + is - 1, sy + 1.6, 3.8, C.ink)
           hpBar(mon, sx + is - 1, sy + sh - 3.2, sw - is - 1)
         end
       end
@@ -153,18 +154,24 @@ return function(K, env, T, Bx, st, A)
   local function drawHead(x, y, w)
     local s, g = session(), st.geo
     local hb = K.R(x, y, w, HEAD_H)
-    K.grad(hb, 2.5, C.head, C.headFoot)
+    K.card(hb, 3)
     if st.area == "head" and not st.usePtr then K.ring(hb, 2.5, V.modeColor[st.mode], K.pulse(), 0.9) end
     g.prev[1], g.prev[2], g.prev[3], g.prev[4] = x, y, 12, HEAD_H
     g.next[1], g.next[2], g.next[3], g.next[4] = x + w - 12, y, 12, HEAD_H
     local hot = st.held and st.usePtr and st.arrow
-    K.text("<", x + 3, y + 2.2, 5, hot == -1 and C.accent or C.soft)
-    K.text(">", x + w - 7, y + 2.2, 5, hot == 1 and C.accent or C.soft)
+    for d = -1, 1, 2 do
+      local cx = d < 0 and x + 6 or x + w - 6
+      if hot == d then
+        K.col(C.accent, 0.16)
+        K.graphics().circle("fill", K.X(cx), K.Y(y + HEAD_H / 2), 4 * K.sc)
+      end
+      K.chevron(cx, y + HEAD_H / 2, 4, C.accent, d)
+    end
     K.addHit(g.prev, "win", A.PREV)
     K.addHit(g.next, "win", A.NEXT)
     local name = Bx.boxName(s, st.box)
     local ns = K.fit(name, 4.8, w - 26)
-    K.text(name, x + 12, y + 2.4 + (4.8 - ns) * 0.5, ns, C.ink, "center", w - 24)
+    K.bold(name, x + 12, y + 2.4 + (4.8 - ns) * 0.5, ns, C.ink, "center", w - 24)
     K.addHit(K.R(x + 12, y, w - 24, HEAD_H), "win", A.NAME)
   end
 
@@ -371,8 +378,7 @@ return function(K, env, T, Bx, st, A)
   local function drawPreview(mon, x, y, w, h, horizontal)
     local G = K.graphics()
     local card = K.R(x, y, w, h)
-    K.col(C.card, 0.94)
-    K.box("fill", card, 3)
+    K.card(card, 5)
     if not mon then
       K.text(T("boxes.empty"), x, y + h / 2 - 3, 4.6, C.faint, "center", w)
       return
@@ -394,7 +400,7 @@ return function(K, env, T, Bx, st, A)
     if horizontal then tx, ty, tw = px + ps + 4, y + 3, w - ps - 10
     else tx, ty, tw = x + 3, py + ps + 1, w - 6 end
     local ns = K.fit(info.name, 5, tw - 8)
-    K.text(info.name, tx, ty, ns, C.ink, horizontal and "left" or "center", tw)
+    K.bold(info.name, tx, ty, ns, C.ink, horizontal and "left" or "center", tw)
     ty = ty + 6.5
     if not info.egg then
       local lw = K.width(info.levelText, 4.2)
@@ -438,29 +444,23 @@ return function(K, env, T, Bx, st, A)
     local sh = st.sheet
     if not sh then return end
     local x, y, w, h = body[1], body[2], body[3], body[4]
-    K.col(C.dim, 0.28)
-    K.box("fill", body)
+    K.dim(body)
     K.addHit(body, "win", A.DIM)
     local cw = min(w - 16, sh.kind == "wall" and 132 or 112)
     local title = sh.extra and sh.extra.title or ""
     if sh.kind == "release" then
+      -- an alert: the question, Cancel | Release
       local cb = K.R(x + (w - cw) / 2, y + (h - 40) / 2, cw, 40)
-      K.shadow(cb, 4, 1.2, 0.3)
-      K.col(C.card)
-      K.box("fill", cb, 4)
+      K.sheet(cb, 6)
       K.addHit(cb, "win", -1)
-      K.text(title, cb[1] + 4, cb[2] + 4, K.fit(title, 5.2, cw - 8), C.ink, "center", cw - 8)
+      K.bold(title, cb[1] + 4, cb[2] + 5, K.fit(title, 5.2, cw - 8), C.ink, "center", cw - 8)
       local body2 = T("boxes.releaseBody")
-      K.text(body2, cb[1] + 4, cb[2] + 12, K.fit(body2, 4.2, cw - 8), C.soft, "center", cw - 8)
-      local bw = (cw - 12) / 2
+      K.text(body2, cb[1] + 4, cb[2] + 13, K.fit(body2, 4.2, cw - 8), C.soft, "center", cw - 8)
+      local bw = (cw - 14) / 2
       for k = 1, 2 do
-        local bb = K.R(cb[1] + 4 + (k - 1) * (bw + 4), cb[2] + 26, bw, 10)
-        local on = sh.cursor == k
-        K.col(k == 2 and (on and C.bad or C.chip) or (on and C.accent or C.chip))
-        K.box("fill", bb, 5)
-        local label = T(k == 1 and "button.cancel" or "boxes.releaseYes")
-        K.text(label, bb[1], bb[2] + 2.4, K.fit(label, 4.6, bw - 2), on and K.WHITE or (k == 2 and C.bad or C.ink),
-          "center", bw)
+        local bb = K.R(cb[1] + 5 + (k - 1) * (bw + 4), cb[2] + 26, bw, 10)
+        K.button(bb, T(k == 1 and "button.cancel" or "boxes.releaseYes"), k == 2 and "danger" or "gray",
+          sh.cursor == k)
         K.addHit(bb, "win", k == 1 and A.NO or A.YES)
       end
       return
@@ -473,45 +473,40 @@ return function(K, env, T, Bx, st, A)
       local rows = math.ceil(n / cols)
       local ch = 14 + rows * (th + 2) + 2
       local cb = K.R(x + (w - cw) / 2, y + max(2, (h - ch) / 2), cw, min(h - 4, ch))
-      K.shadow(cb, 4, 1.2, 0.3)
-      K.col(C.card)
-      K.box("fill", cb, 4)
+      K.sheet(cb, 6)
       K.addHit(cb, "win", -1)
-      K.text(title, cb[1], cb[2] + 3, 5, C.ink, "center", cw)
+      K.bold(title, cb[1], cb[2] + 3.5, 5, C.ink, "center", cw)
       for i = 1, n do
         local c, r = (i - 1) % cols, floor((i - 1) / cols)
         local tx, ty = cb[1] + 4 + c * (tw + 2), cb[2] + 12 + r * (th + 2)
         wallpaper(i, tx, ty, tw, th)
         local tb = K.R(tx, ty, tw, th)
-        if i == sh.cursor then K.ring(tb, 2, C.accent, K.pulse(), 1) end
+        if i == sh.cursor then K.focusRing(tb, 1.5, 0.6 + 0.4 * K.pulse()) end
         K.addHit(tb, "win", A.WALL + i)
       end
       return
     end
-    -- a list
+    -- a list: a popover menu (the actions, the box menu) or the boxes to jump to
     local n = #sh.rows
     local vis = max(1, min(n, floor((h - 22) / 10)))
     if sh.cursor > sh.top + vis then sh.top = sh.cursor - vis end
     if sh.cursor <= sh.top then sh.top = sh.cursor - 1 end
     local ch = 14 + vis * 10 + 2
     local cb = K.R(x + (w - cw) / 2, y + (h - ch) / 2, cw, ch)
-    K.shadow(cb, 4, 1.2, 0.3)
-    K.col(C.card)
-    K.box("fill", cb, 4)
+    K.sheet(cb, 5)
     K.addHit(cb, "win", -1)
-    K.text(title, cb[1] + 4, cb[2] + 3.5, K.fit(title, 5, cw - 8), C.ink, "center", cw - 8)
+    K.bold(title, cb[1] + 4, cb[2] + 3.5, K.fit(title, 5, cw - 8), C.ink, "center", cw - 8)
+    K.hairline(cb[1], cb[2] + 11.5, cw)
     local s = session()
     for k = 1, vis do
       local i = sh.top + k
       local label = sh.rows[i]
       if not label then break end
-      local rb = K.R(cb[1] + 2, cb[2] + 12 + (k - 1) * 10, cw - 4, 10)
+      local rb = K.R(cb[1] + 2, cb[2] + 12.5 + (k - 1) * 10, cw - 4, 10)
       local on = i == sh.cursor
       local danger = sh.kind == "actions" and i == 4
-      if on then
-        K.col(danger and C.bad or C.sheetRow)
-        K.box("fill", rb, 2.5)
-      end
+      if on then K.selection(rb, true, 2.5, danger and C.bad or C.accent) end
+      if danger and k > 1 and i - 1 ~= sh.cursor then K.hairline(rb[1] + 2, rb[2] - 0.1, rb[3] - 4) end
       local ink = on and K.WHITE or (danger and C.bad or C.ink)
       local right = sh.kind == "jump" and 18 or 0
       K.text(label, rb[1] + 4, rb[2] + 2.4, K.fit(label, 4.8, rb[3] - 8 - right), ink)
@@ -520,6 +515,7 @@ return function(K, env, T, Bx, st, A)
       end
       K.addHit(rb, "win", A.ROW + i - 1)
     end
+    K.scrollbar(cb[1] + cw, cb[2] + 12.5, vis * 10, sh.top, vis, n)
   end
 
   -- ------- the whole window
@@ -529,9 +525,9 @@ return function(K, env, T, Bx, st, A)
     local g = st.geo
     g.portrait = portrait
     if portrait then
-      g.slotW = w / Bx.PARTY
+      g.slotW = (w - 6) / Bx.PARTY
       g.slotH = min(20, g.slotW)
-      g.partyX, g.partyY, g.partyW = x, y + 1, w
+      g.partyX, g.partyY, g.partyW = x + 3, y + 2, w - 6
       local headY = g.partyY + g.slotH + 2
       g.cell = min(floor(w / Bx.COLS), 22)
       g.gx, g.gy = x + (w - g.cell * Bx.COLS) / 2, headY + HEAD_H + GAP
@@ -541,7 +537,7 @@ return function(K, env, T, Bx, st, A)
       local footY = g.gy + g.cell * Bx.ROWS + GAP
       drawFoot(g.gx, footY, g.cell * Bx.COLS, color, modeName)
       local py = footY + 11
-      if y + h - py > 20 then drawPreview(mon, x + 2, py, w - 4, y + h - py - 1, true) end
+      if y + h - py > 20 then drawPreview(mon, x + 3, py, w - 6, y + h - py - 3, true) end
     else
       local partyW = 40
       local cell = max(11, min(16, floor((w - partyW - 62 - GAP * 2 - 2) / Bx.COLS)))
@@ -549,7 +545,7 @@ return function(K, env, T, Bx, st, A)
       g.cell = cell
       g.partyX, g.partyY, g.partyW = x + 1, y + HEAD_H + 1, partyW - 1
       g.slotH = min(15, (h - HEAD_H - 2) / Bx.PARTY)
-      K.text(T("boxes.party"), x + 1, y + 2.4, 4.6, C.soft, "center", partyW - 1)
+      K.bold(T("boxes.party"), x + 1, y + 2.4, 4.6, C.soft, "center", partyW - 1)
       drawParty(x, y, partyW, false, clock, color)
       local bx = x + partyW + GAP + 1
       drawHead(bx, y, cell * Bx.COLS)

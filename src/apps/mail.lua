@@ -11,11 +11,8 @@
 
 local floor, max, min = math.floor, math.max, math.min
 
-local C = {
-  ink = { 30, 32, 44 }, soft = { 104, 108, 128 }, faint = { 150, 154, 170 }, accent = { 64, 132, 246 },
-  pane = { 255, 255, 255 }, head = { 238, 240, 245 }, chip = { 214, 220, 232 }, bad = { 220, 62, 74 },
-  good = { 120, 230, 160 }, wash = { 64, 132, 246, 0.12 }, dim = { 0, 0, 0 }, paper = { 252, 251, 247 },
-}
+-- (the rest of the look is the kit's K.UI)
+local C = { paper = { 252, 251, 247 } }
 -- the stationery's tints, by design (item - ORANGE MAIL): Orange, Harbor, Glitter, Mech, Wood, Wave,
 -- Bead, Shadow, Tropic, Dream, Fab, Retro
 local TINT = {
@@ -254,22 +251,18 @@ return function(ctx, env)
 
   -- ------- drawing (no tables made here)
 
+  local UI = K.UI
+
   local function drawSegs(x, y, w)
-    local half = (w - 6) / 2
-    for k = 1, 2 do
-      local f = k == 1 and "inbox" or "held"
-      local sb = K.R(x + 3 + (k - 1) * half, y + 1.5, half, SEG_H - 3)
-      local on = st.folder == f
-      K.col(on and C.accent or C.chip)
-      K.box("fill", sb, 3.5)
-      local label = k == 1 and st.segInbox or st.segHeld
-      K.text(label, sb[1], sb[2] + 1.6, 4.4, on and K.WHITE or C.ink, "center", sb[3])
-      K.addHit(sb, "win", k == 1 and SEG_INBOX or SEG_HELD)
-    end
+    K.segmented(x + 3, y + 1.5, w - 6, SEG_H - 2.5, st.folder == "inbox" and 1 or 2, "win",
+      SEG_INBOX, st.segInbox, SEG_HELD, st.segHeld)
   end
 
+  -- the letters, in a card: the stationery's dot, who from, its design, the first line
   local function drawList(x, y, w, h)
     local list = rows()
+    K.card(K.R(x, y, w, h), 4)
+    y, h = y + 1, h - 2
     st.visible = max(1, floor(h / ROW_H))
     clamp()
     local clip = K.R(x, y, w, h)
@@ -278,22 +271,20 @@ return function(ctx, env)
     for i = first, min(#list, first + st.visible + 1) do
       local row = list[i]
       local ry = y + (i - 1 - st.top) * ROW_H
-      local rb = K.R(x + 1, ry + 0.5, w - 2, ROW_H - 1)
+      local rb = K.R(x + 1.5, ry + 0.4, w - 3, ROW_H - 0.8)
       local on = i == st.cursor
       local strong = on and st.focus == "list"
-      if strong then
-        K.col(C.accent)
-        K.box("fill", rb, 2.5)
-      elseif on then
-        K.col(C.wash)
-        K.box("fill", rb, 2.5)
+      if on then
+        K.selection(rb, strong)
+      elseif i < #list and i + 1 ~= st.cursor then
+        K.hairline(x + 9, ry + ROW_H - 0.1, w - 11)
       end
       local tint = TINT[row.design] or TINT[0]
       K.col(strong and K.WHITE or tint)
       K.graphics().circle("fill", K.X(x + 5), K.Y(ry + 5), 1.6 * K.sc)
-      local ink, sub = strong and K.WHITE or C.ink, strong and K.WHITE or C.soft
+      local ink, sub = strong and K.WHITE or UI.label, strong and K.WHITE or UI.secondary
       local fs = K.fit(row.from, 4.8, w * 0.5)
-      K.text(row.from, x + 9, ry + 2.2 + (4.8 - fs) * 0.5, fs, ink)
+      K.bold(row.from, x + 9, ry + 2.2 + (4.8 - fs) * 0.5, fs, ink)
       local ts = K.fit(row.title, 4, w * 0.42)
       K.text(row.title, x + w * 0.5, ry + 2.6, ts, sub, "right", w * 0.5 - 4)
       local line = st.folder == "held" and row.monName or row.preview
@@ -303,14 +294,9 @@ return function(ctx, env)
     end
     if #list == 0 then
       K.text(T(st.folder == "inbox" and "mail.empty" or "mail.emptyHeld"), x + 4, y + h / 2 - 4, 4.8,
-        C.faint, "center", w - 8)
+        UI.tertiary, "center", w - 8)
     end
-    if #list > st.visible then
-      local bh = max(6, h * st.visible / #list)
-      local by = y + (h - bh) * (st.top / max(1, #list - st.visible))
-      K.col(K.BLACK, 0.18)
-      K.box("fill", K.R(x + w - 1.6, by, 1.2, bh), 0.6)
-    end
+    K.scrollbar(x + w, y, h, st.top, st.visible, #list)
     K.scissor(nil)
   end
 
@@ -318,20 +304,20 @@ return function(ctx, env)
   local function drawReader(x, y, w, h, body)
     local row = rows()[st.cursor]
     if not row then
-      K.text(T("mail.pick"), x, y + h / 2 - 4, 4.8, C.faint, "center", w)
+      K.text(T("mail.pick"), x, y + h / 2 - 4, 4.8, UI.tertiary, "center", w)
       return
     end
     local tint = TINT[row.design] or TINT[0]
-    local cardH = h - ACT_H - 6
-    local cb = K.R(x + 4, y + 3, w - 8, cardH)
-    K.shadow(cb, 4, 1, 0.22)
+    local cardH = h - ACT_H - 7
+    local cb = K.R(x + 3, y + 3, w - 6, cardH)
+    K.shadow(cb, 5, 1, 0.16)
     K.col(C.paper)
-    K.box("fill", cb, 4)
+    K.box("fill", cb, 5)
     local band = K.R(cb[1], cb[2], cb[3], 12)
-    K.grad(band, 4, K.light(tint, 0.1), K.dark(tint, 0.1))
+    K.grad(band, 5, K.light(tint, 0.1), K.dark(tint, 0.1))
     -- (square under the band's rounded foot)
     K.col(K.dark(tint, 0.06))
-    K.box("fill", K.R(cb[1], cb[2] + 8, cb[3], 4))
+    K.box("fill", K.R(cb[1], cb[2] + 7, cb[3], 5))
     local tts = K.fit(row.title, 5, cb[3] - 22)
     K.label(row.title, cb[1] + 4, cb[2] + 3.2 + (5 - tts) * 0.5, tts, K.WHITE)
     if env.monIcon and row.species > 0 then pcall(env.monIcon, row.species, cb[1] + cb[3] - 17, cb[2] - 1, 16) end
@@ -342,55 +328,38 @@ return function(ctx, env)
     local step = min(8, room / max(1, #lines))
     for i = 1, #lines do
       local ls = K.fit(lines[i], 5.2, cb[3] - 10)
-      K.text(lines[i], cb[1] + 5, ly + (i - 1) * step, ls, C.ink, "center", cb[3] - 10)
+      K.text(lines[i], cb[1] + 5, ly + (i - 1) * step, ls, UI.label, "center", cb[3] - 10)
     end
-    K.text(row.from, cb[1] + 5, cb[2] + cardH - 8, 4.6, C.soft, "right", cb[3] - 10)
-    K.text(T("mail.from"), cb[1] + 5, cb[2] + cardH - 8, 4.2, C.faint)
-    -- the actions
+    K.bold(row.from, cb[1] + 5, cb[2] + cardH - 8, 4.6, UI.label, "right", cb[3] - 10)
+    K.text(T("mail.from"), cb[1] + 5, cb[2] + cardH - 8, 4.2, UI.secondary)
+    -- the actions: the first filled, the rest grey; the focus ring on the one chosen
     local acts = ACTIONS[st.folder]
     local n = #acts
-    local bw = (w - 8 - (n - 1) * 3) / n
+    local bw = (w - 6 - (n - 1) * 3) / n
     for i = 1, n do
-      local bb = K.R(x + 4 + (i - 1) * (bw + 3), y + h - ACT_H - 1, bw, ACT_H - 1)
-      local on = st.focus == "reader" and st.action == i
-      local warn = st.folder == "inbox" and i == 1
-      if on then
-        K.col(warn and C.bad or C.accent)
-        K.box("fill", bb, 5)
-      else
-        K.col(C.chip)
-        K.box("fill", bb, 5)
-      end
-      local label = T(acts[i])
-      local fs = K.fit(label, 4.6, bw - 4)
-      K.text(label, bb[1], bb[2] + 2.6 + (4.6 - fs) * 0.5, fs, on and K.WHITE or C.ink, "center", bb[3])
+      local bb = K.R(x + 3 + (i - 1) * (bw + 3), y + h - ACT_H - 2, bw, ACT_H)
+      K.button(bb, T(acts[i]), i == 1 and "accent" or "gray", st.focus == "reader" and st.action == i)
       K.addHit(bb, "win", ACTION + i - 1)
     end
   end
 
   local function drawSheet(body)
     if not st.sheet then return end
-    K.col(C.dim, 0.3)
-    K.box("fill", body)
+    K.dim(body)
     K.addHit(body, "win", DIM)
     if st.sheet == "bag" then
-      local aw = min(130, body[3] - 16)
-      local ab = K.R(body[1] + (body[3] - aw) / 2, body[2] + (body[4] - 50) / 2, aw, 50)
-      K.shadow(ab, 6, 1.5, 0.3)
-      K.col(C.pane)
-      K.box("fill", ab, 6)
-      local title, body = T("mail.confirmTitle"), T("mail.confirmBody")
-      K.text(title, ab[1], ab[2] + 7, K.fit(title, 6, ab[3] - 6), C.ink, "center", ab[3])
-      K.text(body, ab[1], ab[2] + 17, K.fit(body, 4.8, ab[3] - 6), C.soft, "center", ab[3])
-      local bw = (aw - 20) / 2
+      -- an alert: the question, Cancel | Move
+      local aw = min(124, body[3] - 16)
+      local ab = K.R(body[1] + (body[3] - aw) / 2, body[2] + (body[4] - 46) / 2, aw, 46)
+      K.sheet(ab, 6)
+      local title, words = T("mail.confirmTitle"), T("mail.confirmBody")
+      K.bold(title, ab[1], ab[2] + 6, K.fit(title, 5.4, ab[3] - 8), UI.label, "center", ab[3])
+      K.text(words, ab[1], ab[2] + 15, K.fit(words, 4.4, ab[3] - 8), UI.secondary, "center", ab[3])
+      local bw = (aw - 14) / 2
       for i = 1, 2 do
         local yes = i == 2
-        local bb = K.R(ab[1] + 8 + (i - 1) * (bw + 4), ab[2] + ab[4] - 17, bw, 12)
-        local on = yes == st.yes
-        K.col(on and (yes and C.bad or C.soft) or C.chip)
-        K.box("fill", bb, 6)
-        local bl = T(yes and "mail.confirmMove" or "button.cancel")
-        K.text(bl, bb[1], bb[2] + 3, K.fit(bl, 5, bb[3] - 2), on and K.WHITE or C.ink, "center", bb[3])
+        local bb = K.R(ab[1] + 5 + (i - 1) * (bw + 4), ab[2] + ab[4] - 15, bw, 10)
+        K.button(bb, T(yes and "mail.confirmMove" or "button.cancel"), yes and "danger" or "gray", yes == st.yes)
         K.addHit(bb, "win", yes and YES or NO)
       end
       return
@@ -398,25 +367,27 @@ return function(ctx, env)
     -- give: the party, two columns of three
     local aw = min(170, body[3] - 10)
     local ab = K.R(body[1] + (body[3] - aw) / 2, body[2] + 4, aw, body[4] - 8)
-    K.shadow(ab, 6, 1.5, 0.3)
-    K.col(C.pane)
-    K.box("fill", ab, 6)
+    K.sheet(ab, 6)
     local gt = T("mail.giveTitle")
-    K.text(gt, ab[1], ab[2] + 3, K.fit(gt, 5, ab[3] - 6), C.ink, "center", ab[3])
+    K.bold(gt, ab[1], ab[2] + 3.5, K.fit(gt, 5, ab[3] - 6), UI.label, "center", ab[3])
     local cw, chh = (aw - 12) / 2, min(18, (ab[4] - 14) / 3)
     for i, p in ipairs(st.party) do
       local col, rw = (i - 1) % 2, floor((i - 1) / 2)
-      local pb = K.R(ab[1] + 4 + col * (cw + 4), ab[2] + 11 + rw * chh, cw, chh - 2)
+      local pb = K.R(ab[1] + 4 + col * (cw + 4), ab[2] + 12 + rw * chh, cw, chh - 2)
       local on = i == st.partyCursor
-      K.col(on and (p.held and C.soft or C.accent) or C.head)
-      K.box("fill", pb, 3)
+      if on then
+        K.selection(pb, not p.held, 3.5)
+      else
+        K.col(UI.fill)
+        K.box("fill", pb, 3.5)
+      end
       if env.monIcon then pcall(env.monIcon, p.species, pb[1] + 0.5, pb[2] + (pb[4] - 14) / 2 - 1, 14) end
-      local ink = on and K.WHITE or (p.held and C.faint or C.ink)
+      local ink = (on and not p.held) and K.WHITE or (p.held and UI.tertiary or UI.label)
       local ns = K.fit(p.name, 4.8, cw - 18)
-      K.text(p.name, pb[1] + 16, pb[2] + 2, ns, ink)
+      K.bold(p.name, pb[1] + 16, pb[2] + 2, ns, ink)
       local sub = p.item or T("mail.noItem")
       local ss = K.fit(sub, 4, cw - 18)
-      K.text(sub, pb[1] + 16, pb[2] + pb[4] - 6.5, ss, on and K.WHITE or C.faint)
+      K.text(sub, pb[1] + 16, pb[2] + pb[4] - 6.5, ss, (on and not p.held) and K.WHITE or UI.tertiary)
       K.addHit(pb, "win", MON + i - 1)
     end
   end
@@ -426,26 +397,25 @@ return function(ctx, env)
     local x, y, w, h = body[1], body[2], body[3], body[4]
     if portrait then
       if st.reading then
-        local bb = K.R(x + 2, y + 1, 26, SEG_H - 2)
-        K.text(T("nav.back"), bb[1] + 2, bb[2] + 1.6, 4.6, C.accent)
+        local bb = K.R(x + 2, y + 1, 30, SEG_H - 2)
+        K.chevron(bb[1] + 3, bb[2] + bb[4] / 2 + 0.2, 4, UI.accent, -1)
+        K.text(T("nav.back"), bb[1] + 6.5, bb[2] + 1.6, 4.6, UI.accent)
         K.addHit(bb, "win", BACK)
         drawReader(x, y + SEG_H, w, h - SEG_H, body)
       else
         drawSegs(x, y, w)
-        drawList(x, y + SEG_H, w, h - SEG_H)
+        drawList(x + 3, y + SEG_H + 1, w - 6, h - SEG_H - 4)
         K.scissor(body)
       end
     else
       local lw = min(110, floor(w * 0.44))
       drawSegs(x, y, lw)
-      drawList(x, y + SEG_H, lw, h - SEG_H)
+      drawList(x + 3, y + SEG_H + 1, lw - 6, h - SEG_H - 4)
       K.scissor(body)
-      K.col(K.BLACK, 0.1)
-      K.box("fill", K.R(x + lw, y, 1, h))
-      drawReader(x + lw + 1, y, w - lw - 1, h, body)
+      drawReader(x + lw - 1, y, w - lw + 1, h, body)
     end
     drawSheet(body)
-    if st.toast and not K.toast(st.toast, clock, body, C.bad, C.good, C.ink) then st.toast = nil end
+    if st.toast and not K.toast(st.toast, clock, body, UI.red, UI.green, UI.hud) then st.toast = nil end
   end
 
   refresh()

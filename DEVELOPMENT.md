@@ -72,6 +72,13 @@ A window instead of `open`: `window = function(ctx, env) return win end`, where 
 alpha)`, `boxWall(id, x, y, w, h)`, `itemName(id)` and `pad.transfer(id, dir, kind)` (kind `"ball"`: a Poké Ball
 instead of an item). The garbage rules below apply.
 
+**The look.** Windows share the kit's macOS / iOS pieces, so a window from another mod can match:
+`K.UI` (the system colours), `K.card`, `K.selection` (accent while the list has the focus, grey
+when not), `K.hairline` / `K.vline`, `K.chevron`, `K.button` (`"accent"`, `"danger"`, `"gray"`,
+`"tinted"`; `focused` draws the focus ring), `K.segmented`, `K.dim` + `K.sheet` for sheets and
+popovers, `K.scrollbar` and `K.bold`. The desktop draws the toolbar (the red, yellow and green
+lights, the title) and fills the body with `K.UI.grouped`; a window draws its cards on that.
+
 A window may also have:
 - `pointer(phase, x, y)` (units). It then gets every press, move, release and cancel inside it,
   plus `"hover"`; returning true from `"released"` means it used the release. A release it doesn't
@@ -106,9 +113,13 @@ once, handed `ctx.resume = { app, state }`. Boxes uses this for Summary and Rena
 Under the monitor is a shelf (`D.SHELF.h` units; the page is the monitor's 160 plus the shelf, so
 the screen keeps its size in units). In its middle is the pad, used for the Poké Ball and for items.
 
-- **The ball.** It rests on the pad while a window is open and there's a party; the home screen's pad stays empty (the party is read once a second). It
-  sinks into the pad while an item crosses and rises again after (`D.PAD.ball`). It is a
-  placeholder, waiting for the Box app.
+- **The ball.** A window with `ball = true` (Boxes) holds it, when there's a party (read once a
+  second). `r.ballPhase` runs off -> `drop` (falls `D.BALL.height` units with a bounce,
+  `SE_BALL_BOUNCE_1`) -> `on` (the button's red glow comes up over `D.BALL.glow` seconds, then
+  breathes) -> `done` when the window closes (a green flash, `SE_BALL_CLICK`) -> `lift` -> off.
+  Reopening during the flash goes straight back to `on`. Coming back from the game's Summary
+  (`ctx.resume`) sets `r.ballSkip`: the ball is already there, fully lit. `D.ballState()` gives the
+  phase. It sinks into the pad while a Pokémon crosses and rises again after (`D.PAD.ball`).
 - **Sizes.** The ball and the item on the pad are both `D.SHELF.item` units across.
 
 The pad lights up while the open window has `pad = true` (Items does), and
