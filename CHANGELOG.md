@@ -3,11 +3,7 @@
 All notable changes to this mod are documented here, in
 [keep a changelog](https://keepachangelog.com/en/1.1.0/) format.
 
-## [Unreleased]
-
-### Changed
-
-- **Renamed WoobOS** (mod id `woob_os`), from WoobleOS (`wooble_os`).
+## [0.1.0] - 2026-11-01
 
 ### Added
 - **Arrange the desktop.** A long press on an app (or SELECT) and the icons wiggle: drag one
