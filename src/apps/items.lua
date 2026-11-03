@@ -2,10 +2,11 @@
 -- item goes across to the other: A (a stepper for how many when there's more than one), SELECT the
 -- whole stack. Landscape: Bag | PC; portrait: one pane at a time under a Bag | PC switch.
 --   buttons  Left / Right the pane, Up / Down the item, L / R the Bag's pocket, A move, SELECT move
---            all, START the menu (sort, toss), B close
+--            all, START the menu for the pane in focus (the PC: sort, toss; the Bag: sort the
+--            pocket), B close
 --   stepper  Left / Right one more or less, Up / Down ten, A move, B back
 --   touch    tap an item, tap it again to move it; the stepper's - / + / All / Move; < > the pocket;
---            drag (or the wheel) scrolls a list
+--            Sort on either pane's head; drag (or the wheel) scrolls a list
 -- The model is src/inventory.lua (env.inv); rows are made again only after a change.
 --
 --   window(ctx, env) -> win (src/apps.lua)
@@ -17,7 +18,7 @@ local ROW_H, HEAD_H, FOOT_H = 10, 10, 16
 local BAG = 1000
 local POCKET_PREV, POCKET_NEXT, SEG_PC, SEG_BAG = 2001, 2002, 2003, 2004
 local STEP_MINUS, STEP_PLUS, STEP_ALL, STEP_GO, STEP_BACK = 2010, 2011, 2012, 2013, 2014
-local MENU_ROW, SORT_BUTTON = 2020, 2030
+local MENU_ROW, SORT_BUTTON, SORT_BAG = 2020, 2030, 2031
 
 -- (the words are keys of lang/*.lua, through env.T)
 local HINTS = {
@@ -25,7 +26,12 @@ local HINTS = {
   step = { { "< >", "hint.one" }, { "^ v", "hint.ten" }, { "A", "hint.ok" }, { "B", "hint.back" } },
   menu = { { "A", "hint.choose" }, { "B", "hint.back" } },
 }
-local MENU = { "items.sortName", "items.sortPocket", "items.tossMenu" }
+-- START's menu, by the pane in focus
+local MENU = {
+  pc = { "items.sortName", "items.sortPocket", "items.tossMenu" },
+  bag = { "items.sortName", "items.sortType" },
+}
+local TOSS = 3   -- (the PC's menu: the row that tosses)
 local NO_T = setmetatable({ list = function(l) return l end, f = string.format }, { __call = function(_, k) return k end })
 
 return function(ctx, env)
@@ -149,17 +155,31 @@ return function(ctx, env)
       se("SE_SELECT")
     end
   end
+  local function openMenu(name)
+    st.focus = name
+    st.menu = { cursor = 1, pane = name, list = MENU[name] }
+    se("SE_SELECT")
+  end
   local function menuChoose(i)
+    local m = st.menu
     st.menu = nil
+    if not (m and m.list[i]) then return end
     local s = session()
-    if i == 1 or i == 2 then
+    if m.pane == "bag" then
+      local pk = st.pockets[st.pocket]
+      local ok, why = inv.sortPocket(s, pk and pk.id or "ITEMS", i == 1 and "name" or "type")
+      if not ok then return toast(T("reason.item." .. tostring(why)), true) end
+      st.bag.cursor, st.bag.top = 1, 0
+      refresh()
+      toast(T(i == 1 and "items.sortedName" or "items.sortedType"))
+    elseif i == TOSS then
+      st.focus = "pc"
+      begin(true)
+    else
       inv.sort(s, i == 1 and "name" or "pocket")
       st.pc.cursor, st.pc.top = 1, 0
       refresh()
       toast(T(i == 1 and "items.sortedName" or "items.sortedPocket"))
-    elseif i == 3 then
-      st.focus = "pc"
-      begin(true)
     end
   end
 
@@ -171,7 +191,7 @@ return function(ctx, env)
     cur = input
     if st.menu then
       if nav.up or nav.down then
-        st.menu.cursor = (st.menu.cursor - 1 + (nav.down and 1 or -1)) % #MENU + 1
+        st.menu.cursor = (st.menu.cursor - 1 + (nav.down and 1 or -1)) % #st.menu.list + 1
         se("SE_SELECT")
       elseif pressed("a") then menuChoose(st.menu.cursor)
       elseif pressed("b") or pressed("start") then
@@ -194,8 +214,7 @@ return function(ctx, env)
       return true
     end
     if pressed("start") then
-      st.menu = { cursor = 1 }
-      se("SE_SELECT")
+      openMenu(st.focus)
       return true
     end
     if pressed("b") then return false end
@@ -222,7 +241,7 @@ return function(ctx, env)
 
   function W.tap(arg)
     if type(arg) ~= "number" then return end
-    if arg >= MENU_ROW and arg < MENU_ROW + #MENU then return menuChoose(arg - MENU_ROW + 1) end
+    if st.menu and arg >= MENU_ROW and arg < MENU_ROW + #st.menu.list then return menuChoose(arg - MENU_ROW + 1) end
     if st.menu then
       st.menu = nil
       return
@@ -243,10 +262,8 @@ return function(ctx, env)
     if arg == POCKET_NEXT then return setPocket(st.pocket + 1) end
     if arg == SEG_PC then return setFocus("pc") end
     if arg == SEG_BAG then return setFocus("bag") end
-    if arg == SORT_BUTTON then
-      st.menu = { cursor = 1 }
-      return se("SE_SELECT")
-    end
+    if arg == SORT_BUTTON then return openMenu("pc") end
+    if arg == SORT_BAG then return openMenu("bag") end
     local name, i = "pc", arg
     if arg > BAG then name, i = "bag", arg - BAG end
     local p = st[name]
@@ -313,21 +330,23 @@ return function(ctx, env)
     K.scissor(nil)
   end
 
-  -- a card's head: the Bag's pocket between two chevrons, or the PC's count and its Sort button
+  -- a card's head: the Bag's pocket between two chevrons, or the PC's count; each with its Sort button
   local function drawHead(name, x, y, w, focused)
+    st[name].hx = x
+    local sb = K.R(x + w - 19, y + 1.8, 16, HEAD_H - 3.4)
+    K.button(sb, T("items.sort"), "tinted", false, 4)
+    K.addHit(sb, "win", name == "pc" and SORT_BUTTON or SORT_BAG)
     if name == "pc" then
       K.bold(st.pcHead, x + 4, y + 2.6, 4.8, UI.label)
-      local sb = K.R(x + w - 19, y + 1.8, 16, HEAD_H - 3.4)
-      K.button(sb, T("items.sort"), "tinted", false, 4)
-      K.addHit(sb, "win", SORT_BUTTON)
     else
+      local rw = w - 21
       K.chevron(x + 5, y + HEAD_H / 2 + 0.3, 4, UI.accent, -1)
       K.addHit(K.R(x, y, 12, HEAD_H), "win", POCKET_PREV)
-      K.chevron(x + w - 5, y + HEAD_H / 2 + 0.3, 4, UI.accent, 1)
-      K.addHit(K.R(x + w - 12, y, 12, HEAD_H), "win", POCKET_NEXT)
+      K.chevron(x + rw - 5, y + HEAD_H / 2 + 0.3, 4, UI.accent, 1)
+      K.addHit(K.R(x + rw - 12, y, 12, HEAD_H), "win", POCKET_NEXT)
       local pname = T(st.pocketKey)
-      local ps = K.fit(pname, 4.8, w - 26)
-      K.bold(pname, x + 12, y + 2.6 + (4.8 - ps) * 0.5, ps, UI.label, "center", w - 24)
+      local ps = K.fit(pname, 4.8, rw - 26)
+      K.bold(pname, x + 12, y + 2.6 + (4.8 - ps) * 0.5, ps, UI.label, "center", rw - 24)
     end
     K.hairline(x, y + HEAD_H, w)
   end
@@ -377,16 +396,18 @@ return function(ctx, env)
     end
   end
 
-  -- START's menu: a popover under the pane's head
+  -- START's menu: a popover under the head of the pane it's for
   local function drawMenu(body)
     local m = st.menu
     if not m then return end
-    local mb = K.R(body[1] + 5, body[2] + HEAD_H + 4, 64, #MENU * 10 + 4)
+    local list = m.list
+    local px = st[m.pane].hx or body[1]
+    local mb = K.R(max(body[1] + 2, min(px + 2, body[1] + body[3] - 66)), body[2] + HEAD_H + 4, 64, #list * 10 + 4)
     K.sheet(mb, 4)
-    for i, key in ipairs(MENU) do
+    for i, key in ipairs(list) do
       local label = T(key)
       local rb = K.R(mb[1] + 2, mb[2] + 2 + (i - 1) * 10, mb[3] - 4, 10)
-      local danger = i == 3
+      local danger = m.pane == "pc" and i == TOSS
       if i == m.cursor then
         K.selection(rb, true, 2.5, danger and UI.red or UI.accent)
       end

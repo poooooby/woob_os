@@ -56,6 +56,7 @@ return {
     ["items.sort"] = "せいり",
     ["items.sortName"] = "なまえじゅん",
     ["items.sortPocket"] = "ポケットじゅん",
+    ["items.sortType"] = "しゅるいで ならべかえ",
     ["items.tossMenu"] = "すてる…",
     ["items.howMany"] = "いくつ？",
     ["items.tossHowMany"] = "いくつ すてる？",
@@ -69,6 +70,7 @@ return {
     ["items.tossed"] = "%s を すてました。",
     ["items.sortedName"] = "なまえじゅんに ならべました。",
     ["items.sortedPocket"] = "ポケットじゅんに ならべました。",
+    ["items.sortedType"] = "しゅるいで ならべかえた!",
     ["pocket.ITEMS"] = "どうぐ",
     ["pocket.KEY_ITEMS"] = "だいじなもの",
     ["pocket.POKE_BALLS"] = "モンスターボール",
@@ -79,6 +81,7 @@ return {
     ["reason.item.stack_full"] = "これいじょう はいりません。",
     ["reason.item.important"] = "だいじなものは バッグに のこります。",
     ["reason.item.gone"] = "その どうぐは もう ありません。",
+    ["reason.item.fixed"] = "この ポケットは ならびが きまっている",
 
     ["mail.inbox"] = "うけとり",
     ["mail.held"] = "もたせた",

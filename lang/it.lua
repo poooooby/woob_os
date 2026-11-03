@@ -55,6 +55,7 @@ return {
     ["items.sort"] = "Ordina",
     ["items.sortName"] = "Ordina per nome",
     ["items.sortPocket"] = "Ordina per tasca",
+    ["items.sortType"] = "Ordina per tipo",
     ["items.tossMenu"] = "Getta…",
     ["items.howMany"] = "Quanti?",
     ["items.tossHowMany"] = "Quanti gettarne?",
@@ -68,6 +69,7 @@ return {
     ["items.tossed"] = "Hai gettato %s.",
     ["items.sortedName"] = "Ordinati per nome.",
     ["items.sortedPocket"] = "Ordinati per tasca.",
+    ["items.sortedType"] = "Ordinato per tipo.",
     ["pocket.ITEMS"] = "Strumenti",
     ["pocket.KEY_ITEMS"] = "Strumenti base",
     ["pocket.POKE_BALLS"] = "Poké Ball",
@@ -78,6 +80,7 @@ return {
     ["reason.item.stack_full"] = "Quella pila è piena.",
     ["reason.item.important"] = "Gli strumenti importanti restano nella Borsa.",
     ["reason.item.gone"] = "Quello strumento non c'è più.",
+    ["reason.item.fixed"] = "Questa tasca ha il suo ordine.",
 
     ["mail.inbox"] = "Ricevuti",
     ["mail.held"] = "Tenuti",

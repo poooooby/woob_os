@@ -3,6 +3,19 @@
 All notable changes to this mod are documented here, in
 [keep a changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [0.2.3] - 2026-11-02
+
+### Fixed
+- **Items:** sorting works on the Bag too. START (or the Sort button on the Bag's side) sorts the
+  pocket by name or by type; the TM Case and the Berries keep the game's own order.
+- **Boxes:** Swap mode swaps. A Pokémon put down on another trades places with it (party or box),
+  instead of picking the other one up.
+- **R-Bay:** in portrait, the chosen auction shows everything: its types, IVs and the last bids.
+
+### Changed
+- **Boxes:** the pad's Poké Ball glows red while you carry a Pokémon and flashes green when you
+  put it down, instead of a Poké Ball materializing on the pad for each move.
+
 ## [0.2.2] - 2026-11-02
 
 ### Fixed

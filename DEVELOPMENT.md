@@ -11,7 +11,7 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/apps.lua` | The app registry and the built-in apps |
 | `src/desktop.lua` | The desktop: monitor, boot, menu bar, home grid with pages, dock, W menu, sheets, buttons / touch / mouse |
 | `src/shell.lua` | The PC menu takeover, the UI stack layer, the `render.hud` / `input.pointer` / `input.wheel` / `script.command` hooks, the touch pad hide |
-| `src/inventory.lua` | The item model: PC and Bag rows, withdraw / deposit / toss / sort through the engine's `Storage` and `Bag` |
+| `src/inventory.lua` | The item model: PC and Bag rows, withdraw / deposit / toss / sort (the PC's list; a Bag pocket's slots, as the game's own Bag moves them, except the pockets the game keeps sorted) through the engine's `Storage` and `Bag` |
 | `src/mailbox.lua` | The mail model: inbox and held rows, to Bag / give / take on the engine's mail pool |
 | `src/apps/items.lua` | The Items window: Bag \| PC commander |
 | `src/apps/mail.lua` | The Mail window: folders, list, the open letter, the party picker |
@@ -142,11 +142,13 @@ the screen keeps its size in units). In its middle is the pad, used for the Pok�
 
 - **The ball.** A window with `ball = true` (Boxes) holds it, when there's a party (read once a
   second). `r.ballPhase` runs off -> `drop` (falls `D.BALL.height` units with a bounce,
-  `SE_BALL_BOUNCE_1`) -> `on` (the button's red glow comes up over `D.BALL.glow` seconds, then
-  breathes) -> `done` when the window closes (a green flash, `SE_BALL_CLICK`) -> `lift` -> off.
+  `SE_BALL_BOUNCE_1`) -> `on` (unlit; red, pulsing, while `win.moving()` is true -- Boxes carries
+  a Pokémon --, then a green flash over `D.BALL.moved`) -> `done` when the window closes (a green flash, `SE_BALL_CLICK`) -> `lift` -> off.
   Reopening during the flash goes straight back to `on`. Coming back from the game's Summary
-  (`ctx.resume`) sets `r.ballSkip`: the ball is already there, fully lit. `D.ballState()` gives the
-  phase. It sinks into the pad while a Pokémon crosses and rises again after (`D.PAD.ball`).
+  (`ctx.resume`) sets `r.ballSkip`: the ball is already there. `D.ballState()` gives the phase and
+  the glow ("moving" | "moved" | nil). While it sits there a `"ball"` `padTransfer` is dropped (no
+  crossing: the glow tells it); elsewhere (GTS, R-Bay, Slots) a Pokémon crosses as a Poké Ball and
+  the resting ball, if any, sinks into the pad meanwhile (`D.PAD.ball`).
 - **Sizes.** The ball and the item on the pad are both `D.SHELF.item` units across.
 
 The pad lights up while the open window has `pad = true` (Items and the Mart do), and

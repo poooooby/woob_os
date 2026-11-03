@@ -153,13 +153,12 @@ local function body(game, log)
       Bx.dynamax = function() return Dx end
     end
     log("  Dynamax from " .. (realDx and "WoobleDex" or "a stand-in"))
-    -- the pad's Poké Ball: dropped on, its button glowing red once it's had time
+    -- the pad's Poké Ball: dropped on, unlit until a Pokémon is carried
     check(waitFor(function() return D.ballState() == "drop" or D.ballState() == "on" end, 600), "the Poké Ball drops onto the pad")
     if D.ballState() == "drop" then shot("d2_ball_drop") end
     check(waitFor(function() return D.ballState() == "on" end, 600), "it lands")
-    local onAt = love.timer.getTime()
-    waitFor(function() return love.timer.getTime() - onAt > D.BALL.glow + 0.2 end, 1200)
-    shot("d2_ball_glow")
+    U.wait(20)
+    check(select(2, D.ballState()) == nil, "the ball rests unlit")
     Bx.forget(lent[1])
     bst.area, bst.bi = "box", 1
     U.wait(10)
@@ -178,16 +177,34 @@ local function body(game, log)
     shot("d2b_boxes_carry")
     U.tap(game, "a"); U.wait(4)
     check(stor.boxes[1].mons[3] == lent[1], "A puts it down two along")
+    -- Swap onto another: they trade places, and back
+    do
+      local k
+      for i = 1, 30 do if i ~= 3 and stor.boxes[1].mons[i] then k = i; break end end
+      local other = k and stor.boxes[1].mons[k]
+      for round = 1, 2 do
+        bst.area, bst.bi = "box", round == 1 and 3 or k
+        U.tap(game, "a"); U.wait(4)
+        bst.bi = round == 1 and k or 3
+        U.tap(game, "a"); U.wait(4)
+        if round == 1 then
+          check(bst.held == nil and stor.boxes[1].mons[k] == lent[1] and stor.boxes[1].mons[3] == other,
+            "Swap onto another: they trade places")
+        end
+      end
+      check(stor.boxes[1].mons[3] == lent[1] and stor.boxes[1].mons[k] == other, "and back")
+    end
     -- a party Pokémon into the box and back: a Poké Ball across the pad
     bst.area, bst.pi = "party", 3
     U.tap(game, "a"); U.wait(4)
+    check(waitFor(function() return select(2, D.ballState()) == "moving" end, 120), "carrying: the ball glows red")
+    U.wait(15)
+    shot("d2_ball_glow")
     bst.area, bst.bi = "box", 30
     U.tap(game, "a"); U.wait(2)
     check(#s0.party == 2 and stor.boxes[1].mons[30] ~= nil, "deposit: party to box")
-    check(waitFor(function()
-      local n, _, _, _, kind = D.padState()
-      return n > 0 and kind == "ball" and love.timer.getTime() - D.state().padQ[1].t0 >= 0.45
-    end, 600), "a Poké Ball crosses the pad")
+    check(waitFor(function() return select(2, D.ballState()) == "moved" end, 120) and D.padState() == 0,
+      "put down: the ball flashes green, nothing crosses the pad")
     shot("d2c_pad_ball")
     U.tap(game, "a"); U.wait(4)
     bst.area, bst.pi = "party", 3
@@ -310,6 +327,16 @@ local function body(game, log)
   check(IW and IW.title == "Items", "Items: its window, in the desktop")
   check(waitFor(function() return select(4, D.padState()) > 0.99 end, 600), "the shelf's pad lights up")
   shot("d4_items")
+  -- the Bag's own sort menu (START with the Bag in focus), closed again
+  if IW then
+    local focus0 = IW.state.focus
+    IW.state.focus = "bag"
+    U.tap(game, "start"); U.wait(6)
+    check(IW.state.menu and IW.state.menu.pane == "bag", "START on the Bag: its sort menu")
+    shot("d4s_items_bag_sort")
+    U.tap(game, "b"); U.wait(4)
+    IW.state.focus = focus0
+  end
   -- items other mods add (WoobDex's Exp. Candy, Dynamax Candy, Max Mushrooms): their own pictures,
   -- lent to the PC for a shot, then taken back
   do
@@ -1047,10 +1074,11 @@ local function body(game, log)
       L.pw or 0, L.ph or 0, L.cols or 0, L.rows or 0))
     shot("d9_" .. shape[1])
     if shape[1] == "w16x9" or shape[1] == "portrait" then
-      for _, id in ipairs({ "storage", "items", "mail" }) do
+      for _, id in ipairs({ "storage", "items", "mail", "auction", "mart", "slots", "gts" }) do
         for i, app in ipairs(st.dock) do if app.id == id then D.launch("dock", i) end end
+        for i, app in ipairs(st.grid) do if app.id == id then D.launch("grid", i) end end
         waitFor(function() return D.window() ~= nil end, 600)
-        U.wait(10)
+        U.wait(40)
         shot("d9_" .. shape[1] .. "_" .. id)
         check(D.window() ~= nil and not st.winFailed, id .. " draws " .. shape[1])
         D.closeWindow()

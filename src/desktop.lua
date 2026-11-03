@@ -67,7 +67,7 @@ return function(deps)
   -- (ball: the Poké Ball sinking into the pad / rising back)
   -- the Poké Ball on the pad (a window with `ball`: Boxes): its drop and bounce, its button's glow
   -- coming up red, the green flash on closing, the lift off (seconds); the drop's height (units)
-  D.BALL = { drop = 0.5, glow = 1.6, flash = 0.5, lift = 0.45, height = 16 }
+  D.BALL = { drop = 0.5, flash = 0.5, lift = 0.45, height = 16, moved = 0.7 }
   D.PAD = { ball = 0.3, light = 0.25, drop = 0.25, out = 0.55, flash = 0.2, inn = 0.55, hold = 0.25, fade = 0.35, gap = 0.1 }
   local function padLength(dir)
     local P = D.PAD
@@ -285,6 +285,10 @@ return function(deps)
   -- waiting one of the same way is replaced, so the last item chosen is the one shown
   function D.padTransfer(id, dir, kind)
     if not r or (dir ~= "out" and dir ~= "in") then return end
+    -- (a Pokémon moved while the pad's Poké Ball sits there: no crossing, the ball's glow tells it)
+    if kind == "ball" and r.win and r.win.ball and (r.ballPhase == "drop" or r.ballPhase == "on") then
+      return
+    end
     local Q, n = r.padQ, r.padN
     local slot
     if n == 0 then slot = 1
@@ -305,8 +309,17 @@ return function(deps)
     if r.padN > 0 then Q[1].t0, Q[1].sounded = clock, false end
   end
   -- -> waiting + playing, the playing one's way and item, the light, its kind (nil: an item; "ball")
-  -- the pad's Poké Ball: "off" | "drop" | "on" (glowing red) | "done" (the green flash) | "lift"
-  function D.ballState() return r and r.ballPhase or "off" end
+  -- the pad's Poké Ball: "off" | "drop" | "on" | "done" (the green flash) | "lift"; while on, its
+  -- glow: "moving" (red: the window carries a Pokémon, win.moving()), "moved" (green: put down), nil
+  function D.ballState()
+    if not r then return "off" end
+    local glow
+    if r.ballPhase == "on" then
+      if r.ballBusy then glow = "moving"
+      elseif r.ballMoveT and now() - r.ballMoveT < D.BALL.moved then glow = "moved" end
+    end
+    return r.ballPhase or "off", glow
+  end
   function D.padState()
     if not r then return 0 end
     local e = r.padQ[1]
@@ -1106,7 +1119,7 @@ return function(deps)
     local want = r.win and r.win.ball and r.balls > 0
     local phase, t = r.ballPhase or "off", clock - (r.ballT0 or clock)
     if want then
-      if phase == "off" and r.ballSkip then phase, t = "on", B.glow
+      if phase == "off" and r.ballSkip then phase, t = "on", 0
       elseif phase == "off" or phase == "lift" then phase, t = "drop", 0
       elseif phase == "done" then phase, t = "on", 0 end
     elseif phase == "drop" or phase == "on" then
@@ -1123,6 +1136,7 @@ return function(deps)
       if phase == "on" and r.ballPhase == "drop" then se("SE_BALL_BOUNCE_1") end
       if phase == "done" then se("SE_BALL_CLICK") end
       r.ballPhase, r.ballT0, r.ballSkip = phase, clock - t, nil
+      if phase ~= "on" then r.ballBusy, r.ballMoveT = false, nil end
     end
     -- (sunk while a Pokémon crosses the pad)
     local sinkWant = r.padN == 0 and 1 or 0
@@ -1145,8 +1159,19 @@ return function(deps)
       end
       a = min(1, k / 0.3)
     elseif phase == "on" then
-      local up = min(1, t / B.glow)
-      litK = up * up * (3 - 2 * up) * (0.82 + 0.18 * math.sin(clock * 2.4))
+      -- unlit at rest; red (pulsing) while a Pokémon is carried, a green flash once it's put down
+      local busy = r.win and r.win.moving and r.win.moving() or false
+      if busy and not r.ballBusy then r.ballBusyT = clock end
+      if r.ballBusy and not busy then r.ballMoveT = clock end
+      r.ballBusy = busy
+      local m = r.ballMoveT and clock - r.ballMoveT
+      if busy then
+        litK = min(1, (clock - r.ballBusyT) / 0.12) * (0.78 + 0.22 * math.sin(clock * 6))
+      elseif m and m < B.moved then
+        lit = C.ballGlowGreen
+        local k = m / B.moved
+        litK = k < 0.55 and 1 or 1 - (k - 0.55) / 0.45
+      end
     elseif phase == "done" then
       -- the green flash: bright at once, a second blink, held to the end
       lit = C.ballGlowGreen

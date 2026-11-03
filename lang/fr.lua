@@ -55,6 +55,7 @@ return {
     ["items.sort"] = "Trier",
     ["items.sortName"] = "Trier par nom",
     ["items.sortPocket"] = "Trier par poche",
+    ["items.sortType"] = "Trier par type",
     ["items.tossMenu"] = "Jeter…",
     ["items.howMany"] = "Combien ?",
     ["items.tossHowMany"] = "En jeter combien ?",
@@ -68,6 +69,7 @@ return {
     ["items.tossed"] = "%s jeté.",
     ["items.sortedName"] = "Trié par nom.",
     ["items.sortedPocket"] = "Trié par poche.",
+    ["items.sortedType"] = "Trié par type.",
     ["pocket.ITEMS"] = "Objets",
     ["pocket.KEY_ITEMS"] = "Objets rares",
     ["pocket.POKE_BALLS"] = "Poké Balls",
@@ -78,6 +80,7 @@ return {
     ["reason.item.stack_full"] = "Cette pile est pleine.",
     ["reason.item.important"] = "Les objets importants restent dans le Sac.",
     ["reason.item.gone"] = "Cet objet n'est plus là.",
+    ["reason.item.fixed"] = "Cette poche garde son propre ordre.",
 
     ["mail.inbox"] = "Reçues",
     ["mail.held"] = "Portées",

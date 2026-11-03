@@ -18,8 +18,8 @@ opens a desktop in a sleek monitor instead of a text menu.
   app icons, a dock along the bottom and a menu bar along the top showing your name, your money
   and the time.
 - 🧲 **A shelf under the monitor:** a digitization pad in its middle. Open Boxes and a Poké Ball
-  drops onto the pad, its button slowly glowing red; close it and the button flashes green before
-  the ball lifts off. The pad lights up while Items or the Mart is open. An item you send to the PC
+  drops onto the pad. Its button glows red while you carry a Pokémon and flashes green when you put
+  it down; close Boxes and it flashes green once more before the ball lifts off. The pad lights up while Items or the Mart is open. An item you send to the PC
   (or sell) drops onto it and digitizes away, and an item you take out (or buy) digitizes onto it
   before fading into your Bag.
 - ⚡ **A boot screen:** the PC starts up with the W logo and a loading bar before the desktop fades
@@ -38,8 +38,9 @@ opens a desktop in a sleek monitor instead of a text menu.
 
 - 🎒 **Items:** your Bag and your PC's item storage side by side. Pick an item and send it across:
   choose how many (Left and Right one at a time, Up and Down ten at a time), or press SELECT to
-  move the whole stack. L and R flip through the Bag's pockets, and START sorts the PC by name or
-  pocket or tosses an item. Important items stay in the Bag. Items other mods add (WoobDex's
+  move the whole stack. L and R flip through the Bag's pockets. START (or Sort on either side)
+  sorts the side you're on: the PC by name or pocket, or tosses an item from it; the Bag's pocket
+  by name or type (the TM Case and the Berries keep the game's own order). Important items stay in the Bag. Items other mods add (WoobDex's
   candies and Max Mushrooms) show with their own pictures.
 - 🌐 **GTS:** trade with Trainers from around the world.
   - **Wonder Trade:** pick any Pokémon from your party or a box and send it off. The globe spins
@@ -103,13 +104,12 @@ opens a desktop in a sleek monitor instead of a text menu.
   - **Select** (red): A opens a Pokémon's options: Move, Summary, Item (take it to the Bag or give
     one) and Release. A on the box's name, or START, jumps to a box, renames it or changes its
     wallpaper.
-  - **Swap** (blue): A picks a Pokémon up and A puts it down, swapping with whoever is there. With
-    the mouse or a finger, drag it onto its new place.
+  - **Swap** (blue): A picks a Pokémon up and A puts it down; on another Pokémon, the two trade
+    places. With the mouse or a finger, drag it onto its new place.
   - **Drag** (green): hold A and move to draw a rectangle (or drag one out), let go, and every
     Pokémon in it moves together. They keep their shape in the new box.
 
-  A Pokémon going between your party and a box crosses the pad as a Poké Ball. Holding a carried
-  Pokémon over the box's arrows turns the box.
+  Holding a carried Pokémon over the box's arrows turns the box.
 - 📟 **Oak's PC:** your Pokédex rating, once you have the Pokédex (FireRed and LeafGreen).
 - 🏆 **Hall of Fame:** your champion teams, once you've beaten the Elite Four.
 - 🛋️ **Decorate:** your room's decorations, from the bedroom PC (Ruby, Sapphire and Emerald).

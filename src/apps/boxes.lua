@@ -3,7 +3,7 @@
 -- round them (or a tap on one of the mode icons under the box):
 --   Select (red)    A on a Pokémon: Move, Summary, Item (Take / Give), Release; A on the box's name
 --                   (or START): Jump to a box, Rename, Wallpaper
---   Swap (blue)     A picks a Pokémon up, A again puts it down (swapping with whoever is there)
+--   Swap (blue)     A picks a Pokémon up, A again puts it down (on another, the two trade places)
 --   Drag (green)    hold A and move: a rectangle; let go and the Pokémon in it move together, A puts
 --                   them down (a box group keeps its shape)
 --   buttons  the D-pad the cursor (party, box, the box's name), L / R the box (also while carrying),
@@ -122,6 +122,23 @@ return function(ctx, env, makeView)
     if way and env.pad and env.pad.transfer then
       pcall(env.pad.transfer, tonumber(first.species or first.speciesId) or 0, way, "ball")
     end
+    -- Swap: the one that was there goes to where the first came from (they trade places); it stays
+    -- in the hand only when that place can't take it
+    if nextHeld and st.mode == SWAP and held.n == 1 then
+      local out, from = nextHeld.mons[1], held.origins[1]
+      local back = Bx.way(nextHeld, from)
+      nextHeld.origins[1] = from
+      Bx.putBack(s, nextHeld)
+      if not nextHeld.mons[1] then
+        st.held = nil
+        Bx.forget(out)
+        if back and env.pad and env.pad.transfer then
+          pcall(env.pad.transfer, tonumber(out.species or out.speciesId) or 0, back, "ball")
+        end
+      else
+        nextHeld.origins[1] = addr
+      end
+    end
     se("SE_SELECT")
   end
   local function putBack()
@@ -131,6 +148,8 @@ return function(ctx, env, makeView)
     se("SE_SELECT")
   end
   W.putBack = putBack
+  -- (the desktop's pad: its Poké Ball glows red while one is carried)
+  function W.moving() return st.held ~= nil end
 
   -- the cells inside the rectangle that hold a Pokémon
   local function rectAddrs(rect)

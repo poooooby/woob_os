@@ -65,6 +65,7 @@ return {
     ["items.sort"] = "Sort",
     ["items.sortName"] = "Sort by Name",
     ["items.sortPocket"] = "Sort by Pocket",
+    ["items.sortType"] = "Sort by Type",
     ["items.tossMenu"] = "Toss…",
     ["items.howMany"] = "How many?",
     ["items.tossHowMany"] = "Toss how many?",
@@ -78,6 +79,7 @@ return {
     ["items.tossed"] = "Tossed %s.",
     ["items.sortedName"] = "Sorted by name.",
     ["items.sortedPocket"] = "Sorted by pocket.",
+    ["items.sortedType"] = "Sorted by type.",
     ["pocket.ITEMS"] = "Items",
     ["pocket.KEY_ITEMS"] = "Key Items",
     ["pocket.POKE_BALLS"] = "Poké Balls",
@@ -88,6 +90,7 @@ return {
     ["reason.item.stack_full"] = "That stack is full.",
     ["reason.item.important"] = "Important items stay in the Bag.",
     ["reason.item.gone"] = "That item isn't there any more.",
+    ["reason.item.fixed"] = "This pocket keeps its own order.",
 
     -- Mail
     ["mail.inbox"] = "Inbox",

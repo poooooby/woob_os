@@ -56,6 +56,7 @@ return {
     ["items.sort"] = "Sortieren",
     ["items.sortName"] = "Nach Name",
     ["items.sortPocket"] = "Nach Tasche",
+    ["items.sortType"] = "Nach Typ sortieren",
     ["items.tossMenu"] = "Wegwerfen…",
     ["items.howMany"] = "Wie viele?",
     ["items.tossHowMany"] = "Wie viele wegwerfen?",
@@ -69,6 +70,7 @@ return {
     ["items.tossed"] = "%s weggeworfen.",
     ["items.sortedName"] = "Nach Name sortiert.",
     ["items.sortedPocket"] = "Nach Tasche sortiert.",
+    ["items.sortedType"] = "Nach Typ sortiert.",
     ["pocket.ITEMS"] = "Items",
     ["pocket.KEY_ITEMS"] = "Basis-Items",
     ["pocket.POKE_BALLS"] = "Bälle",
@@ -79,6 +81,7 @@ return {
     ["reason.item.stack_full"] = "Dieser Stapel ist voll.",
     ["reason.item.important"] = "Wichtige Items bleiben im Beutel.",
     ["reason.item.gone"] = "Dieses Item ist nicht mehr da.",
+    ["reason.item.fixed"] = "Diese Tasche hat eine feste Ordnung.",
 
     ["mail.inbox"] = "Posteingang",
     ["mail.held"] = "Getragen",

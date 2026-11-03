@@ -55,6 +55,7 @@ return {
     ["items.sort"] = "Ordenar",
     ["items.sortName"] = "Ordenar por nombre",
     ["items.sortPocket"] = "Ordenar por bolsillo",
+    ["items.sortType"] = "Ordenar por tipo",
     ["items.tossMenu"] = "Tirar…",
     ["items.howMany"] = "¿Cuántos?",
     ["items.tossHowMany"] = "¿Cuántos tirar?",
@@ -68,6 +69,7 @@ return {
     ["items.tossed"] = "Has tirado %s.",
     ["items.sortedName"] = "Ordenado por nombre.",
     ["items.sortedPocket"] = "Ordenado por bolsillo.",
+    ["items.sortedType"] = "Ordenado por tipo.",
     ["pocket.ITEMS"] = "Objetos",
     ["pocket.KEY_ITEMS"] = "Objetos clave",
     ["pocket.POKE_BALLS"] = "Poké Balls",
@@ -78,6 +80,7 @@ return {
     ["reason.item.stack_full"] = "Ese montón está lleno.",
     ["reason.item.important"] = "Los objetos importantes se quedan en la Mochila.",
     ["reason.item.gone"] = "Ese objeto ya no está.",
+    ["reason.item.fixed"] = "Este bolsillo mantiene su propio orden.",
 
     ["mail.inbox"] = "Recibidas",
     ["mail.held"] = "Llevadas",

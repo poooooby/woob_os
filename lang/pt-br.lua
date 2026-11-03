@@ -55,6 +55,7 @@ return {
     ["items.sort"] = "Ordenar",
     ["items.sortName"] = "Ordenar por nome",
     ["items.sortPocket"] = "Ordenar por bolso",
+    ["items.sortType"] = "Ordenar por tipo",
     ["items.tossMenu"] = "Jogar fora…",
     ["items.howMany"] = "Quantos?",
     ["items.tossHowMany"] = "Jogar fora quantos?",
@@ -68,6 +69,7 @@ return {
     ["items.tossed"] = "Você jogou fora %s.",
     ["items.sortedName"] = "Ordenado por nome.",
     ["items.sortedPocket"] = "Ordenado por bolso.",
+    ["items.sortedType"] = "Ordenado por tipo.",
     ["pocket.ITEMS"] = "Itens",
     ["pocket.KEY_ITEMS"] = "Itens-chave",
     ["pocket.POKE_BALLS"] = "Poké Bolas",
@@ -78,6 +80,7 @@ return {
     ["reason.item.stack_full"] = "Essa pilha está cheia.",
     ["reason.item.important"] = "Itens importantes ficam na Mochila.",
     ["reason.item.gone"] = "Esse item não está mais aqui.",
+    ["reason.item.fixed"] = "Este bolso mantém a própria ordem.",
 
     ["mail.inbox"] = "Recebidas",
     ["mail.held"] = "Com Pokémon",

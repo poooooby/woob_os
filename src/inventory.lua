@@ -11,6 +11,8 @@
 --       -> true | false, reason ("bag_full" | "pc_full" | "stack_full" | "important" | "gone"; the words
 --       are lang/*.lua's "reason.item.<reason>")
 --   Inv.sort(s, how)  how: "name" | "pocket" (a stable reorder of the PC's list)
+--   Inv.sortPocket(s, pocket, how) -> true | false, reason  how: "name" | "type" (a stable reorder of a
+--       Bag pocket; "fixed": the game keeps that pocket in its own order, the TM Case, the Berries)
 
 return function(engine)
   local Inv = {}
@@ -167,6 +169,39 @@ return function(engine)
       return a.i < b.i
     end)
     for i, k in ipairs(keyed) do items[i] = k.e end
+    return true
+  end
+
+  -- a stable reorder of a Bag pocket, as the game's own Bag moves its slots: by name, or by type
+  -- (the items' numbers: the game's own grouping, the Potions together, the Balls together). The
+  -- pockets the game keeps sorted itself stay as they are: it would sort them back on the next add.
+  function Inv.sortPocket(s, pocket, how)
+    local Storage, Bag, ItemsData = ready(s)
+    if not Storage then return false, "gone" end
+    local m = ItemsData.BAG_MODEL
+    if m and ((m.sortHmsFirst and m.sortHmsFirst[pocket]) or (m.sortById and m.sortById[pocket])) then
+      return false, "fixed"
+    end
+    pcall(Bag.listPocket, s.bag, pocket)
+    local slots = type(s.bag.pockets) == "table" and s.bag.pockets[pocket]
+    if type(slots) ~= "table" then return false, "gone" end
+    local keyed = {}
+    for i, e in ipairs(slots) do
+      local ok, info = pcall(ItemsData.info, e.id)
+      info = ok and info or nil
+      local okN, num = pcall(ItemsData.toNumericId, e.id)
+      keyed[i] = { e = e, i = i, name = tostring(info and info.name or e.id):lower(),
+                   num = okN and tonumber(num) or 99999 }
+    end
+    table.sort(keyed, function(a, b)
+      if how == "type" then
+        if a.num ~= b.num then return a.num < b.num end
+      elseif a.name ~= b.name then
+        return a.name < b.name
+      end
+      return a.i < b.i
+    end)
+    for i, k in ipairs(keyed) do slots[i] = k.e end
     return true
   end
 

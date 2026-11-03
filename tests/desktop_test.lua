@@ -473,6 +473,27 @@ Inv.sort(s, "name")
 local names = {}
 for i, e in ipairs(Storage.ensure(s).items) do names[i] = ItemsData.displayName(e.id):lower() end
 T.check(names[1] <= names[2] and names[2] <= names[3], "sorted by name (" .. table.concat(names, ", ") .. ")")
+-- sort a Bag pocket: by name, by type (the items' numbers); the pockets the game keeps in order stay
+do
+  s = newSession()
+  for _, id in ipairs({ plain[3], POTION, plain[1], plain[2] }) do Bag.add(s.bag, id, 1) end
+  local function order(key)
+    local out = {}
+    for i, r in ipairs(Inv.bagRows(s, "ITEMS")) do out[i] = key == "name" and r.name:lower() or ItemsData.toNumericId(r.id) end
+    return out
+  end
+  T.check(Inv.sortPocket(s, "ITEMS", "name"), "the Items pocket: sorted")
+  local byName = order("name")
+  T.check(byName[1] <= byName[2] and byName[2] <= byName[3] and byName[3] <= byName[4],
+    "the Bag by name (" .. table.concat(byName, ", ") .. ")")
+  T.check(Inv.sortPocket(s, "ITEMS", "type"), "and by type")
+  local byNum = order("type")
+  T.check(byNum[1] < byNum[2] and byNum[2] < byNum[3] and byNum[3] < byNum[4],
+    "the Bag by type: the items' numbers (" .. table.concat(byNum, ", ") .. ")")
+  T.eq(Bag.get(s.bag, POTION), 1, "(nothing lost)")
+  local okT, whyT = Inv.sortPocket(s, "TM_CASE", "name")
+  T.check(not okT and whyT == "fixed", "the TM Case keeps the game's order (" .. tostring(whyT) .. ")")
+end
 
 -- ------- the mail model (the engine's own pool)
 s = newSession()
@@ -572,6 +593,31 @@ press("start")
 T.check(IW.state.menu ~= nil, "START: the menu")
 press("b")
 T.check(IW.state.menu == nil and D.window() == IW, "B: the menu closes, the window stays")
+-- the Bag's own sort: START on the Bag, Sort by Name, then the Bag's Sort button
+do
+  for _, id in ipairs({ plain[3], plain[1], plain[2] }) do Bag.add(s.bag, id, 1) end
+  IW.refresh()
+  press("left")
+  T.eq(IW.state.focus, "bag", "(the Bag in focus)")
+  press("start")
+  T.check(IW.state.menu and IW.state.menu.pane == "bag" and #IW.state.menu.list == 2, "START on the Bag: the Bag's sort menu")
+  draw(2)
+  press("a")
+  local rows = IW.state.bag.rows
+  local sorted = #rows >= 3
+  for i = 2, #rows do sorted = sorted and rows[i - 1].name:lower() <= rows[i].name:lower() end
+  T.check(IW.state.menu == nil and sorted, "Sort by Name: the pocket in order (" .. #rows .. ")")
+  IW.tap(2031)
+  T.check(IW.state.menu and IW.state.menu.pane == "bag", "the Bag's Sort button: its menu")
+  IW.tap(2021)
+  rows = IW.state.bag.rows
+  sorted = #rows >= 3
+  for i = 2, #rows do sorted = sorted and ItemsData.toNumericId(rows[i - 1].id) <= ItemsData.toNumericId(rows[i].id) end
+  T.check(sorted, "Sort by Type: by the items' numbers")
+  IW.tap(2030)
+  T.check(IW.state.menu and IW.state.menu.pane == "pc" and IW.state.focus == "pc", "the PC's Sort: the PC's menu")
+  press("b")
+end
 draw(30)
 local perW = garbageOf(120)
 T.check(perW < 0.3, ("the Items window draws next to no garbage (%.3f KB a frame)"):format(perW))
@@ -1576,6 +1622,34 @@ press("right")
 press("right")
 press("a")
 T.check(bst.held == nil and Bx.get(s, Bx.addr("box", 4, 1)) == moved, "A puts it down three along")
+-- Swap onto another: the two trade places (twice: back as they were)
+do
+  local k
+  for i = 1, Bx.SLOTS do if i ~= 4 and Bx.get(s, Bx.addr("box", i, 1)) then k = i; break end end
+  local other = Bx.get(s, Bx.addr("box", k, 1))
+  for round = 1, 2 do
+    local a, b = round == 1 and 4 or k, round == 1 and k or 4
+    bst.area, bst.bi = "box", a
+    press("a")
+    bst.bi = b
+    press("a")
+  end
+  T.check(bst.held == nil and Bx.get(s, Bx.addr("box", 4, 1)) == moved and Bx.get(s, Bx.addr("box", k, 1)) == other,
+    "Swap onto another: they trade places, nothing left in the hand")
+  -- a party Pokémon onto a box one: the box one takes its place in the party
+  local p2 = s.party[2]
+  bst.area, bst.pi = "party", 2
+  press("a")
+  bst.area, bst.bi = "box", k
+  press("a")
+  T.check(bst.held == nil and s.party[2] == other and Bx.get(s, Bx.addr("box", k, 1)) == p2,
+    "party onto box: the two trade places, the same party slot")
+  bst.area, bst.pi = "party", 2
+  press("a")
+  bst.area, bst.bi = "box", k
+  press("a")
+  T.check(s.party[2] == p2 and Bx.get(s, Bx.addr("box", k, 1)) == other, "and back")
+end
 -- carrying across boxes; B puts back
 bst.bi = 4
 press("a")
@@ -1584,17 +1658,19 @@ T.eq(bst.box, 2, "R: the next box, while carrying")
 press("b")
 T.check(bst.held == nil and Bx.get(s, Bx.addr("box", 4, 1)) == moved, "B: back where it was")
 press("l")
--- a party Pokémon into a box: a Poké Ball crosses the pad
+-- a party Pokémon into a box: the pad's Poké Ball glows red while it's carried, green once it's down
 bst.area, bst.pi = "party", 3
 local pm = s.party[3]
+draw(1)
+T.eq(select(2, D.ballState()), nil, "the pad's Poké Ball: unlit at rest")
 press("a")
+draw(1)
+T.eq(select(2, D.ballState()), "moving", "carrying: the ball glows red")
 bst.area, bst.bi = "box", 30
 press("a")
-do
-  local n, dir, _, _, kind = D.padState()
-  T.check(Bx.get(s, Bx.addr("box", 30, 1)) == pm and n > 0 and dir == "out" and kind == "ball",
-    "party to box: a Poké Ball goes out across the pad")
-end
+draw(1)
+T.check(Bx.get(s, Bx.addr("box", 30, 1)) == pm and select(2, D.ballState()) == "moved" and D.padState() == 0,
+  "put down: green, and nothing crosses the pad")
 -- Drag: hold A over a rectangle, let go, carry the group to another box
 press("select")
 T.eq(bst.mode, BW.DRAG, "Drag")
