@@ -3,6 +3,12 @@
 All notable changes to this mod are documented here, in
 [keep a changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [0.2.2] - 2026-11-02
+
+### Fixed
+- **Slots:** the pay table's Pikachu rows say where Pikachu pays: on the first reel, or the
+  first two (it pays only from the left).
+
 ## [0.2.1] - 2026-11-02
 
 ### Added

@@ -869,7 +869,11 @@ return function(ctx, env)
         local two = i == rows - 1
         symbol(Sl.PIKACHU, sx, ry, s)
         if two then symbol(Sl.PIKACHU, sx + s + 1, ry, s) end
-        K.text(T("slots.any"), sx + (two and 2 or 1) * (s + 1) + 1, ry + (s - 3.8) / 2, 3.8, C.faint)
+        -- (Pikachu pays only from the left: on the first reel, or the first two)
+        local label = T(two and "slots.firstTwo" or "slots.firstReel")
+        local lx = sx + (two and 2 or 1) * (s + 1) + 1
+        local fs = K.fit(label, 3.8, tx + tw * 0.55 - 2 - lx)
+        K.text(label, lx, ry + (s - fs) / 2, fs, C.faint)
         K.text(timesText(two and Sl.TWO or Sl.ONE), tx + tw * 0.55, ry + (s - 4.4) / 2, 4.4, C.text)
       end
     end
