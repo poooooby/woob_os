@@ -34,10 +34,12 @@ opens a desktop in a sleek monitor instead of a text menu.
 - 📐 **Fits your screen:** wide windows, small windows and phones held upright all get a layout of
   their own.
 - 📱 **WoobPad:** the PC as a tablet you carry. Choose WOOBPAD in the START menu, anywhere you can
-  open it, and a pad comes up over the game with a big touch screen:
+  open it, and a pad comes up over the game with a big touch screen. In Ruby, Sapphire and Emerald
+  it takes the POKéNAV row's place, and the PokéNav itself is an app on the pad (its Ribbons and
+  the rest; its Match Call and Condition open the Phone and Condition):
   - **Like the PC:** the same home screen and dock (arranged the same way), the menu bar with your
     money and the time, your wallpaper, and the same apps in the same windows: Boxes, Items, Mail,
-    Map, Phone, Condition, GTS, Mart, R-Bay, Slots and Settings.
+    Map, Phone, Condition, PokéNav, GTS, Mart, R-Bay, Slots and Settings.
   - **Made for touch:** tap, swipe between pages, drag in windows; the buttons work just as well.
   - **Notifications:** pull down from the top of the screen (or choose Notifications in the W
     menu) for the list, newest first; tap one to open its app.

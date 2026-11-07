@@ -300,7 +300,9 @@ layer, `render.hud` (`Sh.frame`), `input.pointer` (`Sh.pointer`) and `input.whee
 is up.
 
 - **The row:** the `ui.start_menu.items` hook (`Sh.startRows`) puts `{ id = "woob_watch", label =
-  T("watch.start") ("WOOBPAD"), onSelect }` above EXIT (or the engine's MODS), only in a menu with
+  T("watch.start") ("WOOBPAD"), onSelect }` in the `pokenav` row's place (Ruby / Sapphire / Emerald:
+  the PokéNav is the pad's `pokenav` app, `ctx.over` -> `Screens.get("pokenav").show{ onClose }`), else
+  above EXIT (or the engine's MODS), only in a menu with
   SAVE (not a link room's or the Safari Zone's), the Desktop option and Settings' `watchRow` on
   (the old ids kept: an installation's settings). `onSelect` runs with the START menu still on the
   Stack, so popping the pad's layer is the menu again.

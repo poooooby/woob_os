@@ -117,7 +117,7 @@ local function ids(list)
   for _, app in ipairs(list) do out[#out + 1] = app.id end
   return " " .. table.concat(out, " ") .. " "
 end
-local ctxW = { session = s, mode = "watch", family = RSE and "rse" or "frlg", rows = {} }
+local ctxW = { session = s, mode = "pad", family = RSE and "rse" or "frlg", rows = {} }
 function ctxW.row() return nil end
 
 if not RSE then
@@ -145,6 +145,22 @@ setFlag("FLAG_SYS_POKENAV_GET")
 if EMERALD then setFlag("FLAG_ADDED_MATCH_CALL_TO_POKENAV") end
 T.check(ids(Apps.list(ctxW)):find(" phone ") and ids(Apps.list(ctxW)):find(" condition "),
   "the PokéNav (and its Match Call): the Phone and Condition")
+T.check(ids(Apps.list(ctxW)):find(" pokenav "), "and the game's own PokéNav, on WoobPad")
+do
+  -- (it opens the game's PokéNav over the pad, the pad back when it closes)
+  local opened, reopened
+  local ctxO = { session = s, mode = "pad", family = "rse", rows = {} }
+  function ctxO.over(open) open(function() reopened = true end) end
+  local Screens = require("src.ui.game3.screens")
+  local realGet = Screens.get
+  Screens.get = function(id, ...)
+    if id == "pokenav" then return { show = function(o) opened = o; o.onClose() end } end
+    return realGet(id, ...)
+  end
+  Apps.byId("pokenav").open(ctxO)
+  Screens.get = realGet
+  T.check(opened and opened.session == s and reopened, "the PokéNav app: the game's PokéNav, then the pad again")
+end
 
 -- ------- the Phone
 

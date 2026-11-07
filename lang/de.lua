@@ -370,6 +370,7 @@ return {
     ["notes.none"] = "Keine Mitteilungen",
     ["app.phone"] = "Telefon",
     ["app.condition"] = "Verfassung",
+    ["app.pokenav"] = "PokéNav",
     ["pokenav.back"] = "PokéNav",
     ["phone.favourites"] = "Favoriten",
     ["phone.recents"] = "Anrufliste",

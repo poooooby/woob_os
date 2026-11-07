@@ -173,6 +173,12 @@ do
   local off = Runtime.call("ui.start_menu.items", vanilla, {}, startList(true))
   T.check(not ids(off):find("woob_watch", 1, true), "Settings: the row off")
   Settings.set("watchRow", true)
+  -- (Ruby / Sapphire / Emerald: in the PokéNav's place, the PokéNav's row gone)
+  local withNav = startList(true)
+  table.insert(withNav, 3, { id = "pokenav", label = "POKéNAV" })
+  local nav = Runtime.call("ui.start_menu.items", vanilla, {}, withNav)
+  T.check(nav[3].id == "woob_watch" and not ids(nav):find("pokenav", 1, true) and #nav == #withNav,
+    "in the PokéNav's place (" .. ids(nav) .. ")")
   got[#got - 1].onSelect({}, s)
 end
 T.check(Wt.isOpen() and Stack.has(PAD_ID), "chosen: the pad opens on its layer")

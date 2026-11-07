@@ -369,6 +369,7 @@ return {
     ["notes.none"] = "Aucune notification",
     ["app.phone"] = "Téléphone",
     ["app.condition"] = "Condition",
+    ["app.pokenav"] = "PokéNav",
     ["pokenav.back"] = "PokéNav",
     ["phone.favourites"] = "Favoris",
     ["phone.recents"] = "Récents",

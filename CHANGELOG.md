@@ -3,6 +3,13 @@
 All notable changes to this mod are documented here, in
 [keep a changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [0.5.2] - 2026-11-07
+
+### Changed
+- **WoobPad takes the PokéNav's START row** (Ruby / Sapphire / Emerald): the PokéNav is an app on
+  the pad instead, the game's own (Ribbons and the rest; Match Call and Condition open ours); the
+  pad comes back when it closes.
+
 ## [0.5.1] - 2026-11-07
 
 ### Added

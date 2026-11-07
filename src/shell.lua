@@ -596,14 +596,17 @@ return function(mod, deps)
     if Sh.enabled and not Sh.enabled() then return list end
     if deps.watchRow and not deps.watchRow() then return list end
     -- (the game's own START menu only: one with SAVE in it, not a link room's or the Safari Zone's)
-    local at, normal = #list, false
+    local at, normal, nav = #list, false, nil
     for i, e in ipairs(list) do
       if e.id == "save" then normal = true end
+      if e.id == "pokenav" then nav = i end
       if (e.id == "exit" or e.id == "mods") and at == #list then at = i end
     end
     if not normal then return list end
     local label = deps.watchLabel and deps.watchLabel() or "WATCH"
-    table.insert(list, at, { id = "woob_watch", label = label, onSelect = function(_, s) Sh.openWatch(s) end })
+    local row = { id = "woob_watch", label = label, onSelect = function(_, s) Sh.openWatch(s) end }
+    -- (Ruby / Sapphire / Emerald: in the PokéNav's place, which WoobPad has as an app)
+    if nav then list[nav] = row else table.insert(list, at, row) end
     return list
   end
 

@@ -370,6 +370,7 @@ return {
     ["notes.none"] = "おしらせは ありません",
     ["app.phone"] = "でんわ",
     ["app.condition"] = "コンディション",
+    ["app.pokenav"] = "ポケナビ",
     ["pokenav.back"] = "ポケナビ",
     ["phone.favourites"] = "お気に入り",
     ["phone.recents"] = "りれき",

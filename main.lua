@@ -510,6 +510,18 @@ return function(mod)
     phoneAvailable = env.phone and function(ctx) return env.phone.available(ctx.session or session()) end or nil,
     conditionAvailable = env.condition and function(ctx) return env.condition.available(ctx.session or session()) end
       or nil,
+    -- (the game's PokéNav, from WoobPad: its START row is the pad's now)
+    pokenav = env.condition and function(ctx)
+      ctx.over(function(onClose)
+        local Screens, Runtime = engine("src.ui.game3.screens"), engine("src.core.game3.runtime")
+        local s = ctx.session or session()
+        local nav = Screens and Screens.get("pokenav", s)
+        if not (nav and nav.show) then error("the game has no PokéNav") end
+        nav.show({ session = s, game = Runtime and Runtime._game, onClose = onClose })
+      end)
+    end or nil,
+    pokenavAvailable = env.condition and function(ctx) return env.condition.available(ctx.session or session()) end
+      or nil,
     gtsBadge = env.gts and function() return env.gts.waiting() end or nil,
     auctionBadge = env.auction and function() return env.auction.unread() end or nil,
     settings = T and Settings and settingsWindow or nil,

@@ -1109,6 +1109,13 @@ return function(deps)
         G.pop()
       end
       G.pop()
+    elseif kind == "pokenav" then
+      -- (a PokéNav: its round body, the screen, the button under it)
+      G.rectangle("fill", cx - s * 0.24, cy - s * 0.28, s * 0.48, s * 0.56, s * 0.14, s * 0.14)
+      G.setColor(1, 0.55, 0.16, a)
+      G.rectangle("fill", cx - s * 0.16, cy - s * 0.19, s * 0.32, s * 0.24, s * 0.04, s * 0.04)
+      G.circle("fill", cx, cy + s * 0.16, s * 0.055)
+      G.setColor(1, 1, 1, a)
     elseif kind == "radar" then
       -- (a pentagon chart: its outline and a filled shape inside)
       local rad = s * 0.3

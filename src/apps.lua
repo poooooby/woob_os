@@ -143,6 +143,15 @@ return function(deps)
                  available = function(ctx) return not deps.conditionAvailable or deps.conditionAvailable(ctx) end,
                  window = deps.condition })
   end
+  -- the game's own PokéNav (its Map, Ribbons ...; Match Call and Condition open ours): on WoobPad,
+  -- which takes its START menu row
+  if deps.pokenav then
+    A.register({ id = "pokenav", labelKey = "app.pokenav", label = "PokéNav",
+                 glyph = "pokenav", color = { 255, 140, 40 }, order = 33,
+                 available = function(ctx)
+                   return ctx.mode == "pad" and (not deps.pokenavAvailable or deps.pokenavAvailable(ctx))
+                 end, open = deps.pokenav })
+  end
   -- the bedroom's Decoration (Ruby / Sapphire / Emerald): the game's own menu
   if deps.decorate then
     A.register({ id = "decorate", labelKey = "app.decorate", label = "Decorate",
