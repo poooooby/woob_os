@@ -15,8 +15,9 @@
 --
 --   Au = auction(engine, deps)  deps: save (mod.save), now() -> epoch seconds, seed(s) -> number,
 --                               dex() -> WoobleDex's exports or nil, badges(s) -> 0..8,
---                               notify(kind, { name, sp, key, where }, quiet): "outbid" (the
---                               money back), "soon" (ten minutes left), "won", "lost"
+--                               notify(kind, { name, sp, key, where, minutes }, quiet): "outbid"
+--                               (the money back), "soon" (soon() seconds left, 10 min if none),
+--                               "won", "lost"
 --   Au.listings(s, now) -> the twelve running auctions, soonest to end first, each refreshed (at
 --       most once a second): { key, tier, sp, name, level, ivs = { hp, atk, def, spa, spd, spe },
 --       ivSum, perfect, start, finish, price, nbids, leader (0: the player; i: bidders[i]; nil),
@@ -37,7 +38,8 @@ local EPOCH = 1700000000
 local CLOSE = 30
 local M = 2147483647
 local CAP, KEEP = 1.35, 20
--- (a running bid this near its end: a notification, once)
+-- (a running bid this near its end: a notification, once; deps.soon() -> seconds, the player's
+-- choice)
 local SOON = 600
 local MAX_MONEY = 999999
 
@@ -448,8 +450,10 @@ return function(engine, deps)
   end
   -- outbid: what was held comes back now (a notification, unless the player's own bid just lost
   -- it: the window says so)
-  local function notify(kind, b, quiet)
-    if deps.notify then pcall(deps.notify, kind, { name = b.name, sp = b.sp, key = b.key, where = b.where }, quiet) end
+  local function notify(kind, b, quiet, minutes)
+    if deps.notify then
+      pcall(deps.notify, kind, { name = b.name, sp = b.sp, key = b.key, where = b.where, minutes = minutes }, quiet)
+    end
   end
   function refund(s, b, d, quiet)
     local h = heldOf(b)
@@ -529,12 +533,13 @@ return function(engine, deps)
       if now < (b.finish or 0) and heldOf(b) > 0 then Au.listings(s, now) break end
     end
     -- (a running bid with ten minutes left: told once, kept in the bid so it rewinds with the save)
+    local soon = tonumber(deps.soon and deps.soon()) or SOON
     for _, b in pairs(d.bids) do
       local left = (b.finish or 0) - now
-      if left > 0 and left <= SOON and not b.soon then
+      if left > 0 and left <= soon and not b.soon then
         b.soon = true
         any = true
-        notify("soon", b)
+        notify("soon", b, false, floor(soon / 60))
       end
     end
     for key, b in pairs(d.bids) do

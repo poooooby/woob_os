@@ -239,6 +239,50 @@ T.eq(st.screen, "face", "B: the face again")
 press("b")
 T.check(not Wt.isOpen() and not Stack.has("woob_watch"), "B on the face: closed, the START menu again")
 
+-- the face: the wallpaper chosen in Settings; a swipe down for the notifications, up for the face
+do
+  local Wall = X._test.wall
+  local realDraw = Wall.draw
+  local drew
+  Wall.draw = function(id) drew = id return true end
+  Settings.set("wallpaper", "hills")
+  Sh.openWatch(s)
+  st = Wt.state()
+  draw(2)
+  T.eq(drew, "hills", "the face shows the chosen wallpaper")
+  Settings.set("wallpaper", "classic")
+  Wall.draw = realDraw
+  local f = hitOf("wface")
+  local x, y = f[1] + f[3] / 2, f[2] + 10
+  Wt.pointer({ id = 3, phase = "pressed", x = x, y = y })
+  Wt.pointer({ id = 3, phase = "moved", x = x, y = y + 60 })
+  Wt.pointer({ id = 3, phase = "released", x = x, y = y + 60 })
+  T.eq(st.screen, "notes", "a swipe down: the notifications")
+  draw(2)
+  Wt.pointer({ id = 4, phase = "pressed", x = x, y = y + 60 })
+  Wt.pointer({ id = 4, phase = "moved", x = x, y = y - 40 })
+  Wt.pointer({ id = 4, phase = "released", x = x, y = y - 40 })
+  T.eq(st.screen, "face", "a swipe up: the face again")
+  -- Settings > Watch: the ending-soon alert, 5 / 10 / 15 / 30 minutes
+  Wt.openApp("settings")
+  draw(2)
+  local ss = Wt.window().state
+  ss.section, ss.focus, ss.toggleCursor = 3, "detail", 3
+  Wt.input(input({}, {}))
+  press("a")
+  T.eq(Settings.get("soonMinutes", 10), 15, "A on the alert: 15 minutes")
+  press("right")
+  T.eq(Settings.get("soonMinutes", 10), 30, "Right: 30")
+  press("right")
+  T.eq(Settings.get("soonMinutes", 10), 5, "and round to 5")
+  press("left")
+  T.eq(Settings.get("soonMinutes", 10), 30, "Left: back to 30")
+  draw(2)
+  T.check(not st.winFailed, "the Watch section draws")
+  Settings.set("soonMinutes", 10)
+  st.ctx.done()
+end
+
 -- ------- the notifications from the models
 
 local Au = X._test.auction
@@ -276,10 +320,16 @@ do
     T.check(Au.bid(s, Lo, Au.minBid(Lo), tnow) and Lo.leader ~= 0, "a bid under it: outbid at once")
     T.eq(kinds(), "outbid", "a notification: outbid")
     T.eq(Nt.waiting(), 0, "quiet: the bid's own window says so")
-    -- ten minutes from its end: told once
-    tnow = Lo.finish - 300
+    -- the alert set to 30 minutes: not at 31 minutes left, told at 25 (once)
+    Settings.set("soonMinutes", 30)
+    tnow = Lo.finish - 31 * 60
     Au.settle(s, tnow)
-    T.eq(kinds(), "outbid soon", "ten minutes left: ending soon")
+    T.eq(kinds(), "outbid", "Settings 30 minutes: not yet at 31 left")
+    tnow = Lo.finish - 25 * 60
+    Au.settle(s, tnow)
+    T.eq(kinds(), "outbid soon", "25 minutes left: ending soon")
+    T.check(Nt.list()[1].text:find("30", 1, true) ~= nil, "its words say 30 minutes (" .. Nt.list()[1].text .. ")")
+    Settings.set("soonMinutes", 10)
     T.eq(Nt.waiting(), 1, "a banner waiting")
     Au.settle(s, tnow + 5)
     T.eq(kinds(), "outbid soon", "only once")

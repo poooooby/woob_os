@@ -858,11 +858,15 @@ return function(ctx, env)
       -- (the whole detail -- types, IVs, the last bids -- when it fits, the list takes what's left)
       local dh = min(122, bodyH * 0.56)
       local hh = min(30, (bodyH - dh) * 0.3)
-      local lh = bodyH - dh - hh - M * 2
-      drawHot(x + M, top, w - M * 2, hh, clock, t)
-      drawBrowseList(x + M, top + hh + M, w - M * 2, lh, st.focus == "list", t, clock)
+      -- (too short for the Hot Auction's three lines, the watch's: the list has its room; SELECT
+      -- still goes to it)
+      local gap = M
+      if hh < 22 then hh, gap = 0, 0 end
+      local lh = bodyH - dh - hh - gap - M
+      if hh > 0 then drawHot(x + M, top, w - M * 2, hh, clock, t) end
+      drawBrowseList(x + M, top + hh + gap, w - M * 2, lh, st.focus == "list", t, clock)
       K.scissor(body)
-      drawDetail(L, x + M, top + hh + lh + M * 2, w - M * 2, dh, t, dh < 92, clock)
+      drawDetail(L, x + M, top + hh + gap + lh + M, w - M * 2, dh, t, dh < 92, clock)
     else
       local lw = floor((w - M * 3) * 0.52)
       local hh = min(34, bodyH * 0.38)

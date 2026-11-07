@@ -291,8 +291,13 @@ the watch, and the layer, `render.hud` (`Sh.frame`), `input.pointer` (`Sh.pointe
   desktop's (the watch back with `ctx.resume = { app, state }`). Apps with `watch = false` (About,
   Log Off) and apps without a window aren't shown.
 - **The page:** `K.frame` with `W.PAGE` (`portraitAspect = 99`: always "portrait", scaled to fit),
-  the case `W.CASE`, the screen inset, the body about 172 x 207 units; windows get
-  `draw(body, clock, true)`. One host at a time, so the kit's single transform is shared.
+  the case `W.CASE`, the screen inset, the body about 172 x 207 units. Windows are drawn zoomed
+  (`W.APP_ZOOM` 1.5, a watch's few big rows): `K.transform` puts the units' origin at the body's
+  top left at 1.5x the scale, the window gets `draw({ 0, 0, w / 1.5, h / 1.5 }, clock, true)` (about
+  115 x 138 units), on `K.UI.grouped`; the pointer and drags convert back through `r.winT`. Apps
+  that lay out by height keep only what fits there (R-Bay drops the Hot Auction under 22 units,
+  the GTS's pick card shows the title alone under 74). One host at a time, so the kit's single
+  transform is shared.
 - **Screens:** `r.screen` "face" | "grid" | "app" | "notes". The face's tiles are read once a
   second (`readComps`: R-Bay's listings' `mine` / `leader`, `Gx.posted()`, `Sl.tickets()`), the
   clock too (`deps.clock` -> hour, minute, day, weekday). The honeycomb (`placeIcons`: rows of 3 and
@@ -304,7 +309,8 @@ the watch, and the layer, `render.hud` (`Sh.frame`), `input.pointer` (`Sh.pointe
 
 `src/notify.lua` (Nt), made in `main.lua` and handed to the models as `deps.notify(kind, data,
 quiet)`: `Au` ("outbid" in `refund`, quiet when the player's own `Au.bid` lost it; "soon" once per
-bid, `b.soon` kept in the record; "won" / "lost" in `Au.settle`) and `Gx` ("gts" in `Gx.settle`).
+bid at `deps.soon()` seconds before the end (Settings `soonMinutes`: 5 / 10 / 15 / 30, the
+Settings app's choice row), `b.soon` kept in the record; "won" / "lost" in `Au.settle`) and `Gx` ("gts" in `Gx.settle`).
 `main.lua`'s `notify` makes it quiet while the player is looking at that app's window.
 
 - **Records:** `{ kind, app, title, text, sp, at, state }`, the text made once (`T.f`), 20 kept

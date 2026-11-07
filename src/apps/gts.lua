@@ -768,7 +768,14 @@ return function(ctx, env)
     local purpose = st.picking and st.picking.purpose or "wonder"
     local r = st.rows[st.cursor]
     local gy = y + 15
-    if purpose == "wonder" then
+    if h < 74 then
+      -- (a short card, the watch's: the title alone above the Pokémon and its button)
+      local title = purpose == "wonder" and T("gts.wonder")
+        or (purpose == "accept" and st.picking.listing.offerName or T("gts.depositTitle"))
+      local fs = K.fit(title, 5.2, w - 8)
+      K.bold(title, x, y + 3 + (5.2 - fs) * 0.5, fs, C.text, "center", w)
+      if purpose == "accept" then K.text(T("gts.pickGive"), x + 4, y + 10, 3.6, C.teal, "center", w - 8) end
+    elseif purpose == "wonder" then
       globe(x + w / 2, gy, 10, clock, false)
       K.bold(T("gts.wonder"), x, y + 28, 5.4, C.text, "center", w)
       K.text(T("gts.wonderBlurb"), x + 4, y + 35, 3.6, C.soft, "center", w - 8)
@@ -1106,7 +1113,7 @@ return function(ctx, env)
     local bodyH = y + h - M - top
     if st.tab == "wonder" or st.picking then
       if portrait then
-        local ch = min(58, bodyH * 0.48)
+        local ch = min(78, bodyH * 0.5)
         drawPicker(x + M, top, w - M * 2, bodyH - ch - M, clock)
         K.scissor(body)
         drawPickCard(x + M, top + bodyH - ch, w - M * 2, ch, clock)

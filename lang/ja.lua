@@ -371,7 +371,7 @@ return {
     ["notify.won"] = "%s を らくさつ！ てもちに いるよ。",
     ["notify.wonPc"] = "%s を らくさつ！ パソコンに いるよ。",
     ["notify.lost"] = "%s は ほかの ひとに。 へんきん したよ。",
-    ["notify.soon"] = "%s は のこり 10ぷん みまん！",
+    ["notify.soon"] = "%s は のこり %dふん みまん！",
     ["notify.gts"] = "%s が %s から とどいた！ うけとってね。",
     ["notify.now"] = "いま",
     ["notify.minutes"] = "%dふん まえ",
@@ -381,6 +381,8 @@ return {
     ["settings.watchRow"] = "STARTメニューに だす",
     ["settings.notifications"] = "おしらせ",
     ["settings.watchNote"] = "WoobWatch は STARTメニューから ひらけるよ。 R-Bay や GTS に しらせが あると フィールドに でるよ。",
+    ["settings.soonAlert"] = "おわる まえの おしらせ",
+    ["settings.minutes"] = "%dふん",
 
     ["failed"] = "うまく いきませんでした。",
   },

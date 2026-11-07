@@ -366,6 +366,8 @@ return function(mod)
       dex = function() return mod.find("national_dex_gen3") end,
       badges = function(s) return env.mart and env.mart.badges(s) or 0 end,
       notify = notify,
+      -- (the ending-soon alert: Settings > Watch, 5 / 10 / 15 / 30 minutes before the end)
+      soon = function() return (tonumber(Settings and Settings.get("soonMinutes", 10)) or 10) * 60 end,
     })
   end
   -- Rocket Slots: its tickets kept in the save; a Pokémon prize's level from the badges
@@ -499,6 +501,8 @@ return function(mod)
     clock = watchClock,
     options = function() return { clock24 = option("clock24", false) == true } end,
     glyph = Desktop.glyph, amount = Desktop.amount, labelOf = Desktop.labelOf, notify = Nt,
+    -- (the face: the wallpaper chosen in Settings, as the desktop's)
+    wall = Wall, wallpaper = wallpaper, wallpaperFit = wallpaperFit, gameId = gameId,
     log = function(fmt, ...) mod.log:warn(fmt, ...) end,
   }) or nil
   -- the shelf's item pad, for the apps: an item crossing it ("out" to the PC, "in" to the Bag); on

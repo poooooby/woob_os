@@ -371,7 +371,7 @@ return {
     ["notify.won"] = "%s gewonnen! Im Team.",
     ["notify.wonPc"] = "%s gewonnen! Im PC.",
     ["notify.lost"] = "%s ging an jemand anderen. Erstattet.",
-    ["notify.soon"] = "%s endet in unter 10 Minuten.",
+    ["notify.soon"] = "%s endet in unter %d Minuten.",
     ["notify.gts"] = "%s ist von %s da! Abholen.",
     ["notify.now"] = "jetzt",
     ["notify.minutes"] = "vor %d Min.",
@@ -381,6 +381,8 @@ return {
     ["settings.watchRow"] = "Im START-Menü zeigen",
     ["settings.notifications"] = "Mitteilungen",
     ["settings.watchNote"] = "WoobWatch öffnet sich im START-Menü. Mitteilungen erscheinen im Spiel, wenn R-Bay oder die GTS Neuigkeiten haben.",
+    ["settings.soonAlert"] = "Hinweis vor Ende",
+    ["settings.minutes"] = "%d Min.",
 
     ["failed"] = "Das hat nicht geklappt.",
   },

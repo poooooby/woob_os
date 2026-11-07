@@ -370,7 +370,7 @@ return {
     ["notify.won"] = "Você ganhou %s! Está na equipe.",
     ["notify.wonPc"] = "Você ganhou %s! Está no PC.",
     ["notify.lost"] = "%s ficou com outro. Reembolsado.",
-    ["notify.soon"] = "%s termina em menos de 10 minutos.",
+    ["notify.soon"] = "%s termina em menos de %d minutos.",
     ["notify.gts"] = "%s chegou de %s! Pegue.",
     ["notify.now"] = "agora",
     ["notify.minutes"] = "há %d min",
@@ -380,6 +380,8 @@ return {
     ["settings.watchRow"] = "Mostrar no menu START",
     ["settings.notifications"] = "Notificações",
     ["settings.watchNote"] = "O WoobWatch abre pelo menu START. As notificações aparecem no jogo quando o R-Bay ou o GTS têm novidades.",
+    ["settings.soonAlert"] = "Aviso de fim",
+    ["settings.minutes"] = "%d min",
 
     ["failed"] = "Não deu certo.",
   },

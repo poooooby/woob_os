@@ -53,7 +53,8 @@ return function(deps)
     local name = tostring(data.name or "?")
     local key = TEXT[kind]
     if kind == "won" then key = data.where == "pc" and "notify.wonPc" or "notify.won" end
-    local okT, text = pcall(T.f, key, name, tostring(data.who or ""))
+    -- (the second word: the stranger's name, or the minutes left)
+    local okT, text = pcall(T.f, key, name, data.minutes or tostring(data.who or ""))
     local rec = { kind = kind, app = app, title = app == "gts" and "app.gts" or "app.auction",
                   text = okT and text or name, sp = tonumber(data.sp), at = epoch(), t = now(),
                   state = app == "gts" and { tab = "deposit" }

@@ -3,7 +3,7 @@
 -- dark case, a digital crown and a side button, the band off the window's edges. Its screens:
 --   face   the time, the date, the player's money and name, the apps' complications (R-Bay's bids,
 --          the GTS deposit, Slots' tickets), a red dot while notifications are unread
---          A or a tap: the apps ; Down or a swipe up: the notifications ; B closes the watch
+--          A or a tap: the apps ; Down or a swipe down: the notifications (a swipe up back) ; B closes the watch
 --   grid   the apps as round icons in a honeycomb (the focused one's name in the status bar)
 --          the D-pad moves, L / R or the wheel turn the crown, A opens, B the face
 --   app    an app's own window (src/apps.lua's contract, the desktop's) under the status bar
@@ -31,6 +31,9 @@ W.STATUS = 14
 -- the honeycomb: an icon's size, the room between rows, between icons in a row
 W.HONEY = { icon = 40, pitch = 37, gap = 50 }
 W.ZOOM = 0.22
+-- the apps' windows drawn this much bigger than on the PC (a watch's few large rows, not a
+-- phone's many): the window lays out in a body this many times smaller (units)
+W.APP_ZOOM = 1.5
 W.REPEAT_START, W.REPEAT_EVERY = 20, 4
 
 local C = {
@@ -41,6 +44,9 @@ local C = {
   faint = { 90, 92, 104 }, accent = { 255, 69, 58 }, good = { 52, 199, 89 }, gold = { 255, 196, 60 },
   tile = { 28, 29, 36 }, tileHi = { 44, 46, 56 }, dot = { 255, 59, 48 }, glass = { 255, 255, 255, 0.07 },
   clear = { 255, 255, 255, 0 }, keyFill = { 70, 72, 84 },
+  -- (over the face's wallpaper: darker toward the foot, so the time and the tiles read)
+  shadeTop = { 0, 0, 0, 0.5 }, shadeFoot = { 0, 0, 0, 0.62 },
+  classicTop = { 116, 144, 232 }, classicFoot = { 58, 48, 140 },
 }
 W.C = C
 
@@ -332,10 +338,18 @@ return function(deps)
   end
   Wt.tap = function(x, y) return r ~= nil and tap(x, y) end
 
+  -- (window pixels to the window's own units: its zoomed transform, as last drawn)
+  local function winUnits(x, y)
+    local t = r.winT
+    if not t then return (x - K.ox) / K.sc, (y - K.oy) / K.sc end
+    return (x - t[2]) / t[1], (y - t[3]) / t[1]
+  end
+  local function winScale() return r.winT and r.winT[1] or K.sc end
   local function winPointer(phase, x, y)
     local w = r.win
     if not (w and w.pointer) then return false end
-    local ok, used = pcall(w.pointer, phase, (x - K.ox) / K.sc, (y - K.oy) / K.sc)
+    local ux, uy = winUnits(x, y)
+    local ok, used = pcall(w.pointer, phase, ux, uy)
     if not ok then log("the window's pointer failed: %s", tostring(used)) end
     return ok and used == true
   end
@@ -361,7 +375,7 @@ return function(deps)
           winPointer("moved", x, y)
         elseif press.win and (press.drag or far) then
           press.drag = true
-          if r.win and r.win.scroll then pcall(r.win.scroll, (y - press.ly) / K.sc, press.x, press.y) end
+          if r.win and r.win.scroll then pcall(r.win.scroll, (y - press.ly) / winScale(), press.x, press.y) end
           press.ly = y
         elseif far then
           press.drag = true
@@ -382,10 +396,10 @@ return function(deps)
         if press.own then
           if not winPointer("released", x, y) and not press.drag then tap(x, y) end
         elseif press.drag then
-          -- (the face swiped up: the notifications; the list pulled down past its top: the face)
+          -- (the face pulled down: the notifications, as a watch's; pushed back up: the face)
           local dy = (y - press.y) / K.sc
-          if r.screen == "face" and dy < -24 then toScreen("notes")
-          elseif r.screen == "notes" and dy > 40 and r.noteTop <= 0 then toScreen("face") end
+          if r.screen == "face" and dy > 24 then toScreen("notes")
+          elseif r.screen == "notes" and dy < -40 and r.noteEnd then toScreen("face") end
           if r.screen == "grid" then
             -- (the cursor follows to the icon nearest the middle)
             local mid = r.scroll
@@ -549,12 +563,33 @@ return function(deps)
     K.bold(line, b[1] + s + 7, b[2] + b[4] - fs * 1.2 - 2.4, fs, tint or C.ink)
     if app then K.addHit(b, "wcomp", i) end
   end
+  -- the face's ground: the wallpaper chosen in Settings (as the desktop's: a picture or a drawn
+  -- one; classic, the game's colours), shaded so the words read
+  local function drawFaceWall(sb)
+    local id = deps.wallpaper and deps.wallpaper() or "classic"
+    local drawn = false
+    if id ~= "classic" and deps.wall then
+      local fit = deps.wallpaperFit and deps.wallpaperFit() or "fill"
+      local ok, got = pcall(deps.wall.draw, id, K.X(sb[1]), K.Y(sb[2]), sb[3] * K.sc, sb[4] * K.sc,
+        W.SCREEN_RADIUS * K.sc, fit)
+      drawn = ok and got
+    end
+    if not drawn then
+      if not r.wall then
+        local top, foot
+        if deps.wall then top, foot = deps.wall.tint(deps.gameId and deps.gameId() or "") end
+        r.wall = { top or C.classicTop, foot or C.classicFoot }
+      end
+      K.grad(sb, W.SCREEN_RADIUS, r.wall[1], r.wall[2])
+    end
+    K.grad(sb, W.SCREEN_RADIUS, C.shadeTop, C.shadeFoot)
+  end
   local function drawFace(L, clock)
     local sb = L.screen
     local x, y, w = sb[1] + 12, sb[2] + 12, sb[3] - 24
     local c = readClock(clock)
     local comp = readComps(clock)
-    K.grad(sb, W.SCREEN_RADIUS, C.screen, C.screenFoot)
+    drawFaceWall(sb)
     K.addHit(K.R(sb[1], sb[2], sb[3], sb[4] * 0.55), "wface")
     -- (the date in red, the unread dot, the time big)
     K.bold(c.date, x, y + 2, 6, C.accent)
@@ -669,6 +704,7 @@ return function(deps)
     local x, w = sb[1] + 8, sb[3] - 16
     local rowH = 30
     if n == 0 then
+      r.noteEnd = true
       K.text(T("watch.noNotes"), body[1], body[2] + body[4] / 2 - 4, 5, C.soft, "center", body[3])
       return
     end
@@ -676,6 +712,8 @@ return function(deps)
     if r.noteCursor > r.noteTop + vis then r.noteTop = r.noteCursor - vis end
     if r.noteCursor <= r.noteTop then r.noteTop = r.noteCursor - 1 end
     r.noteTop = max(0, min(r.noteTop, max(0, n - vis)))
+    -- (the list's foot in view: a push up goes back to the face)
+    r.noteEnd = r.noteTop >= n - vis
     K.scissor(body)
     local first = floor(r.noteTop) + 1
     for i = first, min(n, first + vis) do
@@ -688,14 +726,26 @@ return function(deps)
     K.scissor(nil)
   end
 
+  local zbody = { 0, 0, 0, 0 }
   local function drawWindow(L, clock)
     local body = L.body
     local wa = r.winArea or {}
     r.winArea = wa
     wa[1], wa[2], wa[3], wa[4] = K.X(body[1]), K.Y(body[2]), body[3] * K.sc, body[4] * K.sc
-    K.scissor(body)
-    local ok, err = pcall(r.win.draw, body, clock, true)
+    -- (the windows' own grey ground, as the desktop's window has: their light cards read on it)
+    K.col(K.UI.grouped)
+    K.box("fill", body, 6)
+    -- (zoomed: the body's top left the units' origin, each unit W.APP_ZOOM times bigger)
+    local z = W.APP_ZOOM
+    local t = r.winT or {}
+    r.winT = t
+    t[1], t[2], t[3] = K.sc * z, wa[1], wa[2]
+    zbody[3], zbody[4] = body[3] / z, body[4] / z
+    local psc, pox, poy = K.transform(t[1], t[2], t[3])
+    K.scissor(zbody)
+    local ok, err = pcall(r.win.draw, zbody, clock, true)
     K.scissor(nil)
+    K.transform(psc, pox, poy)
     K.graphics().setColor(1, 1, 1, 1)
     if not ok and not r.winFailed then
       r.winFailed = true

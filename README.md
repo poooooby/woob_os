@@ -40,10 +40,12 @@ opens a desktop in a sleek monitor instead of a text menu.
   - **The apps:** round icons in a honeycomb. Move with the D-pad, turn the crown with L and R (or
     the mouse wheel), open with A. Boxes, Items, Mail, GTS, Mart, R-Bay, Slots and Settings all
     work on the watch, just as they do at the PC.
-  - **Notifications:** Down on the face (or a swipe up) lists them, newest first. Open one to go
-    straight to it.
+  - **Notifications:** Down on the face (or a swipe down) lists them, newest first; a swipe up
+    goes back. Open one to go straight to it.
+  - **Your wallpaper:** the face shows the wallpaper you chose in Settings, as the desktop does.
 - 🔔 **Notifications:** WoobOS tells you when you're outbid on R-Bay (your money is already back),
-  when an auction you're in has ten minutes left, when you win or lose one, and when your GTS
+  when an auction you're in is about to end (10 minutes before, or 5, 15 or 30: your choice in
+  Settings), when you win or lose one, and when your GTS
   deposit is traded. A banner slides down over the game while you're free to walk around; tap it to
   open the watch on that app. With the PC or the watch open, it slides in over its screen instead.
 
@@ -131,8 +133,9 @@ opens a desktop in a sleek monitor instead of a text menu.
     Português (Brasil). The game's own text, such as item names and mail, stays as it is.
   - 🖼️ **Wallpaper:** the classic colours of your game, five drawn wallpapers (Ribbon, Hills,
     Coast, Waves and Bloom, each tinted to your game), or your own pictures.
-  - ⌚ **Watch:** show WoobWatch in the START menu or not, and turn the notification banners on or
-    off. Notifications still wait in the watch's list with the banners off.
+  - ⌚ **Watch:** show WoobWatch in the START menu or not, turn the notification banners on or
+    off (notifications still wait in the watch's list), and choose how long before an auction ends
+    you're told: 5, 10, 15 or 30 minutes.
 - ℹ️ **About:** which version you're running.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
 

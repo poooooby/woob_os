@@ -23,10 +23,13 @@ local SECTIONS = {
   { id = "wallpaper", key = "settings.wallpaper", tile = C.wallTile },
   { id = "watch", key = "settings.watch", tile = C.watchTile },
 }
--- the Watch section's switches: the kept setting, its words, on by default
+-- the Watch section's rows: switches (the kept setting, its words, on by default) and a choice
+-- (the values A / a tap / Left / Right step through)
+local SOON_CHOICES = { 5, 10, 15, 30 }
 local TOGGLES = {
   { key = "watchRow", label = "settings.watchRow" },
   { key = "notifications", label = "settings.notifications" },
+  { key = "soonMinutes", label = "settings.soonAlert", choices = SOON_CHOICES, default = 10 },
 }
 local ROW_H, LANG_H, TOGGLE_H = 13, 11, 13
 local SIDE, LANG, WALL, BACK, FIT, TOGGLE = 1, 100, 200, 300, 400, 500
@@ -89,6 +92,21 @@ return function(ctx, env)
     local t = TOGGLES[i]
     return t ~= nil and (not env.setting or env.setting(t.key, true) ~= false)
   end
+  -- a choice row's value and its place among the choices
+  local function choiceOf(t)
+    local v = env.setting and tonumber(env.setting(t.key, t.default)) or t.default
+    for j, c in ipairs(t.choices) do if c == v then return v, j end end
+    return t.default, 1
+  end
+  local function stepChoice(i, d)
+    local t = TOGGLES[i]
+    if not (t and t.choices and env.setSetting) then return false end
+    local _, j = choiceOf(t)
+    j = (j - 1 + d) % #t.choices + 1
+    env.setSetting(t.key, t.choices[j])
+    se("SE_SELECT")
+    return true
+  end
   -- (the wallpaper grid's row kept in view)
   local function showWall()
     local row = floor((st.wallCursor - 1) / st.cols)
@@ -100,6 +118,7 @@ return function(ctx, env)
   local function choose()
     if section() == "watch" then
       local t = TOGGLES[st.toggleCursor]
+      if t and t.choices then return stepChoice(st.toggleCursor, 1) end
       if t and env.setSetting then env.setSetting(t.key, not toggled(st.toggleCursor)) end
     elseif section() == "language" then
       local l = st.langs[st.langCursor]
@@ -151,6 +170,12 @@ return function(ctx, env)
       return true
     end
     local n, c = count(), cursor()
+    -- (on a choice row Left / Right step its value)
+    local tc = section() == "watch" and TOGGLES[st.toggleCursor]
+    if tc and tc.choices and (nav.left or nav.right) then
+      stepChoice(st.toggleCursor, nav.right and 1 or -1)
+      return true
+    end
     local step = section() == "wallpaper" and st.cols or 1
     if nav.left and section() == "wallpaper" and (c - 1) % st.cols > 0 then
       setCursor(c - 1)
@@ -329,6 +354,7 @@ return function(ctx, env)
     K.text(T("settings.wallpaperNote"), x + 6, y + h - noteH + 1, 4, UI.secondary, "left", w - 12)
   end
 
+  local minutesText = K.textCache(function(m) return T.f("settings.minutes", m) end)
   -- an on / off switch (iOS's): green with the knob right when on
   local function switch(x, y, on)
     local G = K.graphics()
@@ -349,9 +375,19 @@ return function(ctx, env)
         K.hairline(rb[1] + 5, rb[2], rb[3] - 5)
       end
       local label = T(t.label)
-      local ls = K.fit(label, 5, rb[3] - 26)
+      local ls = K.fit(label, 5, rb[3] - (t.choices and 34 or 26))
       K.text(label, rb[1] + 5, rb[2] + 3.4 + (5 - ls) * 0.5, ls, on and K.WHITE or UI.label)
-      switch(rb[1] + rb[3] - 19, rb[2] + 2.5, toggled(i))
+      if t.choices then
+        -- (the value between < >, as a stepper)
+        local v = choiceOf(t)
+        local ink = on and K.WHITE or UI.accent
+        local vx = rb[1] + rb[3] - 34
+        K.chevron(vx + 2, rb[2] + TOGGLE_H / 2, 3.6, ink, -1)
+        K.text(minutesText(v), vx + 4, rb[2] + 3.6, 4.6, ink, "center", 21)
+        K.chevron(vx + 27, rb[2] + TOGGLE_H / 2, 3.6, ink, 1)
+      else
+        switch(rb[1] + rb[3] - 19, rb[2] + 2.5, toggled(i))
+      end
       K.addHit(rb, "win", TOGGLE + i - 1)
     end
     K.text(T("settings.watchNote"), x + 6, gb[2] + gb[4] + 3, 4.2, UI.secondary, "left", w - 12)

@@ -382,7 +382,7 @@ return {
     ["notify.won"] = "You won %s! It joined your party.",
     ["notify.wonPc"] = "You won %s! It's in your PC.",
     ["notify.lost"] = "%s went to another bidder. Refunded.",
-    ["notify.soon"] = "%s ends in under 10 minutes.",
+    ["notify.soon"] = "%s ends in under %d minutes.",
     ["notify.gts"] = "%s arrived from %s! Collect it.",
     ["notify.now"] = "now",
     ["notify.minutes"] = "%dm ago",
@@ -392,6 +392,8 @@ return {
     ["settings.watchRow"] = "Show in START menu",
     ["settings.notifications"] = "Notifications",
     ["settings.watchNote"] = "WoobWatch opens from the START menu. Notifications appear over the field when R-Bay or the GTS has news.",
+    ["settings.soonAlert"] = "Ending-soon alert",
+    ["settings.minutes"] = "%d min",
 
     ["failed"] = "That didn't work.",
   },

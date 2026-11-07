@@ -3,6 +3,18 @@
 All notable changes to this mod are documented here, in
 [keep a changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [0.3.1] - 2026-11-06
+
+### Added
+- **Settings > Watch:** the ending-soon alert: 5, 10, 15 or 30 minutes before an auction ends.
+
+### Changed
+- **WoobWatch:** the face shows the wallpaper chosen in Settings. A swipe down opens the
+  notifications, a swipe up goes back to the face.
+- **WoobWatch:** the apps are drawn at a watch's size: half as large again as on the PC, with
+  fewer, bigger rows, text and buttons, on the windows' light grey. The GTS's Wonder Trade card and
+  R-Bay keep only what fits (R-Bay's Hot Auction stays one SELECT away).
+
 ## [0.3.0] - 2026-11-06
 
 ### Added
