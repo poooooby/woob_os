@@ -160,9 +160,6 @@ return function(deps)
     A.register({ id = "settings", labelKey = "app.settings", label = "Settings", glyph = "gear",
                  color = { 132, 140, 158 }, order = 70, window = deps.settings })
   end
-  A.register({ id = "about", labelKey = "app.about", label = "About",
-               glyph = "logo", color = { 70, 76, 96 }, order = 80,
-               open = function(ctx) ctx.sheet("about") end })
   A.register({ id = "logoff", labelKey = "app.logoff", label = "Log Off",
                glyph = "power", color = { 120, 128, 146 }, order = 90, dock = true, pad = false,
                open = function(ctx) ctx.sheet("logoff") end })

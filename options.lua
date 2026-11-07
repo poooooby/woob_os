@@ -23,4 +23,18 @@ return {
     default = false,
     description = "The menu bar's clock in 24-hour time (15:30) instead of 3:30 PM.",
   },
+  {
+    key = "mapInvertX",
+    label = "Map: Invert X",
+    type = "toggle",
+    default = false,
+    description = "The 3D map's camera turns the other way with the right stick and a drag.",
+  },
+  {
+    key = "mapInvertY",
+    label = "Map: Invert Y",
+    type = "toggle",
+    default = false,
+    description = "The 3D map's camera tilts the other way with the right stick and a drag.",
+  },
 }

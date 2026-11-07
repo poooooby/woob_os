@@ -113,15 +113,15 @@ local function ctxWith(mode, rows)
   ctx.row = function(id) for i, row in ipairs(ctx.rows) do if row.id == id then return i - 1 end end end
   return ctx
 end
-T.eq(ids(Apps.list(ctxWith("select", rowsAll))), "storage items map mail gts mart auction slots oak hall settings about logoff",
+T.eq(ids(Apps.list(ctxWith("select", rowsAll))), "storage items map mail gts mart auction slots oak hall settings logoff",
   "a cleared game's PC: every app")
 T.eq(ids(Apps.list(ctxWith("select", { { id = "storage" }, { id = "player" }, { id = "quit" } }))),
-  "storage items map mail gts mart auction slots settings about logoff", "early on: no Oak's PC, no Hall of Fame")
-T.eq(ids(Apps.list(ctxWith("bedroom"))), "items map mail gts mart auction slots settings about logoff", "the bedroom PC: Items, Map, Mail, GTS, Mart, R-Bay, Slots, Settings")
+  "storage items map mail gts mart auction slots settings logoff", "early on: no Oak's PC, no Hall of Fame")
+T.eq(ids(Apps.list(ctxWith("bedroom"))), "items map mail gts mart auction slots settings logoff", "the bedroom PC: Items, Map, Mail, GTS, Mart, R-Bay, Slots, Settings")
 do
   local c = ctxWith("bedroom")
   c.family = "rse"
-  T.eq(ids(Apps.list(c)), "items map mail gts mart auction slots decorate settings about logoff", "Ruby / Sapphire / Emerald's bedroom: Decorate too")
+  T.eq(ids(Apps.list(c)), "items map mail gts mart auction slots decorate settings logoff", "Ruby / Sapphire / Emerald's bedroom: Decorate too")
 end
 T.check(not Apps.register({ id = "storage", open = noop }), "an id can't be taken twice")
 T.check(not Apps.register({ id = "x" }), "an app needs open()")
@@ -269,7 +269,7 @@ openPc({ startMode = "player_pc", bedroom = true })
 st = D.state()
 T.check(D.isOpen() and st.ctx.mode == "bedroom", "the bedroom PC opens the desktop")
 local rse = st.ctx.family == "rse"
-T.eq(#st.grid + #st.dock, rse and 11 or 10, "with Items, Map, Mail, GTS, Mart, R-Bay, Slots, Settings, About and Log Off" .. (rse and ", Decorate" or ""))
+T.eq(#st.grid + #st.dock, rse and 10 or 9, "with Items, Map, Mail, GTS, Mart, R-Bay, Slots, Settings and Log Off" .. (rse and ", Decorate" or ""))
 D.skipBoot()
 draw(40)
 if rse then

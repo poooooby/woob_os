@@ -3,6 +3,19 @@
 All notable changes to this mod are documented here, in
 [keep a changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [0.5.1] - 2026-11-07
+
+### Added
+- **Options:** Map: Invert X and Map: Invert Y, for the 3D map's camera (the right stick and a
+  drag).
+
+### Changed
+- **About** is only in the W menu now (top left), no longer an app on the home screen.
+
+### Fixed
+- **Phone:** its icon is a handset; the favourites' star is a star; a contact's Call and ★ only
+  show the controller's ring once its card is open.
+
 ## [0.5.0] - 2026-11-07
 
 ### Changed

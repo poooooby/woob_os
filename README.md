@@ -37,7 +37,7 @@ opens a desktop in a sleek monitor instead of a text menu.
   open it, and a pad comes up over the game with a big touch screen:
   - **Like the PC:** the same home screen and dock (arranged the same way), the menu bar with your
     money and the time, your wallpaper, and the same apps in the same windows: Boxes, Items, Mail,
-    Map, Phone, Condition, GTS, Mart, R-Bay, Slots, Settings and About.
+    Map, Phone, Condition, GTS, Mart, R-Bay, Slots and Settings.
   - **Made for touch:** tap, swipe between pages, drag in windows; the buttons work just as well.
   - **Notifications:** pull down from the top of the screen (or choose Notifications in the W
     menu) for the list, newest first; tap one to open its app.
@@ -190,7 +190,7 @@ opens a desktop in a sleek monitor instead of a text menu.
     you're told: 5, 10, 15 or 30 minutes.
   - 🗺️ **Map:** the 3D Town Map on or off. Off, the Town Map and Fly open the game's own map.
   - 📟 **PokéNav:** the Phone and Condition in the PokéNav, or its own screens.
-- ℹ️ **About:** which version you're running.
+- ℹ️ **About:** which version you're running, in the W menu at the top left.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
 
 Boxes, Items, Map, Phone, Condition, GTS, Mart, R-Bay, Slots, Mail and Settings open in a window on the desktop, in the style of macOS and iOS:
@@ -206,6 +206,8 @@ desktop.
 | Desktop | On / Off | On | The PC opens the desktop. Off: the game's own PC menu. |
 | Boot Screen | On / Off | On | The W boot screen before the desktop. |
 | 24-Hour Clock | On / Off | Off | The menu bar's clock as 15:30 instead of 3:30 PM. |
+| Map: Invert X | On / Off | Off | The 3D map's camera turns the other way (the right stick, a drag). |
+| Map: Invert Y | On / Off | Off | The 3D map's camera tilts the other way (the right stick, a drag). |
 
 ## 💾 Installation
 

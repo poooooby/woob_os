@@ -247,14 +247,20 @@ return function(ctx, env)
     if ring then K.ring(K.R(x, y, size, size), size * 0.28, ring, 0.9, 0.6) end
   end
 
-  -- a small star
+  -- a five-pointed star: ten triangles from its middle (a filled polygon must be convex)
+  local STAR_X, STAR_Y = {}, {}
+  for i = 0, 10 do
+    local a = -math.pi / 2 + i * math.pi / 5
+    local k = i % 2 == 0 and 1 or 0.42
+    STAR_X[i], STAR_Y[i] = math.cos(a) * k, math.sin(a) * k
+  end
   local function star(cx, cy, r, c)
     local G = K.graphics()
     K.col(c)
     local x, y, s = K.X(cx), K.Y(cy), r * K.sc
-    G.polygon("fill", x, y - s, x + s * 0.3, y - s * 0.3, x + s, y - s * 0.25, x + s * 0.45, y + s * 0.2,
-      x + s * 0.6, y + s, x, y + s * 0.5, x - s * 0.6, y + s, x - s * 0.45, y + s * 0.2, x - s, y - s * 0.25,
-      x - s * 0.3, y - s * 0.3)
+    for i = 0, 9 do
+      G.polygon("fill", x, y, x + STAR_X[i] * s, y + STAR_Y[i] * s, x + STAR_X[i + 1] * s, y + STAR_Y[i + 1] * s)
+    end
   end
 
   local function drawRows(x, y, w, h, focused)
@@ -352,14 +358,16 @@ return function(ctx, env)
       K.box("fill", cb, 5.5)
       K.text(T("phone.call"), cb[1], cb[2] + 2.8, 4.8, UI.tertiary, "center", cb[3])
     end
-    if st.button == 1 then K.focusRing(cb, 5.5) end
+    -- (the buttons' focus only once the card is open: A on a contact)
+    local carded = st.view == "card"
+    if carded and st.button == 1 then K.focusRing(cb, 5.5) end
     local on = Ph.isFav(session(), c.key)
     K.col(UI.fill)
     K.box("fill", fb, 5.5)
     star(fb[1] + 7, fb[2] + 5.5, 2.4, on and STAR or UI.tertiary)
     K.text(T(on and "phone.favourite" or "phone.addFav"), fb[1] + 11, fb[2] + 2.8, K.fit(T("phone.addFav"), 4.6, bw - 13),
       UI.label)
-    if st.button == 2 then K.focusRing(fb, 5.5) end
+    if carded and st.button == 2 then K.focusRing(fb, 5.5) end
     K.addHit(cb, "win", CALL)
     K.addHit(fb, "win", FAV)
     -- (the check page / the profile)

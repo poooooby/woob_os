@@ -457,6 +457,10 @@ return function(mod)
         return info.hour, info.minute
       end,
       flyCheck = function(_, s) return Model.flyCheck(s) end,
+      -- (the mod's options: the camera's turn and tilt inverted)
+      invert = function()
+        return option("mapInvertX", false) == true, option("mapInvertY", false) == true
+      end,
       -- (the host closed, the START menu with it, then the game's own Fly: the take-off, the map, the landing)
       fly = function(ctx, region, place)
         local s = ctx.session or session()

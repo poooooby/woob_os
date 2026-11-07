@@ -1090,14 +1090,24 @@ return function(deps)
       G.setColor(1, 1, 1, a)
       G.circle("fill", px, py, s * 0.035)
     elseif kind == "phone" then
-      -- (a handset)
+      -- (a handset: a gently curved grip, the earpiece and the mouthpiece reaching the same way,
+      -- tilted as a phone app's; drawn about its own middle)
       G.push()
       G.translate(cx, cy)
-      G.rotate(-0.6)
-      local w, h = s * 0.12, s * 0.5
-      G.rectangle("fill", -w / 2, -h / 2 + s * 0.08, w, h - s * 0.16, s * 0.04, s * 0.04)
-      G.rectangle("fill", -w * 1.1, -h / 2, w * 2.2, s * 0.12, s * 0.05, s * 0.05)
-      G.rectangle("fill", -w * 1.1, h / 2 - s * 0.12, w * 2.2, s * 0.12, s * 0.05, s * 0.05)
+      G.rotate(-math.pi / 4)
+      local u = s
+      local ax, rad = u * 0.18, u * 0.34
+      G.setLineWidth(u * 0.14)
+      G.arc("line", "open", ax, 0, rad, math.pi * 0.72, math.pi * 1.28, 16)
+      for k = -1, 1, 2 do
+        -- (each end: a rounded pad, tipped a little toward the other)
+        local ex, ey = ax + rad * math.cos(math.pi * 0.72), k * rad * math.sin(math.pi * 0.72)
+        G.push()
+        G.translate(ex, ey)
+        G.rotate(-k * 0.3)
+        G.rectangle("fill", -u * 0.04, -u * 0.08, u * 0.23, u * 0.16, u * 0.07, u * 0.07)
+        G.pop()
+      end
       G.pop()
     elseif kind == "radar" then
       -- (a pentagon chart: its outline and a filled shape inside)

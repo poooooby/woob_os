@@ -57,6 +57,14 @@ return function(ctx, env, opts)
   local mode = opts.mode or "app"
   local W = { title = mode == "fly" and T("map.flyTitle") or T("app.map") }
   local function session() return ctx.session or (env.session and env.session()) end
+  -- (the mod's options: the camera's turn and tilt inverted -> -1 or 1 each)
+  local function invert()
+    local f = env.map3d.invert
+    if not f then return 1, 1 end
+    local ok, x, y = pcall(f)
+    if not ok then return 1, 1 end
+    return x and -1 or 1, y and -1 or 1
+  end
   local function se(name) if env.se then pcall(env.se, name) end end
 
   local st = {
@@ -405,8 +413,9 @@ return function(ctx, env, opts)
       end
       if t.moved then
         local g, c = st.goal, st.cam
-        g.yaw = g.yaw - dx * 0.018
-        g.pitch = max(PITCH_MIN, min(PITCH_MAX, g.pitch + dy * 0.012))
+        local ix, iy = invert()
+        g.yaw = g.yaw - dx * 0.018 * ix
+        g.pitch = max(PITCH_MIN, min(PITCH_MAX, g.pitch + dy * 0.012 * iy))
         c.yaw, c.pitch = g.yaw, g.pitch
       end
     elseif phase == "released" or phase == "cancelled" then
@@ -487,8 +496,9 @@ return function(ctx, env, opts)
     local c, g = st.cam, st.goal
     if st.turn ~= 0 then g.yaw = g.yaw + st.turn * TURN * dt end
     if not st.flat and (st.stickX ~= 0 or st.stickY ~= 0) then
-      g.yaw = g.yaw + st.stickX * STICK_TURN * dt
-      g.pitch = max(PITCH_MIN, min(PITCH_MAX, g.pitch - st.stickY * STICK_TILT * dt))
+      local ix, iy = invert()
+      g.yaw = g.yaw + st.stickX * STICK_TURN * dt * ix
+      g.pitch = max(PITCH_MIN, min(PITCH_MAX, g.pitch - st.stickY * STICK_TILT * dt * iy))
       c.yaw, c.pitch = g.yaw, g.pitch
     end
     local k = 1 - exp(-EASE * dt)
