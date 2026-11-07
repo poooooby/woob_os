@@ -227,7 +227,7 @@ return {
     ["auction.place"] = "Fai un'offerta",
     ["auction.raise"] = "Rilancia",
     ["auction.leading"] = "Sei il miglior offerente!",
-    ["auction.outbidNow"] = "Già superato! Alzi il massimo?",
+    ["auction.outbidNow"] = "Superato! I soldi sono tornati. Rilanci?",
     ["auction.none"] = "Nessuna offerta. Guarda in Sfoglia.",
     ["auction.won"] = "Vinta",
     ["auction.lost"] = "Persa",

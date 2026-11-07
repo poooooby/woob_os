@@ -194,15 +194,18 @@ the hidden value `V` (the tier's band x `0.6 + 0.8 q^2` x `1 + 0.08` per 31), an
   `evolutionsOf` for the stages. Shedinja never sells.
 - **Pricing:** `sim(L, t, mine)` replays the bids up to `t` in time order, the player's
   `steps` (time, max pairs) among them: eBay's proxy rule (one `step(price)` over the
-  second-highest maximum, capped at the highest; a tie goes to the earlier bid). No tables made;
-  the last five bids kept in two ring arrays.
+  second-highest maximum, capped at the highest; a tie goes to the earlier bid). A challenger
+  under the leader's maximum logs two bids: theirs, then the leader's answer at the new price
+  (the top bid shown). No tables made; the last five bids kept in two ring arrays.
 - **The player's part** is `mod.save` "auction" (`session.modData.woob_os`): `bids[key]` (the
-  listing's species / level / IVs copied, `max`, `steps`), `results` (newest first, 20 kept),
+  listing's species / level / IVs copied, `max`, `held`, `steps`), `results` (newest first, 20 kept),
   `unread`. It rewinds with the save, as the money and the party do. `Au.bid` takes the
-  difference from the money; `Au.settle` (on `save.loaded`, and the desktop's once-a-second
+  difference from what's `held` (`Au.heldOf`: older saves, all of `max`); outbid (in `Au.bid`,
+  or a listings refresh: the window's, or `Au.settle`'s while a bid holds money) it's paid back
+  at once and `held` = 0 (a beaten maximum never leads again); `Au.settle` (on `save.loaded`, and the desktop's once-a-second
   `deps.tick`) gives a win through `Party.giveMonToPlayer`, then writes the listed IVs into
   `mon.ivs`, `Pokemon.applyStats` and full HP, and pays the change back with `Prize.apply`. A
-  loss refunds it all. With no room anywhere, a win waits (`b.won = true`).
+  loss refunds what's still held. With no room anywhere, a win waits (`b.won = true`).
 - **The icon's count:** an app's `badge(ctx)` (read once a second) sets `app.badgeN`, which
   `appIcon` draws.
 - **The window's show** (`src/apps/auction.lua`): `pickHot` (once a second: tier rank, then

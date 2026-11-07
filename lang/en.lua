@@ -239,7 +239,7 @@ return {
     ["auction.place"] = "Place Bid",
     ["auction.raise"] = "Raise Bid",
     ["auction.leading"] = "You're the top bidder!",
-    ["auction.outbidNow"] = "Outbid already! Raise your max?",
+    ["auction.outbidNow"] = "Outbid! Your money is back. Bid again?",
     ["auction.none"] = "No bids yet. Find something in Browse.",
     ["auction.won"] = "Won",
     ["auction.lost"] = "Lost",

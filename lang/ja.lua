@@ -228,7 +228,7 @@ return {
     ["auction.place"] = "にゅうさつする",
     ["auction.raise"] = "じょうげんを あげる",
     ["auction.leading"] = "あなたが さいこうがくです！",
-    ["auction.outbidNow"] = "もう ぬかれた！ じょうげんを あげる？",
+    ["auction.outbidNow"] = "ぬかれた！ おかねは もどったよ。 もういちど？",
     ["auction.none"] = "にゅうさつは まだ ありません。",
     ["auction.won"] = "らくさつ",
     ["auction.lost"] = "しっぱい",

@@ -211,7 +211,7 @@ return function(ctx, env)
   local function affordable(L)
     local s = session()
     local have = max(0, floor(tonumber(s and s.money) or 0))
-    return have + (L.mine and L.mine.max or 0)
+    return have + (L.mine and Au.heldOf(L.mine) or 0)
   end
   local function setTab(tab)
     if st.tab == tab then return end
@@ -698,8 +698,8 @@ return function(ctx, env)
     end
     -- your maximum: - / + and the amount, then Place Bid (Raise while you're in it)
     local stepping = st.focus == "step"
-    -- (not stepping: your maximum while you're in it, else the least you could bid)
-    local amount = stepping and st.amount or (L.mine and L.mine.max or Au.minBid(L))
+    -- (not stepping: your maximum while it leads, else the least you could bid)
+    local amount = stepping and st.amount or (L.mine and L.leader == 0 and L.mine.max or Au.minBid(L))
     local sb = K.R(x + 4, y + h - 25, 22, 10)
     K.grad(sb, 3.2, C.cardHi, C.card)
     K.col(C.line)

@@ -227,7 +227,7 @@ return {
     ["auction.place"] = "Pujar",
     ["auction.raise"] = "Subir puja",
     ["auction.leading"] = "¡Vas en cabeza!",
-    ["auction.outbidNow"] = "¡Ya te han superado! ¿Subes tu máximo?",
+    ["auction.outbidNow"] = "¡Superado! Te devolvimos el dinero. ¿Pujas otra vez?",
     ["auction.none"] = "Aún no has pujado. Mira en Explorar.",
     ["auction.won"] = "Ganada",
     ["auction.lost"] = "Perdida",

@@ -3,6 +3,12 @@
 All notable changes to this mod are documented here, in
 [keep a changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [Unreleased]
+
+### Fixed
+- **R-Bay:** outbid, your money comes back at once (it was held until the auction ended), and
+  the rival's answer shows as the new top bid.
+
 ## [0.2.3] - 2026-11-02
 
 ### Fixed

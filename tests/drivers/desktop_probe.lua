@@ -11,10 +11,16 @@ local CENTER = { frlg = "VIRIDIAN_CITY_POKEMON_CENTER_1F", rse = "OLDALE_TOWN_PO
 local function body(game, log)
   local U = require("tests.drivers.util")
   local dir = os.getenv("SHOT_DIR") or "/tmp/wos"
+  -- (the limit in frames, and at least as long on the wall clock at 60 a second: the frames can
+  -- run far faster than that, and the effects waited on keep the wall clock's time)
   local function waitFor(pred, limit)
-    for _ = 1, limit or 600 do
+    limit = limit or 600
+    local untilT = love.timer.getTime() + limit / 60
+    local n = 0
+    while n < limit or love.timer.getTime() < untilT do
       if pred() then return true end
       U.wait(1)
+      n = n + 1
     end
     return pred() and true or false
   end
@@ -642,7 +648,7 @@ local function body(game, log)
     check(waitFor(function() return ss.tease and ss.stopped[2] and not ss.stopped[3] end, 600), "two R's: the last reel held back")
     U.wait(30)
     shot("d13b2_slots_tease")
-    check(waitFor(function() return not ss.spinning end, 600), "the reels stop")
+    check(waitFor(function() return not ss.spinning end, 900), "the reels stop")
     U.wait(40)
     check(ss.win and ss.win.jackpot and s0.money == 20000 - Sl.BETS[ss.bet] + Sl.BETS[ss.bet] * Sl.PAYS[Sl.ROCKET].x,
       "the jackpot, paid")

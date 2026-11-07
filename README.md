@@ -73,9 +73,9 @@ opens a desktop in a sleek monitor instead of a text menu.
   Pokémon's level, which climbs with your badges, and its IVs, and better IVs draw more bidders
   and higher prices. Rocket bidders compete, harder in the higher tiers, but never so hard that
   you can't win. Set the most you'll pay and R-Bay bids for you, one step at a time, like eBay.
-  Your maximum is held when you bid. Win and you pay only the final price, the rest comes back,
-  and the Pokémon joins your party (or the PC) with the IVs it was listed with. Lose and all of
-  it comes back. The Hot Auction sits at the top of Browse: the most wanted Pokémon on sale right
+  Your maximum is held while you lead. Outbid, and it all comes back at once, with the rival's
+  answer showing as the new top bid. Win and you pay only the final price, the rest comes back,
+  and the Pokémon joins your party (or the PC) with the IVs it was listed with. The Hot Auction sits at the top of Browse: the most wanted Pokémon on sale right
   now, with its price and countdown (SELECT jumps to it). Prices flash up as rival bids land, the
   clock turns red in the last ten minutes, taking the lead throws confetti and losing it tells you
   at once. My Bids shows where you stand, and a count on R-Bay's icon tells you an auction has

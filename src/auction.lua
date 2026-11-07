@@ -9,8 +9,9 @@
 --
 -- Bidding is eBay's: each bidder has a hidden maximum; the price shown is one step over the
 -- second-highest maximum, never past the highest; on a tie the earlier bid leads. The player's
--- maximum is taken from their money when they bid (a raise takes the difference); when the
--- auction ends a win pays the price and gets the rest back, a loss gets all of it back.
+-- maximum is held from their money while they lead (a raise takes the difference); outbid, it all
+-- comes back at once (`held` 0: a beaten maximum never leads again, a new bid is held afresh).
+-- When the auction ends a win pays the price and gets the rest back.
 --
 --   Au = auction(engine, deps)  deps: save (mod.save), now() -> epoch seconds, seed(s) -> number,
 --                               dex() -> WoobleDex's exports or nil, badges(s) -> 0..8
@@ -372,8 +373,10 @@ return function(engine, deps)
         hist(L, who, price)
       elseif mx > price then
         price = min(lmax, mx + step(mx))
-        L.nbids = L.nbids + 1
+        L.nbids = L.nbids + 2
         hist(L, who, mx)
+        -- (the leader's maximum answers at once: the new top bid)
+        hist(L, leader, price)
       end
     end
     return price, leader, lmax
@@ -385,6 +388,7 @@ return function(engine, deps)
   local cur, sorted, sortedKey = {}, {}, ""
   local refreshedAt = -1
   local function byFinish(a, b) return a.finish < b.finish end
+  local pay, refund
   function Au.listings(s, now)
     now = now or Au.now()
     local d = data()
@@ -412,6 +416,7 @@ return function(engine, deps)
         local mine = d.bids[L.key]
         L.mine = mine
         L.price, L.leader = sim(L, now, mine)
+        if mine and L.leader ~= 0 then refund(s, mine, d) end
       end
     end
     return sorted
@@ -425,7 +430,10 @@ return function(engine, deps)
   end
 
   local function money(s) return max(0, floor(tonumber(s and s.money) or 0)) end
-  local function pay(s, amount)
+  -- what's held from the money for a bid (older saves: all of the maximum)
+  local function heldOf(b) return b.held or b.max or 0 end
+  Au.heldOf = heldOf
+  function pay(s, amount)
     if amount <= 0 then return end
     local Prize = engine("src.core.game3.battle.prize")
     if Prize and Prize.apply then
@@ -433,6 +441,14 @@ return function(engine, deps)
     else
       s.money = min(MAX_MONEY, money(s) + amount)
     end
+  end
+  -- outbid: what was held comes back now
+  function refund(s, b, d)
+    local h = heldOf(b)
+    if h <= 0 or not s then return end
+    b.held = 0
+    pay(s, h)
+    save(d)
   end
 
   function Au.bid(s, L, amount, now)
@@ -445,7 +461,7 @@ return function(engine, deps)
     L.price, L.leader = sim(L, now, mine)
     L.mine = mine
     if amount < Au.minBid(L) then return false, "too_low" end
-    local cost = amount - (mine and mine.max or 0)
+    local cost = amount - (mine and heldOf(mine) or 0)
     if cost > money(s) then return false, "money" end
     s.money = money(s) - cost
     if not mine then
@@ -455,12 +471,13 @@ return function(engine, deps)
                ivs = ivs, finish = L.finish, steps = {} }
       d.bids[L.key] = mine
     end
-    mine.max = amount
+    mine.max, mine.held = amount, amount
     mine.steps[#mine.steps + 1] = now
     mine.steps[#mine.steps + 1] = amount
     save(d)
     L.mine = mine
     L.price, L.leader = sim(L, now, mine)
+    if L.leader ~= 0 then refund(s, mine, d) end
     refreshedAt = -1
     return true
   end
@@ -498,6 +515,10 @@ return function(engine, deps)
     local d = data()
     local won, lost, lastSp = 0, 0, nil
     local any = false
+    -- (running bids: one outbid since gets its money back now; listings at most once a second)
+    for _, b in pairs(d.bids) do
+      if now < (b.finish or 0) and heldOf(b) > 0 then Au.listings(s, now) break end
+    end
     for key, b in pairs(d.bids) do
       if now >= (b.finish or 0) then
         any = true
@@ -511,7 +532,7 @@ return function(engine, deps)
         if leader then
           local where = deliver(s, b)
           if where then
-            pay(s, (b.max or 0) - price)
+            pay(s, heldOf(b) - price)
             table.insert(d.results, 1, { sp = b.sp, name = b.name, level = b.level, price = price, won = true,
                                          where = where, at = b.finish, tier = b.tier })
             d.bids[key] = nil
@@ -520,7 +541,7 @@ return function(engine, deps)
           end
           -- (no room in the party or the PC: it waits, won, for the next time)
         else
-          pay(s, b.max or 0)
+          pay(s, heldOf(b))
           table.insert(d.results, 1, { sp = b.sp, name = b.name, level = b.level, price = price, won = false,
                                        refund = b.max, at = b.finish, tier = b.tier })
           d.bids[key] = nil

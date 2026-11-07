@@ -227,7 +227,7 @@ return {
     ["auction.place"] = "Dar lance",
     ["auction.raise"] = "Aumentar",
     ["auction.leading"] = "Você está na frente!",
-    ["auction.outbidNow"] = "Já superado! Aumentar seu máximo?",
+    ["auction.outbidNow"] = "Superado! Seu dinheiro voltou. Dar outro lance?",
     ["auction.none"] = "Nenhum lance ainda. Veja em Explorar.",
     ["auction.won"] = "Ganhou",
     ["auction.lost"] = "Perdeu",

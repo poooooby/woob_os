@@ -227,7 +227,7 @@ return {
     ["auction.place"] = "Enchérir",
     ["auction.raise"] = "Relancer",
     ["auction.leading"] = "Vous êtes en tête !",
-    ["auction.outbidNow"] = "Déjà dépassé ! Augmenter votre max ?",
+    ["auction.outbidNow"] = "Dépassé ! Votre argent est rendu. Renchérir ?",
     ["auction.none"] = "Aucune enchère. Allez voir Parcourir.",
     ["auction.won"] = "Gagnée",
     ["auction.lost"] = "Perdue",

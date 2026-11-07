@@ -916,10 +916,40 @@ as.money = 500000
 local lowMax = Au.minBid(Ll)
 local outbidLater = false
 for _, bd in ipairs(Ll.bidders) do outbidLater = outbidLater or bd.max > lowMax end
-T.check(outbidLater and Au.bid(as, Ll, lowMax, tnow) and as.money == 500000 - lowMax, "a low maximum, held")
+T.check(outbidLater and Au.bid(as, Ll, lowMax, tnow) and as.money == (Ll.leader == 0 and 500000 - lowMax or 500000),
+  "a low maximum: held while it leads, back at once if outbid")
 won, lost = Au.settle(as, Ll.finish)
 T.check(won == 0 and lost == 1 and as.money == 500000, "outbid at the end: all of it back")
 T.eq(Au.results()[1].won, false, "a result: lost")
+-- outbid the moment you bid: the money back at once, the leader's answer the new top bid
+do
+  local Lo, tt
+  for _, at in ipairs({ 0.5, 0.7, 0.9 }) do
+    for _, L in ipairs(Au.listings(as, Ll.finish)) do
+      local t1 = math.floor(L.start + (L.finish - L.start) * at)
+      local _, leader, lmax = Au.sim(L, t1, nil)
+      if not Lo and leader and lmax > Au.minBid(L) + Au.step(Au.minBid(L)) and t1 >= Ll.finish then Lo, tt = L, t1 end
+    end
+    if Lo then break end
+  end
+  T.check(Lo ~= nil, "an auction led by a high maximum")
+  if Lo then
+    Au.listings(as, tt)
+    as.money = 500000
+    local least = Au.minBid(Lo)
+    T.check(Au.bid(as, Lo, least, tt) and Lo.leader ~= 0, "a bid under the leader's maximum: outbid at once")
+    T.eq(as.money, 500000, "outbid: the money comes back at once")
+    local top = (Lo.histN - 1) % 5 + 1
+    T.check(Lo.histWho[top] == Lo.leader and Lo.histAmt[top] == Lo.price and Lo.price > least,
+      "the top bid is the leader's answer (" .. tostring(Lo.price) .. " over " .. least .. ")")
+    Au.listings(as, tt + 2)
+    T.eq(as.money, 500000, "nothing taken twice on the next refresh")
+    local again = Au.minBid(Lo)
+    T.check(Au.bid(as, Lo, again, tt + 3) and as.money == (Lo.leader == 0 and 500000 - again or 500000),
+      "bid again: the whole new maximum held (if it leads)")
+    Au.settle(as, Lo.finish)
+  end
+end
 -- a win with no room: it waits, then arrives
 do
   local Lp = Au.listings(as, Ll.finish)[12]
@@ -976,8 +1006,9 @@ T.check(rs.amount == Au.minBid(chosen) + Au.step(Au.minBid(chosen)), "Right: one
 local money0 = s.money
 local bidAmount = rs.amount
 press("a")
-T.check(fakeSave.data.auction and fakeSave.data.auction.bids[chosen.key] and s.money == money0 - bidAmount,
-  "A: the bid placed, the maximum held")
+T.check(fakeSave.data.auction and fakeSave.data.auction.bids[chosen.key]
+  and s.money == (chosen.leader == 0 and money0 - bidAmount or money0),
+  "A: the bid placed, the maximum held (or back at once, outbid)")
 T.eq(rs.focus, "list", "back in the list")
 if chosen.leader == 0 then
   local live = 0

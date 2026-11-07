@@ -228,7 +228,7 @@ return {
     ["auction.place"] = "Bieten",
     ["auction.raise"] = "Erhöhen",
     ["auction.leading"] = "Du bist Höchstbietender!",
-    ["auction.outbidNow"] = "Schon überboten! Maximum erhöhen?",
+    ["auction.outbidNow"] = "Überboten! Dein Geld ist zurück. Neu bieten?",
     ["auction.none"] = "Noch keine Gebote. Schau unter Stöbern.",
     ["auction.won"] = "Gewonnen",
     ["auction.lost"] = "Verloren",
