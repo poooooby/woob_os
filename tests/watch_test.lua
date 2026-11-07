@@ -176,7 +176,7 @@ end
 T.check(Wt.isOpen() and Stack.has("woob_watch"), "chosen: the watch opens on its layer")
 local st = Wt.state()
 T.eq(st.screen, "face", "on its face")
-T.eq(ids(st.apps), "storage items mail gts mart auction slots settings",
+T.eq(ids(st.apps), "storage items map mail gts mart auction slots settings",
   "every app with a window (no Oak, Hall, Decorate, About, Log Off)")
 T.check(not Sh.openWatch(s), "one watch at a time")
 draw(5)

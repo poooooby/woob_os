@@ -15,7 +15,7 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/mailbox.lua` | The mail model: inbox and held rows, to Bag / give / take on the engine's mail pool |
 | `src/apps/items.lua` | The Items window: Bag \| PC commander |
 | `src/apps/mail.lua` | The Mail window: folders, list, the open letter, the party picker |
-| `src/apps/settings.lua` | The Settings window: Language, Wallpaper, Watch (the START row, the banners) |
+| `src/apps/settings.lua` | The Settings window: Language, Wallpaper, Watch (the START row, the banners), Map (the 3D Town Map) |
 | `src/auction.lua` | R-Bay's market: auctions worked out from the save's seed and the clock, eBay proxy bidding, bids / results in `mod.save` |
 | `src/apps/auction.lua` | The R-Bay window: Browse \| My Bids, the IVs, the max-bid stepper |
 | `src/gts.lua` | The GTS: strangers and their Pokémon (traded, their OT), the trade rules, Wonder Trade, the deposit and its match, the listings |
@@ -31,6 +31,11 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/wallpaper.lua` | The drawn wallpapers and the `wallpapers/` folder's pictures, painted once into canvases |
 | `src/watch.lua` | WoobWatch: the second host for the apps' windows (face, honeycomb, app, notifications) |
 | `src/notify.lua` | The notifications: a list, the banners' queue, the card, the field's banner |
+| `src/map3d/model.lua` | The 3D map's model: the region from the game's Town Map (its picture a heightmap and its colours, its grid the places), the census's Centers / Marts / Gyms, the badges, the player's cell, Fly's checks |
+| `src/map3d/render.lua` | The 3D map's drawing: meshes, the shader, the depth canvas, the camera (`camera` / `project`), day and night; a flat fallback |
+| `src/map3d/scene.lua` | The 3D map's window: the camera, pins, the beacon, the card, the controls (the Map app and the Town Map) |
+| `src/map3d/towns.lua` | The 3D map's towns: sizes by tier, roofs by name, the signature structures and landmarks, the Center / Mart / Gym, trees |
+| `src/townmap.lua` | The third host: the 3D map full screen in place of the game's Town Map / Fly map |
 
 ## How the PC is taken over
 
@@ -336,6 +341,60 @@ Settings app's choice row), `b.soon` kept in the record; "won" / "lost" in `Au.s
 - **The tick** moved to the shell: `main.lua`'s `tick()` once a second from `render.hud`, wherever
   the player is (the open host's session first): `Au.settle`, `Gx.settle`.
 
+## The 3D map
+
+Clean room: the idea of a 3D region map (TERRARIUM's for Gen 1) and none of its code.
+
+- **The model** (`src/map3d/model.lua`, made in `main.lua` with `pixels(img, x, y, w, h)`, a
+  canvas read-back): one Town Map cell (8 px) a world unit, x right, z down the picture, y up.
+  FireRed / LeafGreen: `region_map_extract`'s `LAYOUTS[0..3]` (22 x 15 per picture, `map` and
+  `dungeon` layers; cell (x, y) covers pixels (8x + 32, 8y + 32)), the pictures through
+  `region_map_gpu.image("kanto_map" ...)`. Ruby / Sapphire / Emerald: `rse.region_map`'s
+  `manifest().layout` (28 x 15; column c, row r = the cursor (c, r + 1) = pixels (8c, 8(r + 1))),
+  the picture through `rse.scene_kit`'s `Kit.image`. The picture is sampled every 2 px (`classify`:
+  the sea, a sea lane, the greens' lightness as height, a route's yellow, a faded route's beige;
+  markers filled from around them), smoothed, mountains raised on our own `PEAKS`, towns levelled.
+  The places are the grid's sections (town / route / landmark; a landmark in a town's own cells is
+  on its card). Center / Mart / Gym come from the engine's map catalog
+  (`MapCatalog.isKnown`: `<Town>_PokemonCenter_1F`, `_Mart` / `_DepartmentStore_1F`, `_Gym` / `_Gym_1F`), the badge from
+  `Flags.forVersion(...).BADGES`' `gym`. Built once per game and region (headless: no picture, land
+  under the grid). `live` reads visited / Fly (FireRed's `RegionMap.mapsecType` asked as the Fly
+  map; Ruby's `mapSecType`) and the badges; `player` is the game's own position code
+  (`Position.playerCell`, `rse.region_map.newState`), shown only on one of the map's places.
+- **The drawing** (`src/map3d/render.lua`): meshes of our own (`FORMAT`: position, normal, colour
+  and a flag: 1 the sea, waved in the shader; 2 a window, lit at night; 3 a cloud, its anchor in the
+  normal, drifting, faded near the eye; 4 unlit) into a canvas `{ c, depth = true }` (msaa 4 when it
+  can), drawn into the window's rect. The view-projection is kept in a table (sent `"column"`; a
+  canvas's rows run upside down: `VPF`); `project` places the overlays with the same maths. Night
+  and dusk come from the device's clock (`env.map3d.clock`, once a second). With no shader or mesh
+  (headless), the land is drawn as flat polygons through the same camera.
+- **The towns** (`src/map3d/towns.lua`, `Tw.build(region)` -> vertices for one mesh): the
+  model's `tier` (0 a route's Pokémon Center, 1 a town, 2 an island's, 3 a city) sets the number of
+  buildings (a city's blocks with window rows among them) and the ground (`Tw.ground`; Pacifidlog's
+  `water` boardwalks); `ROOF` by section name; `STYLE` (a town's own structure, in its middle) and
+  `LANDMARK` (a landmark section's: in its town when `within`, else at its cell) name `BUILD.*`
+  pieces made of boxes, hip roofs, frustums and domes (`FOOT`: what they keep clear). Silph Co.
+  and the S.S. Anne have no Town Map cell: they're Saffron's and Vermilion's own. Water-side pieces
+  (a lighthouse, a pier, a boat, the S.S. Anne) find the nearest open water (`seaNear`).
+- **The glass:** after each 3D frame a quarter-size copy (`blurTarget`, linear) is kept;
+  `R.frost(G, x, y, w, h, rad)` draws it through the glass shader (25 taps, a rounded rect's signed
+  distance) under an overlay; the scene's `glass(b, rad, a, tint)` adds a dark tint, a gloss and a
+  rim (`win.glass`, also the Town Map's hint capsule). No 3D frame (headless): the tint alone,
+  darker.
+- **The window** (`src/map3d/scene.lua`): the window contract plus `pointer(phase, x, y, id)` (the
+  desktop and the watch pass a second finger's events, by its id, while a window holds the first:
+  the pinch). Modes "app" (Fly: `env.map3d.fly`; `flyCheck`: the badge, a Pokémon that knows Fly,
+  outdoors), "fly" (`opts.pick`) and "town" (`opts.classic`).
+- **The takeover** (`src/shell.lua` `wrapMap`, `Sh.openTownMap`): `show` of
+  `src.ui.game3.region_map` (FireRed / LeafGreen) and of `src.ui.game3.rse.region_map`, wrapped once
+  per process (`__woobOs`), each for its own family. The layer is `woob_map` (`{ hideBelow = true,
+  fullscreen = true }`), the host `src/townmap.lua`. Fly is handed back as the game's own map hands
+  it: FireRed `onPick(symbol, number)` alone (as its `finishFly`); Ruby `onPick(id, {
+  posWithinMapSec = 0, mapSecType })`, then `onClose(true)`. B: FireRed `onClose(nil)` (and
+  `PartyMenu.returnFromFlyMap()` from the Fly map), Ruby `onClose(false)`. START: `orig(opts)`.
+  Settings' `map3d` off (or the Desktop option off): `orig` at once. FireRed's `RegionMap.open` is
+  never set (`hud.lua` would route input to it).
+
 ## Words
 
 Every word WoobOS shows is a key of `lang/en.lua`: `T("app.items")` in code, or a key in a
@@ -384,6 +443,7 @@ From the gen1recomp root (the mod is linked as `mods/woob_os`):
 ```bash
 luajit mods/woob_os/tests/desktop_test.lua [firered|leafgreen|ruby|sapphire|emerald]
 luajit mods/woob_os/tests/watch_test.lua [firered|leafgreen|ruby|sapphire|emerald]
+luajit mods/woob_os/tests/map3d_test.lua [firered|leafgreen|ruby|sapphire|emerald]
 SHOT_DIR=<dir> POKEPORT_GAME=firered POKEPORT_VERSION=firered \
   POKEPORT_DRIVER=mods/woob_os/tests/drivers/desktop_probe.lua love .
 python tools/modkit.py lint mods/woob_os
@@ -393,5 +453,8 @@ The headless test draws through a stand-in for `love.graphics` and checks the ro
 warm return, logging off, the bedroom, the options, every window shape and the garbage. The probe
 walks to a real Pokémon Center PC, runs Boxes and Items through the game's own scripts and takes
 shots (`d*.png`); then START, the watch's row, every app on the watch, a banner over the field and
-a tap on it (`w*.png`). `watch_test.lua` covers the START row, the watch's screens and apps,
+a tap on it (`w*.png`); then the Town Map and the Fly map in 3D (`t*.png`). `watch_test.lua` covers the START row, the watch's screens and apps,
 `ctx.over`, every notification's source, the banners and their setting, and the garbage.
+`map3d_test.lua` covers every region's model, the towns' facts and badges, the player's cell, the
+D-pad reaching every town, the takeover's hand-backs (Fly, B, START, the setting, the other
+family's module), Fly's refusals, the words and the garbage.

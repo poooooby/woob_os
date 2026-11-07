@@ -705,10 +705,10 @@ return function(deps)
 
   -- a window that takes the pointer itself (win.pointer(phase, x, y) in units: "pressed", "moved",
   -- "hover", "released" -> true when it used the release, "cancelled")
-  local function winPointer(phase, x, y)
+  local function winPointer(phase, x, y, id)
     local w = r.win
     if not (w and w.pointer) then return false end
-    local ok, used = pcall(w.pointer, phase, (x - K.ox) / K.sc, (y - K.oy) / K.sc)
+    local ok, used = pcall(w.pointer, phase, (x - K.ox) / K.sc, (y - K.oy) / K.sc, id)
     if not ok and deps.log then deps.log("the window's pointer failed: %s", tostring(used)) end
     return ok and used == true
   end
@@ -717,6 +717,14 @@ return function(deps)
     if not (r and type(ev) == "table") then return false end
     local x, y = tonumber(ev.x) or 0, tonumber(ev.y) or 0
     local press = r.press
+    -- (a second finger while a window has the first: the window's too, by its id -- the map's pinch)
+    if press and press.own and ev.id ~= press.id and r.win and r.win.pointer then
+      if ev.phase == "pressed" or ev.phase == "moved" or ev.phase == "released" or ev.phase == "cancelled" then
+        press.drag = true
+        winPointer(ev.phase, x, y, ev.id)
+      end
+      return true
+    end
     if ev.phase == "pressed" then
       local area, wa = r.gridArea, r.winArea
       local free = not r.sheet and not r.menuOpen
@@ -725,7 +733,7 @@ return function(deps)
                   win = r.win ~= nil and wa ~= nil and free and K.inside(wa, x, y) }
       if r.press.win and r.win.pointer then
         r.press.own = true
-        winPointer("pressed", x, y)
+        winPointer("pressed", x, y, ev.id)
       end
       -- (on an icon: held still, it's picked up to arrange; already arranging, at once)
       local h = not r.win and free and not booting() and hitAt(x, y)
@@ -750,9 +758,9 @@ return function(deps)
         end
       elseif press and press.id == ev.id and press.own then
         if abs(x - press.x) > 4 * K.sc or abs(y - press.y) > 4 * K.sc then press.drag = true end
-        winPointer("moved", x, y)
+        winPointer("moved", x, y, ev.id)
       elseif not press and r.win and r.win.pointer and r.winArea and K.inside(r.winArea, x, y) then
-        winPointer("hover", x, y)
+        winPointer("hover", x, y, ev.id)
       elseif press and press.id == ev.id then
         local dx = x - press.x
         if press.grid and (press.drag or abs(dx) > 4 * K.sc) then
@@ -776,7 +784,7 @@ return function(deps)
       elseif press and press.id == ev.id and press.own then
         r.press = nil
         -- (a release the window didn't use is a tap)
-        if not winPointer("released", x, y) and not press.drag then tap(x, y) end
+        if not winPointer("released", x, y, ev.id) and not press.drag then tap(x, y) end
       elseif press and press.id == ev.id then
         r.press = nil
         if press.drag and press.win then
@@ -791,7 +799,7 @@ return function(deps)
       end
     elseif ev.phase == "cancelled" then
       if press and press.id == ev.id then
-        if press.own then winPointer("cancelled", x, y) end
+        if press.own then winPointer("cancelled", x, y, ev.id) end
         if press.carry then drop() end
         r.press, r.dragX = nil, nil
       end
@@ -1002,6 +1010,22 @@ return function(deps)
       G.rectangle("line", x0, y0, w, h + h * 0.3)
       G.polygon("fill", cx - w * 0.68, y0 + lw * 0.2, cx, cy - s * 0.3, cx + w * 0.68, y0 + lw * 0.2)
       G.rectangle("fill", cx - s * 0.05, y0 + h * 0.55, s * 0.1, h * 0.75)
+    elseif kind == "map" then
+      -- (a folded map in three panels, a red pin standing on it)
+      local w, h = s * 0.54, s * 0.38
+      local x0, y0, pw = cx - w / 2, cy - h / 2 + s * 0.06, w / 3
+      local dip = s * 0.05
+      G.setColor(1, 1, 1, a)
+      G.polygon("fill", x0, y0, x0 + pw, y0 + dip, x0 + pw, y0 + h + dip, x0, y0 + h)
+      G.polygon("fill", x0 + pw * 2, y0, x0 + w, y0 + dip, x0 + w, y0 + h + dip, x0 + pw * 2, y0 + h)
+      G.setColor(1, 1, 1, a * 0.7)
+      G.polygon("fill", x0 + pw, y0 + dip, x0 + pw * 2, y0, x0 + pw * 2, y0 + h, x0 + pw, y0 + h + dip)
+      G.setColor(0.95, 0.24, 0.2, a)
+      local px, py = cx + s * 0.06, cy - s * 0.12
+      G.circle("fill", px, py, s * 0.09)
+      G.polygon("fill", px - s * 0.075, py + s * 0.04, px + s * 0.075, py + s * 0.04, px, py + s * 0.2)
+      G.setColor(1, 1, 1, a)
+      G.circle("fill", px, py, s * 0.035)
     elseif kind == "gear" then
       local rad = s * 0.2
       G.circle("line", cx, cy, rad)

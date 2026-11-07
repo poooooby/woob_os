@@ -5,3 +5,4 @@ DEVELOPMENT.md
 tests/desktop_test.lua
 tests/drivers/desktop_probe.lua
 tests/watch_test.lua
+tests/map3d_test.lua

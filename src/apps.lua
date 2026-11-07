@@ -3,13 +3,13 @@
 -- Settings are our own windows; Decorate (Ruby / Sapphire / Emerald, the bedroom) opens the game's
 -- Decoration menu.
 --
---   A = Apps(deps)   deps: boxes / items / mail / mart / gts / auction / slots / settings = window(ctx, env) makers ;
+--   A = Apps(deps)   deps: boxes / items / mail / mart / gts / auction / slots / map / settings = window(ctx, env) makers ;
 --                    auctionBadge(ctx) / gtsBadge(ctx) -> n ; decorate(ctx) (the
 --                    game's menu). Built-ins name themselves with labelKey (a lang/*.lua key)
 --   A.register(app) -> true | false, why    app = {
 --       id       unique string
 --       label    under its icon (short: about 10 letters) ; labelKey: a word of lang/*.lua instead
---       glyph    the icon's picture: "ball" | "bag" | "mail" | "cart" | "rocket" | "slots" | "globe" | "home" | "trophy" | "dex" |
+--       glyph    the icon's picture: "ball" | "bag" | "mail" | "cart" | "rocket" | "slots" | "globe" | "map" | "home" | "trophy" | "dex" |
 --                "power" | "logo" | "gear",
 --                or a function(K, cx, cy, size, a) drawing it (window pixels, white on the tile)
 --       color    { r, g, b } the tile's colour
@@ -121,6 +121,12 @@ return function(deps)
     A.register({ id = "slots", labelKey = "app.slots", label = "Slots",
                  glyph = "slots", color = { 232, 168, 32 }, order = 29,
                  window = deps.slots })
+  end
+  -- Map: the region in 3D, made from the game's own Town Map (Fly from it, outdoors)
+  if deps.map then
+    A.register({ id = "map", labelKey = "app.map", label = "Map",
+                 glyph = "map", color = { 46, 170, 120 }, order = 24,
+                 window = deps.map })
   end
   -- the bedroom's Decoration (Ruby / Sapphire / Emerald): the game's own menu
   if deps.decorate then

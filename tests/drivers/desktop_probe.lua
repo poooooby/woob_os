@@ -138,7 +138,11 @@ local function body(game, log)
   local lent = lend({ 25, 133, 152, 155, 158, 175 })
   for i, slot in ipairs({ 1, 2, 7, 8, 14, 20 }) do stor.boxes[1].mons[slot] = lent[i] end
   stor.currentBox = 1
-  U.tap(game, "down"); U.wait(4)
+  -- (Down past the home screen's rows)
+  for _ = 1, 4 do
+    if st.focus == "dock" then break end
+    U.tap(game, "down"); U.wait(4)
+  end
   check(st.focus == "dock", "Down: the dock")
   U.tap(game, "a")
   -- (the zoom runs on the clock; the driver's frames run faster than it)
@@ -1145,6 +1149,64 @@ local function body(game, log)
     check(waitFor(function() return Sh.free(game) end, 120), "closed: the field")
   end
 
+  -- the Town Map and the Fly map: the 3D map in their place (drawn in 3D, next to no garbage), B
+  -- back to the field, START the game's own map
+  do
+    local Tm, M3 = X._test.townmap, X._test.map3d
+    local frlgMap = M3.model.family() == "frlg"
+    local RM = require(frlgMap and "src.ui.game3.region_map" or "src.ui.game3.rse.region_map")
+    check(waitFor(function() return Sh.free(game) end, 600), "the field, for the Town Map")
+    RM.show({ session = s0 })
+    check(waitFor(function() return Tm.isOpen() end, 60), "the Town Map: the 3D map")
+    U.wait(40)
+    local mst = Tm.isOpen() and Tm.state().win.state
+    check(mst and mst.three == true, "drawn in 3D (a shader, meshes, a depth canvas)")
+    shot("t1_townmap")
+    local tdraw, tKb, tN = Tm.draw, 0, 0
+    U.wait(30)
+    Tm.draw = function(...)
+      local was = collectgarbage("isrunning")
+      collectgarbage("stop")
+      local kb0 = collectgarbage("count")
+      tdraw(...)
+      tKb, tN = tKb + (collectgarbage("count") - kb0), tN + 1
+      if was then collectgarbage("restart") end
+    end
+    U.wait(90)
+    Tm.draw = tdraw
+    log(("  the 3D map's draw: %.3f KB per frame over %d frames"):format(tKb / math.max(1, tN), tN))
+    check(tKb / math.max(1, tN) < 0.5, "the 3D map's draw makes next to no garbage")
+    U.tap(game, "l")
+    game.input.state.l = true
+    U.wait(30)
+    game.input.state.l = false
+    U.wait(20)
+    shot("t2_townmap_turned")
+    U.tap(game, "b")
+    check(waitFor(function() return not Tm.isOpen() end, 60) and waitFor(function() return Sh.free(game) end, 120),
+      "B: back to the field")
+    local closedWith = "no"
+    RM.show({ session = s0, mode = "fly", onPick = function() end, onClose = function(v) closedWith = v end })
+    check(waitFor(function() return Tm.isOpen() end, 60), "the Fly map: the 3D map")
+    U.wait(40)
+    shot("t3_flymap")
+    U.tap(game, "b")
+    check(waitFor(function() return not Tm.isOpen() end, 60) and closedWith ~= "no", "B: closed as the game's own")
+    -- (START: the game's own map, handed the same options; a stand-in here)
+    local w = rawget(RM, "__woobOs")
+    local realOrig, handed = w.orig, nil
+    w.orig = function(o) handed = o end
+    local opts = { session = s0 }
+    waitFor(function() return Sh.free(game) end, 120)
+    RM.show(opts)
+    waitFor(function() return Tm.isOpen() end, 60)
+    U.wait(20)
+    U.tap(game, "start")
+    check(waitFor(function() return handed == opts end, 60) and not Tm.isOpen(), "START: the game's own map")
+    w.orig = realOrig
+    waitFor(function() return Sh.free(game) end, 120)
+  end
+
   -- window shapes
   check(pcOn(), "the PC again")
   D.skipBoot()
@@ -1161,7 +1223,7 @@ local function body(game, log)
       L.pw or 0, L.ph or 0, L.cols or 0, L.rows or 0))
     shot("d9_" .. shape[1])
     if shape[1] == "w16x9" or shape[1] == "portrait" then
-      for _, id in ipairs({ "storage", "items", "mail", "auction", "mart", "slots", "gts" }) do
+      for _, id in ipairs({ "storage", "items", "mail", "auction", "mart", "slots", "gts", "map" }) do
         for i, app in ipairs(st.dock) do if app.id == id then D.launch("dock", i) end end
         for i, app in ipairs(st.grid) do if app.id == id then D.launch("grid", i) end end
         waitFor(function() return D.window() ~= nil end, 600)

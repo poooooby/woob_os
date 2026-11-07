@@ -345,11 +345,11 @@ return function(deps)
     return (x - t[2]) / t[1], (y - t[3]) / t[1]
   end
   local function winScale() return r.winT and r.winT[1] or K.sc end
-  local function winPointer(phase, x, y)
+  local function winPointer(phase, x, y, id)
     local w = r.win
     if not (w and w.pointer) then return false end
     local ux, uy = winUnits(x, y)
-    local ok, used = pcall(w.pointer, phase, ux, uy)
+    local ok, used = pcall(w.pointer, phase, ux, uy, id)
     if not ok then log("the window's pointer failed: %s", tostring(used)) end
     return ok and used == true
   end
@@ -358,13 +358,21 @@ return function(deps)
     if not (r and type(ev) == "table") then return false end
     local x, y = tonumber(ev.x) or 0, tonumber(ev.y) or 0
     local press = r.press
+    -- (a second finger while a window has the first: the window's too, by its id -- the map's pinch)
+    if press and press.own and ev.id ~= press.id and r.win and r.win.pointer then
+      if ev.phase == "pressed" or ev.phase == "moved" or ev.phase == "released" or ev.phase == "cancelled" then
+        press.drag = true
+        winPointer(ev.phase, x, y, ev.id)
+      end
+      return true
+    end
     if ev.phase == "pressed" then
       local wa = r.winArea
       r.press = { id = ev.id, x = x, y = y, ly = y, drag = false,
                   win = r.win ~= nil and wa ~= nil and K.inside(wa, x, y) }
       if r.press.win and r.win.pointer and not (Nt and Nt.showing() and hitAt(x, y) and hitAt(x, y).kind == "wbanner") then
         r.press.own = true
-        winPointer("pressed", x, y)
+        winPointer("pressed", x, y, ev.id)
       end
     elseif ev.phase == "moved" then
       r.mouseX, r.mouseY = x, y
@@ -372,7 +380,7 @@ return function(deps)
         local far = abs(y - press.y) > 4 * K.sc or abs(x - press.x) > 4 * K.sc
         if press.own then
           if far then press.drag = true end
-          winPointer("moved", x, y)
+          winPointer("moved", x, y, ev.id)
         elseif press.win and (press.drag or far) then
           press.drag = true
           if r.win and r.win.scroll then pcall(r.win.scroll, (y - press.ly) / winScale(), press.x, press.y) end
@@ -388,13 +396,13 @@ return function(deps)
           press.ly = y
         end
       elseif not press and r.win and r.win.pointer and r.winArea and K.inside(r.winArea, x, y) then
-        winPointer("hover", x, y)
+        winPointer("hover", x, y, ev.id)
       end
     elseif ev.phase == "released" then
       if press and press.id == ev.id then
         r.press = nil
         if press.own then
-          if not winPointer("released", x, y) and not press.drag then tap(x, y) end
+          if not winPointer("released", x, y, ev.id) and not press.drag then tap(x, y) end
         elseif press.drag then
           -- (the face pulled down: the notifications, as a watch's; pushed back up: the face)
           local dy = (y - press.y) / K.sc
@@ -416,7 +424,7 @@ return function(deps)
       end
     elseif ev.phase == "cancelled" then
       if press and press.id == ev.id then
-        if press.own then winPointer("cancelled", x, y) end
+        if press.own then winPointer("cancelled", x, y, ev.id) end
         r.press = nil
       end
     end

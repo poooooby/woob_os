@@ -17,20 +17,26 @@ local floor, max, min = math.floor, math.max, math.min
 
 -- the sections' tiles (the rest of the look is the kit's K.UI)
 local C = { langTile = { 10, 132, 255 }, wallTile = { 175, 82, 222 }, watchTile = { 255, 69, 58 },
-            switchOff = { 120, 120, 128, 0.28 } }
-local SECTIONS = {
-  { id = "language", key = "settings.language", tile = C.langTile },
-  { id = "wallpaper", key = "settings.wallpaper", tile = C.wallTile },
-  { id = "watch", key = "settings.watch", tile = C.watchTile },
-}
--- the Watch section's rows: switches (the kept setting, its words, on by default) and a choice
--- (the values A / a tap / Left / Right step through)
+            mapTile = { 46, 170, 120 }, switchOff = { 120, 120, 128, 0.28 } }
+-- the Watch and Map sections' rows: switches (the kept setting, its words, on by default) and a
+-- choice (the values A / a tap / Left / Right step through)
 local SOON_CHOICES = { 5, 10, 15, 30 }
-local TOGGLES = {
+local WATCH_TOGGLES = {
   { key = "watchRow", label = "settings.watchRow" },
   { key = "notifications", label = "settings.notifications" },
   { key = "soonMinutes", label = "settings.soonAlert", choices = SOON_CHOICES, default = 10 },
 }
+local MAP_TOGGLES = {
+  { key = "map3d", label = "settings.map3d" },
+}
+local SECTIONS = {
+  { id = "language", key = "settings.language", tile = C.langTile },
+  { id = "wallpaper", key = "settings.wallpaper", tile = C.wallTile },
+  { id = "watch", key = "settings.watch", tile = C.watchTile, toggles = WATCH_TOGGLES, note = "settings.watchNote" },
+  { id = "map", key = "settings.map", tile = C.mapTile, toggles = MAP_TOGGLES, note = "settings.mapNote" },
+}
+-- (a switch's hit: TOGGLE + its section's place * 20 + its row)
+local TOGGLE_SPAN = 20
 local ROW_H, LANG_H, TOGGLE_H = 13, 11, 13
 local SIDE, LANG, WALL, BACK, FIT, TOGGLE = 1, 100, 200, 300, 400, 500
 local FITS = { "fill", "stretch" }
@@ -66,6 +72,12 @@ return function(ctx, env)
   W.refresh = refresh
 
   local function section() return SECTIONS[st.section].id end
+  -- the section's switches (Watch, Map), nil for the others
+  local function toggles()
+    local list = SECTIONS[st.section].toggles
+    if list and st.toggleCursor > #list then st.toggleCursor = #list end
+    return list
+  end
   -- (the wallpaper is one of the player's pictures: it can fill or stretch)
   local function picture() return Wall ~= nil and Wall.isPicture(env.wallpaper and env.wallpaper()) end
   local function fit() return env.wallpaperFit and env.wallpaperFit() or "fill" end
@@ -75,21 +87,21 @@ return function(ctx, env)
   end
   local function count()
     local s = section()
-    if s == "watch" then return #TOGGLES end
+    if toggles() then return #toggles() end
     return s == "language" and #st.langs or #st.walls
   end
   local function cursor()
     local s = section()
-    if s == "watch" then return st.toggleCursor end
+    if toggles() then return st.toggleCursor end
     return s == "language" and st.langCursor or st.wallCursor
   end
   local function setCursor(i)
     local s = section()
-    if s == "watch" then st.toggleCursor = i
+    if toggles() then st.toggleCursor = i
     elseif s == "language" then st.langCursor = i else st.wallCursor = i end
   end
   local function toggled(i)
-    local t = TOGGLES[i]
+    local t = toggles() and toggles()[i]
     return t ~= nil and (not env.setting or env.setting(t.key, true) ~= false)
   end
   -- a choice row's value and its place among the choices
@@ -99,7 +111,7 @@ return function(ctx, env)
     return t.default, 1
   end
   local function stepChoice(i, d)
-    local t = TOGGLES[i]
+    local t = toggles() and toggles()[i]
     if not (t and t.choices and env.setSetting) then return false end
     local _, j = choiceOf(t)
     j = (j - 1 + d) % #t.choices + 1
@@ -116,8 +128,8 @@ return function(ctx, env)
   end
 
   local function choose()
-    if section() == "watch" then
-      local t = TOGGLES[st.toggleCursor]
+    if toggles() then
+      local t = toggles()[st.toggleCursor]
       if t and t.choices then return stepChoice(st.toggleCursor, 1) end
       if t and env.setSetting then env.setSetting(t.key, not toggled(st.toggleCursor)) end
     elseif section() == "language" then
@@ -171,7 +183,7 @@ return function(ctx, env)
     end
     local n, c = count(), cursor()
     -- (on a choice row Left / Right step its value)
-    local tc = section() == "watch" and TOGGLES[st.toggleCursor]
+    local tc = toggles() and toggles()[st.toggleCursor]
     if tc and tc.choices and (nav.left or nav.right) then
       stepChoice(st.toggleCursor, nav.right and 1 or -1)
       return true
@@ -210,9 +222,14 @@ return function(ctx, env)
       st.section, st.focus, st.wallCursor = 2, "detail", arg - WALL
       return choose()
     end
-    if arg >= TOGGLE and arg < TOGGLE + #TOGGLES then
-      st.section, st.focus, st.toggleCursor = 3, "detail", arg - TOGGLE + 1
-      return choose()
+    if arg >= TOGGLE and arg < TOGGLE + TOGGLE_SPAN * (#SECTIONS + 1) then
+      local si, i = floor((arg - TOGGLE) / TOGGLE_SPAN), (arg - TOGGLE) % TOGGLE_SPAN + 1
+      if SECTIONS[si] and SECTIONS[si].toggles and SECTIONS[si].toggles[i] then
+        if st.section ~= si then st.toggleCursor = 1 end
+        st.section, st.focus, st.toggleCursor = si, "detail", i
+        return choose()
+      end
+      return
     end
     if arg >= LANG and arg < WALL then
       st.section, st.focus, st.langCursor = 1, "detail", arg - LANG
@@ -249,6 +266,12 @@ return function(ctx, env)
       K.col(C.watchTile)
       G.line(cx, cy, cx, cy - u * 0.13)
       G.line(cx, cy, cx + u * 0.1, cy + u * 0.04)
+    elseif id == "map" then
+      -- (a folded map, a pin on it)
+      G.polygon("fill", cx - u * 0.3, cy - u * 0.16, cx - u * 0.1, cy - u * 0.1, cx - u * 0.1, cy + u * 0.24, cx - u * 0.3, cy + u * 0.18)
+      G.polygon("fill", cx + u * 0.1, cy - u * 0.16, cx + u * 0.3, cy - u * 0.1, cx + u * 0.3, cy + u * 0.24, cx + u * 0.1, cy + u * 0.18)
+      G.setColor(1, 1, 1, 0.65)
+      G.polygon("fill", cx - u * 0.1, cy - u * 0.1, cx + u * 0.1, cy - u * 0.16, cx + u * 0.1, cy + u * 0.18, cx - u * 0.1, cy + u * 0.24)
     else
       G.polygon("fill", cx - u * 0.32, cy + u * 0.22, cx - u * 0.08, cy - u * 0.12, cx + u * 0.12, cy + u * 0.22)
       G.polygon("fill", cx - u * 0.02, cy + u * 0.22, cx + u * 0.14, cy, cx + u * 0.32, cy + u * 0.22)
@@ -364,10 +387,12 @@ return function(ctx, env)
     K.col(K.WHITE)
     G.circle("fill", K.X(x + (on and 10 or 4)), K.Y(y + 4), 3.3 * K.sc)
   end
-  local function drawWatch(x, y, w, h)
-    local gb = K.R(x + 4, y + 13, w - 8, #TOGGLES * TOGGLE_H)
+  local function drawToggles(x, y, w, h)
+    local sec = SECTIONS[st.section]
+    local list = sec.toggles
+    local gb = K.R(x + 4, y + 13, w - 8, #list * TOGGLE_H)
     K.card(gb, 4)
-    for i, t in ipairs(TOGGLES) do
+    for i, t in ipairs(list) do
       local rb = K.R(gb[1], gb[2] + (i - 1) * TOGGLE_H, gb[3], TOGGLE_H)
       local on = st.focus == "detail" and i == st.toggleCursor
       if on then K.selection(K.R(rb[1] + 1, rb[2] + 0.5, rb[3] - 2, rb[4] - 1), true, 3)
@@ -388,9 +413,9 @@ return function(ctx, env)
       else
         switch(rb[1] + rb[3] - 19, rb[2] + 2.5, toggled(i))
       end
-      K.addHit(rb, "win", TOGGLE + i - 1)
+      K.addHit(rb, "win", TOGGLE + st.section * TOGGLE_SPAN + i - 1)
     end
-    K.text(T("settings.watchNote"), x + 6, gb[2] + gb[4] + 3, 4.2, UI.secondary, "left", w - 12)
+    if sec.note then K.text(T(sec.note), x + 6, gb[2] + gb[4] + 3, 4.2, UI.secondary, "left", w - 12) end
   end
 
   local function drawDetail(x, y, w, h)
@@ -403,7 +428,7 @@ return function(ctx, env)
         FIT, T("settings.fill"), FIT + 1, T("settings.stretch"))
     end
     if sec.id == "language" then drawLanguage(x, y, w, h)
-    elseif sec.id == "watch" then drawWatch(x, y, w, h)
+    elseif sec.toggles then drawToggles(x, y, w, h)
     else drawWallpaper(x, y, w, h) end
   end
 

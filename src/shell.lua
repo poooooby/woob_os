@@ -21,21 +21,28 @@
 --     ("woob_watch"), pushed from the START menu's row (over the menu: closing it is the menu again)
 --     or from a tap on a notification's banner over the field (closing it is the field again).
 --     One of the two is open at a time; the hooks below go to whichever is
+--   - the game's Town Map (the item, the wall maps) and its Fly map (the party menu's Fly): the 3D map
+--     (src/townmap.lua, layer "woob_map") in their place, through the region map modules' show()
+--     (FireRed / LeafGreen's src.ui.game3.region_map, Ruby / Sapphire / Emerald's rse.region_map),
+--     wrapped once per process like the PC menu; its choice handed to the game's own callbacks (so
+--     Fly flies as the game does); START opens the game's own map instead, Settings can keep it
 --   - once a second, whatever is on screen (deps.tick: R-Bay and the GTS settle, notifications
 --     come from them), and the notifications' banner over the field while the player is free to
 --     move (src/notify.lua)
 --
 --   Sh = shell(mod, deps)   deps: require ; log ; desktop (made) ; watch (made) ; apps (made) ;
 --                           notify (src/notify.lua) ; tick() ; session() ; watchRow() -> the START
---                           row shown ; watchLabel() -> its words
+--                           row shown ; watchLabel() -> its words ; townmap (src/townmap.lua) ;
+--                           map3d (env.map3d: its model) ; map3dOn() -> the 3D Town Map wanted
 --   Sh.install() (load: the hooks) ; Sh.ready() (game.ready: the PC menu wrap) ; Sh.layer ;
---   Sh.openWatch(session, opts) (opts: { app, state } to open an app at once) ; Sh.free(game)
+--   Sh.openWatch(session, opts) (opts: { app, state } to open an app at once) ; Sh.free(game) ;
+--   Sh.openTownMap(opts, orig, family) (the wrapped show()'s)
 
 return function(mod, deps)
   local req = deps.require or require
   local log = deps.log
-  local D, A, Wt, Nt = deps.desktop, deps.apps, deps.watch, deps.notify
-  local Sh = { LAYER_ID = "woob_os", WATCH_ID = "woob_watch" }
+  local D, A, Wt, Nt, Tm = deps.desktop, deps.apps, deps.watch, deps.notify, deps.townmap
+  local Sh = { LAYER_ID = "woob_os", WATCH_ID = "woob_watch", MAP_ID = "woob_map" }
 
   local engineMods = {}
   local function engine(name)
@@ -113,6 +120,13 @@ return function(mod, deps)
   function WatchLayer.update() end
   function WatchLayer.draw() end
 
+  -- (the 3D Town Map's: full screen, as the game's own map)
+  local MapLayer = { isMenu = true }
+  Sh.mapLayer = MapLayer
+  function MapLayer.handleInput(input) if Tm then Tm.input(input) end end
+  function MapLayer.update() end
+  MapLayer.draw = Layer.draw
+
   -- (the desktop is full screen: the field isn't drawn under it; the watch's field stays, dimmed)
   local FULL, OVER = { hideBelow = true, fullscreen = true }, { hideBelow = true, fullscreen = false }
   local function push(id, layer)
@@ -133,10 +147,11 @@ return function(mod, deps)
     if Stack and Stack.has and Stack.has(id) then pcall(Stack.pop, id) end
     pad(false)
   end
-  -- the one open (the desktop or the watch), and its layer's id
+  -- the one open (the desktop, the watch or the 3D Town Map), and its layer's id
   local function host()
     if D.isOpen() then return D, Sh.LAYER_ID end
     if Wt and Wt.isOpen() then return Wt, Sh.WATCH_ID end
+    if Tm and Tm.isOpen() then return Tm, Sh.MAP_ID end
     return nil
   end
   Sh.host = host
@@ -286,6 +301,91 @@ return function(mod, deps)
     return true
   end
 
+  -- the 3D map in place of the game's region map (opts: show()'s own: session, mode, onPick, onClose);
+  -- family "frlg" | "rse" (which module asked); false: let the game's map open
+  function Sh.openTownMap(opts, orig, family)
+    if not Tm or Tm.isOpen() or D.isOpen() or (Wt and Wt.isOpen()) then return false end
+    if Sh.enabled and not Sh.enabled() then return false end
+    if deps.map3dOn and not deps.map3dOn() then return false end
+    if familyOf(gameId()) ~= family then return false end
+    local fly = opts.mode == "fly"
+    local ctx = { session = opts.session, mode = "townmap", family = family, rows = {} }
+    function ctx.row() return nil end
+    local closed = false
+    local function close()
+      if closed then return false end
+      closed = true
+      Tm.close()
+      pop(Sh.MAP_ID)
+      return true
+    end
+    ctx.finish, ctx.done, ctx.logoff = close, close, close
+    function ctx.over() end
+    function ctx.original() end
+    function ctx.sheet() end
+    local Model = deps.map3d and deps.map3d.model
+    local so = { mode = fly and "fly" or "town" }
+    -- (Fly: the game's own callback, as its map hands it: it flies)
+    function so.pick(region, place)
+      if not close() then return end
+      local a, b = Model.pickArgs(region, place)
+      if family == "frlg" then
+        if opts.onPick then opts.onPick(a, b) elseif opts.onClose then opts.onClose(nil) end
+      else
+        if opts.onPick then opts.onPick(a, b) end
+        if opts.onClose then opts.onClose(true) end
+      end
+    end
+    -- (B: closed as the game's own map closes; its Fly map goes back to the party menu)
+    function so.cancel()
+      if not close() then return end
+      if family == "frlg" then
+        if opts.onClose then opts.onClose(nil) end
+        if fly then
+          local PartyMenu = engine("src.ui.game3.party_menu")
+          if PartyMenu and PartyMenu.returnFromFlyMap then pcall(PartyMenu.returnFromFlyMap) end
+        end
+      elseif opts.onClose then
+        opts.onClose(false)
+      end
+    end
+    -- (START: the game's own map, as it would have opened)
+    function so.classic()
+      if not close() then return end
+      orig(opts)
+    end
+    if not Tm.open(ctx, so) then return false end
+    if not push(Sh.MAP_ID, MapLayer) then
+      Tm.close()
+      return false
+    end
+    return true
+  end
+
+  -- the region map modules' show(), wrapped once per process (each calls this instance's `impl`)
+  local function wrapMap(name, family)
+    local RM = engine(name)
+    if not (RM and type(RM.show) == "function") then return false end
+    local w = rawget(RM, "__woobOs")
+    if not w then
+      w = { orig = RM.show }
+      RM.__woobOs = w
+      RM.show = function(opts)
+        local impl = w.impl
+        if impl then
+          local ok, opened = pcall(impl, opts or {}, w.orig)
+          if ok and opened then return nil end
+          if not ok and w.log then w.log:warn("the 3D map failed to open: %s", tostring(opened)) end
+        end
+        return w.orig(opts)
+      end
+    end
+    w.log = log
+    w.impl = function(opts, original) return Sh.openTownMap(opts, original, family) end
+    return true
+  end
+  Sh.wrapMap = wrapMap
+
   -- the player free to move in the field (the engine's own test for its quicksave): no script,
   -- no menu, no message, no battle
   function Sh.free(game)
@@ -301,6 +401,10 @@ return function(mod, deps)
   -- the wrap of pc_menu.show: once per process, calling this instance
   function Sh.ready()
     local PcMenu = engine("src.ui.game3.pc_menu")
+    if Tm then
+      wrapMap("src.ui.game3.region_map", "frlg")
+      wrapMap("src.ui.game3.rse.region_map", "rse")
+    end
     if not (PcMenu and type(PcMenu.show) == "function") then
       if log then log:warn("the game's PC menu wasn't found: the PC keeps its own menu") end
       return false

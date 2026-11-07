@@ -16,6 +16,9 @@
 --   src/wallpaper.lua                   the drawn wallpapers and the wallpapers/ folder's pictures
 --   src/watch.lua                       WoobWatch: the apps on the wrist, from the START menu
 --   src/notify.lua                      the notifications (R-Bay, the GTS): a list and banners
+--   src/map3d/model.lua, render.lua, scene.lua, towns.lua   the region in 3D (from the game's Town
+--                                       Map), its drawing, its window (the Map app), its towns' buildings
+--   src/townmap.lua                     the 3D map in place of the game's Town Map / Fly screen
 
 local function loadSibling(mod, name)
   local source = mod:read(name)
@@ -53,6 +56,9 @@ return function(mod)
   local makeSlots, slotsWindow = loadSibling(mod, "src/slots.lua"), loadSibling(mod, "src/apps/slots.lua")
   local makeGts, gtsWindow = loadSibling(mod, "src/gts.lua"), loadSibling(mod, "src/apps/gts.lua")
   local makeWatch, makeNotify = loadSibling(mod, "src/watch.lua"), loadSibling(mod, "src/notify.lua")
+  local makeMapModel, makeMapRender = loadSibling(mod, "src/map3d/model.lua"), loadSibling(mod, "src/map3d/render.lua")
+  local mapScene, makeTownMap = loadSibling(mod, "src/map3d/scene.lua"), loadSibling(mod, "src/townmap.lua")
+  local makeTowns = loadSibling(mod, "src/map3d/towns.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell) then return end
 
   local function warn(fmt, ...) mod.log:warn(fmt, ...) end
@@ -402,6 +408,72 @@ return function(mod)
       frlg = frlg, bx = env.bx, notify = notify, shinyPersonality = env.auction.shinyPersonality,
     })
   end
+  -- the 3D map: the region from the game's Town Map (its picture read back once through a canvas),
+  -- its drawing, the device's clock for day and night, and Fly from the app (outdoors, the party's
+  -- Fly and the badge: the game's own flight)
+  local function pixels(img, x, y, w, h)
+    local G = love and love.graphics
+    if not (G and G.newCanvas and img) then return nil end
+    local okC, c = pcall(G.newCanvas, w, h, { dpiscale = 1 })
+    if not (okC and c) then return nil end
+    G.push("all")
+    local okD = pcall(function()
+      G.origin()
+      G.setScissor()
+      G.setShader()
+      G.setCanvas(c)
+      G.clear(0, 0, 0, 0)
+      G.setColor(1, 1, 1, 1)
+      G.draw(img, -x, -y)
+    end)
+    G.setCanvas()
+    G.pop()
+    local okI, data = pcall(c.newImageData, c)
+    if not (okD and okI and data) then return nil end
+    return function(px, py)
+      if px < 0 or py < 0 or px >= w or py >= h then return nil end
+      local r, g, b, a = data:getPixel(px, py)
+      if a < 0.5 then return nil end
+      return r * 255, g * 255, b * 255
+    end
+  end
+  if makeMapModel and makeMapRender and mapScene then
+    local Model = makeMapModel(engine, { pixels = pixels, gameId = gameId })
+    local Towns = makeTowns and makeTowns() or nil
+    env.map3d = {
+      model = Model,
+      towns = Towns,
+      render = makeMapRender({ log = warn, towns = Towns }),
+      clock = function()
+        local Rtc = engine("src.core.game3.rtc")
+        if not (Rtc and Rtc.hostInfo) then return 12, 0 end
+        local info = Rtc.hostInfo(nil)
+        return info.hour, info.minute
+      end,
+      flyCheck = function(_, s) return Model.flyCheck(s) end,
+      -- (the host closed, the START menu with it, then the game's own Fly: the take-off, the map, the landing)
+      fly = function(ctx, region, place)
+        local s = ctx.session or session()
+        local mon, why = Model.flyCheck(s)
+        if not mon then return false, why end
+        local Field = engine("src.core.game3.field")
+        if not (Field and Field.flyTo) then return false, "none" end
+        local info
+        if region.family == "rse" then
+          local RseMap = engine("src.ui.game3.rse.region_map")
+          local sec, pick = Model.pickArgs(region, place)
+          info = pick
+          info.dest = RseMap and RseMap.flyWarpDestination(s, sec, 0) or nil
+          if not info.dest then return false, "none" end
+        end
+        ctx.done()
+        local StartMenu = engine("src.ui.game3.start_menu")
+        if StartMenu and StartMenu.isOpen and StartMenu.isOpen() then pcall(StartMenu.close, true) end
+        Field.flyTo(region.family == "rse" and place.id or place.sym, mon, info)
+        return true
+      end,
+    }
+  end
   -- (the Boxes preview's Dynamax row: WoobleDex's levels and factors, when it's on)
   if env.bx then
     env.bx.dynamax = function()
@@ -418,6 +490,7 @@ return function(mod)
     auction = env.auction and auctionWindow or nil,
     slots = env.slots and slotsWindow or nil,
     gts = env.gts and gtsWindow or nil,
+    map = env.map3d and function(ctx, e) return mapScene(ctx, e, { mode = "app" }) end or nil,
     gtsBadge = env.gts and function() return env.gts.waiting() end or nil,
     auctionBadge = env.auction and function() return env.auction.unread() end or nil,
     settings = T and Settings and settingsWindow or nil,
@@ -520,6 +593,11 @@ return function(mod)
     wall = Wall, wallpaper = wallpaper, wallpaperFit = wallpaperFit, gameId = gameId,
     log = function(fmt, ...) mod.log:warn(fmt, ...) end,
   }) or nil
+  -- the 3D map in place of the game's Town Map and Fly map (Settings: map3d)
+  local TownMap = env.map3d and makeTownMap and makeTownMap({
+    kit = Kit, T = T, env = env, se = env.se,
+    scene = mapScene, log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+  }) or nil
   -- the shelf's item pad, for the apps: an item crossing it ("out" to the PC, "in" to the Bag); on
   -- the watch, its crown glows a moment
   env.pad = { transfer = function(id, dir, kind)
@@ -543,6 +621,8 @@ return function(mod)
   end
   Sh = makeShell(mod, { require = require, log = mod.log, desktop = Desktop, apps = Apps, watch = Watch,
                         notify = Nt, tick = tick, session = session,
+                        townmap = TownMap, map3d = env.map3d,
+                        map3dOn = function() return not Settings or Settings.get("map3d", true) ~= false end,
                         watchRow = function() return not Settings or Settings.get("watchRow", true) ~= false end,
                         watchLabel = function() return T and T("watch.start") or "WATCH" end })
   Sh.enabled = function() return option("desktop", true) ~= false end
@@ -568,5 +648,5 @@ return function(mod)
   mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
                         mart = env.mart, auction = env.auction, slots = env.slots, gts = env.gts,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange,
-                        watch = Watch, notify = Nt, tick = tick }
+                        watch = Watch, notify = Nt, tick = tick, map3d = env.map3d, townmap = TownMap }
 end

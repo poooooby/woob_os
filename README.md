@@ -38,11 +38,36 @@ opens a desktop in a sleek monitor instead of a text menu.
   - **The face:** the time and date, your name and money, your party with their HP, and tiles for
     your R-Bay bids, your GTS deposit, your Rocket Tickets and the Mart. A red dot means news.
   - **The apps:** round icons in a honeycomb. Move with the D-pad, turn the crown with L and R (or
-    the mouse wheel), open with A. Boxes, Items, Mail, GTS, Mart, R-Bay, Slots and Settings all
-    work on the watch, just as they do at the PC.
+    the mouse wheel), open with A. Boxes, Items, Mail, Map, GTS, Mart, R-Bay, Slots and Settings
+    all work on the watch, just as they do at the PC.
   - **Notifications:** Down on the face (or a swipe down) lists them, newest first; a swipe up
     goes back. Open one to go straight to it.
   - **Your wallpaper:** the face shows the wallpaper you chose in Settings, as the desktop does.
+- 🗺️ **A 3D Town Map:** the Town Map, the maps on the walls and the Fly map open the region as a
+  little 3D model you can turn, tilt and zoom, made from your game's own Town Map: its hills and
+  forests, the sea, the routes, the towns and mountains where the caves are. The sea waves, clouds drift over it and it follows your
+  device's clock: dawn, day, a warm dusk, and a starry night with the windows lit.
+  - **Every town its own:** villages are a few houses on a sandy square, cities a crowd of taller
+    blocks on paving. Roofs take the town's colour (Lavender's purple, Cerulean's blue, Vermilion's
+    red, Lilycove's lilac …), and each town has what it's known for: Oak's lab in Pallet, Pewter's
+    museum, the Pokémon Tower, Silph Co., Celadon's department store, Vermilion's lighthouse and the
+    S.S. Anne at its dock, the Pokémon League; Devon's tower in Rustboro, Mauville under its dome,
+    Mossdeep's rocket, Fortree up in the trees, Pacifidlog on the water. Every Pokémon Center has
+    its red roof, every Mart its blue one, and every Gym a band in its badge's colour.
+  - **Where you are:** a red beacon stands on your spot.
+  - **Places:** the D-pad hops to the next town or landmark the way you press, as the camera sees
+    it. Each has a card: its name, whether you've been there, its Pokémon Center and Poké Mart,
+    and its Gym with that Gym's badge (ticked once you have it).
+  - **Fly:** from the party menu, pick a town you've visited and press A (or tap Fly): you fly
+    there as the game flies you.
+  - **The camera:** L and R turn it, A zooms (or the mouse wheel). On a touch screen, drag to turn
+    and tilt, pinch to zoom and tap a place to choose it. The compass shows north; tap it to turn
+    north back up.
+  - **Glass:** the cards, the buttons and the hints float over the map on frosted glass.
+  - **The islands:** in FireRed and LeafGreen, SELECT (or the region's name) switches to the
+    Sevii Islands once your Town Map shows them.
+  - **The classic map:** START opens the game's own map instead, and Settings can keep it for
+    good.
 - 🔔 **Notifications:** WoobOS tells you when you're outbid on R-Bay (your money is already back),
   when an auction you're in is about to end (10 minutes before, or 5, 15 or 30: your choice in
   Settings), when you win or lose one, and when your GTS
@@ -57,6 +82,9 @@ opens a desktop in a sleek monitor instead of a text menu.
   sorts the side you're on: the PC by name or pocket, or tosses an item from it; the Bag's pocket
   by name or type (the TM Case and the Berries keep the game's own order). Important items stay in the Bag. Items other mods add (WoobDex's
   candies and Max Mushrooms) show with their own pictures.
+- 🗺️ **Map:** the 3D map of your region, from the PC or the watch, with the same places, cards and
+  camera as the Town Map. On the watch, out in the open with a Pokémon that knows Fly and the badge
+  that allows it, START (or Fly on a town's card) flies you to any town you've visited.
 - 🌐 **GTS:** trade with Trainers from around the world.
   - **Wonder Trade:** pick any Pokémon from your party or a box and send it off. The globe spins
     while it searches, a Trainer from somewhere (Yuki from Johto, Pierre from Kalos …) is found,
@@ -140,10 +168,11 @@ opens a desktop in a sleek monitor instead of a text menu.
   - ⌚ **Watch:** show WoobWatch in the START menu or not, turn the notification banners on or
     off (notifications still wait in the watch's list), and choose how long before an auction ends
     you're told: 5, 10, 15 or 30 minutes.
+  - 🗺️ **Map:** the 3D Town Map on or off. Off, the Town Map and Fly open the game's own map.
 - ℹ️ **About:** which version you're running.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
 
-Boxes, Items, GTS, Mart, R-Bay, Slots, Mail and Settings open in a window on the desktop, in the style of macOS and iOS:
+Boxes, Items, Map, GTS, Mart, R-Bay, Slots, Mail and Settings open in a window on the desktop, in the style of macOS and iOS:
 white cards on a soft grey, segmented switches, and a blue ring round whatever the controller is
 on. B or the red button closes it. Oak's PC,
 Hall of Fame and Decorate open the game's own screens, and closing them brings you back to the
@@ -195,6 +224,8 @@ turn it on for your Generation 3 games.
   bids and money come back with it. Auctions keep their own time, so one may have ended while you
   were away: it settles as soon as you load the save. If both your party and the PC are full, a
   won Pokémon waits until there's room.
+- **Fly from the Map app:** the game's own rules: the badge that allows Fly, a Pokémon in your party
+  that knows it, and the open air. The PC is always indoors, so fly from the watch.
 - **WoobWatch's apps:** Oak's PC, the Hall of Fame and Decorate stay at the PC. When an app opens
   one of the game's screens (a Pokémon's Summary, an evolution), the watch comes back on that app
   when it closes. The watch isn't in the START menu in a link room or the Safari Zone.

@@ -3,6 +3,26 @@
 All notable changes to this mod are documented here, in
 [keep a changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [0.4.0] - 2026-11-07
+
+### Added
+- **A 3D Town Map:** the Town Map, the wall maps and the Fly map show the region as a 3D model
+  made from the game's own Town Map: hills, forests, the sea, the routes, towns of little houses
+  (Pokémon Centers, Marts, Gyms) and mountains, with waves, drifting clouds and day, dusk and night
+  from the device's clock. A beacon shows where you are; the D-pad hops between places, each
+  with a card (visited, Center, Mart, the Gym and its badge); Fly flies there. L / R turn, A
+  zooms, a drag turns and tilts, a pinch or the wheel zooms. The Sevii Islands on FireRed /
+  LeafGreen (SELECT). START opens the game's own map.
+- **Map app:** the same 3D map on the desktop and WoobWatch. On the watch, outdoors, it flies you
+  to a visited town (a Pokémon that knows Fly and the badge needed).
+- **Settings > Map:** the 3D Town Map on or off.
+- **The 3D map's towns:** each its own. A village's few houses, a city's taller blocks; roofs in
+  the town's colour; the places they're known for (Oak's lab, Pewter's museum, the Pokémon Tower,
+  Silph Co., the S.S. Anne, the League, Devon's tower, Mauville's dome, Mossdeep's rocket,
+  Fortree's tree houses, Pacifidlog on the water …); a Gym's band in its badge's colour.
+- **The 3D map's look:** frosted glass under its cards, buttons and hints, and a compass (tap it:
+  north up).
+
 ## [0.3.2] - 2026-11-06
 
 ### Added
