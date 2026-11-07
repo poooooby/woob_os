@@ -453,7 +453,7 @@ return function(engine, deps)
     end
     if not img then return nil end
     local ok, s = pcall(deps.pixels, img, 0, 0, w, h)
-    return ok and s or nil
+    return ok and s or nil, img
   end
 
   function M.region(id)
@@ -466,7 +466,7 @@ return function(engine, deps)
     finishPlaces(places)
     local cols, rows = crop[3] / STEP, crop[4] / STEP
     local t = newTerrain(cols, rows)
-    local sample = sampler(desc, family)
+    local sample, picture = sampler(desc, family)
     if sample then
       fromPicture(t, sample, crop)
     else
@@ -487,7 +487,9 @@ return function(engine, deps)
     -- (each place's ground: the terrain under its middle)
     local region = { id = desc.id, key = desc.key, family = family, terrain = t, places = places,
                      x0 = crop[1] / 8, z0 = crop[2] / 8, w = crop[3] / 8, h = crop[4] / 8, step = STEP / 8,
-                     fromPicture = sample ~= nil }
+                     fromPicture = sample ~= nil,
+                     -- (the Town Map's own picture: the flat map; 240 x 160 at world 0, 0)
+                     picture = picture }
     for _, p in ipairs(places) do
       if p.kind ~= "town" then p.y = M.heightAt(region, p.x, p.z) end
     end

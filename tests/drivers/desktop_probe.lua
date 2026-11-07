@@ -298,12 +298,19 @@ local function body(game, log)
     check(waitFor(function() return not D.isOpen() end, 120), "Summary: the game's own screen")
     U.wait(40)
     shot("d2i_summary")
+    -- (B only while the game's Summary is up: a B on the desktop coming back opens its Log Off sheet)
     local back = waitFor(function()
       if D.window() then return true end
-      U.tap(game, "b")
-      U.wait(20)
+      if not D.isOpen() then
+        U.tap(game, "b")
+        U.wait(20)
+      end
       return D.window() ~= nil
     end, 30)
+    if D.isOpen() and D.state().sheet then
+      U.tap(game, "b")
+      U.wait(10)
+    end
     local BW2 = D.window()
     check(back and BW2 and BW2.title == "Boxes" and BW2.state.box == 2 and BW2.state.mode == BW.SELECT,
       "B: back into Boxes, box 2, Select")
@@ -1068,8 +1075,9 @@ local function body(game, log)
   D.state().ctx.logoff()
   check(closed and not D.isOpen(), "the bedroom PC logs off")
 
-  -- WoobWatch: START, its row, the face, the apps (each one), back to the START menu
-  local Wt, Nt = X._test.watch, X._test.notify
+  -- WoobPad: START, its row, the home screen, the apps (each one), the notifications, B: the
+  -- START menu again
+  local Wt, Nt = X._test.pad, X._test.notify
   local StartMenu = require("src.ui.game3.start_menu")
 
   check(waitFor(function() return Sh.free(game) end, 900), "the player free in the field")
@@ -1078,21 +1086,17 @@ local function body(game, log)
   local row
   for i, e in ipairs(StartMenu.ENTRIES or {}) do if e.id == "woob_watch" then row = i end end
   local nextId = row and StartMenu.ENTRIES[row + 1] and StartMenu.ENTRIES[row + 1].id
-  check(nextId == "exit" or nextId == "mods", "the watch's row in it, above EXIT (or the engine's MODS)")
+  check(nextId == "exit" or nextId == "mods", "the pad's row in it, above EXIT (or the engine's MODS)")
   U.wait(10)
   shot("w0_start_menu")
   if row then
     StartMenu.cursor = row
     U.tap(game, "a")
-    check(waitFor(function() return Wt.isOpen() end, 120), "chosen: WoobWatch")
+    check(waitFor(function() return Wt.isOpen() end, 120), "chosen: WoobPad")
     U.wait(40)
-    shot("w1_watch_face")
+    shot("w1_pad_home")
     local ws = Wt.state()
-    U.tap(game, "a"); U.wait(4)
-    check(ws.screen == "grid", "A: the apps")
-    U.wait(30)
-    shot("w2_watch_apps")
-    -- (the draw's garbage on the face and the apps, warmed up first)
+    -- (the draw's garbage on the home screen, warmed up first)
     local wdraw, wKb, wN = Wt.draw, 0, 0
     U.wait(60)
     Wt.draw = function(...)
@@ -1103,36 +1107,36 @@ local function body(game, log)
       wKb, wN = wKb + (collectgarbage("count") - kb0), wN + 1
       if was then collectgarbage("restart") end
     end
-    U.wait(90)
-    ws.screen = "face"
-    U.wait(90)
+    U.wait(120)
     Wt.draw = wdraw
-    log(("  the watch's draw: %.3f KB per frame over %d frames"):format(wKb / math.max(1, wN), wN))
-    check(wKb / math.max(1, wN) < 0.5, "the watch's draw makes next to no garbage")
-    ws.screen = "grid"
-    for i, app in ipairs(ws.apps) do
-      ws.cursor = i
-      U.tap(game, "a")
-      waitFor(function() return Wt.window() ~= nil end, 600)
-      U.wait(40)
-      shot("w3_watch_" .. app.id)
-      check(Wt.window() ~= nil and not ws.winFailed, app.id .. " on the watch")
-      Wt.closeWindow()
-      waitFor(function() return ws.zoom == nil end, 600)
+    log(("  the pad's draw: %.3f KB per frame over %d frames"):format(wKb / math.max(1, wN), wN))
+    check(wKb / math.max(1, wN) < 0.5, "the pad's draw makes next to no garbage")
+    local list = {}
+    for _, a in ipairs(ws.grid) do list[#list + 1] = a end
+    for _, a in ipairs(ws.dock) do list[#list + 1] = a end
+    for _, app in ipairs(list) do
+      if app.window then
+        Wt.openApp(app.id)
+        waitFor(function() return Wt.window() ~= nil end, 600)
+        U.wait(40)
+        shot("w3_pad_" .. app.id)
+        check(Wt.window() ~= nil and not ws.winFailed, app.id .. " on the pad")
+        Wt.closeWindow()
+        waitFor(function() return ws.zoom == nil end, 600)
+      end
     end
     U.wait(10)
-    U.tap(game, "down"); U.wait(4)
-    U.tap(game, "b"); U.wait(4)
-    check(ws.screen == "face", "B: the face")
-    U.tap(game, "down"); U.wait(20)
-    shot("w4_watch_notes")
-    U.tap(game, "b"); U.wait(4)
+    Wt.sheet("notes")
+    U.wait(20)
+    shot("w4_pad_notes")
+    U.tap(game, "b"); U.wait(6)
+    check(ws.sheet == nil, "B: the notifications go")
     U.tap(game, "b"); U.wait(10)
-    check(not Wt.isOpen() and StartMenu.isOpen(), "B on the face: the START menu again")
+    check(not Wt.isOpen() and StartMenu.isOpen(), "B on the home screen: put away, the START menu again")
     U.tap(game, "b")
     waitFor(function() return not StartMenu.isOpen() end, 120)
   end
-  -- a notification over the field; a tap on it opens the watch on that app
+  -- a notification over the field; a tap on it opens the pad on that app
   check(waitFor(function() return Sh.free(game) end, 600), "the field again")
   Nt.push("outbid", { name = "PIKACHU", sp = require("src.core.game3.pokemon").speciesFromNational(25) })
   check(waitFor(function() return Nt.fieldRect() ~= nil end, 120), "a notification: its banner over the field")
@@ -1142,7 +1146,7 @@ local function body(game, log)
   if fr then
     Sh.pointer({ id = 1, phase = "pressed", x = fr[1] + fr[3] / 2, y = fr[2] + fr[4] / 2 })
     check(waitFor(function() return Wt.window() ~= nil end, 120) and Wt.state().winApp.id == "auction",
-      "tapped: WoobWatch, on R-Bay")
+      "tapped: WoobPad, on R-Bay")
     U.wait(40)
     shot("w6_banner_rbay")
     Wt.state().ctx.done()
@@ -1207,6 +1211,77 @@ local function body(game, log)
     waitFor(function() return Sh.free(game) end, 120)
   end
 
+  -- the PokéNav (Ruby / Sapphire / Emerald): its Match Call / Trainer's Eyes and Condition open our
+  -- Phone and Condition full screen; B is the PokéNav's menu again
+  if X._test.phone and X._test.phone.family() then
+    local Tm2, Ph2 = X._test.townmap, X._test.phone
+    local Flags2, Space2 = require("src.core.game3.scripting.flags"), require("src.core.game3.scripting.space")
+    local C2 = require("src.core.game3.constants").of(require("src.core.game3.profile").forSession(s0).id)
+    local set = {}
+    local function setF(name)
+      local id = C2:flag(name)
+      if id then
+        set[#set + 1] = { id, Flags2.getFlag(Space2.store, nil, id) }
+        pcall(Flags2.setFlag, Space2.store, nil, id, true)
+      end
+    end
+    setF("FLAG_SYS_POKENAV_GET")
+    local emeraldNav = Ph2.family() == "emerald"
+    if emeraldNav then
+      setF("FLAG_ADDED_MATCH_CALL_TO_POKENAV")
+      setF("FLAG_ENABLE_ROXANNE_MATCH_CALL")
+    else
+      local man = require("src.ui.game3.rs.pokenav.gfx").manifest("pokenav_detail")
+      local id = 0x500 + man.leaders[0].opponentId
+      set[#set + 1] = { id, Flags2.getFlag(Space2.store, nil, id) }
+      pcall(Flags2.setFlag, Space2.store, nil, id, true)
+    end
+    check(waitFor(function() return Sh.free(game) end, 600), "the field, for the PokéNav")
+    require("src.ui.game3.screens").get("pokenav", s0).show({ session = s0, game = game })
+    U.wait(120)
+    U.tap(game, "down"); U.wait(8)
+    U.tap(game, "down"); U.wait(8)
+    U.tap(game, "a")
+    check(waitFor(function() return Tm2.isOpen() end, 300) and Tm2.state().ctx.app == "phone",
+      emeraldNav and "Match Call: our Phone" or "Trainer's Eyes: our Phone")
+    U.wait(30)
+    shot("n1_phone")
+    local nKb = 0
+    if Tm2.isOpen() then
+      local tdraw, kb, n = Tm2.draw, 0, 0
+      U.wait(20)
+      Tm2.draw = function(...)
+        local was = collectgarbage("isrunning")
+        collectgarbage("stop")
+        local kb0 = collectgarbage("count")
+        tdraw(...)
+        kb, n = kb + (collectgarbage("count") - kb0), n + 1
+        if was then collectgarbage("restart") end
+      end
+      U.wait(90)
+      Tm2.draw = tdraw
+      nKb = kb / math.max(1, n)
+    end
+    log(("  the Phone's draw: %.3f KB per frame"):format(nKb))
+    check(nKb < 0.5, "the Phone's draw makes next to no garbage")
+    U.tap(game, "b")
+    check(waitFor(function() return not Tm2.isOpen() end, 120), "B: the PokéNav again")
+    U.wait(80)
+    U.tap(game, "up"); U.wait(8)
+    U.tap(game, "a"); U.wait(60)
+    U.tap(game, "a")
+    check(waitFor(function() return Tm2.isOpen() end, 300) and Tm2.state().ctx.app == "condition", "Condition: ours")
+    U.wait(30)
+    shot("n2_condition")
+    U.tap(game, "b")
+    check(waitFor(function() return not Tm2.isOpen() end, 120), "B: the PokéNav again")
+    U.wait(60)
+    shot("n3_pokenav_back")
+    for _ = 1, 6 do U.tap(game, "b"); U.wait(20) end
+    waitFor(function() return Sh.free(game) end, 600)
+    for _, f in ipairs(set) do pcall(Flags2.setFlag, Space2.store, nil, f[1], f[2] == true) end
+  end
+
   -- window shapes
   check(pcOn(), "the PC again")
   D.skipBoot()
@@ -1241,7 +1316,7 @@ local function body(game, log)
   D.state().ctx.logoff()
   waitFor(function() return not D.isOpen() end, 60)
 
-  -- the watch in a tall window
+  -- the pad in a tall window
   love.window.setMode(430, 900, flags)
   if love.resize then pcall(love.resize, 430, 900) end
   U.wait(10)
@@ -1257,7 +1332,7 @@ local function body(game, log)
   end
   Sh.openWatch(s0)
   U.wait(40)
-  shot("w7_watch_portrait")
+  shot("w7_pad_portrait")
   if Wt.isOpen() then Wt.state().ctx.done() end
   s0.party = partyW0
   love.window.setMode(W0, H0, flags)

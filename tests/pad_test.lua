@@ -1,10 +1,11 @@
--- Standalone: luajit mods/woob_os/tests/watch_test.lua [game] (from the gen1recomp root; needs that
+-- Standalone: luajit mods/woob_os/tests/pad_test.lua [game] (from the gen1recomp root; needs that
 -- cart imported, FireRed by default).
 --
--- WoobWatch (src/watch.lua) and the notifications (src/notify.lua): the START menu's row, the
--- watch's face, apps and notifications list, every app opening on it, ctx.over back to the app,
--- the models' notifications (outbid, ending soon, won, lost, a GTS trade), the field's banner and
--- a tap on it opening the watch, the setting that turns the banners off, and next to no garbage.
+-- WoobPad (src/desktop.lua as a tablet) and the notifications (src/notify.lua): the START menu's
+-- row, the pad's home screen and dock, every app opening on it, ctx.over back to the app, B putting
+-- it away, the notifications list (the W menu, a pull down from the top), the models'
+-- notifications (outbid, ending soon, won, lost, a GTS trade), the field's banner and a tap on it
+-- opening the pad, the setting that turns the banners off, and next to no garbage.
 package.path = "./?.lua;./?/init.lua;" .. package.path
 
 local T = require("tests.modkit")
@@ -52,11 +53,11 @@ local run = T.sdk.loadMods({ "mods/woob_os" }, { data = {}, generation = 3 })
 T.eq(#run.errors, 0, "loads clean (" .. tostring(run.errors[1]) .. ")")
 run.loader.events:emit("game.ready", {})
 local X = run.loader.exports.woob_os
-local Wt, Nt, Sh, Apps, D = X._test.watch, X._test.notify, X._test.shell, X._test.apps, X._test.desktop
+local Wt, Nt, Sh, Apps, D = X._test.pad, X._test.notify, X._test.shell, X._test.apps, X._test.desktop
 local Settings = X._test.settings
 local Stack = require("src.ui.game3.stack")
 local Runtime = require("src.mods.Runtime")
-T.check(Wt ~= nil and Nt ~= nil, "the watch and the notifications are made")
+T.check(Wt ~= nil and Nt ~= nil and Wt.device == "pad", "the pad and the notifications are made")
 -- (the settings kept in memory: never the real installation's file)
 local kept = {}
 Settings.cache = { read = function() return nil end, write = function(_, k, v) kept[k] = v end }
@@ -158,106 +159,122 @@ local function startList(save)
   return l
 end
 local function vanilla(_, items) return items end
+local PAD_ID = Sh.PAD_ID
+local K = X._test.kit
 do
   local got = Runtime.call("ui.start_menu.items", vanilla, {}, startList(true))
   T.check(got[#got - 1] and got[#got - 1].id == "woob_watch" and got[#got].id == "exit",
-    "the watch's row, just above EXIT (" .. ids(got) .. ")")
-  T.check(type(got[#got - 1].label) == "string" and got[#got - 1].label ~= "" and type(got[#got - 1].onSelect) == "function",
-    "with its words and onSelect")
+    "the pad's row, just above EXIT (" .. ids(got) .. ")")
+  T.eq(got[#got - 1].label, X._test.i18n("watch.start"), "its words: WOOBPAD")
+  T.check(type(got[#got - 1].onSelect) == "function", "and its onSelect")
   local link = Runtime.call("ui.start_menu.items", vanilla, {}, startList(false))
   T.check(not ids(link):find("woob_watch", 1, true), "not in a link room's or the Safari Zone's menu")
   Settings.set("watchRow", false)
   local off = Runtime.call("ui.start_menu.items", vanilla, {}, startList(true))
   T.check(not ids(off):find("woob_watch", 1, true), "Settings: the row off")
   Settings.set("watchRow", true)
-  -- choosing it: the watch over the START menu
   got[#got - 1].onSelect({}, s)
 end
-T.check(Wt.isOpen() and Stack.has("woob_watch"), "chosen: the watch opens on its layer")
+T.check(Wt.isOpen() and Stack.has(PAD_ID), "chosen: the pad opens on its layer")
 local st = Wt.state()
-T.eq(st.screen, "face", "on its face")
-T.eq(ids(st.apps), "storage items map mail gts mart auction slots settings",
-  "every app with a window (no Oak, Hall, Decorate, About, Log Off)")
-T.check(not Sh.openWatch(s), "one watch at a time")
+local function all(state)
+  local out = {}
+  for _, a in ipairs(state.grid) do out[#out + 1] = a end
+  for _, a in ipairs(state.dock) do out[#out + 1] = a end
+  table.sort(out, function(a, b) return a.order < b.order or (a.order == b.order and a.id < b.id) end)
+  return out
+end
+T.eq(ids(all(st)), "storage items map mail gts mart auction slots settings about",
+  "every app, no PC rows (no Oak, Hall, Decorate, Log Off)")
+T.check(st.booted, "no boot: the home screen at once")
+T.check(not Sh.openWatch(s), "one pad at a time")
 draw(5)
-T.check(hitOf("wface") ~= nil and hitOf("wcomp", 1) ~= nil, "the face: tappable, its complications")
+T.check(hitOf("grid", 1) ~= nil and hitOf("dock", 1) ~= nil, "its home screen and dock, tappable")
 press("a")
-T.check(st.screen ~= "face" or st.waitRelease == false, "the A that chose the row doesn't count (still held)")
+T.check(Wt.window() == nil and st.zoom == nil, "the A that chose the row doesn't count (still held)")
 Wt.input(input({}, {}))
-press("a")
-T.eq(st.screen, "grid", "A: the apps")
-draw(3)
-T.check(hitOf("wgrid", 1) ~= nil, "the honeycomb's icons, tappable")
 press("right")
 T.eq(st.cursor, 2, "Right: the next app")
-press("down")
-T.check(st.pos[st.cursor].row == 2, "Down: the row under it")
-press("l")
-local c0 = st.cursor
-press("r")
-T.eq(st.cursor, c0 + 1, "R turns the crown on")
-
--- every app: opens on the watch and draws, at the window's shapes
-for i, app in ipairs(st.apps) do
-  st.cursor = i
-  press("a")
-  T.check(st.zoom ~= nil, app.id .. ": zooms up from its icon")
-  draw(30)
-  T.check(Wt.window() ~= nil and st.screen == "app", app.id .. ": open on the watch")
-  for _, shape in ipairs({ { 480, 320 }, { 320, 480 }, { 900, 320 } }) do
-    VP.width, VP.height = shape[1], shape[2]
-    draw(2)
-  end
-  VP.width, VP.height = 480, 320
-  T.check(not st.winFailed, app.id .. ": draws on the watch at every shape")
-  -- (B: back to the apps, unless the window used it; tap the back chevron then)
-  press("b")
-  if Wt.window() then
-    draw(1)
-    local back = hitOf("wback")
-    if back then tapHit(back) end
-  end
-  T.check(Wt.window() == nil and st.screen == "grid", app.id .. ": back to the apps")
-  draw(20)
+do
+  local L = st.layout
+  T.check(L.pad and L.screen[4] > 120, "a big screen (" .. math.floor(L.screen[4]) .. " units tall)")
 end
 
--- ctx.over: the game's own screen over the watch, the app again after
-do
-  local i
-  for j, app in ipairs(st.apps) do if app.id == "storage" then i = j end end
-  st.cursor = i
+-- every app: opens on the pad and draws, at the window's shapes
+local function launch(id)
+  for i, a in ipairs(st.grid) do if a.id == id then st.focus, st.cursor = "grid", i end end
+  for i, a in ipairs(st.dock) do if a.id == id then st.focus, st.dockCursor = "dock", i end end
   press("a")
+end
+for _, app in ipairs(all(st)) do
+  if app.window then
+    launch(app.id)
+    T.check(st.zoom ~= nil, app.id .. ": zooms up from its icon")
+    draw(30)
+    T.check(Wt.window() ~= nil, app.id .. ": open on the pad")
+    for _, shape in ipairs({ { 480, 320 }, { 320, 480 }, { 900, 320 } }) do
+      VP.width, VP.height = shape[1], shape[2]
+      draw(2)
+    end
+    VP.width, VP.height = 480, 320
+    T.check(not st.winFailed, app.id .. ": draws on the pad at every shape")
+    for _ = 1, 4 do
+      if Wt.window() then press("b") end
+    end
+    if Wt.window() then Wt.closeWindow() end
+    T.check(Wt.window() == nil, app.id .. ": closed, the home screen again")
+    draw(20)
+  end
+end
+
+-- ctx.over: the game's own screen over the pad, the app again after
+do
+  launch("storage")
   draw(30)
   local ctx = st.ctx
   local reopen
   ctx.over(function(onClose) reopen = onClose end, { mode = 1 })
-  T.check(not Wt.isOpen() and not Stack.has("woob_watch"), "over: the watch steps aside for the game's screen")
+  T.check(not Wt.isOpen() and not Stack.has(PAD_ID), "over: the pad steps aside for the game's screen")
   reopen()
   st = Wt.state()
   draw(2)
-  T.check(Wt.isOpen() and Stack.has("woob_watch") and Wt.window() and st.winApp.id == "storage",
+  T.check(Wt.isOpen() and Stack.has(PAD_ID) and Wt.window() and st.winApp.id == "storage",
     "and comes back on the app it was in")
-  press("b")
-  if Wt.window() then
-    draw(1)
-    local back = hitOf("wback")
-    if back then tapHit(back) end
-  end
+  Wt.closeWindow()
   draw(20)
 end
 
--- the face, the notifications list, closing
-press("b")
-T.eq(st.screen, "face", "B on the apps: the face")
+-- the notifications: from the W menu, and pulled down from the top
+Nt.reset()
+Nt.push("gts", { name = "PIDGEY", sp = spOf(16), who = "Yuki" }, true)
+press("start")
+T.check(st.menuOpen, "START: the W menu")
 press("down")
-T.eq(st.screen, "notes", "Down: the notifications")
+press("a")
+T.eq(st.sheet, "notes", "its second row: Notifications")
 draw(2)
+T.check(hitOf("noteRow", 1) ~= nil, "the list, a card each")
 press("b")
-T.eq(st.screen, "face", "B: the face again")
-press("b")
-T.check(not Wt.isOpen() and not Stack.has("woob_watch"), "B on the face: closed, the START menu again")
+T.eq(st.sheet, nil, "B: gone")
+do
+  local L = st.layout
+  local x, y = K.X(L.screen[1] + L.screen[3] / 2), K.Y(L.screen[2] + 3)
+  Wt.pointer({ id = 3, phase = "pressed", x = x, y = y })
+  Wt.pointer({ id = 3, phase = "moved", x = x, y = y + 80 })
+  Wt.pointer({ id = 3, phase = "released", x = x, y = y + 80 })
+  T.eq(st.sheet, "notes", "pulled down from the top: the notifications")
+  draw(2)
+  tapHit(hitOf("noteRow", 1))
+  T.check(Wt.window() and st.winApp.id == "gts", "a tap on one: its app")
+  Wt.closeWindow()
+  draw(20)
+end
 
--- the face: the wallpaper chosen in Settings; a swipe down for the notifications, up for the face
+-- B on the home screen: put away, the START menu again
+press("b")
+T.check(not Wt.isOpen() and not Stack.has(PAD_ID), "B on the home screen: put away")
+
+-- the home screen: the wallpaper chosen in Settings; Settings > WoobPad's alert choice
 do
   local Wall = X._test.wall
   local realDraw = Wall.draw
@@ -267,21 +284,9 @@ do
   Sh.openWatch(s)
   st = Wt.state()
   draw(2)
-  T.eq(drew, "hills", "the face shows the chosen wallpaper")
+  T.eq(drew, "hills", "the chosen wallpaper")
   Settings.set("wallpaper", "classic")
   Wall.draw = realDraw
-  local f = hitOf("wface")
-  local x, y = f[1] + f[3] / 2, f[2] + 10
-  Wt.pointer({ id = 3, phase = "pressed", x = x, y = y })
-  Wt.pointer({ id = 3, phase = "moved", x = x, y = y + 60 })
-  Wt.pointer({ id = 3, phase = "released", x = x, y = y + 60 })
-  T.eq(st.screen, "notes", "a swipe down: the notifications")
-  draw(2)
-  Wt.pointer({ id = 4, phase = "pressed", x = x, y = y + 60 })
-  Wt.pointer({ id = 4, phase = "moved", x = x, y = y - 40 })
-  Wt.pointer({ id = 4, phase = "released", x = x, y = y - 40 })
-  T.eq(st.screen, "face", "a swipe up: the face again")
-  -- Settings > Watch: the ending-soon alert, 5 / 10 / 15 / 30 minutes
   Wt.openApp("settings")
   draw(2)
   local ss = Wt.window().state
@@ -296,7 +301,7 @@ do
   press("left")
   T.eq(Settings.get("soonMinutes", 10), 30, "Left: back to 30")
   draw(2)
-  T.check(not st.winFailed, "the Watch section draws")
+  T.check(not st.winFailed, "the WoobPad section draws")
   Settings.set("soonMinutes", 10)
   st.ctx.done()
 end
@@ -483,12 +488,12 @@ do
   T.check(Sh.pointer({ id = 1, phase = "pressed", x = x, y = y }) == true, "a tap on it is ours")
 end
 draw(1)
-T.check(Wt.isOpen() and Wt.window() and Wt.state().winApp.id == "auction", "and opens the watch on R-Bay")
+T.check(Wt.isOpen() and Wt.window() and Wt.state().winApp.id == "auction", "and opens the pad on R-Bay")
 T.eq(Wt.window().state.tab, "browse", "on the auction it was about")
 st = Wt.state()
 draw(3)
 st.ctx.done()
-T.check(not Wt.isOpen() and not Stack.has("woob_watch"), "closed: the field again")
+T.check(not Wt.isOpen() and not Stack.has(PAD_ID), "put away: the field again")
 -- one not tapped goes after its time
 Nt.push("soon", { name = "EEVEE", sp = spOf(133) })
 Nt.drawField(G, FVP, true, clock)
@@ -501,15 +506,15 @@ Nt.push("outbid", { name = "MEW" })
 T.eq(Nt.waiting(), 0, "Settings: notifications off, no banner")
 T.eq(Nt.list()[1].text ~= nil and Nt.list()[1].kind, "outbid", "it's still in the list")
 Settings.set("notifications", true)
--- a banner while the watch is open: over its screen, a tap opens that app
+-- a banner while the pad is open: over its screen, a tap opens that app
 Sh.openWatch(s)
 st = Wt.state()
 Wt.input(input({}, {}))
 draw(2)
 Nt.push("gts", { name = "PIDGEY", sp = spOf(16), who = "Yuki" })
 draw(10)
-local bh = hitOf("wbanner")
-T.check(bh ~= nil, "on the watch: the banner over its screen")
+local bh = hitOf("notify")
+T.check(bh ~= nil, "on the pad: the banner over its screen")
 if bh then tapHit(bh) end
 T.check(Wt.window() and st.winApp.id == "gts", "tapped: the GTS opens")
 draw(3)
@@ -521,19 +526,18 @@ local fieldKb = garbageOf(60, function() Nt.reset(); Nt.push("outbid", { name = 
 T.check(fieldKb < 0.5, ("the field's banner: next to no garbage (%.3f KB a frame)"):format(fieldKb))
 if Wt.window() then Wt.closeWindow() end
 draw(30)
-st.screen = "face"
 -- (the money's Pokédollar sign: a stand-in while measuring, the engine's glyph draw makes
 -- garbage headless; the probe measures the real one)
 local FrlgFont = require("src.ui.game3.frlg_font")
 local realGlyph = FrlgFont.drawGlyph
 FrlgFont.drawGlyph = function() return 7 end
-local faceKb = garbageOf(60, nil, function() Wt.draw(G, VP) end)
+local homeKb = garbageOf(60, nil, function() Wt.draw(G, VP) end)
+T.check(homeKb < 0.5, ("the home screen: next to no garbage (%.3f KB a frame)"):format(homeKb))
+Wt.sheet("notes")
+local notesKb = garbageOf(60, nil, function() Wt.draw(G, VP) end)
+T.check(notesKb < 0.5, ("the notifications: next to no garbage (%.3f KB a frame)"):format(notesKb))
 FrlgFont.drawGlyph = realGlyph
-T.check(faceKb < 0.5, ("the face: next to no garbage (%.3f KB a frame)"):format(faceKb))
-st.screen = "grid"
-local gridKb = garbageOf(60, nil, function() Wt.draw(G, VP) end)
-T.check(gridKb < 0.5, ("the apps: next to no garbage (%.3f KB a frame)"):format(gridKb))
 st.ctx.done()
 
 run.release()
-T.finish("woob_os watch (" .. GAME .. ")")
+T.finish("woob_os pad (" .. GAME .. ")")

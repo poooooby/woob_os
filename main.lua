@@ -14,11 +14,14 @@
 --   src/boxes.lua, src/apps/boxes.lua, src/apps/boxes_view.lua   the Pokémon model, the Boxes window
 --   src/i18n.lua, lang/*.lua            the words, by language ; src/settings.lua the kept choices
 --   src/wallpaper.lua                   the drawn wallpapers and the wallpapers/ folder's pictures
---   src/watch.lua                       WoobWatch: the apps on the wrist, from the START menu
+--   WoobPad: src/desktop.lua again (deps.device "pad"), from the START menu
 --   src/notify.lua                      the notifications (R-Bay, the GTS): a list and banners
 --   src/map3d/model.lua, render.lua, scene.lua, towns.lua   the region in 3D (from the game's Town
 --                                       Map), its drawing, its window (the Map app), its towns' buildings
---   src/townmap.lua                     the 3D map in place of the game's Town Map / Fly screen
+--   src/townmap.lua                     the full-screen host: the 3D Town Map, the PokéNav's apps
+--   src/phone.lua, src/apps/phone.lua   the Phone: the PokéNav's Match Call / Trainer's Eyes contacts
+--   src/condition.lua, src/apps/condition.lua   Condition: the contest conditions, Pokéblocks
+--   src/pokenav.lua                     the PokéNav's Match Call / Trainer's Eyes and Condition: ours
 
 local function loadSibling(mod, name)
   local source = mod:read(name)
@@ -55,10 +58,13 @@ return function(mod)
   local makeAuction, auctionWindow = loadSibling(mod, "src/auction.lua"), loadSibling(mod, "src/apps/auction.lua")
   local makeSlots, slotsWindow = loadSibling(mod, "src/slots.lua"), loadSibling(mod, "src/apps/slots.lua")
   local makeGts, gtsWindow = loadSibling(mod, "src/gts.lua"), loadSibling(mod, "src/apps/gts.lua")
-  local makeWatch, makeNotify = loadSibling(mod, "src/watch.lua"), loadSibling(mod, "src/notify.lua")
+  local makeNotify = loadSibling(mod, "src/notify.lua")
   local makeMapModel, makeMapRender = loadSibling(mod, "src/map3d/model.lua"), loadSibling(mod, "src/map3d/render.lua")
   local mapScene, makeTownMap = loadSibling(mod, "src/map3d/scene.lua"), loadSibling(mod, "src/townmap.lua")
   local makeTowns = loadSibling(mod, "src/map3d/towns.lua")
+  local makePhone, phoneWindow = loadSibling(mod, "src/phone.lua"), loadSibling(mod, "src/apps/phone.lua")
+  local makeCondition, conditionWindow = loadSibling(mod, "src/condition.lua"), loadSibling(mod, "src/apps/condition.lua")
+  local makePokenav = loadSibling(mod, "src/pokenav.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell) then return end
 
   local function warn(fmt, ...) mod.log:warn(fmt, ...) end
@@ -349,7 +355,7 @@ return function(mod)
     setWallpaper = function(id) if Settings then Settings.set("wallpaper", id) end end,
     wallpaperFit = wallpaperFit,
     setWallpaperFit = function(fit) if Settings then Settings.set("wallpaperFit", fit) end end,
-    -- (the Settings app's switches: WoobWatch's START row, the notifications' banners)
+    -- (the Settings app's switches: WoobPad's START row, the notifications' banners)
     setting = function(key, default)
       if not Settings then return default end
       return Settings.get(key, default)
@@ -367,7 +373,7 @@ return function(mod)
   end
   local function notify(kind, data, quiet)
     if not Nt then return end
-    local app = kind == "gts" and "gts" or "auction"
+    local app = kind == "gts" and "gts" or (kind == "call" and "phone" or "auction")
     Nt.push(kind, data, quiet or looking(app))
   end
   -- R-Bay's market: this save's seed (its playthrough), the device's clock, WoobleDex's species
@@ -387,7 +393,7 @@ return function(mod)
       dex = function() return mod.find("national_dex_gen3") end,
       badges = function(s) return env.mart and env.mart.badges(s) or 0 end,
       notify = notify,
-      -- (the ending-soon alert: Settings > Watch, 5 / 10 / 15 / 30 minutes before the end)
+      -- (the ending-soon alert: Settings > WoobPad, 5 / 10 / 15 / 30 minutes before the end)
       soon = function() return (tonumber(Settings and Settings.get("soonMinutes", 10)) or 10) * 60 end,
     })
   end
@@ -474,6 +480,10 @@ return function(mod)
       end,
     }
   end
+  -- the PokéNav's apps: the Phone (its contacts, the game's calls, recents and favourites in the
+  -- save) and Condition (the contest conditions, the Pokéblock case)
+  if makePhone then env.phone = makePhone(engine, { save = mod.save, now = os.time, notify = notify }) end
+  if makeCondition and env.bx then env.condition = makeCondition(engine, { bx = env.bx }) end
   -- (the Boxes preview's Dynamax row: WoobleDex's levels and factors, when it's on)
   if env.bx then
     env.bx.dynamax = function()
@@ -491,6 +501,11 @@ return function(mod)
     slots = env.slots and slotsWindow or nil,
     gts = env.gts and gtsWindow or nil,
     map = env.map3d and function(ctx, e) return mapScene(ctx, e, { mode = "app" }) end or nil,
+    phone = env.phone and phoneWindow or nil,
+    condition = env.condition and conditionWindow or nil,
+    phoneAvailable = env.phone and function(ctx) return env.phone.available(ctx.session or session()) end or nil,
+    conditionAvailable = env.condition and function(ctx) return env.condition.available(ctx.session or session()) end
+      or nil,
     gtsBadge = env.gts and function() return env.gts.waiting() end or nil,
     auctionBadge = env.auction and function() return env.auction.unread() end or nil,
     settings = T and Settings and settingsWindow or nil,
@@ -513,16 +528,7 @@ return function(mod)
     glyph = function(...) if Desktop then return Desktop.glyph(...) end end,
     enabled = function() return not Settings or Settings.get("notifications", true) ~= false end,
   }) or nil
-  -- the device's clock for the watch: the time and the date (the weekday from it)
-  local function watchClock()
-    local Rtc = engine("src.core.game3.rtc")
-    if not (Rtc and Rtc.hostInfo) then return nil end
-    local info = Rtc.hostInfo(nil)
-    local okT, t = pcall(os.time, { year = 2000 + (info.year or 0), month = info.month or 1, day = info.day or 1, hour = 12 })
-    local wd = okT and t and tonumber(os.date("%w", t)) or 0
-    return info.hour, info.minute, info.day, wd + 1
-  end
-  Desktop = makeDesktop({
+  local deskDeps = ({
     kit = Kit,
     apps = Apps,
     version = version,
@@ -584,32 +590,26 @@ return function(mod)
     log = function(fmt, ...) mod.log:warn(fmt, ...) end,
     notify = Nt,
   })
-  Watch = makeWatch and makeWatch({
-    kit = Kit, apps = Apps, T = T, se = env.se, now = env.now, session = session, env = env,
-    clock = watchClock,
-    options = function() return { clock24 = option("clock24", false) == true } end,
-    glyph = Desktop.glyph, amount = Desktop.amount, labelOf = Desktop.labelOf, notify = Nt,
-    -- (the face: the wallpaper chosen in Settings, as the desktop's)
-    wall = Wall, wallpaper = wallpaper, wallpaperFit = wallpaperFit, gameId = gameId,
-    log = function(fmt, ...) mod.log:warn(fmt, ...) end,
-  }) or nil
+  Desktop = makeDesktop(deskDeps)
+  -- WoobPad: the same desktop as a tablet, from the START menu anywhere (the same apps, arrangement
+  -- and notifications; no boot, no shelf)
+  Watch = makeDesktop(setmetatable({ device = "pad" }, { __index = deskDeps }))
   -- the 3D map in place of the game's Town Map and Fly map (Settings: map3d)
-  local TownMap = env.map3d and makeTownMap and makeTownMap({
+  local TownMap = makeTownMap and makeTownMap({
     kit = Kit, T = T, env = env, se = env.se,
     scene = mapScene, log = function(fmt, ...) mod.log:warn(fmt, ...) end,
   }) or nil
-  -- the shelf's item pad, for the apps: an item crossing it ("out" to the PC, "in" to the Bag); on
-  -- the watch, its crown glows a moment
+  -- the shelf's item pad, for the apps: an item crossing it ("out" to the PC, "in" to the Bag);
+  -- WoobPad has no shelf
   env.pad = { transfer = function(id, dir, kind)
-    if Desktop.isOpen() then Desktop.padTransfer(id, dir, kind)
-    elseif Watch and Watch.isOpen() then Watch.pulse() end
+    if Desktop.isOpen() then Desktop.padTransfer(id, dir, kind) end
   end }
   -- (money in a window, with the game's sign: the Mart)
   env.amount = function(n, x, y, size, c, measure) return Desktop.amount(n, x, y, size, c, measure) end
   -- once a second, wherever the player is: R-Bay's auctions and the GTS settle (their
   -- notifications come from it); a win's Poké Ball onto the desktop's pad
   local function tick()
-    -- (the open desktop's or watch's session first: the one the PC was opened with)
+    -- (the open desktop's or pad's session first: the one the PC was opened with)
     local open = Desktop.isOpen() and Desktop.state() or (Watch and Watch.isOpen() and Watch.state())
     local s = open and open.ctx and open.ctx.session or session()
     if not s then return end
@@ -619,9 +619,27 @@ return function(mod)
     end
     if env.gts then pcall(env.gts.settle, s) end
   end
+  -- the PokéNav's Match Call / Trainer's Eyes and Condition: our apps instead (Settings: pokenavApps)
+  local Pokenav = makePokenav and makePokenav(engine, {
+    open = function(appId, s, onClose) return Sh and Sh.openFull(appId, s, onClose) or false end,
+    enabled = function()
+      return option("desktop", true) ~= false and (not Settings or Settings.get("pokenavApps", true) ~= false)
+    end,
+    log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+  }) or nil
+  -- (a call in the field: who, and their words, into the Phone's recents and a notification)
+  local function onCall(s, trainerId, msg)
+    if not env.phone then return end
+    local MC, Trainers = engine("src.core.game3.rse.match_call"), engine("src.core.game3.scripting.trainers")
+    local okN, name = pcall(function() return MC.trainerName(s, MC.matchCallId(trainerId)) end)
+    local okT, info = pcall(Trainers and Trainers.get or error, trainerId)
+    if not (okN and name) then name = okT and info and info.name or "?" end
+    env.phone.incoming(s, name, env.phone.textOf(msg) or "", okT and info and info.pic or nil)
+  end
   Sh = makeShell(mod, { require = require, log = mod.log, desktop = Desktop, apps = Apps, watch = Watch,
                         notify = Nt, tick = tick, session = session,
-                        townmap = TownMap, map3d = env.map3d,
+                        townmap = TownMap, map3d = env.map3d, pokenav = Pokenav,
+                        onCall = env.phone and onCall or nil,
                         map3dOn = function() return not Settings or Settings.get("map3d", true) ~= false end,
                         watchRow = function() return not Settings or Settings.get("watchRow", true) ~= false end,
                         watchLabel = function() return T and T("watch.start") or "WATCH" end })
@@ -648,5 +666,6 @@ return function(mod)
   mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
                         mart = env.mart, auction = env.auction, slots = env.slots, gts = env.gts,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange,
-                        watch = Watch, notify = Nt, tick = tick, map3d = env.map3d, townmap = TownMap }
+                        watch = Watch, pad = Watch, notify = Nt, tick = tick, map3d = env.map3d, townmap = TownMap,
+                        phone = env.phone, condition = env.condition, pokenav = Pokenav, onCall = onCall }
 end

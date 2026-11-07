@@ -874,7 +874,7 @@ return function(ctx, env)
       -- (the whole detail -- types, IVs, the last bids -- when it fits, the list takes what's left)
       local dh = min(122, bodyH * 0.56)
       local hh = min(30, (bodyH - dh) * 0.3)
-      -- (too short for the Hot Auction's three lines, the watch's: the list has its room; SELECT
+      -- (too short for the Hot Auction's three lines, a small window's: the list has its room; SELECT
       -- still goes to it)
       local gap = M
       if hh < 22 then hh, gap = 0, 0 end

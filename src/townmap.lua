@@ -1,11 +1,15 @@
--- The Town Map in 3D: the game's own region map (the Town Map item, the wall maps, Fly from the
--- party menu) replaced by the 3D map (src/map3d/scene.lua) over the whole window. A third host,
--- next to the desktop and the watch (src/shell.lua pushes its layer and routes the hooks to it);
--- the game's own screen stays a button away (START: the classic map), and Settings can keep it.
+-- The full-screen host: a third host, next to the desktop and WoobPad (src/shell.lua pushes its
+-- layer and routes the hooks to it), for the game's own screens WoobOS takes over:
+--   - the Town Map in 3D: the game's region map (the Town Map item, the wall maps, Fly from the
+--     party menu) replaced by the 3D map (src/map3d/scene.lua) over the whole window; the game's
+--     own screen a button away (START: the classic map), and Settings can keep it
+--   - the PokéNav's Phone and Condition (src/pokenav.lua): an app's window (`opts.maker`) under a
+--     toolbar with "< PokéNav" (`opts.chrome`)
 --
 --   Tm = TownMap(deps)   deps: kit, T, env (with map3d), scene (src/map3d/scene.lua's maker), se, log
---   Tm.open(ctx, opts) -> true (opts: the scene's { mode = "town" | "fly", pick, classic } and
---                        cancel(), B on the map) ; Tm.close() ; Tm.isOpen() ; Tm.state()
+--   Tm.open(ctx, opts) -> true (opts: the scene's { mode = "town" | "fly", pick, classic }, or maker
+--                        (window(ctx, env)), app, chrome; cancel(): B, or "< PokéNav") ; Tm.close() ;
+--                        Tm.isOpen() ; Tm.state()
 --   Tm.draw(G, vp) ; Tm.input(input) ; Tm.pointer(ev) -> true ; Tm.wheel(dy) -> true
 
 local floor, max, min, abs = math.floor, math.max, math.min, math.abs
@@ -19,7 +23,8 @@ return function(deps)
   Tm.REPEAT_START, Tm.REPEAT_EVERY = 20, 4
   Tm.FOOT = 14
   local repeated = K.repeater(Tm.REPEAT_START, Tm.REPEAT_EVERY)
-  local INK, KEY = { 255, 255, 255 }, { 36, 36, 40 }
+  local INK, KEY, BAR = { 255, 255, 255 }, { 36, 36, 40 }, { 28, 28, 32 }
+  local TOOL = 13
 
   local r = nil
   local function now() return love and love.timer and love.timer.getTime() or 0 end
@@ -29,12 +34,13 @@ return function(deps)
   function Tm.state() return r end
 
   function Tm.open(ctx, opts)
-    ctx.app = "map"
+    ctx.app = opts.app or "map"
     -- (the map's card keeps clear of the hints' glass along the foot)
-    opts.footer = Tm.FOOT
-    local ok, w = pcall(deps.scene, ctx, deps.env, opts)
+    if not opts.maker then opts.footer = Tm.FOOT end
+    local ok, w
+    if opts.maker then ok, w = pcall(opts.maker, ctx, deps.env) else ok, w = pcall(deps.scene, ctx, deps.env, opts) end
     if not (ok and type(w) == "table") then
-      log("the 3D map failed to open: %s", tostring(w))
+      log("the full-screen %s failed to open: %s", ctx.app, tostring(w))
       return false
     end
     r = { ctx = ctx, opts = opts, win = w, held = {}, touch = {}, t0 = now(), body = {} }
@@ -87,19 +93,29 @@ return function(deps)
     local w = r.win
     local ux, uy = units(x, y)
     if ev.phase == "pressed" then
-      r.touch[id] = { x = x, y = y }
-      pcall(w.pointer, "pressed", ux, uy, id)
+      r.touch[id] = { x = x, y = y, ly = y }
+      if w.pointer then pcall(w.pointer, "pressed", ux, uy, id) end
     elseif ev.phase == "moved" then
       local t = r.touch[id]
       if t and (abs(x - t.x) > 4 * K.sc or abs(y - t.y) > 4 * K.sc) then t.drag = true end
-      pcall(w.pointer, "moved", ux, uy, id)
+      if w.pointer then
+        pcall(w.pointer, "moved", ux, uy, id)
+      elseif t and t.drag and w.scroll then
+        -- (a window without its own pointer: a drag scrolls it)
+        pcall(w.scroll, (y - t.ly) / K.sc, t.x, t.y)
+        t.ly = y
+      end
     elseif ev.phase == "released" or ev.phase == "cancelled" then
       local t = r.touch[id]
       r.touch[id] = nil
-      local ok, used = pcall(w.pointer, ev.phase, ux, uy, id)
+      local ok, used = false, false
+      if w.pointer then ok, used = pcall(w.pointer, ev.phase, ux, uy, id) end
       if ev.phase == "released" and t and not t.drag and not (ok and used) then
         local h = hitAt(x, y)
-        if h and h.kind == "win" and w.tap then
+        if h and h.kind == "back" then
+          if deps.se then deps.se("SE_SELECT") end
+          if r.opts.cancel then r.opts.cancel() end
+        elseif h and h.kind == "win" and w.tap then
           local okT, err = pcall(w.tap, h.arg, x, y)
           if not okT then log("the 3D map's tap failed: %s", tostring(err)) end
         end
@@ -119,15 +135,38 @@ return function(deps)
     G.setColor(0, 0, 0, 1)
     G.rectangle("fill", 0, 0, K.ww, K.wh)
     local b = r.body
-    b[1], b[2], b[3], b[4] = 0, 0, pw, ph
     local w = r.win
+    local chrome = r.opts.chrome
+    if chrome then
+      -- (an app: the windows' grey, a toolbar with the way back and its title, the hints below)
+      local UI = K.UI
+      K.col(UI.grouped)
+      K.box("fill", K.R(0, 0, pw, ph))
+      local tb = K.R(0, 0, pw, TOOL)
+      K.grad(tb, 0, UI.toolbar, UI.toolbarFoot)
+      K.hairline(0, TOOL, pw)
+      local back = T and T("pokenav.back") or "PokeNav"
+      K.chevron(5, TOOL / 2, 3.6, UI.accent, -1)
+      K.text(back, 8, TOOL / 2 - 2.8, 4.8, UI.accent)
+      K.addHit(K.R(0, 0, K.width(back, 4.8) + 14, TOOL), "back")
+      K.bold(w.title or "", 0, TOOL / 2 - 2.9, 5, UI.label, "center", pw)
+      b[1], b[2], b[3], b[4] = 0, TOOL + 0.5, pw, ph - TOOL - 0.5 - Tm.FOOT
+    else
+      b[1], b[2], b[3], b[4] = 0, 0, pw, ph
+    end
     local ok, err = pcall(w.draw, b, clock, pw < ph)
-    if not ok then log("the 3D map's draw failed: %s", tostring(err)) end
-    -- (the hints in a glass capsule floating along the foot)
+    if not ok then log("the full-screen %s's draw failed: %s", tostring(r.ctx.app), tostring(err)) end
+    K.scissor()
+    -- (the hints: in a glass capsule floating along the map's foot; on a dark bar under an app)
     local okH, hints = pcall(w.hints)
     if okH and hints then
       local hb = K.R(3, ph - Tm.FOOT + 1, pw - 6, Tm.FOOT - 4)
-      if w.glass then pcall(w.glass, hb, hb[4] / 2) end
+      if w.glass then
+        pcall(w.glass, hb, hb[4] / 2)
+      else
+        K.col(BAR)
+        K.box("fill", K.R(0, ph - Tm.FOOT, pw, Tm.FOOT))
+      end
       K.hints(hints, K.R(hb[1] + 3, hb[2] + 1, hb[3] - 6, 8), KEY, true, INK, INK)
     end
     K.scissor()

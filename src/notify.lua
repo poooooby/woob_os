@@ -1,14 +1,14 @@
 -- Notifications: what the apps' models tell the player while they're away from them (outbid on
 -- R-Bay, an auction won, lost or nearly over, a GTS deposit traded). Each is kept in a list (the
--- watch shows it, newest first) and shown once as a banner: over the field while the player is
--- free to move (src/shell.lua draws it from render.hud), or in the desktop's / the watch's screen
--- while one is open. A tap on a banner opens that app on the watch.
+-- notifications sheet shows it, newest first) and shown once as a banner: over the field while the
+-- player is free to move (src/shell.lua draws it from render.hud), or in the desktop's / WoobPad's
+-- screen while one is open. A tap on a banner opens that app on WoobPad.
 --
 --   Nt = notify(deps)  deps: K (the kit) ; T (the words) ; now() -> seconds (the frame clock) ;
 --                      epoch() -> seconds (the device's clock) ; se(name) ; monIcon(sp, x, y, size) ;
 --                      glyph(G, kind, cx, cy, size, a) (an app's picture, window pixels) ;
 --                      apps (src/apps.lua) ; enabled() -> the banners on (the list always keeps them)
---   Nt.push(kind, data, quiet) kind "outbid" | "won" | "lost" | "soon" | "gts"; data { name, sp, key,
+--   Nt.push(kind, data, quiet) kind "outbid" | "won" | "lost" | "soon" | "gts" | "call"; data { name, sp, key,
 --       where }; quiet: into the list only (the app the player is looking at said so itself)
 --   Nt.list() -> the records, newest first: { kind, app, title, text, sp, at, state }
 --   Nt.unread() / Nt.seen()
@@ -24,9 +24,12 @@ local KEEP, WAITING = 20, 3
 -- a banner: sliding in, held, sliding out (seconds); one left waiting longer than STALE drops to
 -- the list only
 local IN, HOLD, OUT, STALE = 0.3, 4, 0.35, 600
-local APP = { outbid = "auction", won = "auction", lost = "auction", soon = "auction", gts = "gts" }
-local SOUND = { outbid = "SE_FAILURE", won = "SE_SUCCESS", lost = "SE_SELECT", soon = "SE_SELECT", gts = "SE_PC_LOGIN" }
-local TEXT = { outbid = "notify.outbid", won = "notify.won", lost = "notify.lost", soon = "notify.soon", gts = "notify.gts" }
+local APP = { outbid = "auction", won = "auction", lost = "auction", soon = "auction", gts = "gts", call = "phone" }
+local SOUND = { outbid = "SE_FAILURE", won = "SE_SUCCESS", lost = "SE_SELECT", soon = "SE_SELECT", gts = "SE_PC_LOGIN",
+                call = "SE_POKENAV_CALL" }
+local TEXT = { outbid = "notify.outbid", won = "notify.won", lost = "notify.lost", soon = "notify.soon", gts = "notify.gts",
+               call = "notify.call" }
+local TITLE = { auction = "app.auction", gts = "app.gts", phone = "app.phone" }
 -- the field's banner in the game's own pixels (240 x 160)
 local FIELD = { x = 36, y = 4, w = 168, h = 22 }
 
@@ -55,9 +58,9 @@ return function(deps)
     if kind == "won" then key = data.where == "pc" and "notify.wonPc" or "notify.won" end
     -- (the second word: the stranger's name, or the minutes left)
     local okT, text = pcall(T.f, key, name, data.minutes or tostring(data.who or ""))
-    local rec = { kind = kind, app = app, title = app == "gts" and "app.gts" or "app.auction",
+    local rec = { kind = kind, app = app, title = TITLE[app],
                   text = okT and text or name, sp = tonumber(data.sp), at = epoch(), t = now(),
-                  state = app == "gts" and { tab = "deposit" }
+                  state = app == "gts" and { tab = "deposit" } or (app == "phone" and { tab = "recents" })
                     or { tab = (kind == "won" or kind == "lost") and "mine" or "browse", key = data.key } }
     table.insert(recs, 1, rec)
     while #recs > KEEP do recs[#recs] = nil end
@@ -164,7 +167,7 @@ return function(deps)
     return rec
   end
 
-  -- "5m ago" and the like, for the watch's list (kept per value)
+  -- "5m ago" and the like, for the notifications' list (kept per value)
   local agoText = K.textCache(function(m)
     if m < 1 then return T("notify.now") end
     if m < 60 then return T.f("notify.minutes", m) end

@@ -16,6 +16,8 @@
 --   R.draw(G, region, rect, t, night) -> true (3D) | false (the flat fallback drew it)
 --   R.night(hour, minute) -> 0 (day) .. 1 (night) ; R.dusk(hour, minute) -> 0..1
 --   R.frost(G, x, y, w, h, rad) -> true: frosted glass (the map blurred) in that rounded rect
+--   R.flatCamera(cx, cz, half, rect) ; R.drawPicture(G, region, rect) -> the flat map (the game's
+--   own Town Map picture, north up) ; R.drawLand(G, region, rect) (flat, without the picture)
 
 local floor, max, min, abs, sqrt, sin, cos, pi = math.floor, math.max, math.min, math.abs, math.sqrt, math.sin,
   math.cos, math.pi
@@ -118,6 +120,7 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
 return function(deps)
   deps = deps or {}
   local R = {}
+  local drawFlatLand
 
   -- ------- the camera: a kept view-projection (column-major, for the shader) and its use
 
@@ -164,6 +167,46 @@ return function(deps)
     view.x, view.y, view.w, view.h = rect.x, rect.y, rect.w, rect.h
     EYE[1], EYE[2], EYE[3] = ex, ey, ez
   end
+
+  -- the flat map: looking straight down, north up, `half` world units from the middle to the top
+  -- edge (heights lift a little, so a pin still stands over its place)
+  function R.flatCamera(cx, cz, half, rect)
+    local aspect = max(0.1, rect.w / max(1, rect.h))
+    local k = 1 / max(0.5, half)
+    for i = 1, 16 do VP[i] = 0 end
+    VP[1], VP[13] = k / aspect, -cx * k / aspect
+    VP[6], VP[10], VP[14] = k * 0.25, -k, cz * k
+    VP[16] = 1
+    for i = 1, 16 do VPF[i] = VP[i] end
+    view.x, view.y, view.w, view.h = rect.x, rect.y, rect.w, rect.h
+  end
+
+  -- the Town Map's own picture under the flat camera (pixel for pixel, sharp) -> false without it
+  local pictureQuads = setmetatable({}, { __mode = "k" })
+  local SEA_DARK = { 0.16, 0.22, 0.42 }
+  function R.drawPicture(G, region, rect)
+    local img = region.picture
+    if not img then return false end
+    local q = pictureQuads[img]
+    if not q then
+      local ok, made = pcall(G.newQuad, 0, 0, 240, 160, img:getWidth(), img:getHeight())
+      q = ok and made or false
+      pictureQuads[img] = q
+      pcall(img.setFilter, img, "nearest", "nearest")
+    end
+    if not q then return false end
+    local ax, ay = R.project(0, 0, 0)
+    local bx = R.project(8, 0, 0)
+    if not (ax and bx) then return false end
+    local s = (bx - ax) / 64
+    G.setColor(SEA_DARK[1], SEA_DARK[2], SEA_DARK[3], 1)
+    G.rectangle("fill", rect.x, rect.y, rect.w, rect.h)
+    G.setColor(1, 1, 1, 1)
+    G.draw(img, q, ax, ay, 0, s, s)
+    return true
+  end
+  -- (no picture: the land's cells, flat)
+  function R.drawLand(G, region, rect) return drawFlatLand(G, region, rect) end
 
   function R.project(x, y, z)
     local cx = VP[1] * x + VP[5] * y + VP[9] * z + VP[13]
@@ -495,6 +538,9 @@ return function(deps)
 
   -- the flat fallback: the land's cells as polygons through the same camera
   local function drawFlat(G, region, rect)
+    return drawFlatLand(G, region, rect)
+  end
+  function drawFlatLand(G, region, rect)
     local t, x0, z0, st = region.terrain, region.x0, region.z0, region.step
     G.setColor(0.24, 0.5, 0.84, 1)
     G.rectangle("fill", rect.x, rect.y, rect.w, rect.h)

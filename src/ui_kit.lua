@@ -354,7 +354,7 @@ return function(deps)
     K.sc, K.ox, K.oy = sc, ox, oy
     K.t = clock or 0
   end
-  -- the transform alone, the frame's pools and hits kept (the watch draws its windows zoomed:
+  -- the transform alone, the frame's pools and hits kept (a host drawing a window zoomed:
   -- set, draw, set back) -> the one it replaced
   function K.transform(nsc, nox, noy)
     local psc, pox, poy = sc, ox, oy

@@ -33,16 +33,15 @@ opens a desktop in a sleek monitor instead of a text menu.
   tap on an empty spot finishes, and every PC remembers the arrangement.
 - 📐 **Fits your screen:** wide windows, small windows and phones held upright all get a layout of
   their own.
-- ⌚ **WoobWatch:** the PC on your wrist. Choose WATCH in the START menu, anywhere you can open it,
-  and a smartwatch comes up over the game:
-  - **The face:** the time and date, your name and money, your party with their HP, and tiles for
-    your R-Bay bids, your GTS deposit, your Rocket Tickets and the Mart. A red dot means news.
-  - **The apps:** round icons in a honeycomb. Move with the D-pad, turn the crown with L and R (or
-    the mouse wheel), open with A. Boxes, Items, Mail, Map, GTS, Mart, R-Bay, Slots and Settings
-    all work on the watch, just as they do at the PC.
-  - **Notifications:** Down on the face (or a swipe down) lists them, newest first; a swipe up
-    goes back. Open one to go straight to it.
-  - **Your wallpaper:** the face shows the wallpaper you chose in Settings, as the desktop does.
+- 📱 **WoobPad:** the PC as a tablet you carry. Choose WOOBPAD in the START menu, anywhere you can
+  open it, and a pad comes up over the game with a big touch screen:
+  - **Like the PC:** the same home screen and dock (arranged the same way), the menu bar with your
+    money and the time, your wallpaper, and the same apps in the same windows: Boxes, Items, Mail,
+    Map, Phone, Condition, GTS, Mart, R-Bay, Slots, Settings and About.
+  - **Made for touch:** tap, swipe between pages, drag in windows; the buttons work just as well.
+  - **Notifications:** pull down from the top of the screen (or choose Notifications in the W
+    menu) for the list, newest first; tap one to open its app.
+  - **Put it away:** B on the home screen, or its top button.
 - 🗺️ **A 3D Town Map:** the Town Map, the maps on the walls and the Fly map open the region as a
   little 3D model you can turn, tilt and zoom, made from your game's own Town Map: its hills and
   forests, the sea, the routes, the towns and mountains where the caves are. The sea waves, clouds drift over it and it follows your
@@ -55,24 +54,29 @@ opens a desktop in a sleek monitor instead of a text menu.
     Mossdeep's rocket, Fortree up in the trees, Pacifidlog on the water. Every Pokémon Center has
     its red roof, every Mart its blue one, and every Gym a band in its badge's colour.
   - **Where you are:** a red beacon stands on your spot.
-  - **Places:** the D-pad hops to the next town or landmark the way you press, as the camera sees
-    it. Each has a card: its name, whether you've been there, its Pokémon Center and Poké Mart,
+  - **The cursor:** the D-pad moves it freely over the land, the way the camera faces, as on the
+    game's own map; let go near a town or a landmark and it glides onto it. Whatever is under it,
+    routes too, gets a card: its name, whether you've been there, its Pokémon Center and Poké Mart,
     and its Gym with that Gym's badge (ticked once you have it).
   - **Fly:** from the party menu, pick a town you've visited and press A (or tap Fly): you fly
     there as the game flies you.
-  - **The camera:** L and R turn it, A zooms (or the mouse wheel). On a touch screen, drag to turn
-    and tilt, pinch to zoom and tap a place to choose it. The compass shows north; tap it to turn
+  - **The camera:** L and R (or the right stick) turn it, the right stick tilts it, A zooms (or the
+    mouse wheel). On a touch screen, drag to turn and tilt, pinch to zoom and tap a place to send
+    the cursor there.
+  - **Flat or 3D:** SELECT (or the 2D / 3D button) swaps to the flat map, the game's own Town Map
+    picture seen from above, north up, with the same cursor, places and cards; L and R change
+    the region there. The compass shows north; tap it to turn
     north back up.
   - **Glass:** the cards, the buttons and the hints float over the map on frosted glass.
-  - **The islands:** in FireRed and LeafGreen, SELECT (or the region's name) switches to the
-    Sevii Islands once your Town Map shows them.
+  - **The islands:** in FireRed and LeafGreen, the region's name (or L and R on the flat map)
+    switches to the Sevii Islands once your Town Map shows them.
   - **The classic map:** START opens the game's own map instead, and Settings can keep it for
     good.
 - 🔔 **Notifications:** WoobOS tells you when you're outbid on R-Bay (your money is already back),
   when an auction you're in is about to end (10 minutes before, or 5, 15 or 30: your choice in
   Settings), when you win or lose one, and when your GTS
   deposit is traded. A banner slides down over the game while you're free to walk around; tap it to
-  open the watch on that app. With the PC or the watch open, it slides in over its screen instead.
+  open WoobPad on that app. With the PC or the pad open, it slides in over its screen instead.
 
 ### Apps
 
@@ -82,9 +86,25 @@ opens a desktop in a sleek monitor instead of a text menu.
   sorts the side you're on: the PC by name or pocket, or tosses an item from it; the Bag's pocket
   by name or type (the TM Case and the Berries keep the game's own order). Important items stay in the Bag. Items other mods add (WoobDex's
   candies and Max Mushrooms) show with their own pictures.
-- 🗺️ **Map:** the 3D map of your region, from the PC or the watch, with the same places, cards and
-  camera as the Town Map. On the watch, out in the open with a Pokémon that knows Fly and the badge
+- 🗺️ **Map:** the 3D map of your region, from the PC or WoobPad, with the same places, cards and
+  camera as the Town Map. On WoobPad, out in the open with a Pokémon that knows Fly and the badge
   that allows it, START (or Fly on a town's card) flies you to any town you've visited.
+- 📞 **Phone** (Ruby, Sapphire and Emerald, once you have the PokéNav): your PokéNav's contacts as
+  a phone. Favourites, Recents and Contacts tabs; each contact's card shows their picture, class
+  and where they are, a green dot when they want a rematch, and their profile.
+  - **Emerald:** Call rings them up and they answer in the game's own words, just as a PokéNav
+    call does (a Trainer can ask for a rematch). The calls you get out in the field ring as a
+    notification and land in Recents. ★ pins a contact to Favourites.
+  - **Ruby and Sapphire:** Trainer's Eyes' Trainers and Gym Leaders, their profiles and who's
+    ready for a rematch (those games have no calls).
+  - In the PokéNav, Match Call (Trainer's Eyes) opens the Phone, and B goes back to the PokéNav.
+- 🎀 **Condition** (Ruby, Sapphire and Emerald): your Pokémon's contest conditions (Cool,
+  Beauty, Cute, Smart and Tough) as a glossy radar chart that glides from one Pokémon to the
+  next, with its sheen sparkling round it, its nature and ribbons. Search ranks every Pokémon in
+  your party and boxes by one condition. Compare lays a second Pokémon's outline over the
+  first. Pokéblocks feeds one from your case, with the game's own rules (natures that like or
+  dislike its flavour, a Pokémon that won't eat once its sheen is full), and the chart grows. In
+  the PokéNav, Condition's party view opens it.
 - 🌐 **GTS:** trade with Trainers from around the world.
   - **Wonder Trade:** pick any Pokémon from your party or a box and send it off. The globe spins
     while it searches, a Trainer from somewhere (Yuki from Johto, Pierre from Kalos …) is found,
@@ -165,14 +185,15 @@ opens a desktop in a sleek monitor instead of a text menu.
     Português (Brasil). The game's own text, such as item names and mail, stays as it is.
   - 🖼️ **Wallpaper:** the classic colours of your game, five drawn wallpapers (Ribbon, Hills,
     Coast, Waves and Bloom, each tinted to your game), or your own pictures.
-  - ⌚ **Watch:** show WoobWatch in the START menu or not, turn the notification banners on or
-    off (notifications still wait in the watch's list), and choose how long before an auction ends
+  - 📱 **WoobPad:** show WoobPad in the START menu or not, turn the notification banners on or
+    off (notifications still wait in the list), and choose how long before an auction ends
     you're told: 5, 10, 15 or 30 minutes.
   - 🗺️ **Map:** the 3D Town Map on or off. Off, the Town Map and Fly open the game's own map.
+  - 📟 **PokéNav:** the Phone and Condition in the PokéNav, or its own screens.
 - ℹ️ **About:** which version you're running.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
 
-Boxes, Items, Map, GTS, Mart, R-Bay, Slots, Mail and Settings open in a window on the desktop, in the style of macOS and iOS:
+Boxes, Items, Map, Phone, Condition, GTS, Mart, R-Bay, Slots, Mail and Settings open in a window on the desktop, in the style of macOS and iOS:
 white cards on a soft grey, segmented switches, and a blue ring round whatever the controller is
 on. B or the red button closes it. Oak's PC,
 Hall of Fame and Decorate open the game's own screens, and closing them brings you back to the
@@ -224,11 +245,14 @@ turn it on for your Generation 3 games.
   bids and money come back with it. Auctions keep their own time, so one may have ended while you
   were away: it settles as soon as you load the save. If both your party and the PC are full, a
   won Pokémon waits until there's room.
+- **Calls from the Phone** follow the game's rules: inside a building (the PC) the call can't be
+  made, as from the PokéNav, so call from WoobPad. Your Recents and Favourites are kept in your
+  save, like your R-Bay bids.
 - **Fly from the Map app:** the game's own rules: the badge that allows Fly, a Pokémon in your party
-  that knows it, and the open air. The PC is always indoors, so fly from the watch.
-- **WoobWatch's apps:** Oak's PC, the Hall of Fame and Decorate stay at the PC. When an app opens
-  one of the game's screens (a Pokémon's Summary, an evolution), the watch comes back on that app
-  when it closes. The watch isn't in the START menu in a link room or the Safari Zone.
+  that knows it, and the open air. The PC is always indoors, so fly from WoobPad.
+- **WoobPad's apps:** Oak's PC, the Hall of Fame and Decorate stay at the PC. When an app opens
+  one of the game's screens (a Pokémon's Summary, an evolution), the pad comes back on that app
+  when it closes. WoobPad isn't in the START menu in a link room or the Safari Zone.
 - **Notifications** wait while a script, a battle or a menu is running, and show once you're free
   to move. They're kept until you turn the game off, not in your save.
 

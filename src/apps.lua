@@ -3,19 +3,20 @@
 -- Settings are our own windows; Decorate (Ruby / Sapphire / Emerald, the bedroom) opens the game's
 -- Decoration menu.
 --
---   A = Apps(deps)   deps: boxes / items / mail / mart / gts / auction / slots / map / settings = window(ctx, env) makers ;
+--   A = Apps(deps)   deps: boxes / items / mail / mart / gts / auction / slots / map / phone / condition / settings =
+--                    window(ctx, env) makers ; phoneAvailable(ctx) / conditionAvailable(ctx) ;
 --                    auctionBadge(ctx) / gtsBadge(ctx) -> n ; decorate(ctx) (the
 --                    game's menu). Built-ins name themselves with labelKey (a lang/*.lua key)
 --   A.register(app) -> true | false, why    app = {
 --       id       unique string
 --       label    under its icon (short: about 10 letters) ; labelKey: a word of lang/*.lua instead
---       glyph    the icon's picture: "ball" | "bag" | "mail" | "cart" | "rocket" | "slots" | "globe" | "map" | "home" | "trophy" | "dex" |
+--       glyph    the icon's picture: "ball" | "bag" | "mail" | "cart" | "rocket" | "slots" | "globe" | "map" | "phone" | "radar" | "home" | "trophy" | "dex" |
 --                "power" | "logo" | "gear",
 --                or a function(K, cx, cy, size, a) drawing it (window pixels, white on the tile)
 --       color    { r, g, b } the tile's colour
 --       order    sorts the apps (lower first; built-ins 10..90)
 --       dock     true: in the dock, not the home grid
---       watch    false: not on WoobWatch (src/watch.lua shows only apps with a window)
+--       pad      false: not on WoobPad (Log Off: the pad is put away, not logged off)
 --       badge(ctx) -> n   a count on the icon's corner (read once a second; nil / 0: none)
 --       available(ctx) -> bool   (nil: always)
 --       open(ctx)                ctx below; an app ends with ctx.finish / ctx.done / its own screen
@@ -31,7 +32,7 @@
 --   A.list(ctx) -> the available apps, sorted ; A.byId(id)
 --
 --   ctx (handed by the desktop): session ; mode ("select": a Pokémon Center PC's menu, "bedroom":
---   the player's own PC, "watch": WoobWatch, anywhere) ; family ("frlg" | "rse") ; row(id) -> the PC menu's row index for one of
+--   the player's own PC, "pad": WoobPad, anywhere) ; family ("frlg" | "rse") ; row(id) -> the PC menu's row index for one of
 --   the game's own rows ("storage", "player", "oak", "hall", "quit") or nil ; finish(result) hands
 --   a row back to the game's PC script and closes the desktop ; done() closes the desktop as
 --   cancelled ; over(open) opens one of the game's screens over the desktop (open(onClose)), the
@@ -60,12 +61,12 @@ return function(deps)
   end
   function A.byId(id) return byId[id] end
 
-  -- the apps this PC shows (a list made per opening, not per frame)
+  -- the apps this PC shows (a list made per opening, not per frame; WoobPad leaves out pad = false)
   function A.list(ctx)
     local out = {}
     for _, app in ipairs(A.apps) do
-      local ok, yes = true, true
-      if app.available then ok, yes = pcall(app.available, ctx) end
+      local ok, yes = true, not (ctx and ctx.mode == "pad" and app.pad == false)
+      if yes and app.available then ok, yes = pcall(app.available, ctx) end
       if ok and yes then out[#out + 1] = app end
     end
     return out
@@ -81,8 +82,8 @@ return function(deps)
   A.register({ id = "storage", labelKey = "app.storage", label = "Boxes",
                glyph = "ball", color = { 226, 70, 72 }, order = 10, dock = true,
                available = function(ctx)
-                 -- (on the watch: our window, there's no PC script to hand a row)
-                 if ctx.mode == "watch" then return deps.boxes ~= nil end
+                 -- (on WoobPad: our window, there's no PC script to hand a row)
+                 if ctx.mode == "pad" then return deps.boxes ~= nil end
                  return ctx.mode == "select" and ctx.row("storage") ~= nil
                end, window = deps.boxes,
                open = not deps.boxes and toRow("storage") or nil })
@@ -128,6 +129,20 @@ return function(deps)
                  glyph = "map", color = { 46, 170, 120 }, order = 24,
                  window = deps.map })
   end
+  -- the PokéNav's (Ruby / Sapphire / Emerald, once the game has given them): the Phone (Match Call's
+  -- contacts, or Trainer's Eyes') and Condition (the contest conditions, Pokéblocks)
+  if deps.phone then
+    A.register({ id = "phone", labelKey = "app.phone", label = "Phone",
+                 glyph = "phone", color = { 52, 199, 89 }, order = 31,
+                 available = function(ctx) return not deps.phoneAvailable or deps.phoneAvailable(ctx) end,
+                 window = deps.phone })
+  end
+  if deps.condition then
+    A.register({ id = "condition", labelKey = "app.condition", label = "Condition",
+                 glyph = "radar", color = { 255, 92, 160 }, order = 32,
+                 available = function(ctx) return not deps.conditionAvailable or deps.conditionAvailable(ctx) end,
+                 window = deps.condition })
+  end
   -- the bedroom's Decoration (Ruby / Sapphire / Emerald): the game's own menu
   if deps.decorate then
     A.register({ id = "decorate", labelKey = "app.decorate", label = "Decorate",
@@ -146,10 +161,10 @@ return function(deps)
                  color = { 132, 140, 158 }, order = 70, window = deps.settings })
   end
   A.register({ id = "about", labelKey = "app.about", label = "About",
-               glyph = "logo", color = { 70, 76, 96 }, order = 80, watch = false,
+               glyph = "logo", color = { 70, 76, 96 }, order = 80,
                open = function(ctx) ctx.sheet("about") end })
   A.register({ id = "logoff", labelKey = "app.logoff", label = "Log Off",
-               glyph = "power", color = { 120, 128, 146 }, order = 90, dock = true, watch = false,
+               glyph = "power", color = { 120, 128, 146 }, order = 90, dock = true, pad = false,
                open = function(ctx) ctx.sheet("logoff") end })
 
   return A

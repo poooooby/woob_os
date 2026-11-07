@@ -29,12 +29,14 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/i18n.lua`, `lang/*.lua` | The words, by language (`lang/en.lua` the master) |
 | `src/settings.lua` | The Settings app's choices, kept in `mod.cache` (`settings.lua`) for the installation |
 | `src/wallpaper.lua` | The drawn wallpapers and the `wallpapers/` folder's pictures, painted once into canvases |
-| `src/watch.lua` | WoobWatch: the second host for the apps' windows (face, honeycomb, app, notifications) |
 | `src/notify.lua` | The notifications: a list, the banners' queue, the card, the field's banner |
 | `src/map3d/model.lua` | The 3D map's model: the region from the game's Town Map (its picture a heightmap and its colours, its grid the places), the census's Centers / Marts / Gyms, the badges, the player's cell, Fly's checks |
 | `src/map3d/render.lua` | The 3D map's drawing: meshes, the shader, the depth canvas, the camera (`camera` / `project`), day and night; a flat fallback |
 | `src/map3d/scene.lua` | The 3D map's window: the camera, pins, the beacon, the card, the controls (the Map app and the Town Map) |
 | `src/map3d/towns.lua` | The 3D map's towns: sizes by tier, roofs by name, the signature structures and landmarks, the Center / Mart / Gym, trees |
+| `src/phone.lua`, `src/apps/phone.lua` | The Phone: Match Call's contacts (Emerald) or Trainer's Eyes' (Ruby / Sapphire), the game's calls, recents / favourites in `mod.save` "phone"; its window |
+| `src/condition.lua`, `src/apps/condition.lua` | Condition: the contest conditions, the search, the Pokéblock case and feeding; its radar window |
+| `src/pokenav.lua` | The PokéNav takeover: stand-in screens for Match Call / Trainer's Eyes and Condition |
 | `src/townmap.lua` | The third host: the 3D map full screen in place of the game's Town Map / Fly map |
 
 ## How the PC is taken over
@@ -289,37 +291,35 @@ never the player's).
 - **Tests** swap `Gx.store`, `Gx.rng`, `Gx.now`; the probe scripts `Gx.rng` for a legendary and a
   Kadabra (its evolution scene in the engine).
 
-## WoobWatch
+## WoobPad
 
-`src/watch.lua` (Wt) is a second host for the same windows (the contract above), opened from the
-START menu anywhere. `src/shell.lua` keeps one host open at a time: `Sh.host()` is the desktop or
-the watch, and the layer, `render.hud` (`Sh.frame`), `input.pointer` (`Sh.pointer`) and
-`input.wheel` go to whichever is up.
+WoobPad is `src/desktop.lua` again: `main.lua` makes a second desktop with `deps.device = "pad"`
+(the same deps through a metatable), opened from the START menu anywhere. `src/shell.lua` keeps
+one host open at a time: `Sh.host()` is the desktop, the pad or the full-screen host, and the
+layer, `render.hud` (`Sh.frame`), `input.pointer` (`Sh.pointer`) and `input.wheel` go to whichever
+is up.
 
 - **The row:** the `ui.start_menu.items` hook (`Sh.startRows`) puts `{ id = "woob_watch", label =
-  T("watch.start"), onSelect }` above EXIT (or the engine's MODS), only in a menu with SAVE (not a
-  link room's or the Safari Zone's), the Desktop option and Settings' `watchRow` on. `onSelect`
-  runs with the START menu still on the Stack, so popping the watch's layer is the menu again.
-- **The layer:** `woob_watch`, pushed `{ hideBelow = true, fullscreen = false }`: the START menu's
-  box hides, the field is still drawn (the watch dims it). The desktop's stays full screen.
-- **ctx:** `mode = "watch"` (`Apps.list` gives Boxes then; Oak, the Hall and Decorate want PC rows
-  and drop out), `rows = {}`, `finish` / `done` / `logoff` close it, `over(open, state)` as the
-  desktop's (the watch back with `ctx.resume = { app, state }`). Apps with `watch = false` (About,
-  Log Off) and apps without a window aren't shown.
-- **The page:** `K.frame` with `W.PAGE` (`portraitAspect = 99`: always "portrait", scaled to fit),
-  the case `W.CASE`, the screen inset, the body about 172 x 207 units. Windows are drawn zoomed
-  (`W.APP_ZOOM` 1.5, a watch's few big rows): `K.transform` puts the units' origin at the body's
-  top left at 1.5x the scale, the window gets `draw({ 0, 0, w / 1.5, h / 1.5 }, clock, true)` (about
-  115 x 138 units), on `K.UI.grouped`; the pointer and drags convert back through `r.winT`. Apps
-  that lay out by height keep only what fits there (R-Bay drops the Hot Auction under 22 units,
-  the GTS's pick card shows the title alone under 74). One host at a time, so the kit's single
-  transform is shared.
-- **Screens:** `r.screen` "face" | "grid" | "app" | "notes". The face's tiles are read once a
-  second (`readComps`: R-Bay's listings' `mine` / `leader`, `Gx.posted()`, `Sl.tickets()`), the
-  clock too (`deps.clock` -> hour, minute, day, weekday). The honeycomb (`placeIcons`: rows of 3 and
-  2, `W.HONEY`) is centred when it fits, else scrolled to the focused row; icons shrink toward the
-  screen's edges.
-- **`env.pad.transfer`** goes to the desktop's pad, or `Wt.pulse()` (the crown's ring) on the watch.
+  T("watch.start") ("WOOBPAD"), onSelect }` above EXIT (or the engine's MODS), only in a menu with
+  SAVE (not a link room's or the Safari Zone's), the Desktop option and Settings' `watchRow` on
+  (the old ids kept: an installation's settings). `onSelect` runs with the START menu still on the
+  Stack, so popping the pad's layer is the menu again.
+- **The layer:** `woob_pad` (`Sh.PAD_ID`, also `Sh.WATCH_ID`), pushed `{ hideBelow = true,
+  fullscreen = false }`: the START menu's box hides, the field is still drawn (the pad dims it).
+  The desktop's stays full screen.
+- **ctx:** `mode = "pad"` (`Apps.list` gives Boxes then; Oak, the Hall and Decorate want PC rows
+  and drop out; apps with `pad = false`, Log Off, are left out), `warm` (no boot), `finish` /
+  `done` / `logoff` put it away, `over(open, state)` as the desktop's (back with `ctx.resume`),
+  `sheet(kind)` the pad's own.
+- **The device:** `D.PAD_PAGE` (160 tall; the body over the hints), `D.padLayout` (a 6-unit bezel:
+  the screen about 130 units tall), `D.screenLayout` (the menu bar, the grid, the dock, the windows:
+  shared with the PC), `drawPadDevice` (the game dimmed, the aluminium edge, the glass, the camera,
+  the top button = "power": put away). No boot, no shelf (`padTransfer` does nothing), the hints
+  under the body. B on the home screen: `logoff()` at once. The W menu: About, Notifications, Put
+  Away (the PC's: About, Notifications, Log Off).
+- **Notifications:** the "notes" sheet (both devices): `Nt.list()` as cards (`Nt.drawCard`, its
+  `Nt.ago`), Up / Down, A or a tap opens its app (`D.openApp`); on the pad a press in the top 12
+  units pulled down more than 20 opens it.
 
 ## Notifications
 
@@ -381,6 +381,13 @@ Clean room: the idea of a 3D region map (TERRARIUM's for Gen 1) and none of its 
   distance) under an overlay; the scene's `glass(b, rad, a, tint)` adds a dark tint, a gloss and a
   rim (`win.glass`, also the Town Map's hint capsule). No 3D frame (headless): the tint alone,
   darker.
+- **The cursor and the flat map:** the scene keeps a world cursor (`st.cx`, `st.cz`); the held
+  D-pad (`dirX` / `dirY`, read with `isDown`) moves it in screen directions from the camera's yaw
+  (north up when flat), slower over a town; let go, it glides (`GLIDE`) onto the nearest nav place
+  within `SNAP`; `placeAt` (town over landmark over route) is the card's place (`st.here`). The
+  right stick: the engine's `input.rightStickAxis`. Flat (`st.flat`, SELECT / the chip): `R.flatCamera`
+  (an orthographic view-projection, heights lifting a little) and `R.drawPicture` (the model's
+  `region.picture`, its 240 x 160 at world 0, 0; `R.drawLand` without one); L / R change the region.
 - **The window** (`src/map3d/scene.lua`): the window contract plus `pointer(phase, x, y, id)` (the
   desktop and the watch pass a second finger's events, by its id, while a window holds the first:
   the pinch). Modes "app" (Fly: `env.map3d.fly`; `flyCheck`: the badge, a Pokémon that knows Fly,
@@ -394,6 +401,33 @@ Clean room: the idea of a 3D region map (TERRARIUM's for Gen 1) and none of its 
   `PartyMenu.returnFromFlyMap()` from the Fly map), Ruby `onClose(false)`. START: `orig(opts)`.
   Settings' `map3d` off (or the Desktop option off): `orig` at once. FireRed's `RegionMap.open` is
   never set (`hud.lua` would route input to it).
+
+## The PokéNav's apps
+
+- **The Phone** (`src/phone.lua`): Emerald's contacts are `MatchCall.buildList` entries
+  (`entryNameAndDesc`, `entryTrainerPic`, `mapName`, `showRematchIcon`, `shouldDoNearbyMessage`, the
+  check page's `entryFlavorText`); a call is `entryMessage` (the game's side effects: rematch
+  requests, flags), made text through the PokéNav's `Screen.messageIr` and `TextIR.toPlain`.
+  Indoors the game answers `gText_CallCantBeMadeHere`. Ruby / Sapphire: `rs.pokenav.data`
+  `trainersEyes` with `Gfx.manifest("pokenav_detail")`'s descriptions, `canCall = false`. Pictures:
+  `trainer_pic.front(pic)`. Recents (30) and favourites in `mod.save` "phone".
+- **Field calls:** `Sh.wrapCalls` wraps `MatchCall.startCall` (not a script's) and keeps the
+  chosen message (`selectMessage` wrapped); when the call window ends, `main.lua`'s `onCall` logs it
+  (`Ph.incoming`) and pushes a "call" notification (opens the Phone on Recents).
+- **Condition** (`src/condition.lua`): `mon.contest` read directly (the engine's
+  `Pokeblock.contest` writes a table when it's missing); the search is our own sort over the party
+  and `Bx.boxMons`; `feed` is `Pokeblock.feed` then `tryClear`, refused at sheen 255 (as
+  `use_pokeblock`). The radar's fill is a kept 7-vertex fan mesh (`setVertex` per frame).
+- **The takeover** (`src/pokenav.lua`, installed at `Sh.ready`): each module's `new` wrapped once
+  per process (`__woobOs`).
+  - **Emerald:** a stand-in screen whose `open()` calls `Sh.openFull(app, session, onClose)`
+    (the full-screen host with `opts.chrome`: a "< PokéNav" toolbar). Its `callback` returns 0 while
+    the app is up, then a loopTask that runs the original's way out (fade, `slideHeader(false)`,
+    `hideLeftHeaders` for Match Call), then `MAIN_MENU_CURSOR_ON_MATCH_CALL` / `CONDITION_MENU`.
+    The tutorial's forced call (`shell.mode ~= NORMAL`) and the search's graph stay the game's.
+  - **Ruby / Sapphire:** a feature object whose `frame` opens the app and returns `"exit"` when
+    it closes; Trainer's Eyes only when the game's own list isn't empty.
+  - Settings' `pokenavApps` off (or the Desktop option off): the game's screens.
 
 ## Words
 
@@ -442,8 +476,9 @@ From the gen1recomp root (the mod is linked as `mods/woob_os`):
 
 ```bash
 luajit mods/woob_os/tests/desktop_test.lua [firered|leafgreen|ruby|sapphire|emerald]
-luajit mods/woob_os/tests/watch_test.lua [firered|leafgreen|ruby|sapphire|emerald]
+luajit mods/woob_os/tests/pad_test.lua [firered|leafgreen|ruby|sapphire|emerald]
 luajit mods/woob_os/tests/map3d_test.lua [firered|leafgreen|ruby|sapphire|emerald]
+luajit mods/woob_os/tests/pokenav_test.lua [firered|leafgreen|ruby|sapphire|emerald]
 SHOT_DIR=<dir> POKEPORT_GAME=firered POKEPORT_VERSION=firered \
   POKEPORT_DRIVER=mods/woob_os/tests/drivers/desktop_probe.lua love .
 python tools/modkit.py lint mods/woob_os
@@ -453,7 +488,8 @@ The headless test draws through a stand-in for `love.graphics` and checks the ro
 warm return, logging off, the bedroom, the options, every window shape and the garbage. The probe
 walks to a real Pokémon Center PC, runs Boxes and Items through the game's own scripts and takes
 shots (`d*.png`); then START, the watch's row, every app on the watch, a banner over the field and
-a tap on it (`w*.png`); then the Town Map and the Fly map in 3D (`t*.png`). `watch_test.lua` covers the START row, the watch's screens and apps,
+a tap on it (`w*.png`); then the Town Map and the Fly map in 3D (`t*.png`); on Ruby / Sapphire /
+Emerald the PokéNav's Phone and Condition (`n*.png`). `watch_test.lua` covers the START row, the watch's screens and apps,
 `ctx.over`, every notification's source, the banners and their setting, and the garbage.
 `map3d_test.lua` covers every region's model, the towns' facts and badges, the player's cell, the
 D-pad reaching every town, the takeover's hand-backs (Fly, B, START, the setting, the other

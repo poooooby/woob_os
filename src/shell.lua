@@ -17,7 +17,7 @@
 --     Sapphire / Emerald storage, player, Hall of Fame, log off), so the script runs on exactly as
 --     if the row was chosen, and comes back to the PC menu - the desktop again, without the boot
 --
---   - WoobWatch (src/watch.lua) is the same apps on the player's wrist: its own layer
+--   - WoobPad (src/desktop.lua as a tablet) is the same apps in the player's hands: its own layer
 --     ("woob_watch"), pushed from the START menu's row (over the menu: closing it is the menu again)
 --     or from a tap on a notification's banner over the field (closing it is the field again).
 --     One of the two is open at a time; the hooks below go to whichever is
@@ -30,10 +30,11 @@
 --     come from them), and the notifications' banner over the field while the player is free to
 --     move (src/notify.lua)
 --
---   Sh = shell(mod, deps)   deps: require ; log ; desktop (made) ; watch (made) ; apps (made) ;
+--   Sh = shell(mod, deps)   deps: require ; log ; desktop (made) ; watch (WoobPad: a desktop, made) ; apps ;
 --                           notify (src/notify.lua) ; tick() ; session() ; watchRow() -> the START
 --                           row shown ; watchLabel() -> its words ; townmap (src/townmap.lua) ;
---                           map3d (env.map3d: its model) ; map3dOn() -> the 3D Town Map wanted
+--                           map3d (env.map3d: its model) ; map3dOn() -> the 3D Town Map wanted ;
+--                           pokenav (src/pokenav.lua) ; onCall(session, trainerId, msg) (a field call)
 --   Sh.install() (load: the hooks) ; Sh.ready() (game.ready: the PC menu wrap) ; Sh.layer ;
 --   Sh.openWatch(session, opts) (opts: { app, state } to open an app at once) ; Sh.free(game) ;
 --   Sh.openTownMap(opts, orig, family) (the wrapped show()'s)
@@ -42,7 +43,8 @@ return function(mod, deps)
   local req = deps.require or require
   local log = deps.log
   local D, A, Wt, Nt, Tm = deps.desktop, deps.apps, deps.watch, deps.notify, deps.townmap
-  local Sh = { LAYER_ID = "woob_os", WATCH_ID = "woob_watch", MAP_ID = "woob_map" }
+  local Sh = { LAYER_ID = "woob_os", WATCH_ID = "woob_pad", MAP_ID = "woob_map" }
+  Sh.PAD_ID = Sh.WATCH_ID
 
   local engineMods = {}
   local function engine(name)
@@ -113,7 +115,7 @@ return function(mod, deps)
     end
   end
 
-  -- (the watch's: the field stays drawn under it, the watch dims it itself)
+  -- (the pad's: the field stays drawn under it, the pad dims it itself)
   local WatchLayer = { isMenu = true }
   Sh.watchLayer = WatchLayer
   function WatchLayer.handleInput(input) if Wt then Wt.input(input) end end
@@ -127,7 +129,7 @@ return function(mod, deps)
   function MapLayer.update() end
   MapLayer.draw = Layer.draw
 
-  -- (the desktop is full screen: the field isn't drawn under it; the watch's field stays, dimmed)
+  -- (the desktop is full screen: the field isn't drawn under it; the pad's field stays, dimmed)
   local FULL, OVER = { hideBelow = true, fullscreen = true }, { hideBelow = true, fullscreen = false }
   local function push(id, layer)
     id, layer = id or Sh.LAYER_ID, layer or Layer
@@ -147,7 +149,7 @@ return function(mod, deps)
     if Stack and Stack.has and Stack.has(id) then pcall(Stack.pop, id) end
     pad(false)
   end
-  -- the one open (the desktop, the watch or the 3D Town Map), and its layer's id
+  -- the one open (the desktop, WoobPad or the full-screen host), and its layer's id
   local function host()
     if D.isOpen() then return D, Sh.LAYER_ID end
     if Wt and Wt.isOpen() then return Wt, Sh.WATCH_ID end
@@ -256,13 +258,13 @@ return function(mod, deps)
     return true
   end
 
-  -- the watch: the apps (no PC rows: Oak, the Hall, Decorate and log off stay at the PC); closing
-  -- it goes back to what was under it (the START menu, or the field)
+  -- WoobPad: the apps (no PC rows: Oak, the Hall, Decorate and log off stay at the PC); putting it
+  -- away goes back to what was under it (the START menu, or the field)
   function Sh.openWatch(s, opts)
     if not Wt or Wt.isOpen() or D.isOpen() then return false end
     if Sh.enabled and not Sh.enabled() then return false end
     s = s or (deps.session and deps.session())
-    local ctx = { session = s, mode = "watch", host = "watch", family = familyOf(gameId()), rows = {} }
+    local ctx = { session = s, mode = "pad", host = "pad", family = familyOf(gameId()), rows = {}, warm = true }
     function ctx.row() return nil end
     local closed = false
     local function close()
@@ -272,7 +274,7 @@ return function(mod, deps)
       pop(Sh.WATCH_ID)
     end
     ctx.finish, ctx.done, ctx.logoff = close, close, close
-    -- one of the game's screens over the watch (Boxes' Summary, an evolution), the watch back on
+    -- one of the game's screens over the pad (Boxes' Summary, an evolution), the pad back on
     -- the app after
     function ctx.over(open, resume)
       Wt.close()
@@ -281,6 +283,7 @@ return function(mod, deps)
       local function reopen()
         if closed then return end
         ctx.resume = { app = back, state = resume }
+        ctx.back = back
         Wt.open(ctx)
         push(Sh.WATCH_ID, WatchLayer)
       end
@@ -291,7 +294,7 @@ return function(mod, deps)
       end
     end
     function ctx.original() end
-    function ctx.sheet() end
+    function ctx.sheet(kind) if Wt.sheet then Wt.sheet(kind) end end
     if opts and opts.app then ctx.resume = { app = opts.app, state = opts.state } end
     Wt.open(ctx)
     if not push(Sh.WATCH_ID, WatchLayer) then
@@ -300,6 +303,7 @@ return function(mod, deps)
     end
     return true
   end
+  Sh.openPad = Sh.openWatch
 
   -- the 3D map in place of the game's region map (opts: show()'s own: session, mode, onPick, onClose);
   -- family "frlg" | "rse" (which module asked); false: let the game's map open
@@ -362,6 +366,35 @@ return function(mod, deps)
     return true
   end
 
+  -- an app full screen over one of the game's screens (the PokéNav's Phone and Condition,
+  -- src/pokenav.lua); onClose() when it closes -> true when it opened
+  function Sh.openFull(appId, s, onClose)
+    if not Tm or Tm.isOpen() or D.isOpen() or (Wt and Wt.isOpen()) then return false end
+    local app = A.byId(appId)
+    if not (app and app.window) then return false end
+    local ctx = { session = s, mode = "pokenav", family = familyOf(gameId()), rows = {}, app = appId }
+    function ctx.row() return nil end
+    local closed = false
+    local function close()
+      if closed then return end
+      closed = true
+      Tm.close()
+      pop(Sh.MAP_ID)
+      if onClose then onClose() end
+    end
+    ctx.finish, ctx.done, ctx.logoff = close, close, close
+    function ctx.over() end
+    function ctx.original() end
+    function ctx.sheet() end
+    local so = { maker = app.window, app = appId, chrome = true, cancel = close }
+    if not Tm.open(ctx, so) then return false end
+    if not push(Sh.MAP_ID, MapLayer) then
+      Tm.close()
+      return false
+    end
+    return true
+  end
+
   -- the region map modules' show(), wrapped once per process (each calls this instance's `impl`)
   local function wrapMap(name, family)
     local RM = engine(name)
@@ -386,6 +419,42 @@ return function(mod, deps)
   end
   Sh.wrapMap = wrapMap
 
+  -- the field's Match Calls (Emerald): the call window's message caught when it's chosen, handed to
+  -- deps.onCall(session, trainerId, msg) when the call ends; once per process
+  function Sh.wrapCalls()
+    local MC, Win = engine("src.core.game3.rse.match_call"), engine("src.ui.game3.rse.pokenav.call_window")
+    if not (MC and Win and type(MC.startCall) == "function") then return false end
+    local w = rawget(MC, "__woobOs")
+    if not w then
+      w = { orig = MC.startCall }
+      MC.__woobOs = w
+      MC.startCall = function(session, game, opts)
+        opts = opts or {}
+        local f = w.impl
+        if f and not opts.fromScript and opts.trainerId then
+          local done = opts.onDone
+          local o = {}
+          for k, v in pairs(opts) do o[k] = v end
+          o.onDone = function()
+            pcall(f, session, opts.trainerId, w.lastMsg)
+            if done then done() end
+          end
+          opts = o
+        end
+        return w.orig(session, game, opts)
+      end
+      -- (the window's chosen message: kept as it's made)
+      local Sel = MC.selectMessage
+      MC.selectMessage = function(...)
+        local m = Sel(...)
+        w.lastMsg = m
+        return m
+      end
+    end
+    w.impl = deps.onCall
+    return true
+  end
+
   -- the player free to move in the field (the engine's own test for its quicksave): no script,
   -- no menu, no message, no battle
   function Sh.free(game)
@@ -405,6 +474,10 @@ return function(mod, deps)
       wrapMap("src.ui.game3.region_map", "frlg")
       wrapMap("src.ui.game3.rse.region_map", "rse")
     end
+    -- (the PokéNav's Match Call / Trainer's Eyes and Condition: WoobOS's Phone and Condition)
+    if deps.pokenav then pcall(deps.pokenav.install) end
+    -- (the field's Match Calls: logged in the Phone, a notification)
+    if deps.onCall then pcall(Sh.wrapCalls) end
     if not (PcMenu and type(PcMenu.show) == "function") then
       if log then log:warn("the game's PC menu wasn't found: the PC keeps its own menu") end
       return false
@@ -468,7 +541,7 @@ return function(mod, deps)
     return nxt ~= nil and nxt.op == "goto" and promptAt(vm.scripts[nxt.target], 1)
   end
 
-  -- each frame (render.hud): the once-a-second tick; the desktop or the watch drawn over the
+  -- each frame (render.hud): the once-a-second tick; the desktop or the pad drawn over the
   -- whole window, else a notification's banner over the field once the player is free
   local tickAt = -1
   function Sh.frame(game, viewport)
@@ -479,7 +552,7 @@ return function(mod, deps)
       local ok, err = pcall(deps.tick)
       if not ok and log then log:warn("the tick failed: %s", tostring(err)) end
     end
-    -- (the layer taken away under it, a reset: the desktop or the watch goes too)
+    -- (the layer taken away under it, a reset: the desktop or the pad goes too)
     local Stack = engine("src.ui.game3.stack")
     local h, id = host()
     if h and Stack and Stack.has and not Stack.has(id) then
@@ -504,7 +577,7 @@ return function(mod, deps)
     if not ok and log then log:warn("the desktop's draw failed: %s", tostring(err)) end
   end
   -- a press, a move, a release: the one open takes it; a tap on the field's banner opens the
-  -- watch on that notification's app; nil: not ours
+  -- pad on that notification's app; nil: not ours
   function Sh.pointer(ev)
     local h = host()
     if h then return h.pointer(ev) end
@@ -517,7 +590,7 @@ return function(mod, deps)
     end
     return nil
   end
-  -- the START menu's rows with the watch's above EXIT (the Desktop option and the Settings choice on)
+  -- the START menu's rows with the pad's above EXIT (the Desktop option and the Settings choice on)
   function Sh.startRows(list)
     if not (Wt and type(list) == "table" and #list > 0) then return list end
     if Sh.enabled and not Sh.enabled() then return list end
@@ -558,7 +631,7 @@ return function(mod, deps)
       if h then return h.wheel(dy) end
       return nxt(game, dy)
     end)
-    -- the watch's row in the START menu, above EXIT
+    -- the pad's row in the START menu, above EXIT
     mod.hooks:wrap("ui.start_menu.items", function(nxt, game, items)
       return Sh.startRows(nxt(game, items))
     end)

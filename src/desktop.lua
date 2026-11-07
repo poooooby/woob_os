@@ -37,11 +37,18 @@
 --   D.state() (tests) ; D.booting() ; D.skipBoot() ; D.launch(i) ; D.tap(x, y) ; D.arranging()
 --   D.padTransfer(itemId, "out" | "in") (an item across the shelf's pad; lit while a window has
 --   pad = true) ; D.padState() -> effects, way, item, light ; D.ballState() -> the pad's ball (win.ball)
+--
+-- WoobPad (deps.device = "pad"): the same desktop as a tablet, from the START menu anywhere: no
+-- monitor, chin or shelf, a thin bezel round a bigger screen over the dimmed game, the hints under
+-- it; no boot; B on the home screen (or the top button) puts it away. Its W menu: About,
+-- Notifications (a swipe down from the top too), Put Away
 
 return function(deps)
   local K = deps.kit
   local floor, max, min, abs = math.floor, math.max, math.min, math.abs
   local D = {}
+  local PAD = deps.device == "pad"
+  D.device = PAD and "pad" or "pc"
   local WHITE, BLACK = K.WHITE, K.BLACK
   local mix, light, dark, fade = K.mix, K.light, K.dark, K.fade
   local Ar = deps.arrange
@@ -62,6 +69,11 @@ return function(deps)
   D.SHELF = { h = 28, item = 18 }
   D.PAGE = { height = 160 + D.SHELF.h, minWidth = 220, maxWidth = 300, portraitWidth = 180,
              portraitHeight = 300 + D.SHELF.h, portraitAspect = 1.15 }
+  -- (the pad: its body and the hints under it; the screen 130-odd units tall, edge to edge)
+  D.PAD_PAGE = { height = 160, minWidth = 230, maxWidth = 300, portraitWidth = 180, portraitHeight = 290,
+                 portraitAspect = 1.0 }
+  D.BEZEL = 6
+  if PAD then D.PAGE = D.PAD_PAGE end
   -- the item pad (seconds): its light coming on / off; an item going out (dropping onto it,
   -- digitizing away, a flash) and coming in (digitizing in, a moment, fading into the Bag)
   -- (ball: the Poké Ball sinking into the pad / rising back)
@@ -79,7 +91,7 @@ return function(deps)
   -- an app opening / coming back: the zoom (seconds)
   D.ZOOM = 0.24
   -- the screen's corners (units)
-  D.SCREEN_RADIUS = 4
+  D.SCREEN_RADIUS = PAD and 7 or 4
   D.REPEAT_START, D.REPEAT_EVERY = 20, 4
   local repeated = K.repeater(D.REPEAT_START, D.REPEAT_EVERY)
 
@@ -100,6 +112,9 @@ return function(deps)
     badge = { 255, 59, 48 },
     padGlow = { 90, 214, 255 }, padLight = { 150, 236, 255 },
     beamTop = { 90, 214, 255, 0 }, beamFoot = { 90, 214, 255, 0.7 },
+    -- the pad: its aluminium edge, the black glass, the camera
+    padTop = { 196, 200, 210 }, padFoot = { 132, 136, 148 }, padEdge = { 84, 88, 100 }, camera = { 30, 34, 52 },
+    cameraLens = { 60, 80, 140 },
   }
   -- the words: keys into lang/*.lua (src/i18n.lua), looked up as they're drawn; the hint lists
   -- through T.list (one translated copy per language, made once)
@@ -117,8 +132,12 @@ return function(deps)
       about = { { "A", "hint.ok" } },
       boot = { { "A", "hint.skip" } },
       window = { { "B", "hint.close" }, { "START", "hint.menu" } },
+      padGrid = { { "A", "hint.open" }, { "B", "hint.putAway" }, { "SELECT", "hint.arrange" }, { "START", "hint.menu" } },
+      padGridPages = { { "A", "hint.open" }, { "L R", "hint.page" }, { "B", "hint.putAway" }, { "START", "hint.menu" } },
+      notes = { { "^ v", "hint.scroll" }, { "A", "hint.open" }, { "B", "hint.back" } },
     },
-    menu = { "menu.about", "menu.logoff" },
+    menu = PAD and { "menu.about", "menu.notifications", "menu.putAway" } or { "menu.about", "menu.notifications",
+      "menu.logoff" },
     aboutName = "WoobOS",
   }
   D.TEXT = TEXT
@@ -176,7 +195,7 @@ return function(deps)
           game = game, hit = K.hits, icon = {},
           -- the pad: its light (0..1), its effects (the first playing, the rest waiting)
           padGlow = 0, padN = 0, padQ = { {}, {}, {} },
-          waitRelease = true, booted = ctx.warm or options().boot == false }
+          waitRelease = true, booted = PAD or ctx.warm or options().boot == false }
     if r.booted then r.t0 = now() - bootLength() end
     -- (back from one of the game's screens an app's window opened: the window again, as it was)
     local resume = ctx.resume
@@ -301,7 +320,7 @@ return function(deps)
   -- an item crossing the pad: "out" (Bag -> PC) or "in" (PC -> Bag). One plays at a time; a
   -- waiting one of the same way is replaced, so the last item chosen is the one shown
   function D.padTransfer(id, dir, kind)
-    if not r or (dir ~= "out" and dir ~= "in") then return end
+    if not r or PAD or (dir ~= "out" and dir ~= "in") then return end
     -- (a Pokémon moved while the pad's Poké Ball sits there: no crossing, the ball's glow tells it)
     if kind == "ball" and r.win and r.win.ball and (r.ballPhase == "drop" or r.ballPhase == "on") then
       return
@@ -465,6 +484,11 @@ return function(deps)
     if not r then return end
     r.menuOpen = false
     r.sheet, r.sheetYes = kind, true
+    -- (the notifications: read now; the list from the top)
+    if kind == "notes" then
+      r.notesTop = 0
+      if deps.notify then deps.notify.seen() end
+    end
   end
   local function closeSheet()
     r.sheet = nil
@@ -477,8 +501,11 @@ return function(deps)
   end
   local function menuChoose(i)
     r.menuOpen = false
-    if i == 1 then D.sheet("about") else D.sheet("logoff") end
     se("SE_SELECT")
+    if i == 1 then D.sheet("about")
+    elseif i == 2 then D.sheet("notes")
+    elseif PAD then logoff()
+    else D.sheet("logoff") end
   end
 
   -- the grid's cursor moved by dx, dy cells (pages follow at the edges)
@@ -545,6 +572,17 @@ return function(deps)
     local up, down, left, right = repeated(input, "up", held), repeated(input, "down", held),
       repeated(input, "left", held), repeated(input, "right", held)
     if r.sheet then
+      if r.sheet == "notes" then
+        local n = deps.notify and #deps.notify.list() or 0
+        if up then r.notesTop = max(0, (r.notesTop or 0) - 1); se("SE_SELECT")
+        elseif down then r.notesTop = min(max(0, n - 1), (r.notesTop or 0) + 1); se("SE_SELECT")
+        elseif pressed("a") then
+          local rec = deps.notify and deps.notify.list()[(r.notesTop or 0) + 1]
+          closeSheet()
+          if rec then D.openApp(rec.app, rec.state) end
+        elseif pressed("b") or pressed("start") then closeSheet() end
+        return
+      end
       if r.sheet == "logoff" then
         if left or right or up or down then
           r.sheetYes = not r.sheetYes
@@ -559,7 +597,8 @@ return function(deps)
     end
     if r.menuOpen then
       if up or down then
-        r.menuCursor = r.menuCursor == 1 and 2 or 1
+        local n = #TEXT.menu
+        r.menuCursor = (r.menuCursor - 1 + (down and 1 or -1)) % n + 1
         se("SE_SELECT")
       elseif pressed("a") then menuChoose(r.menuCursor)
       elseif pressed("b") or pressed("start") then closeMenu()
@@ -599,6 +638,8 @@ return function(deps)
     if pressed("start") then return openMenu() end
     if pressed("b") then
       se("SE_SELECT")
+      -- (the pad: put away at once)
+      if PAD then return logoff() end
       return D.sheet("logoff")
     end
     if pressed("l") then return setPage(r.page - 1) end
@@ -683,9 +724,15 @@ return function(deps)
     elseif kind == "menuRow" then menuChoose(arg)
     elseif kind == "dim" then
       if r.sheet then closeSheet() else closeMenu() end
+    elseif kind == "noteRow" then
+      local rec = deps.notify and deps.notify.list()[arg]
+      closeSheet()
+      if rec then D.openApp(rec.app, rec.state) end
     elseif kind == "yes" then logoff()
     elseif kind == "no" or kind == "ok" then closeSheet()
-    elseif kind == "power" then D.sheet("logoff"); se("SE_SELECT")
+    elseif kind == "power" then
+      se("SE_SELECT")
+      if PAD then logoff() else D.sheet("logoff") end
     elseif kind == "dot" then setPage(arg)
     elseif kind == "winclose" then closeWindow()
     elseif kind == "notify" then
@@ -728,7 +775,10 @@ return function(deps)
     if ev.phase == "pressed" then
       local area, wa = r.gridArea, r.winArea
       local free = not r.sheet and not r.menuOpen
-      r.press = { id = ev.id, x = x, y = y, ly = y, drag = false, t0 = now(), mx = x, my = y,
+      -- (the pad: a press at the top of the screen may pull the notifications down)
+      local L0 = r.layout
+      local fromTop = PAD and L0 and not r.sheet and (y - K.oy) / K.sc < L0.screen[2] + 12 or false
+      r.press = { id = ev.id, x = x, y = y, ly = y, drag = false, t0 = now(), mx = x, my = y, top = fromTop,
                   grid = not r.win and area ~= nil and free and K.inside(area, x, y),
                   win = r.win ~= nil and wa ~= nil and free and K.inside(wa, x, y) }
       if r.press.win and r.win.pointer then
@@ -778,6 +828,13 @@ return function(deps)
         r.hoverArg = h and h.arg or nil
       end
     elseif ev.phase == "released" then
+      if press and press.id == ev.id and press.top and y - press.y > 20 * K.sc then
+        -- (pulled down from the top: the notifications)
+        r.press = nil
+        se("SE_SELECT")
+        D.sheet("notes")
+        return true
+      end
       if press and press.id == ev.id and press.carry then
         r.press = nil
         drop()
@@ -885,6 +942,12 @@ return function(deps)
     return sw + K.width(digits, size)
   end
 
+  -- (the radar glyph's corners, once)
+  local RADAR_X, RADAR_Y, RADAR_K = {}, {}, { 0.9, 0.55, 0.75, 0.5, 0.8 }
+  for i = 1, 5 do
+    local an = -math.pi / 2 + (i - 1) * 2 * math.pi / 5
+    RADAR_X[i], RADAR_Y[i] = math.cos(an), math.sin(an)
+  end
   -- an app's picture, white, centred on cx, cy (window pixels), `s` the tile's size (pixels)
   local function glyph(G, kind, cx, cy, s, a)
     G.setColor(1, 1, 1, a)
@@ -1026,6 +1089,26 @@ return function(deps)
       G.polygon("fill", px - s * 0.075, py + s * 0.04, px + s * 0.075, py + s * 0.04, px, py + s * 0.2)
       G.setColor(1, 1, 1, a)
       G.circle("fill", px, py, s * 0.035)
+    elseif kind == "phone" then
+      -- (a handset)
+      G.push()
+      G.translate(cx, cy)
+      G.rotate(-0.6)
+      local w, h = s * 0.12, s * 0.5
+      G.rectangle("fill", -w / 2, -h / 2 + s * 0.08, w, h - s * 0.16, s * 0.04, s * 0.04)
+      G.rectangle("fill", -w * 1.1, -h / 2, w * 2.2, s * 0.12, s * 0.05, s * 0.05)
+      G.rectangle("fill", -w * 1.1, h / 2 - s * 0.12, w * 2.2, s * 0.12, s * 0.05, s * 0.05)
+      G.pop()
+    elseif kind == "radar" then
+      -- (a pentagon chart: its outline and a filled shape inside)
+      local rad = s * 0.3
+      local px, py, k = RADAR_X, RADAR_Y, RADAR_K
+      G.polygon("line", cx + px[1] * rad, cy + py[1] * rad, cx + px[2] * rad, cy + py[2] * rad, cx + px[3] * rad,
+        cy + py[3] * rad, cx + px[4] * rad, cy + py[4] * rad, cx + px[5] * rad, cy + py[5] * rad)
+      G.setColor(1, 1, 1, 0.75 * a)
+      G.polygon("fill", cx + px[1] * rad * k[1], cy + py[1] * rad * k[1], cx + px[2] * rad * k[2], cy + py[2] * rad * k[2],
+        cx + px[3] * rad * k[3], cy + py[3] * rad * k[3], cx + px[4] * rad * k[4], cy + py[4] * rad * k[4],
+        cx + px[5] * rad * k[5], cy + py[5] * rad * k[5])
     elseif kind == "gear" then
       local rad = s * 0.2
       G.circle("line", cx, cy, rad)
@@ -1409,6 +1492,30 @@ return function(deps)
     drawPadFx(L, clock)
   end
 
+  -- the pad: the game dimmed round it, an aluminium edge, the black glass, the camera, its top button
+  local function drawPadDevice(L)
+    local G = K.graphics()
+    K.col(BLACK, 0.55)
+    G.rectangle("fill", 0, 0, K.ww, K.wh)
+    local body = L.body
+    K.shadow(body, 12, 2.5, 0.55)
+    K.grad(body, 12, C.padTop, C.padFoot)
+    K.ring(body, 12, C.padEdge, 0.9, 0.6)
+    K.col(WHITE, 0.45)
+    K.box("fill", K.R(body[1] + 12, body[2] + 0.5, body[3] - 24, 0.5), 0.25)
+    K.grad(L.glassB, 11, C.glass, C.glassFoot)
+    -- (the camera in the bezel's middle)
+    local cx, cy = L.camera[1], L.camera[2]
+    K.col(C.camera)
+    G.circle("fill", K.X(cx), K.Y(cy), 1.3 * K.sc)
+    K.col(C.cameraLens, 0.8)
+    G.circle("fill", K.X(cx - 0.3), K.Y(cy - 0.3), 0.5 * K.sc)
+    -- (the top button: puts it away)
+    local pb = L.power
+    K.grad(pb, 0.8, C.padTop, C.padFoot)
+    K.addHit(K.R(pb[1] - 2, pb[2] - 3, pb[3] + 4, pb[4] + 5), "power")
+  end
+
   -- the chosen wallpaper (src/wallpaper.lua's canvas), else the game's classic colours
   local function drawWallpaper(sb)
     local G = K.graphics()
@@ -1697,7 +1804,35 @@ return function(deps)
     end
   end
 
+  -- the notifications: the list, newest first, a card each (a tap opens its app)
+  local function drawNotes(L)
+    local sb = L.screen
+    K.col(C.dim, 0.3)
+    K.box("fill", sb, D.SCREEN_RADIUS)
+    K.addHit(sb, "dim")
+    local nb = L.notesB
+    K.shadow(nb, 6, 2, 0.35)
+    K.grad(nb, 6, C.sheet, C.sheetFoot)
+    K.bold(T("notes.title"), nb[1] + 6, nb[2] + 4, 6.5, C.ink)
+    local Nt = deps.notify
+    local list = Nt and Nt.list() or {}
+    if #list == 0 then
+      K.text(T("notes.none"), nb[1], nb[2] + nb[4] / 2 - 3, 5, C.soft, "center", nb[3])
+      return
+    end
+    local top = min(r.notesTop or 0, max(0, #list - 1))
+    local y = nb[2] + 14
+    for i = top + 1, #list do
+      if y + 24 > nb[2] + nb[4] - 3 then break end
+      local b = K.R(nb[1] + 4, y, nb[3] - 8, 24)
+      Nt.drawCard(list[i], b, 1, Nt.ago(list[i]))
+      K.addHit(b, "noteRow", i)
+      y = y + 26
+    end
+  end
+
   local function drawSheet(L)
+    if r.sheet == "notes" then return drawNotes(L) end
     if not r.sheet then return end
     local sb = L.screen
     K.keepHits("power")
@@ -1787,6 +1922,7 @@ return function(deps)
 
   -- the page's rectangles (units) for a pw x ph page
   function D.layout(pw, ph, portrait)
+    if PAD then return D.padLayout(pw, ph, portrait) end
     local L = { pw = pw, ph = ph, portrait = portrait }
     local chinH = portrait and 34 or 22
     -- the monitor above the shelf
@@ -1819,10 +1955,30 @@ return function(deps)
       L.power = { pw - 21, chinMid - 4.5, 9, 9 }
       L.hints2 = { pw / 2 + 10, chinMid - 4, L.power[1] - 4 - (pw / 2 + 10), 9 }
     end
+    return D.screenLayout(L)
+  end
+  -- the pad: its body above the hints, a thin bezel round the screen
+  function D.padLayout(pw, ph, portrait)
+    local L = { pw = pw, ph = ph, portrait = portrait, pad = true }
+    local bz = D.BEZEL
+    L.body = { 3, 3, pw - 6, ph - 16 }
+    L.glassB = { L.body[1] + 1.1, L.body[2] + 1.1, L.body[3] - 2.2, L.body[4] - 2.2 }
+    L.screen = { L.body[1] + bz, L.body[2] + bz, L.body[3] - bz * 2, L.body[4] - bz * 2 }
+    L.glassAtTop, L.glassAtFoot = C.glass, C.glassFoot
+    L.camera = { pw / 2, L.body[2] + bz / 2 }
+    L.power = { L.body[1] + L.body[3] - 30, L.body[2] - 0.9, 14, 1.2 }
+    L.hints = { 8, ph - 11.5, pw - 16, 9 }
+    return D.screenLayout(L)
+  end
+  -- (the screen's own pieces, the same on both)
+  function D.screenLayout(L)
     local sb = L.screen
     L.menubar = { sb[1], sb[2], sb[3], 9 }
     L.wbutton = { sb[1] + 2, sb[2] + 0.5, 11, 8 }
-    L.menuB = { sb[1] + 2, sb[2] + 9.5, 72, 24 }
+    L.menuB = { sb[1] + 2, sb[2] + 9.5, 72, 34 }
+    -- (the notifications: a sheet down from the top)
+    local nw = min(150, sb[3] - 16)
+    L.notesB = { sb[1] + (sb[3] - nw) / 2, sb[2] + 11, nw, sb[4] - 22 }
     -- an app's window: the screen under the menu bar, a title strip, its body
     L.win = { sb[1], sb[2] + 9, sb[3], sb[4] - 9 }
     L.winTitle = { sb[1], sb[2] + 9, sb[3], 10 }
@@ -1919,7 +2075,7 @@ return function(deps)
       end
     end
 
-    drawMonitor(L, clock)
+    if PAD then drawPadDevice(L) else drawMonitor(L, clock) end
     local sb = L.screen
     drawWallpaper(sb)
     if r.win then
@@ -1966,6 +2122,7 @@ return function(deps)
     local hints
     if bt and bt < revealAt() then hints = T.list(TEXT.hints.boot)
     elseif r.sheet == "about" then hints = T.list(TEXT.hints.about)
+    elseif r.sheet == "notes" then hints = T.list(TEXT.hints.notes)
     elseif r.sheet then hints = T.list(TEXT.hints.sheet)
     elseif r.menuOpen then hints = T.list(TEXT.hints.menu)
     elseif r.win then
@@ -1974,9 +2131,12 @@ return function(deps)
       hints = ok and type(got) == "table" and got or T.list(TEXT.hints.window)
     elseif r.carry then hints = T.list(TEXT.hints.carry)
     elseif r.edit then hints = T.list(TEXT.hints.arrange)
+    elseif PAD then hints = T.list(pages() > 1 and TEXT.hints.padGridPages or TEXT.hints.padGrid)
     else hints = T.list(pages() > 1 and TEXT.hints.gridPages or TEXT.hints.grid)
     end
-    if portrait then
+    if PAD then
+      K.hints(hints, L.hints, C.ink, true, WHITE, WHITE)
+    elseif portrait then
       K.hints(hints, L.hints, C.bar, true, C.ink, C.ink)
     else
       local halves = halvesOf(hints)

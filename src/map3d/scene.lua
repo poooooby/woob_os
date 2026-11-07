@@ -1,10 +1,13 @@
 -- The 3D map's window: the region (src/map3d/model.lua) drawn by src/map3d/render.lua, a camera
 -- that tilts, turns and zooms, and over it the places' pins, the player's beacon and the chosen
 -- place's card (its name, visited or not, Center / Mart, the Gym and its badge, Fly). The same window
--- in every host: the desktop's and the watch's Map app, and the game's own Town Map / Fly screen
+-- in every host: the desktop's and WoobPad's Map app, and the game's own Town Map / Fly screen
 -- (src/townmap.lua).
---   buttons  the D-pad hops to the next place that way (as the camera sees it), L / R turn, A zooms
---            (Fly mode: A flies to a visited town), SELECT the next region (Sevii's), START Fly
+--   buttons  the D-pad moves a cursor freely over the land (the way the camera faces; let go near a
+--            town or a landmark and it glides onto it, as the game's own map's), L / R (or the right
+--            stick) turn, the right stick tilts, A zooms, SELECT the flat map (the game's own picture,
+--            north up; there L / R change the region)
+--            (Fly mode: A flies to a visited town), the region's chip the next region (Sevii's), START Fly
 --            (the app) or the classic map (the Town Map), B back
 --   touch    drag turns and tilts, two fingers (or the wheel) zoom, a tap picks a place, the card's
 --            Fly button, the region's chip, the "you" chip back to the player, the compass north up
@@ -18,18 +21,30 @@
 local floor, max, min, abs, sqrt, pi, exp = math.floor, math.max, math.min, math.abs, math.sqrt, math.pi, math.exp
 
 -- hit args
-local A_REGION, A_ME, A_FLY, A_NORTH, A_PLACE = 1001, 1002, 1003, 1004, 2000
+local A_REGION, A_ME, A_FLY, A_NORTH, A_FLAT, A_PLACE = 1001, 1002, 1003, 1004, 1005, 2000
+local STICK_DEAD = 0.22    -- the right stick's dead zone
+local STICK_TURN, STICK_TILT = 2.2, 1.1   -- radians a second at full tilt
 local TURN = 1.7        -- radians a second, L / R held
 local EASE = 7          -- the camera's catch-up (per second)
 local PITCH_MIN, PITCH_MAX = 0.42, 1.38
+local SNAP = 1.1        -- let go this near a town or a landmark (units): the cursor glides onto it
+local GLIDE = 11        -- how fast it glides (per second)
 local M = 3
 
 local HINTS = {
-  app = { { "+", "map.hint.go" }, { "L R", "map.hint.turn" }, { "A", "map.hint.zoom" }, { "B", "hint.back" } },
-  appFly = { { "+", "map.hint.go" }, { "L R", "map.hint.turn" }, { "A", "map.hint.zoom" }, { "START", "map.fly" },
+  flat = { { "+", "map.hint.go" }, { "L R", "map.hint.region" }, { "A", "map.hint.zoom" }, { "SELECT", "map.hint.3d" },
+           { "B", "hint.back" } },
+  flatFly = { { "+", "map.hint.go" }, { "L R", "map.hint.region" }, { "A", "map.fly" }, { "SELECT", "map.hint.3d" },
+              { "B", "hint.back" } },
+  app = { { "+", "map.hint.go" }, { "L R", "map.hint.turn" }, { "A", "map.hint.zoom" }, { "SELECT", "map.hint.flat" },
+          { "B", "hint.back" } },
+  appFly = { { "+", "map.hint.go" }, { "L R", "map.hint.turn" }, { "A", "map.hint.zoom" }, { "SELECT", "map.hint.flat" },
+             { "START", "map.fly" },
              { "B", "hint.back" } },
-  fly = { { "+", "map.hint.go" }, { "L R", "map.hint.turn" }, { "A", "map.fly" }, { "B", "hint.back" } },
-  town = { { "+", "map.hint.go" }, { "L R", "map.hint.turn" }, { "A", "map.hint.zoom" }, { "START", "map.classic" },
+  fly = { { "+", "map.hint.go" }, { "L R", "map.hint.turn" }, { "A", "map.fly" }, { "SELECT", "map.hint.flat" },
+          { "B", "hint.back" } },
+  town = { { "+", "map.hint.go" }, { "L R", "map.hint.turn" }, { "A", "map.hint.zoom" }, { "SELECT", "map.hint.flat" },
+           { "START", "map.classic" },
            { "B", "hint.back" } },
 }
 local NO_T = setmetatable({ list = function(l) return l end, f = string.format }, { __call = function(_, k) return k end })
@@ -45,7 +60,9 @@ return function(ctx, env, opts)
   local function se(name) if env.se then pcall(env.se, name) end end
 
   local st = {
-    regions = {}, ri = 1, region = nil, nav = {}, sel = 1, player = nil, playerPlace = nil,
+    regions = {}, ri = 1, region = nil, nav = {}, sel = 0, player = nil, playerPlace = nil,
+    cx = 0, cz = 0, here = nil, snapTo = nil, dirX = 0, dirY = 0, moving = false, flat = false,
+    stickX = 0, stickY = 0,
     cam = { x = 0, y = 0, z = 0, yaw = 0.35, pitch = 0.95, dist = 14 },
     goal = { x = 0, y = 0, z = 0, yaw = 0.35, pitch = 0.95, dist = 14 },
     zoom = 2, turn = 0, lastT = nil, liveAt = -10, hour = 12, minute = 0, toast = nil,
@@ -64,17 +81,23 @@ return function(ctx, env, opts)
   end
   local function zoomPitch(z) return z == 1 and 1.05 or (z == 2 and 0.92 or 0.78) end
 
-  local function place() return st.nav[st.sel] end
-  -- the camera's goal: the chosen place (the whole region at the widest zoom)
-  local function aim(snap)
-    local r, p, g = st.region, place(), st.goal
+  -- the place under the cursor (a town over its landmarks; nothing over the sea)
+  local function place() return st.here end
+  -- the camera's goal: the cursor (the whole region at the widest zoom, leaning toward it)
+  local function follow()
+    local r, g = st.region, st.goal
     if not r then return end
     if st.zoom == 1 then
       g.x, g.z, g.y = r.x0 + r.w / 2, r.z0 + r.h / 2, 0
-      if p then g.x, g.z = g.x + (p.x - g.x) * 0.25, g.z + (p.z - g.z) * 0.25 end
-    elseif p then
-      g.x, g.z, g.y = p.x, p.z, p.y or 0
+      g.x, g.z = g.x + (st.cx - g.x) * 0.25, g.z + (st.cz - g.z) * 0.25
+    else
+      g.x, g.z, g.y = st.cx, st.cz, Mdl.heightAt(r, st.cx, st.cz)
     end
+  end
+  local function aim(snap)
+    local r, g = st.region, st.goal
+    if not r then return end
+    follow()
     g.dist, g.pitch = zoomDist(st.zoom), zoomPitch(st.zoom)
     if snap then
       local c = st.cam
@@ -82,16 +105,34 @@ return function(ctx, env, opts)
     end
   end
 
+  -- (one cell, several places: a town over a landmark over a route)
+  local RANK = { town = 3, landmark = 2, route = 1 }
   local function placeAt(region, x, z)
     local best
     for _, p in ipairs(region.places) do
       for _, c in ipairs(p.cells) do
         if x >= c[1] and x < c[1] + 1 and z >= c[2] and z < c[2] + 1 then
-          if not best or (best.kind ~= "town" and p.kind == "town") then best = p end
+          if not best or RANK[p.kind] > RANK[best.kind] then best = p end
         end
       end
     end
     return best
+  end
+
+  -- what's under the cursor now (its pin's index for the highlight; a sound on reaching a town)
+  local function updateHere()
+    local r = st.region
+    local p = r and placeAt(r, st.cx, st.cz) or nil
+    if p and p.shown == false then p = nil end
+    if p ~= st.here then
+      st.here = p
+      if p and p.kind ~= "route" and st.moving then se("SE_SELECT") end
+    end
+    st.sel = 0
+    local want = p and (p.within or p)
+    for i, q in ipairs(st.nav) do
+      if q == want then st.sel = i end
+    end
   end
 
   local function refreshLive()
@@ -125,7 +166,7 @@ return function(ctx, env, opts)
     for _, p in ipairs(region.places) do
       if p.kind == "landmark" and not p.within and p.shown ~= false then st.nav[#st.nav + 1] = p end
     end
-    st.sel = 1
+    st.sel, st.snapTo = 0, nil
     local want = keepId
     if not want and st.player and st.player[1] == d.id then
       local here = placeAt(region, st.player[2], st.player[3])
@@ -143,9 +184,20 @@ return function(ctx, env, opts)
     elseif not (st.player and st.player[1] == d.id) then
       st.playerPlace = nil
     end
-    for k, p in ipairs(st.nav) do
-      if p.id == want then st.sel = k end
+    -- (the cursor: on the place wanted, else where the player stands, else the first town)
+    local at = nil
+    for _, p in ipairs(region.places) do
+      if p.id == want then at = p end
     end
+    if keepId == nil and st.player and st.player[1] == d.id then
+      st.cx, st.cz = st.player[2], st.player[3]
+    elseif at or st.nav[1] then
+      at = at or st.nav[1]
+      st.cx, st.cz = at.x, at.z
+    else
+      st.cx, st.cz = region.x0 + region.w / 2, region.z0 + region.h / 2
+    end
+    updateHere()
   end
 
   local function start()
@@ -178,39 +230,21 @@ return function(ctx, env, opts)
 
   -- ------- moving about
 
-  local function choose(i)
-    if not st.nav[i] or i == st.sel then return end
-    st.sel = i
+  -- a place picked (its pin tapped, back to the player): the cursor glides onto it
+  local function glideTo(p)
+    if not p then return end
+    st.snapTo = p
     if st.zoom == 1 then st.zoom = 2 end
     aim()
     se("SE_SELECT")
   end
-
-  -- the next place that way on the screen: within 70 degrees of it, the one nearest along it (the
-  -- distance across it counting double)
-  local function hop(dx, dy)
-    local p = place()
+  local function choose(i) glideTo(st.nav[i]) end
+  -- (tests and hosts: the cursor at a place at once)
+  function W.focus(p)
     if not p then return end
-    local ax, ay = Rd.project(p.x, p.y or 0, p.z)
-    if not ax then return end
-    local best, bestScore = nil, math.huge
-    for i, q in ipairs(st.nav) do
-      if q ~= p then
-        local bx, by = Rd.project(q.x, q.y or 0, q.z)
-        if bx then
-          local vx, vy = bx - ax, by - ay
-          local d = sqrt(vx * vx + vy * vy)
-          if d > 0.5 then
-            local par = vx * dx + vy * dy
-            if par / d > 0.34 then
-              local score = par + 2.2 * abs(vx * dy - vy * dx)
-              if score < bestScore then best, bestScore = i, score end
-            end
-          end
-        end
-      end
-    end
-    if best then choose(best) end
+    st.cx, st.cz, st.snapTo = p.x, p.z, nil
+    updateHere()
+    follow()
   end
 
   local function setZoom(z)
@@ -260,12 +294,9 @@ return function(ctx, env, opts)
     for i, d in ipairs(st.regions) do
       if d.id == st.player[1] and i ~= st.ri then setRegion(i) end
     end
-    if st.playerPlace then
-      local want = st.playerPlace.within and st.playerPlace.within.id or st.playerPlace.id
-      for k, p in ipairs(st.nav) do
-        if p.id == want then st.sel = k end
-      end
-    end
+    st.snapTo = nil
+    st.cx, st.cz = st.player[2], st.player[3]
+    updateHere()
     if st.zoom == 1 then st.zoom = 2 end
     aim()
     se("SE_SELECT")
@@ -281,14 +312,25 @@ return function(ctx, env, opts)
   end
   function W.input(input, nav)
     cur = input
-    st.turn = (down("l") and -1 or 0) + (down("r") and 1 or 0)
-    if nav.left then hop(-1, 0)
-    elseif nav.right then hop(1, 0)
-    elseif nav.up then hop(0, -1)
-    elseif nav.down then hop(0, 1)
-    elseif pressed("a") then
+    st.turn = st.flat and 0 or ((down("l") and -1 or 0) + (down("r") and 1 or 0))
+    -- (the right stick: the engine keeps its position)
+    local axis = input.rightStickAxis
+    local sx, sy = axis and tonumber(axis.x) or 0, axis and tonumber(axis.y) or 0
+    st.stickX = abs(sx) > STICK_DEAD and sx or 0
+    st.stickY = abs(sy) > STICK_DEAD and sy or 0
+    -- (the D-pad held: the cursor moves, free; let go: it settles)
+    st.dirX = (down("right") and 1 or 0) - (down("left") and 1 or 0)
+    st.dirY = (down("down") and 1 or 0) - (down("up") and 1 or 0)
+    if st.dirX ~= 0 or st.dirY ~= 0 then
+      st.snapTo = nil
+      return true
+    end
+    if pressed("a") then
       if mode == "fly" then fly() else setZoom(st.zoom + 1) end
-    elseif pressed("select") then nextRegion(1)
+    elseif pressed("select") then
+      st.flat = not st.flat
+      se("SE_SELECT")
+    elseif st.flat and (pressed("l") or pressed("r")) then nextRegion(pressed("l") and -1 or 1)
     elseif pressed("start") then
       if mode == "town" and opts.classic then opts.classic()
       elseif mode == "app" then fly() end
@@ -302,6 +344,10 @@ return function(ctx, env, opts)
     if arg == A_REGION then return nextRegion(1) end
     if arg == A_ME then return toPlayer() end
     if arg == A_FLY then return fly() end
+    if arg == A_FLAT then
+      st.flat = not st.flat
+      return se("SE_SELECT")
+    end
     if arg == A_NORTH then
       -- (north up: the nearest whole turn)
       local g = st.goal
@@ -310,7 +356,7 @@ return function(ctx, env, opts)
     end
     if type(arg) == "number" and arg > A_PLACE then
       local i = arg - A_PLACE
-      if i == st.sel then
+      if st.nav[i] and st.nav[i] == st.here then
         if mode == "fly" then return fly() end
         return setZoom(st.zoom == 3 and 2 or 3)
       end
@@ -375,6 +421,7 @@ return function(ctx, env, opts)
   end
 
   function W.hints()
+    if st.flat then return T.list(mode == "fly" and HINTS.flatFly or HINTS.flat) end
     if mode == "fly" then return T.list(HINTS.fly) end
     if mode == "town" then return T.list(HINTS.town) end
     return T.list(st.flyMon and HINTS.appFly or HINTS.app)
@@ -392,10 +439,58 @@ return function(ctx, env, opts)
   local function U(px) return (px - K.ox) / K.sc end
   local function V(py) return (py - K.oy) / K.sc end
 
+  -- the cursor: moved by the held D-pad the way the camera faces (faster zoomed out, a little slower
+  -- over a town: it catches there); let go, it glides onto the nearest town or landmark close by
+  local function stepCursor(dt)
+    local r = st.region
+    if not r then return end
+    if st.dirX ~= 0 or st.dirY ~= 0 then
+      local yaw = st.flat and 0 or st.cam.yaw
+      local fx, fz = -math.sin(yaw), -math.cos(yaw)
+      local rx, rz = math.cos(yaw), -math.sin(yaw)
+      local mx = rx * st.dirX - fx * st.dirY
+      local mz = rz * st.dirX - fz * st.dirY
+      local l = sqrt(mx * mx + mz * mz)
+      if l > 0 then
+        local speed = max(2.4, st.cam.dist * 0.3)
+        if st.here and st.here.kind ~= "route" then speed = speed * 0.55 end
+        st.cx = max(r.x0, min(r.x0 + r.w, st.cx + mx / l * speed * dt))
+        st.cz = max(r.z0, min(r.z0 + r.h, st.cz + mz / l * speed * dt))
+      end
+      st.moving = true
+    else
+      if st.moving and not st.snapTo then
+        -- (let go: the nearest town or landmark close by)
+        local best, bd = nil, SNAP * SNAP
+        for _, p in ipairs(st.nav) do
+          local d = (p.x - st.cx) ^ 2 + (p.z - st.cz) ^ 2
+          if d < bd then best, bd = p, d end
+        end
+        st.snapTo = best
+      end
+      st.moving = false
+      local p = st.snapTo
+      if p then
+        local k = 1 - exp(-GLIDE * dt)
+        st.cx, st.cz = st.cx + (p.x - st.cx) * k, st.cz + (p.z - st.cz) * k
+        if abs(p.x - st.cx) < 0.005 and abs(p.z - st.cz) < 0.005 then
+          st.cx, st.cz, st.snapTo = p.x, p.z, nil
+        end
+      end
+    end
+    updateHere()
+    follow()
+  end
+
   -- the camera catching up with its goal, and L / R turning it
   local function stepCamera(dt)
     local c, g = st.cam, st.goal
     if st.turn ~= 0 then g.yaw = g.yaw + st.turn * TURN * dt end
+    if not st.flat and (st.stickX ~= 0 or st.stickY ~= 0) then
+      g.yaw = g.yaw + st.stickX * STICK_TURN * dt
+      g.pitch = max(PITCH_MIN, min(PITCH_MAX, g.pitch - st.stickY * STICK_TILT * dt))
+      c.yaw, c.pitch = g.yaw, g.pitch
+    end
     local k = 1 - exp(-EASE * dt)
     c.x, c.y, c.z = c.x + (g.x - c.x) * k, c.y + (g.y - c.y) * k, c.z + (g.z - c.z) * k
     c.dist = c.dist + (g.dist - c.dist) * k
@@ -498,11 +593,46 @@ return function(ctx, env, opts)
     end
   end
 
+  -- the cursor: a ring on the ground where it is, a little marker floating over it
+  local CURSOR = { 255, 64, 64 }
+  local function drawCursor(clock)
+    local r = st.region
+    if not r then return end
+    local G = K.graphics()
+    local h = Mdl.heightAt(r, st.cx, st.cz)
+    local gx, gy, depth = Rd.project(st.cx, h, st.cz)
+    local tx, ty = Rd.project(st.cx, h + 0.35, st.cz)
+    if not (gx and tx) then return end
+    local s = max(2.2, min(6, 60 / depth))
+    local pulse = 0.75 + 0.25 * math.sin(clock * 6)
+    K.col(SHADOW, 0.35)
+    G.setLineWidth(max(1, 0.9 * K.sc))
+    G.ellipse("line", gx, gy + 0.3 * K.sc, s * 1.1 * K.sc, s * 0.5 * K.sc)
+    K.col(CURSOR, 0.95)
+    G.setLineWidth(max(1, 0.6 * K.sc))
+    G.ellipse("line", gx, gy, s * 1.1 * pulse * K.sc, s * 0.5 * pulse * K.sc)
+    K.col(WHITE, 0.9)
+    G.ellipse("line", gx, gy, s * 0.55 * K.sc, s * 0.25 * K.sc)
+    -- (the marker: a small downward point, bobbing)
+    local by = ty - math.abs(math.sin(clock * 3)) * 1.2 * K.sc
+    local u = s * 0.45 * K.sc
+    K.col(SHADOW, 0.3)
+    G.polygon("fill", tx - u, by - u * 1.3 + 0.4 * K.sc, tx + u, by - u * 1.3 + 0.4 * K.sc, tx, by + 0.4 * K.sc)
+    K.col(CURSOR)
+    G.polygon("fill", tx - u, by - u * 1.3, tx + u, by - u * 1.3, tx, by)
+    K.col(WHITE, 0.9)
+    G.setLineWidth(max(1, 0.35 * K.sc))
+    G.polygon("line", tx - u, by - u * 1.3, tx + u, by - u * 1.3, tx, by)
+  end
+
   -- the chosen place's name over its pin: a glass capsule pointing down at it
   local function drawLabel()
     local p = place()
     if not p then return end
-    local hx, hy, depth = Rd.project(p.x, (p.y or 0) + 0.6, p.z)
+    local lx, lz = p.x, p.z
+    local ly = p.y or 0
+    if p.kind == "route" or st.sel == 0 then lx, lz, ly = st.cx, st.cz, Mdl.heightAt(st.region, st.cx, st.cz) end
+    local hx, hy, depth = Rd.project(lx, ly + 0.6, lz)
     if not hx then return end
     local fs = 4.6
     local tw = K.width(p.name, fs) + 8
@@ -560,7 +690,9 @@ return function(ctx, env, opts)
     K.bold(p.name, tx, b[2] + 3, fs, WHITE)
     -- (visited or not; a landmark says what it is)
     local sy = b[2] + 3.6 + fs * 1.22
-    if p.kind ~= "town" then
+    if p.kind == "route" then
+      pill(tx, sy, nil, T("map.route"), 3.8, PILL, SOFT)
+    elseif p.kind ~= "town" then
       pill(tx, sy, nil, T("map.landmark"), 3.8, LAND_FILL, LAND_INK)
     elseif p.visited then
       local nx = pill(tx, sy, nil, T("map.visited"), 3.8, GOOD_FILL, GOOD)
@@ -638,6 +770,13 @@ return function(ctx, env, opts)
       K.addHit(mb, "win", A_ME)
       right = right - 12
     end
+    -- (3D | 2D: the flat map and back)
+    local fb = K.R(right - 13, y + M, 13, 10)
+    glass(fb, 5, st.flat and 0.55 or 0.4, st.flat and ACCENT or nil)
+    K.bold(st.flat and "2D" or "3D", fb[1], fb[2] + 2.2, 4.4, WHITE, "center", fb[3])
+    K.addHit(fb, "win", A_FLAT)
+    right = right - 15
+    if st.flat then return end
     -- (the compass: the needle points where north is on the screen)
     local cb = K.R(right - 10, y + M, 10, 10)
     glass(cb, 5)
@@ -666,14 +805,24 @@ return function(ctx, env, opts)
       st.liveAt = clock
       refreshLive()
     end
+    stepCursor(dt)
     stepCamera(dt)
     local rect = st.rect
     rect.x, rect.y, rect.w, rect.h = K.X(body[1]), K.Y(body[2]), body[3] * K.sc, body[4] * K.sc
-    Rd.camera(st.cam, rect)
     local G = K.graphics()
     K.scissor(body)
-    st.three = Rd.draw(G, st.region, rect, clock, Rd.night(st.hour, st.minute), Rd.dusk(st.hour, st.minute))
+    if st.flat then
+      -- (the flat map: the camera's distance as how much of it shows, the cursor in the middle)
+      local c = st.cam
+      Rd.flatCamera(c.x, c.z, c.dist * 0.42, rect)
+      st.three = false
+      if not Rd.drawPicture(G, st.region, rect) then Rd.drawLand(G, st.region, rect) end
+    else
+      Rd.camera(st.cam, rect)
+      st.three = Rd.draw(G, st.region, rect, clock, Rd.night(st.hour, st.minute), Rd.dusk(st.hour, st.minute))
+    end
     drawPins(clock)
+    drawCursor(clock)
     drawLabel()
     local compact = body[3] < 150 or body[4] < 110
     drawChips(body)

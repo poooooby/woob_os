@@ -3,6 +3,28 @@
 All notable changes to this mod are documented here, in
 [keep a changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [0.5.0] - 2026-11-07
+
+### Changed
+- **WoobPad** in place of WoobWatch: the PC as a tablet from the START menu (WOOBPAD), with a big
+  touch screen. The PC's own home screen, dock, menu bar and app windows, at the PC's size, over the
+  game; no boot. Notifications: pull down from the top, or the W menu's Notifications (the PC's
+  W menu has it too). B on the home screen puts it away.
+
+### Added
+- **The 3D map:** a free cursor (the D-pad moves it over the land; let go near a town or a
+  landmark and it glides onto it; routes get their card too), the right stick turns and tilts the
+  camera, and a flat map (SELECT or the 2D / 3D button: the game's own Town Map picture, north up).
+- **Phone** (Ruby / Sapphire / Emerald): the PokéNav's contacts as a phone, with Favourites,
+  Recents and Contacts tabs, a Rematch filter, and cards with pictures and profiles. Emerald's calls
+  are the game's own (its words, rematch requests); the field's calls ring as a notification and
+  land in Recents. Ruby / Sapphire: Trainer's Eyes' Trainers and their rematches.
+- **Condition** (Ruby / Sapphire / Emerald): the contest conditions as a radar chart (sheen,
+  nature, ribbons), Search across the party and boxes, Compare, and feeding Pokéblocks with the
+  game's rules.
+- **The PokéNav:** Match Call (Trainer's Eyes) and Condition open the Phone and Condition; B goes
+  back to the PokéNav. Settings > PokéNav keeps its own screens.
+
 ## [0.4.0] - 2026-11-07
 
 ### Added

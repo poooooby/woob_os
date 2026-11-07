@@ -269,46 +269,83 @@ local function draw(n)
 end
 draw(3)
 local st = W.state
-T.check(#st.nav > 0 and st.nav[st.sel], "a place is chosen")
--- (the whole region in view, still: then each direction from each town)
-local function overview()
-  st.zoom = 1
-  local r = st.region
-  for _, c in ipairs({ st.cam, st.goal }) do
-    c.x, c.z, c.y, c.dist, c.pitch, c.yaw = r.x0 + r.w / 2, r.z0 + r.h / 2, 0, math.max(r.w, r.h) * 1.25, 1.05, 0.35
+T.check(#st.nav > 0 and st.here ~= nil, "the cursor starts on a place")
+-- (the cursor: free, the way the camera faces; let go near a town, it glides onto it)
+do
+  local function hold(keys, frames)
+    for _ = 1, frames do
+      W.input(input({}, keys), NONE)
+      draw(1)
+    end
+    W.input(input(), NONE)
   end
-  draw(1)
-end
-overview()
-local reach, queue = { [st.sel] = true }, { st.sel }
-local DIRS = { "left", "right", "up", "down" }
-while #queue > 0 do
-  local from = table.remove(queue, 1)
-  for _, dir in ipairs(DIRS) do
-    st.sel = from
-    local nav = { [dir] = true }
-    W.input(input(), nav)
-    overview()
-    if not reach[st.sel] then
-      reach[st.sel] = true
-      queue[#queue + 1] = st.sel
+  for _, c in ipairs({ st.cam, st.goal }) do c.yaw = 0 end
+  local town = st.nav[1]
+  W.focus(town)
+  local x0, z0 = st.cx, st.cz
+  hold({ "right" }, 6)
+  T.check(st.cx > x0 + 0.05 and math.abs(st.cz - z0) < 0.01, "Right (the camera facing north): the cursor east")
+  hold({ "up" }, 6)
+  T.check(st.cz < z0 - 0.05, "Up: north")
+  -- (left a little off a town: it glides back onto it)
+  local snapped, reachedAll = true, true
+  for _, p in ipairs(st.nav) do
+    if p.kind == "town" then
+      st.cx, st.cz, st.snapTo, st.moving = p.x + 0.45, p.z - 0.3, nil, true
+      W.input(input(), NONE)
+      draw(90)
+      snapped = snapped and math.abs(st.cx - p.x) < 0.01 and math.abs(st.cz - p.z) < 0.01
+      reachedAll = reachedAll and (st.here == p or (st.here and st.here.within == p))
     end
   end
+  T.check(snapped, "let go near any town: the cursor settles on it")
+  T.check(reachedAll, "and the card is that town's")
+  -- (on a route: the route, not a town)
+  local route
+  for _, p in ipairs(st.region.places) do if p.kind == "route" and not route then route = p end end
+  if route then
+    local c = route.cells[1]
+    local far = true
+    for _, q in ipairs(st.nav) do
+      if (q.x - c[1] - 0.5) ^ 2 + (q.z - c[2] - 0.5) ^ 2 < 1.3 ^ 2 then far = false end
+    end
+    st.cx, st.cz, st.snapTo, st.moving = c[1] + 0.5, c[2] + 0.5, nil, true
+    W.input(input(), NONE)
+    draw(30)
+    T.check(not far or st.here == route, "between towns: the route under the cursor (" .. tostring(st.here and st.here.name) .. ")")
+  end
+  W.focus(town)
 end
-local allTowns = true
-for i, p in ipairs(st.nav) do
-  if p.kind == "town" and not reach[i] then allTowns = false end
+-- (the right stick turns and tilts; SELECT: the flat map, north up, and back)
+do
+  local yaw, pitch = st.goal.yaw, st.goal.pitch
+  local stick = input()
+  stick.rightStickAxis = { x = 1, y = -0.8 }
+  for _ = 1, 10 do W.input(stick, NONE); draw(1) end
+  W.input(input(), NONE)
+  T.check(st.goal.yaw > yaw and st.goal.pitch > pitch, "the right stick: turned and tilted")
+  W.input(input({ "select" }), NONE)
+  T.check(st.flat, "SELECT: the flat map")
+  draw(3)
+  local hasFlat = false
+  for _, h in ipairs(W.hints()) do if h[1] == "SELECT" then hasFlat = true end end
+  T.check(hasFlat and not st.three, "drawn flat (its hints say SELECT: 3D)")
+  local tapFlat
+  for _, h in ipairs(K.hits) do if h.kind == "win" and h.arg == 1005 then tapFlat = h end end
+  T.check(tapFlat ~= nil, "its 2D / 3D chip")
+  local x0 = st.cx
+  for _ = 1, 6 do W.input(input({}, { "right" }), NONE); draw(1) end
+  W.input(input(), NONE)
+  T.check(st.cx > x0, "the cursor: right is east, north up")
+  W.tap(1005)
+  T.check(not st.flat, "the chip: 3D again")
+  draw(30)
 end
-local unreached = {}
-for i, p in ipairs(st.nav) do
-  if not reach[i] then unreached[#unreached + 1] = p.name end
-end
-T.check(allTowns, "the D-pad reaches every town (" .. table.concat(unreached, ", ") .. ")")
 -- (A zooms; the card's Fly refused without the badge)
 local z0 = st.zoom
 W.input(input({ "a" }), NONE)
 T.check(st.zoom == z0 % 3 + 1, "A zooms")
-for i, p in ipairs(st.nav) do if p == firstTown then st.sel = i end end
+W.focus(firstTown)
 draw(70)
 T.eq(st.flyWhy, "badge", "no badge that allows Fly: refused for that")
 W.input(input({ "start" }), NONE)
@@ -323,7 +360,7 @@ do
   s.flags[flag] = nil
 end
 -- (an unvisited town can't be flown to)
-for i, p in ipairs(st.nav) do if p == otherTown then st.sel = i end end
+W.focus(otherTown)
 st.flyMon = {}
 st.toast = nil
 W.tap(1003)
@@ -337,8 +374,11 @@ for _, h in ipairs(K.hits) do
 end
 T.check(pinHit ~= nil, "the places have pins to tap")
 if pinHit then
-  W.tap(pinHit.arg)
-  T.eq(st.sel, pinHit.arg - 2000, "a tap on a pin chooses its place")
+  -- (the hit's record is the kit's, used again next frame: its arg kept)
+  local arg = pinHit.arg
+  W.tap(arg)
+  draw(90)
+  T.eq(st.sel, arg - 2000, "a tap on a pin: the cursor glides there")
 end
 -- (drags turn and tilt, two fingers zoom, the wheel too)
 do
@@ -390,7 +430,7 @@ Tm.input(input({}, {}))   -- (the A that chose Fly let go)
 Tm.draw(G, VP)
 local tw = Tm.state().win
 T.eq(tw.state.zoom, 1, "Fly mode starts on the whole region")
-for i, p in ipairs(tw.state.nav) do if p == firstTown then tw.state.sel = i end end
+tw.focus(firstTown)
 press("a")
 T.check(not Tm.isOpen() and not Stack.has(Sh.MAP_ID), "A on a visited town: the map closes")
 if RSE then

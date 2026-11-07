@@ -2,7 +2,7 @@
 --   Language   WoobOS's words in another language (lang/*.lua; the game's own text stays)
 --   Wallpaper  the classic colours, five drawn wallpapers, the pictures in wallpapers/ (a picture
 --              shows Fill | Stretch by the title: SELECT or a tap switches)
---   Watch      WoobWatch's row in the START menu, the notifications' banners (on / off switches)
+--   WoobPad    its row in the START menu, the notifications' banners (on / off switches)
 -- A choice takes effect at once and is kept for the installation (src/settings.lua).
 -- Landscape: the list | the setting; portrait: the list, A opens the setting over it.
 --   buttons  Up / Down the setting (then the language, the wallpaper), A open / choose, Left or B
@@ -17,8 +17,8 @@ local floor, max, min = math.floor, math.max, math.min
 
 -- the sections' tiles (the rest of the look is the kit's K.UI)
 local C = { langTile = { 10, 132, 255 }, wallTile = { 175, 82, 222 }, watchTile = { 255, 69, 58 },
-            mapTile = { 46, 170, 120 }, switchOff = { 120, 120, 128, 0.28 } }
--- the Watch and Map sections' rows: switches (the kept setting, its words, on by default) and a
+            mapTile = { 46, 170, 120 }, navTile = { 255, 92, 160 }, switchOff = { 120, 120, 128, 0.28 } }
+-- the WoobPad, Map and PokéNav sections' rows: switches (the kept setting, its words, on by default) and a
 -- choice (the values A / a tap / Left / Right step through)
 local SOON_CHOICES = { 5, 10, 15, 30 }
 local WATCH_TOGGLES = {
@@ -29,11 +29,16 @@ local WATCH_TOGGLES = {
 local MAP_TOGGLES = {
   { key = "map3d", label = "settings.map3d" },
 }
+local NAV_TOGGLES = {
+  { key = "pokenavApps", label = "settings.pokenavApps" },
+}
 local SECTIONS = {
   { id = "language", key = "settings.language", tile = C.langTile },
   { id = "wallpaper", key = "settings.wallpaper", tile = C.wallTile },
   { id = "watch", key = "settings.watch", tile = C.watchTile, toggles = WATCH_TOGGLES, note = "settings.watchNote" },
   { id = "map", key = "settings.map", tile = C.mapTile, toggles = MAP_TOGGLES, note = "settings.mapNote" },
+  { id = "pokenav", key = "settings.pokenav", tile = C.navTile, toggles = NAV_TOGGLES, note = "settings.pokenavNote",
+    family = "rse" },
 }
 -- (a switch's hit: TOGGLE + its section's place * 20 + its row)
 local TOGGLE_SPAN = 20
@@ -72,7 +77,7 @@ return function(ctx, env)
   W.refresh = refresh
 
   local function section() return SECTIONS[st.section].id end
-  -- the section's switches (Watch, Map), nil for the others
+  -- the section's switches (WoobPad, Map, PokéNav), nil for the others
   local function toggles()
     local list = SECTIONS[st.section].toggles
     if list and st.toggleCursor > #list then st.toggleCursor = #list end
@@ -260,12 +265,15 @@ return function(ctx, env)
       G.ellipse("line", cx, cy, r * 0.42, r)
       G.line(cx - r, cy, cx + r, cy)
     elseif id == "watch" then
-      -- (a watch: its band, the case, two hands)
-      G.rectangle("fill", cx - u * 0.12, cy - u * 0.38, u * 0.24, u * 0.76)
-      G.rectangle("fill", cx - u * 0.22, cy - u * 0.24, u * 0.44, u * 0.48, u * 0.1, u * 0.1)
+      -- (WoobPad: a tablet, its screen)
+      G.rectangle("fill", cx - u * 0.32, cy - u * 0.24, u * 0.64, u * 0.48, u * 0.08, u * 0.08)
       K.col(C.watchTile)
-      G.line(cx, cy, cx, cy - u * 0.13)
-      G.line(cx, cy, cx + u * 0.1, cy + u * 0.04)
+      G.rectangle("fill", cx - u * 0.25, cy - u * 0.17, u * 0.5, u * 0.34, u * 0.04, u * 0.04)
+    elseif id == "pokenav" then
+      -- (a PokéNav: a rounded body, its screen)
+      G.rectangle("fill", cx - u * 0.26, cy - u * 0.3, u * 0.52, u * 0.6, u * 0.12, u * 0.12)
+      K.col(C.navTile)
+      G.rectangle("fill", cx - u * 0.17, cy - u * 0.2, u * 0.34, u * 0.24, u * 0.04, u * 0.04)
     elseif id == "map" then
       -- (a folded map, a pin on it)
       G.polygon("fill", cx - u * 0.3, cy - u * 0.16, cx - u * 0.1, cy - u * 0.1, cx - u * 0.1, cy + u * 0.24, cx - u * 0.3, cy + u * 0.18)

@@ -780,7 +780,7 @@ return function(ctx, env)
     local r = st.rows[st.cursor]
     local gy = y + 15
     if h < 74 then
-      -- (a short card, the watch's: the title alone above the Pokémon and its button)
+      -- (a short card, a small window's: the title alone above the Pokémon and its button)
       local title = purpose == "wonder" and T("gts.wonder")
         or (purpose == "accept" and st.picking.listing.offerName or T("gts.depositTitle"))
       local fs = K.fit(title, 5.2, w - 8)
