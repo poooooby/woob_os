@@ -2,6 +2,7 @@
 --   Language   WoobOS's words in another language (lang/*.lua; the game's own text stays)
 --   Wallpaper  the classic colours, five drawn wallpapers, the pictures in wallpapers/ (a picture
 --              shows Fill | Stretch by the title: SELECT or a tap switches)
+--   Watch      WoobWatch's row in the START menu, the notifications' banners (on / off switches)
 -- A choice takes effect at once and is kept for the installation (src/settings.lua).
 -- Landscape: the list | the setting; portrait: the list, A opens the setting over it.
 --   buttons  Up / Down the setting (then the language, the wallpaper), A open / choose, Left or B
@@ -9,18 +10,26 @@
 --   touch    tap a setting, a language, a wallpaper; drag (or the wheel) scrolls the wallpapers
 --
 --   window(ctx, env) -> win (src/apps.lua); env: T, wall, language() / setLanguage(code),
---   wallpaper() / setWallpaper(id), wallpaperFit() / setWallpaperFit(fit), gameId()
+--   wallpaper() / setWallpaper(id), wallpaperFit() / setWallpaperFit(fit), gameId(),
+--   setting(key, default) / setSetting(key, value)
 
 local floor, max, min = math.floor, math.max, math.min
 
 -- the sections' tiles (the rest of the look is the kit's K.UI)
-local C = { langTile = { 10, 132, 255 }, wallTile = { 175, 82, 222 } }
+local C = { langTile = { 10, 132, 255 }, wallTile = { 175, 82, 222 }, watchTile = { 255, 69, 58 },
+            switchOff = { 120, 120, 128, 0.28 } }
 local SECTIONS = {
   { id = "language", key = "settings.language", tile = C.langTile },
   { id = "wallpaper", key = "settings.wallpaper", tile = C.wallTile },
+  { id = "watch", key = "settings.watch", tile = C.watchTile },
 }
-local ROW_H, LANG_H = 13, 11
-local SIDE, LANG, WALL, BACK, FIT = 1, 100, 200, 300, 400
+-- the Watch section's switches: the kept setting, its words, on by default
+local TOGGLES = {
+  { key = "watchRow", label = "settings.watchRow" },
+  { key = "notifications", label = "settings.notifications" },
+}
+local ROW_H, LANG_H, TOGGLE_H = 13, 11, 13
+local SIDE, LANG, WALL, BACK, FIT, TOGGLE = 1, 100, 200, 300, 400, 500
 local FITS = { "fill", "stretch" }
 local HINTS = {
   side = { { "A", "hint.open" }, { "B", "hint.close" } },
@@ -38,7 +47,7 @@ return function(ctx, env)
   local st = {
     section = 1, focus = "side", reading = false, portrait = false,
     langs = {}, langCursor = 1, walls = {}, wallCursor = 1, wallTop = 0, cols = 3, wallRows = 1,
-    wallVisible = 2,
+    wallVisible = 2, toggleCursor = 1,
   }
   W.state = st
 
@@ -61,10 +70,24 @@ return function(ctx, env)
     if env.setWallpaperFit then env.setWallpaperFit(f) end
     se("SE_SELECT")
   end
-  local function count() return section() == "language" and #st.langs or #st.walls end
-  local function cursor() return section() == "language" and st.langCursor or st.wallCursor end
+  local function count()
+    local s = section()
+    if s == "watch" then return #TOGGLES end
+    return s == "language" and #st.langs or #st.walls
+  end
+  local function cursor()
+    local s = section()
+    if s == "watch" then return st.toggleCursor end
+    return s == "language" and st.langCursor or st.wallCursor
+  end
   local function setCursor(i)
-    if section() == "language" then st.langCursor = i else st.wallCursor = i end
+    local s = section()
+    if s == "watch" then st.toggleCursor = i
+    elseif s == "language" then st.langCursor = i else st.wallCursor = i end
+  end
+  local function toggled(i)
+    local t = TOGGLES[i]
+    return t ~= nil and (not env.setting or env.setting(t.key, true) ~= false)
   end
   -- (the wallpaper grid's row kept in view)
   local function showWall()
@@ -75,7 +98,10 @@ return function(ctx, env)
   end
 
   local function choose()
-    if section() == "language" then
+    if section() == "watch" then
+      local t = TOGGLES[st.toggleCursor]
+      if t and env.setSetting then env.setSetting(t.key, not toggled(st.toggleCursor)) end
+    elseif section() == "language" then
       local l = st.langs[st.langCursor]
       if l and env.setLanguage then env.setLanguage(l.code) end
     else
@@ -159,6 +185,10 @@ return function(ctx, env)
       st.section, st.focus, st.wallCursor = 2, "detail", arg - WALL
       return choose()
     end
+    if arg >= TOGGLE and arg < TOGGLE + #TOGGLES then
+      st.section, st.focus, st.toggleCursor = 3, "detail", arg - TOGGLE + 1
+      return choose()
+    end
     if arg >= LANG and arg < WALL then
       st.section, st.focus, st.langCursor = 1, "detail", arg - LANG
       return choose()
@@ -187,6 +217,13 @@ return function(ctx, env)
       G.circle("line", cx, cy, r)
       G.ellipse("line", cx, cy, r * 0.42, r)
       G.line(cx - r, cy, cx + r, cy)
+    elseif id == "watch" then
+      -- (a watch: its band, the case, two hands)
+      G.rectangle("fill", cx - u * 0.12, cy - u * 0.38, u * 0.24, u * 0.76)
+      G.rectangle("fill", cx - u * 0.22, cy - u * 0.24, u * 0.44, u * 0.48, u * 0.1, u * 0.1)
+      K.col(C.watchTile)
+      G.line(cx, cy, cx, cy - u * 0.13)
+      G.line(cx, cy, cx + u * 0.1, cy + u * 0.04)
     else
       G.polygon("fill", cx - u * 0.32, cy + u * 0.22, cx - u * 0.08, cy - u * 0.12, cx + u * 0.12, cy + u * 0.22)
       G.polygon("fill", cx - u * 0.02, cy + u * 0.22, cx + u * 0.14, cy, cx + u * 0.32, cy + u * 0.22)
@@ -292,6 +329,34 @@ return function(ctx, env)
     K.text(T("settings.wallpaperNote"), x + 6, y + h - noteH + 1, 4, UI.secondary, "left", w - 12)
   end
 
+  -- an on / off switch (iOS's): green with the knob right when on
+  local function switch(x, y, on)
+    local G = K.graphics()
+    local b = K.R(x, y, 14, 8)
+    K.col(on and UI.green or C.switchOff)
+    K.box("fill", b, 4)
+    K.col(K.WHITE)
+    G.circle("fill", K.X(x + (on and 10 or 4)), K.Y(y + 4), 3.3 * K.sc)
+  end
+  local function drawWatch(x, y, w, h)
+    local gb = K.R(x + 4, y + 13, w - 8, #TOGGLES * TOGGLE_H)
+    K.card(gb, 4)
+    for i, t in ipairs(TOGGLES) do
+      local rb = K.R(gb[1], gb[2] + (i - 1) * TOGGLE_H, gb[3], TOGGLE_H)
+      local on = st.focus == "detail" and i == st.toggleCursor
+      if on then K.selection(K.R(rb[1] + 1, rb[2] + 0.5, rb[3] - 2, rb[4] - 1), true, 3)
+      elseif i > 1 and not (st.focus == "detail" and i - 1 == st.toggleCursor) then
+        K.hairline(rb[1] + 5, rb[2], rb[3] - 5)
+      end
+      local label = T(t.label)
+      local ls = K.fit(label, 5, rb[3] - 26)
+      K.text(label, rb[1] + 5, rb[2] + 3.4 + (5 - ls) * 0.5, ls, on and K.WHITE or UI.label)
+      switch(rb[1] + rb[3] - 19, rb[2] + 2.5, toggled(i))
+      K.addHit(rb, "win", TOGGLE + i - 1)
+    end
+    K.text(T("settings.watchNote"), x + 6, gb[2] + gb[4] + 3, 4.2, UI.secondary, "left", w - 12)
+  end
+
   local function drawDetail(x, y, w, h)
     local sec = SECTIONS[st.section]
     K.bold(T(sec.key), x + 6, y + 3, 6.5, UI.label)
@@ -301,7 +366,9 @@ return function(ctx, env)
       K.segmented(x + w - sw - 5, y + 2.5, sw, 8, fit() == "fill" and 1 or 2, "win",
         FIT, T("settings.fill"), FIT + 1, T("settings.stretch"))
     end
-    if sec.id == "language" then drawLanguage(x, y, w, h) else drawWallpaper(x, y, w, h) end
+    if sec.id == "language" then drawLanguage(x, y, w, h)
+    elseif sec.id == "watch" then drawWatch(x, y, w, h)
+    else drawWallpaper(x, y, w, h) end
   end
 
   function W.draw(body, clock, portrait)

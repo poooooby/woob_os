@@ -15,7 +15,7 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/mailbox.lua` | The mail model: inbox and held rows, to Bag / give / take on the engine's mail pool |
 | `src/apps/items.lua` | The Items window: Bag \| PC commander |
 | `src/apps/mail.lua` | The Mail window: folders, list, the open letter, the party picker |
-| `src/apps/settings.lua` | The Settings window: Language, Wallpaper |
+| `src/apps/settings.lua` | The Settings window: Language, Wallpaper, Watch (the START row, the banners) |
 | `src/auction.lua` | R-Bay's market: auctions worked out from the save's seed and the clock, eBay proxy bidding, bids / results in `mod.save` |
 | `src/apps/auction.lua` | The R-Bay window: Browse \| My Bids, the IVs, the max-bid stepper |
 | `src/gts.lua` | The GTS: strangers and their Pokémon (traded, their OT), the trade rules, Wonder Trade, the deposit and its match, the listings |
@@ -29,6 +29,8 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/i18n.lua`, `lang/*.lua` | The words, by language (`lang/en.lua` the master) |
 | `src/settings.lua` | The Settings app's choices, kept in `mod.cache` (`settings.lua`) for the installation |
 | `src/wallpaper.lua` | The drawn wallpapers and the `wallpapers/` folder's pictures, painted once into canvases |
+| `src/watch.lua` | WoobWatch: the second host for the apps' windows (face, honeycomb, app, notifications) |
+| `src/notify.lua` | The notifications: a list, the banners' queue, the card, the field's banner |
 
 ## How the PC is taken over
 
@@ -261,14 +263,61 @@ never the player's).
   (`Au.pools`, `Au.tierOf`, `Au.minLevel`), the level within 5 of yours.
 - **Your deposit:** the Pokémon itself kept in `mod.save` "gts".deposit while posted. `matchAt` from
   the ask's fairness (the tier rank asked minus given, +1 for a level range well above): within an
-  hour, within four, a 30% chance within six, or never. `Gx.settle` (the desktop's tick,
-  `save.loaded`) makes the stranger's Pokémon when it's time; `Gx.collect` places it.
+  hour, within four, a 30% chance within six, or never. `Gx.settle` (the shell's tick,
+  `save.loaded`) makes the stranger's Pokémon when it's time (a "gts" notification);
+  `Gx.collect` places it.
 - **Listings:** ten per half hour from the save's seed (R-Bay's `Au.seedOf`), 40% asking for a species
   the player owns; `done` keys per window.
 - **Trade evolution:** `Gx.evolveTarget` (`Evolution.tradeTarget`), then the window's reveal opens
   `Gx.openEvolution` (the game's `EvolutionScene`) through `ctx.over` and comes back via `ctx.resume`.
 - **Tests** swap `Gx.store`, `Gx.rng`, `Gx.now`; the probe scripts `Gx.rng` for a legendary and a
   Kadabra (its evolution scene in the engine).
+
+## WoobWatch
+
+`src/watch.lua` (Wt) is a second host for the same windows (the contract above), opened from the
+START menu anywhere. `src/shell.lua` keeps one host open at a time: `Sh.host()` is the desktop or
+the watch, and the layer, `render.hud` (`Sh.frame`), `input.pointer` (`Sh.pointer`) and
+`input.wheel` go to whichever is up.
+
+- **The row:** the `ui.start_menu.items` hook (`Sh.startRows`) puts `{ id = "woob_watch", label =
+  T("watch.start"), onSelect }` above EXIT (or the engine's MODS), only in a menu with SAVE (not a
+  link room's or the Safari Zone's), the Desktop option and Settings' `watchRow` on. `onSelect`
+  runs with the START menu still on the Stack, so popping the watch's layer is the menu again.
+- **The layer:** `woob_watch`, pushed `{ hideBelow = true, fullscreen = false }`: the START menu's
+  box hides, the field is still drawn (the watch dims it). The desktop's stays full screen.
+- **ctx:** `mode = "watch"` (`Apps.list` gives Boxes then; Oak, the Hall and Decorate want PC rows
+  and drop out), `rows = {}`, `finish` / `done` / `logoff` close it, `over(open, state)` as the
+  desktop's (the watch back with `ctx.resume = { app, state }`). Apps with `watch = false` (About,
+  Log Off) and apps without a window aren't shown.
+- **The page:** `K.frame` with `W.PAGE` (`portraitAspect = 99`: always "portrait", scaled to fit),
+  the case `W.CASE`, the screen inset, the body about 172 x 207 units; windows get
+  `draw(body, clock, true)`. One host at a time, so the kit's single transform is shared.
+- **Screens:** `r.screen` "face" | "grid" | "app" | "notes". The face's tiles are read once a
+  second (`readComps`: R-Bay's listings' `mine` / `leader`, `Gx.posted()`, `Sl.tickets()`), the
+  clock too (`deps.clock` -> hour, minute, day, weekday). The honeycomb (`placeIcons`: rows of 3 and
+  2, `W.HONEY`) is centred when it fits, else scrolled to the focused row; icons shrink toward the
+  screen's edges.
+- **`env.pad.transfer`** goes to the desktop's pad, or `Wt.pulse()` (the crown's ring) on the watch.
+
+## Notifications
+
+`src/notify.lua` (Nt), made in `main.lua` and handed to the models as `deps.notify(kind, data,
+quiet)`: `Au` ("outbid" in `refund`, quiet when the player's own `Au.bid` lost it; "soon" once per
+bid, `b.soon` kept in the record; "won" / "lost" in `Au.settle`) and `Gx` ("gts" in `Gx.settle`).
+`main.lua`'s `notify` makes it quiet while the player is looking at that app's window.
+
+- **Records:** `{ kind, app, title, text, sp, at, state }`, the text made once (`T.f`), 20 kept
+  (memory only). `state` is handed to the app as `ctx.resume.state` when it's opened from one
+  (R-Bay `{ tab, key }`, the GTS `{ tab = "deposit" }`).
+- **Banners:** a queue of three (older than ten minutes: the list only), `Nt.step(clock, canShow)`
+  shows them one at a time (`IN` / `HOLD` / `OUT`). With no host open, `Sh.frame` draws the
+  field's (`Nt.drawField`, `K.place` on the game's own pixels, `Nt.FIELD`) only while `Sh.free(game)`
+  (the engine's quicksave test: the field, not `Hud.busy()`, `Hud.startButtonAllowed()`); a press
+  on it (`Nt.hitField`) opens the watch on that app. The desktop shows it under its menu bar, the
+  watch over its screen (hits "notify" / "wbanner"). Settings' `notifications` off: list only.
+- **The tick** moved to the shell: `main.lua`'s `tick()` once a second from `render.hud`, wherever
+  the player is (the open host's session first): `Au.settle`, `Gx.settle`.
 
 ## Words
 
@@ -317,6 +366,7 @@ From the gen1recomp root (the mod is linked as `mods/woob_os`):
 
 ```bash
 luajit mods/woob_os/tests/desktop_test.lua [firered|leafgreen|ruby|sapphire|emerald]
+luajit mods/woob_os/tests/watch_test.lua [firered|leafgreen|ruby|sapphire|emerald]
 SHOT_DIR=<dir> POKEPORT_GAME=firered POKEPORT_VERSION=firered \
   POKEPORT_DRIVER=mods/woob_os/tests/drivers/desktop_probe.lua love .
 python tools/modkit.py lint mods/woob_os
@@ -325,4 +375,6 @@ python tools/modkit.py lint mods/woob_os
 The headless test draws through a stand-in for `love.graphics` and checks the rows, the boot, the
 warm return, logging off, the bedroom, the options, every window shape and the garbage. The probe
 walks to a real Pokémon Center PC, runs Boxes and Items through the game's own scripts and takes
-shots (`d*.png`).
+shots (`d*.png`); then START, the watch's row, every app on the watch, a banner over the field and
+a tap on it (`w*.png`). `watch_test.lua` covers the START row, the watch's screens and apps,
+`ctx.over`, every notification's source, the banners and their setting, and the garbage.

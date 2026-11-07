@@ -15,6 +15,7 @@
 --       color    { r, g, b } the tile's colour
 --       order    sorts the apps (lower first; built-ins 10..90)
 --       dock     true: in the dock, not the home grid
+--       watch    false: not on WoobWatch (src/watch.lua shows only apps with a window)
 --       badge(ctx) -> n   a count on the icon's corner (read once a second; nil / 0: none)
 --       available(ctx) -> bool   (nil: always)
 --       open(ctx)                ctx below; an app ends with ctx.finish / ctx.done / its own screen
@@ -30,7 +31,7 @@
 --   A.list(ctx) -> the available apps, sorted ; A.byId(id)
 --
 --   ctx (handed by the desktop): session ; mode ("select": a Pokémon Center PC's menu, "bedroom":
---   the player's own PC) ; family ("frlg" | "rse") ; row(id) -> the PC menu's row index for one of
+--   the player's own PC, "watch": WoobWatch, anywhere) ; family ("frlg" | "rse") ; row(id) -> the PC menu's row index for one of
 --   the game's own rows ("storage", "player", "oak", "hall", "quit") or nil ; finish(result) hands
 --   a row back to the game's PC script and closes the desktop ; done() closes the desktop as
 --   cancelled ; over(open) opens one of the game's screens over the desktop (open(onClose)), the
@@ -79,7 +80,11 @@ return function(deps)
   -- every box; the game's own screens when it can't be made
   A.register({ id = "storage", labelKey = "app.storage", label = "Boxes",
                glyph = "ball", color = { 226, 70, 72 }, order = 10, dock = true,
-               available = hasRow("storage"), window = deps.boxes,
+               available = function(ctx)
+                 -- (on the watch: our window, there's no PC script to hand a row)
+                 if ctx.mode == "watch" then return deps.boxes ~= nil end
+                 return ctx.mode == "select" and ctx.row("storage") ~= nil
+               end, window = deps.boxes,
                open = not deps.boxes and toRow("storage") or nil })
   -- the player's PC, our own: item storage (PC | Bag) and the mailbox (an inbox)
   if deps.items then
@@ -135,10 +140,10 @@ return function(deps)
                  color = { 132, 140, 158 }, order = 70, window = deps.settings })
   end
   A.register({ id = "about", labelKey = "app.about", label = "About",
-               glyph = "logo", color = { 70, 76, 96 }, order = 80,
+               glyph = "logo", color = { 70, 76, 96 }, order = 80, watch = false,
                open = function(ctx) ctx.sheet("about") end })
   A.register({ id = "logoff", labelKey = "app.logoff", label = "Log Off",
-               glyph = "power", color = { 120, 128, 146 }, order = 90, dock = true,
+               glyph = "power", color = { 120, 128, 146 }, order = 90, dock = true, watch = false,
                open = function(ctx) ctx.sheet("logoff") end })
 
   return A

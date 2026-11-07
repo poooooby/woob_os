@@ -33,6 +33,19 @@ opens a desktop in a sleek monitor instead of a text menu.
   tap on an empty spot finishes, and every PC remembers the arrangement.
 - 📐 **Fits your screen:** wide windows, small windows and phones held upright all get a layout of
   their own.
+- ⌚ **WoobWatch:** the PC on your wrist. Choose WATCH in the START menu, anywhere you can open it,
+  and a smartwatch comes up over the game:
+  - **The face:** the time and date, your name and money, your party with their HP, and tiles for
+    your R-Bay bids, your GTS deposit, your Rocket Tickets and the Mart. A red dot means news.
+  - **The apps:** round icons in a honeycomb. Move with the D-pad, turn the crown with L and R (or
+    the mouse wheel), open with A. Boxes, Items, Mail, GTS, Mart, R-Bay, Slots and Settings all
+    work on the watch, just as they do at the PC.
+  - **Notifications:** Down on the face (or a swipe up) lists them, newest first. Open one to go
+    straight to it.
+- 🔔 **Notifications:** WoobOS tells you when you're outbid on R-Bay (your money is already back),
+  when an auction you're in has ten minutes left, when you win or lose one, and when your GTS
+  deposit is traded. A banner slides down over the game while you're free to walk around; tap it to
+  open the watch on that app. With the PC or the watch open, it slides in over its screen instead.
 
 ### Apps
 
@@ -118,6 +131,8 @@ opens a desktop in a sleek monitor instead of a text menu.
     Português (Brasil). The game's own text, such as item names and mail, stays as it is.
   - 🖼️ **Wallpaper:** the classic colours of your game, five drawn wallpapers (Ribbon, Hills,
     Coast, Waves and Bloom, each tinted to your game), or your own pictures.
+  - ⌚ **Watch:** show WoobWatch in the START menu or not, and turn the notification banners on or
+    off. Notifications still wait in the watch's list with the banners off.
 - ℹ️ **About:** which version you're running.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
 
@@ -171,8 +186,13 @@ turn it on for your Generation 3 games.
 - Your Settings choices are kept for the whole game, not per save file.
 - **R-Bay and your save:** your bids are saved when you save the game. Load an older save and its
   bids and money come back with it. Auctions keep their own time, so one may have ended while you
-  were away: it settles when you load the save or open the PC. If both your party and the PC are
-  full, a won Pokémon waits until there's room.
+  were away: it settles as soon as you load the save. If both your party and the PC are full, a
+  won Pokémon waits until there's room.
+- **WoobWatch's apps:** Oak's PC, the Hall of Fame and Decorate stay at the PC. When an app opens
+  one of the game's screens (a Pokémon's Summary, an evolution), the watch comes back on that app
+  when it closes. The watch isn't in the START menu in a link room or the Safari Zone.
+- **Notifications** wait while a script, a battle or a menu is running, and show once you're free
+  to move. They're kept until you turn the game off, not in your save.
 
 ## 🪪 Credits
 

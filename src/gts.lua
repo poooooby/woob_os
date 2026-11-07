@@ -11,7 +11,8 @@
 --
 --   Gx = gts(engine, deps)  deps: save (mod.save), now() -> epoch seconds, rng(n) -> 1..n,
 --                           seed(s), pools() / tierOf(sp) / minLevel(sp) (R-Bay's), frlg() -> bool,
---                           bx (src/boxes.lua)
+--                           bx (src/boxes.lua), notify(kind, { name, sp, who }) ("gts": a
+--                           deposit traded)
 --   Gx.REGIONS, Gx.LEVELS (request ranges)
 --   Gx.canSend(s, addr) -> true | false, reason        addr: Bx.addr(...)
 --   Gx.candidates(s, box, filter) -> { addr ... }       (the party, then that box)
@@ -339,6 +340,10 @@ return function(engine, deps)
     if not recv then return false end
     dep.received, dep.stranger = recv, { who[1], who[2], who[3] }
     save(d)
+    if deps.notify then
+      local sp = tonumber(recv.species or recv.speciesId)
+      pcall(deps.notify, "gts", { name = Gx.name(sp), sp = sp, who = who[1] })
+    end
     return true
   end
   function Gx.collect(s)

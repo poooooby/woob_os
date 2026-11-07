@@ -17,14 +17,25 @@
 --     Sapphire / Emerald storage, player, Hall of Fame, log off), so the script runs on exactly as
 --     if the row was chosen, and comes back to the PC menu - the desktop again, without the boot
 --
---   Sh = shell(mod, deps)   deps: require ; log ; desktop (made) ; apps (made) ; kitDeps
---   Sh.install() (load: the hooks) ; Sh.ready() (game.ready: the PC menu wrap) ; Sh.layer
+--   - WoobWatch (src/watch.lua) is the same apps on the player's wrist: its own layer
+--     ("woob_watch"), pushed from the START menu's row (over the menu: closing it is the menu again)
+--     or from a tap on a notification's banner over the field (closing it is the field again).
+--     One of the two is open at a time; the hooks below go to whichever is
+--   - once a second, whatever is on screen (deps.tick: R-Bay and the GTS settle, notifications
+--     come from them), and the notifications' banner over the field while the player is free to
+--     move (src/notify.lua)
+--
+--   Sh = shell(mod, deps)   deps: require ; log ; desktop (made) ; watch (made) ; apps (made) ;
+--                           notify (src/notify.lua) ; tick() ; session() ; watchRow() -> the START
+--                           row shown ; watchLabel() -> its words
+--   Sh.install() (load: the hooks) ; Sh.ready() (game.ready: the PC menu wrap) ; Sh.layer ;
+--   Sh.openWatch(session, opts) (opts: { app, state } to open an app at once) ; Sh.free(game)
 
 return function(mod, deps)
   local req = deps.require or require
   local log = deps.log
-  local D, A = deps.desktop, deps.apps
-  local Sh = { LAYER_ID = "woob_os" }
+  local D, A, Wt, Nt = deps.desktop, deps.apps, deps.watch, deps.notify
+  local Sh = { LAYER_ID = "woob_os", WATCH_ID = "woob_watch" }
 
   local engineMods = {}
   local function engine(name)
@@ -95,10 +106,20 @@ return function(mod, deps)
     end
   end
 
-  local function push()
+  -- (the watch's: the field stays drawn under it, the watch dims it itself)
+  local WatchLayer = { isMenu = true }
+  Sh.watchLayer = WatchLayer
+  function WatchLayer.handleInput(input) if Wt then Wt.input(input) end end
+  function WatchLayer.update() end
+  function WatchLayer.draw() end
+
+  -- (the desktop is full screen: the field isn't drawn under it; the watch's field stays, dimmed)
+  local FULL, OVER = { hideBelow = true, fullscreen = true }, { hideBelow = true, fullscreen = false }
+  local function push(id, layer)
+    id, layer = id or Sh.LAYER_ID, layer or Layer
     local Stack = engine("src.ui.game3.stack")
     if not Stack then return false end
-    local ok, err = pcall(Stack.push, Sh.LAYER_ID, Layer, { hideBelow = true, fullscreen = true })
+    local ok, err = pcall(Stack.push, id, layer, layer == WatchLayer and OVER or FULL)
     if not ok then
       if log then log:warn("the desktop could not open: %s", tostring(err)) end
       return false
@@ -106,11 +127,19 @@ return function(mod, deps)
     pad(true)
     return true
   end
-  local function pop()
+  local function pop(id)
+    id = id or Sh.LAYER_ID
     local Stack = engine("src.ui.game3.stack")
-    if Stack and Stack.has and Stack.has(Sh.LAYER_ID) then pcall(Stack.pop, Sh.LAYER_ID) end
+    if Stack and Stack.has and Stack.has(id) then pcall(Stack.pop, id) end
     pad(false)
   end
+  -- the one open (the desktop or the watch), and its layer's id
+  local function host()
+    if D.isOpen() then return D, Sh.LAYER_ID end
+    if Wt and Wt.isOpen() then return Wt, Sh.WATCH_ID end
+    return nil
+  end
+  Sh.host = host
 
   local function familyOf(game)
     game = tostring(game or "")
@@ -212,6 +241,63 @@ return function(mod, deps)
     return true
   end
 
+  -- the watch: the apps (no PC rows: Oak, the Hall, Decorate and log off stay at the PC); closing
+  -- it goes back to what was under it (the START menu, or the field)
+  function Sh.openWatch(s, opts)
+    if not Wt or Wt.isOpen() or D.isOpen() then return false end
+    if Sh.enabled and not Sh.enabled() then return false end
+    s = s or (deps.session and deps.session())
+    local ctx = { session = s, mode = "watch", host = "watch", family = familyOf(gameId()), rows = {} }
+    function ctx.row() return nil end
+    local closed = false
+    local function close()
+      if closed then return end
+      closed = true
+      Wt.close()
+      pop(Sh.WATCH_ID)
+    end
+    ctx.finish, ctx.done, ctx.logoff = close, close, close
+    -- one of the game's screens over the watch (Boxes' Summary, an evolution), the watch back on
+    -- the app after
+    function ctx.over(open, resume)
+      Wt.close()
+      pop(Sh.WATCH_ID)
+      local back = ctx.app
+      local function reopen()
+        if closed then return end
+        ctx.resume = { app = back, state = resume }
+        Wt.open(ctx)
+        push(Sh.WATCH_ID, WatchLayer)
+      end
+      local ok, err = pcall(open, reopen)
+      if not ok then
+        if log then log:warn("the game's screen failed to open: %s", tostring(err)) end
+        reopen()
+      end
+    end
+    function ctx.original() end
+    function ctx.sheet() end
+    if opts and opts.app then ctx.resume = { app = opts.app, state = opts.state } end
+    Wt.open(ctx)
+    if not push(Sh.WATCH_ID, WatchLayer) then
+      Wt.close()
+      return false
+    end
+    return true
+  end
+
+  -- the player free to move in the field (the engine's own test for its quicksave): no script,
+  -- no menu, no message, no battle
+  function Sh.free(game)
+    if not (type(game) == "table" and game.phase == "field") then return false end
+    local Hud = engine("src.ui.game3.hud")
+    if not (Hud and Hud.busy and Hud.startButtonAllowed) then return false end
+    local ok, busy = pcall(Hud.busy)
+    if not ok or busy then return false end
+    local ok2, allowed = pcall(Hud.startButtonAllowed)
+    return ok2 and allowed == true
+  end
+
   -- the wrap of pc_menu.show: once per process, calling this instance
   function Sh.ready()
     local PcMenu = engine("src.ui.game3.pc_menu")
@@ -278,6 +364,72 @@ return function(mod, deps)
     return nxt ~= nil and nxt.op == "goto" and promptAt(vm.scripts[nxt.target], 1)
   end
 
+  -- each frame (render.hud): the once-a-second tick; the desktop or the watch drawn over the
+  -- whole window, else a notification's banner over the field once the player is free
+  local tickAt = -1
+  function Sh.frame(game, viewport)
+    local G = love and love.graphics
+    local t = love and love.timer and love.timer.getTime() or 0
+    if deps.tick and (t - tickAt >= 1 or t < tickAt) then
+      tickAt = t
+      local ok, err = pcall(deps.tick)
+      if not ok and log then log:warn("the tick failed: %s", tostring(err)) end
+    end
+    -- (the layer taken away under it, a reset: the desktop or the watch goes too)
+    local Stack = engine("src.ui.game3.stack")
+    local h, id = host()
+    if h and Stack and Stack.has and not Stack.has(id) then
+      h.close()
+      pad(false)
+      h = nil
+    end
+    if not (G and type(viewport) == "table" and (h or Nt)) then return end
+    G.push("all")
+    G.origin()
+    G.setScissor()
+    G.setShader()
+    G.setBlendMode("alpha")
+    local ok, err
+    if h then
+      pad(true)
+      ok, err = pcall(h.draw, G, viewport)
+    else
+      ok, err = pcall(Nt.drawField, G, viewport, Sh.free(game), t)
+    end
+    G.pop()
+    if not ok and log then log:warn("the desktop's draw failed: %s", tostring(err)) end
+  end
+  -- a press, a move, a release: the one open takes it; a tap on the field's banner opens the
+  -- watch on that notification's app; nil: not ours
+  function Sh.pointer(ev)
+    local h = host()
+    if h then return h.pointer(ev) end
+    if Nt and type(ev) == "table" and ev.phase == "pressed" then
+      local rec = Nt.hitField(tonumber(ev.x) or 0, tonumber(ev.y) or 0)
+      if rec then
+        Sh.openWatch(nil, { app = rec.app, state = rec.state })
+        return true
+      end
+    end
+    return nil
+  end
+  -- the START menu's rows with the watch's above EXIT (the Desktop option and the Settings choice on)
+  function Sh.startRows(list)
+    if not (Wt and type(list) == "table" and #list > 0) then return list end
+    if Sh.enabled and not Sh.enabled() then return list end
+    if deps.watchRow and not deps.watchRow() then return list end
+    -- (the game's own START menu only: one with SAVE in it, not a link room's or the Safari Zone's)
+    local at, normal = #list, false
+    for i, e in ipairs(list) do
+      if e.id == "save" then normal = true end
+      if (e.id == "exit" or e.id == "mods") and at == #list then at = i end
+    end
+    if not normal then return list end
+    local label = deps.watchLabel and deps.watchLabel() or "WATCH"
+    table.insert(list, at, { id = "woob_watch", label = label, onSelect = function(_, s) Sh.openWatch(s) end })
+    return list
+  end
+
   -- the hooks (at load)
   function Sh.install()
     mod.hooks:wrap("script.command", function(nxt, ctx, op, row, ...)
@@ -289,35 +441,22 @@ return function(mod, deps)
     end)
     mod.hooks:wrap("render.hud", function(nxt, game, viewport)
       local res = nxt(game, viewport)
-      -- (the layer taken away under it, a reset: the desktop goes too)
-      local Stack = engine("src.ui.game3.stack")
-      if D.isOpen() and Stack and Stack.has and not Stack.has(Sh.LAYER_ID) then
-        D.close()
-        pad(false)
-      end
-      if D.isOpen() then
-        local G = love and love.graphics
-        if G and type(viewport) == "table" then
-          pad(true)
-          G.push("all")
-          G.origin()
-          G.setScissor()
-          G.setShader()
-          G.setBlendMode("alpha")
-          local ok, err = pcall(D.draw, G, viewport)
-          G.pop()
-          if not ok and log then log:warn("the desktop's draw failed: %s", tostring(err)) end
-        end
-      end
+      Sh.frame(game, viewport)
       return res
     end)
     mod.hooks:wrap("input.pointer", function(nxt, game, ev)
-      if D.isOpen() then return D.pointer(ev) end
+      local used = Sh.pointer(ev)
+      if used ~= nil then return used end
       return nxt(game, ev)
     end)
     mod.hooks:wrap("input.wheel", function(nxt, game, dy)
-      if D.isOpen() then return D.wheel(dy) end
+      local h = host()
+      if h then return h.wheel(dy) end
       return nxt(game, dy)
+    end)
+    -- the watch's row in the START menu, above EXIT
+    mod.hooks:wrap("ui.start_menu.items", function(nxt, game, items)
+      return Sh.startRows(nxt(game, items))
     end)
     return true
   end

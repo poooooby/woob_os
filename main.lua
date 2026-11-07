@@ -14,6 +14,8 @@
 --   src/boxes.lua, src/apps/boxes.lua, src/apps/boxes_view.lua   the Pokémon model, the Boxes window
 --   src/i18n.lua, lang/*.lua            the words, by language ; src/settings.lua the kept choices
 --   src/wallpaper.lua                   the drawn wallpapers and the wallpapers/ folder's pictures
+--   src/watch.lua                       WoobWatch: the apps on the wrist, from the START menu
+--   src/notify.lua                      the notifications (R-Bay, the GTS): a list and banners
 
 local function loadSibling(mod, name)
   local source = mod:read(name)
@@ -50,6 +52,7 @@ return function(mod)
   local makeAuction, auctionWindow = loadSibling(mod, "src/auction.lua"), loadSibling(mod, "src/apps/auction.lua")
   local makeSlots, slotsWindow = loadSibling(mod, "src/slots.lua"), loadSibling(mod, "src/apps/slots.lua")
   local makeGts, gtsWindow = loadSibling(mod, "src/gts.lua"), loadSibling(mod, "src/apps/gts.lua")
+  local makeWatch, makeNotify = loadSibling(mod, "src/watch.lua"), loadSibling(mod, "src/notify.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell) then return end
 
   local function warn(fmt, ...) mod.log:warn(fmt, ...) end
@@ -325,7 +328,27 @@ return function(mod)
     setWallpaper = function(id) if Settings then Settings.set("wallpaper", id) end end,
     wallpaperFit = wallpaperFit,
     setWallpaperFit = function(fit) if Settings then Settings.set("wallpaperFit", fit) end end,
+    -- (the Settings app's switches: WoobWatch's START row, the notifications' banners)
+    setting = function(key, default)
+      if not Settings then return default end
+      return Settings.get(key, default)
+    end,
+    setSetting = function(key, v) if Settings then Settings.set(key, v) end end,
   }
+  -- the notifications: pushed by the models below, made once the apps are (Nt set further down);
+  -- quiet (the list only) while the player is looking at that app already
+  local Nt, Desktop, Watch
+  local function looking(id)
+    local w = Desktop and Desktop.isOpen() and Desktop.state()
+    if w and w.winApp and w.winApp.id == id then return true end
+    local ws = Watch and Watch.isOpen() and Watch.state()
+    return ws and ws.winApp and ws.winApp.id == id or false
+  end
+  local function notify(kind, data, quiet)
+    if not Nt then return end
+    local app = kind == "gts" and "gts" or "auction"
+    Nt.push(kind, data, quiet or looking(app))
+  end
   -- R-Bay's market: this save's seed (its playthrough), the device's clock, WoobleDex's species
   if makeAuction then
     env.auction = makeAuction(engine, {
@@ -342,6 +365,7 @@ return function(mod)
       end,
       dex = function() return mod.find("national_dex_gen3") end,
       badges = function(s) return env.mart and env.mart.badges(s) or 0 end,
+      notify = notify,
     })
   end
   -- Rocket Slots: its tickets kept in the save; a Pokémon prize's level from the badges
@@ -358,7 +382,7 @@ return function(mod)
       now = os.time,
       seed = function(s) return env.auction and env.auction.seedOf and env.auction.seedOf(s) or 1 end,
       pools = env.auction.pools, tierOf = env.auction.tierOf, minLevel = env.auction.minLevel,
-      frlg = frlg, bx = env.bx,
+      frlg = frlg, bx = env.bx, notify = notify,
     })
   end
   -- (the Boxes preview's Dynamax row: WoobleDex's levels and factors, when it's on)
@@ -394,7 +418,20 @@ return function(mod)
   local NONE = { 0, 0, 0, 0 }
   local CURRENCY_GLYPH, CURRENCY_EM, CURRENCY_DROP, CURRENCY_BOLD = 0xB7, 11, -0.04, 0.6
   local signAdvance, signAdvanceFor
-  local Desktop
+  Nt = makeNotify and makeNotify({
+    K = Kit, T = T, now = env.now, epoch = os.time, se = env.se, monIcon = monIcon, apps = Apps,
+    glyph = function(...) if Desktop then return Desktop.glyph(...) end end,
+    enabled = function() return not Settings or Settings.get("notifications", true) ~= false end,
+  }) or nil
+  -- the device's clock for the watch: the time and the date (the weekday from it)
+  local function watchClock()
+    local Rtc = engine("src.core.game3.rtc")
+    if not (Rtc and Rtc.hostInfo) then return nil end
+    local info = Rtc.hostInfo(nil)
+    local okT, t = pcall(os.time, { year = 2000 + (info.year or 0), month = info.month or 1, day = info.day or 1, hour = 12 })
+    local wd = okT and t and tonumber(os.date("%w", t)) or 0
+    return info.hour, info.minute, info.day, wd + 1
+  end
   Desktop = makeDesktop({
     kit = Kit,
     apps = Apps,
@@ -455,21 +492,40 @@ return function(mod)
       return signAdvance * px / CURRENCY_EM
     end,
     log = function(fmt, ...) mod.log:warn(fmt, ...) end,
-    -- (once a second while the desktop is open: R-Bay's ended auctions settled, a win's Poké Ball
-    -- onto the pad)
-    tick = function(ctx)
-      if not env.auction then return end
-      local s = ctx and ctx.session or session()
-      local won, _, sp = env.auction.settle(s)
-      if won > 0 and sp then Desktop.padTransfer(sp, "in", "ball") end
-      if env.gts then pcall(env.gts.settle, s) end
-    end,
+    notify = Nt,
   })
-  -- the shelf's item pad, for the apps: an item crossing it ("out" to the PC, "in" to the Bag)
-  env.pad = { transfer = function(id, dir, kind) Desktop.padTransfer(id, dir, kind) end }
+  Watch = makeWatch and makeWatch({
+    kit = Kit, apps = Apps, T = T, se = env.se, now = env.now, session = session, env = env,
+    clock = watchClock,
+    options = function() return { clock24 = option("clock24", false) == true } end,
+    glyph = Desktop.glyph, amount = Desktop.amount, labelOf = Desktop.labelOf, notify = Nt,
+    log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+  }) or nil
+  -- the shelf's item pad, for the apps: an item crossing it ("out" to the PC, "in" to the Bag); on
+  -- the watch, its crown glows a moment
+  env.pad = { transfer = function(id, dir, kind)
+    if Desktop.isOpen() then Desktop.padTransfer(id, dir, kind)
+    elseif Watch and Watch.isOpen() then Watch.pulse() end
+  end }
   -- (money in a window, with the game's sign: the Mart)
   env.amount = function(n, x, y, size, c, measure) return Desktop.amount(n, x, y, size, c, measure) end
-  Sh = makeShell(mod, { require = require, log = mod.log, desktop = Desktop, apps = Apps })
+  -- once a second, wherever the player is: R-Bay's auctions and the GTS settle (their
+  -- notifications come from it); a win's Poké Ball onto the desktop's pad
+  local function tick()
+    -- (the open desktop's or watch's session first: the one the PC was opened with)
+    local open = Desktop.isOpen() and Desktop.state() or (Watch and Watch.isOpen() and Watch.state())
+    local s = open and open.ctx and open.ctx.session or session()
+    if not s then return end
+    if env.auction then
+      local won, _, sp = env.auction.settle(s)
+      if won > 0 and sp and Desktop.isOpen() then Desktop.padTransfer(sp, "in", "ball") end
+    end
+    if env.gts then pcall(env.gts.settle, s) end
+  end
+  Sh = makeShell(mod, { require = require, log = mod.log, desktop = Desktop, apps = Apps, watch = Watch,
+                        notify = Nt, tick = tick, session = session,
+                        watchRow = function() return not Settings or Settings.get("watchRow", true) ~= false end,
+                        watchLabel = function() return T and T("watch.start") or "WATCH" end })
   Sh.enabled = function() return option("desktop", true) ~= false end
 
   local okI, errI = pcall(Sh.install)
@@ -492,5 +548,6 @@ return function(mod)
   mod.exports.apps = { register = Apps.register, list = function() return Apps.apps end }
   mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
                         mart = env.mart, auction = env.auction, slots = env.slots, gts = env.gts,
-                        env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange }
+                        env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange,
+                        watch = Watch, notify = Nt, tick = tick }
 end

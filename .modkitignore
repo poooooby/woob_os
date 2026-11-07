@@ -4,3 +4,4 @@ DEVELOPMENT.md
 .claude/skills/lua-developer/SKILL.md
 tests/desktop_test.lua
 tests/drivers/desktop_probe.lua
+tests/watch_test.lua

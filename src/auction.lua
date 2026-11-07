@@ -14,7 +14,9 @@
 -- When the auction ends a win pays the price and gets the rest back.
 --
 --   Au = auction(engine, deps)  deps: save (mod.save), now() -> epoch seconds, seed(s) -> number,
---                               dex() -> WoobleDex's exports or nil, badges(s) -> 0..8
+--                               dex() -> WoobleDex's exports or nil, badges(s) -> 0..8,
+--                               notify(kind, { name, sp, key, where }, quiet): "outbid" (the
+--                               money back), "soon" (ten minutes left), "won", "lost"
 --   Au.listings(s, now) -> the twelve running auctions, soonest to end first, each refreshed (at
 --       most once a second): { key, tier, sp, name, level, ivs = { hp, atk, def, spa, spd, spe },
 --       ivSum, perfect, start, finish, price, nbids, leader (0: the player; i: bidders[i]; nil),
@@ -35,6 +37,8 @@ local EPOCH = 1700000000
 local CLOSE = 30
 local M = 2147483647
 local CAP, KEEP = 1.35, 20
+-- (a running bid this near its end: a notification, once)
+local SOON = 600
 local MAX_MONEY = 999999
 
 local TIERS = { "common", "uncommon", "rare", "prized", "legendary", "mythical" }
@@ -442,13 +446,18 @@ return function(engine, deps)
       s.money = min(MAX_MONEY, money(s) + amount)
     end
   end
-  -- outbid: what was held comes back now
-  function refund(s, b, d)
+  -- outbid: what was held comes back now (a notification, unless the player's own bid just lost
+  -- it: the window says so)
+  local function notify(kind, b, quiet)
+    if deps.notify then pcall(deps.notify, kind, { name = b.name, sp = b.sp, key = b.key, where = b.where }, quiet) end
+  end
+  function refund(s, b, d, quiet)
     local h = heldOf(b)
     if h <= 0 or not s then return end
     b.held = 0
     pay(s, h)
     save(d)
+    notify("outbid", b, quiet)
   end
 
   function Au.bid(s, L, amount, now)
@@ -477,7 +486,7 @@ return function(engine, deps)
     save(d)
     L.mine = mine
     L.price, L.leader = sim(L, now, mine)
-    if L.leader ~= 0 then refund(s, mine, d) end
+    if L.leader ~= 0 then refund(s, mine, d, true) end
     refreshedAt = -1
     return true
   end
@@ -519,6 +528,15 @@ return function(engine, deps)
     for _, b in pairs(d.bids) do
       if now < (b.finish or 0) and heldOf(b) > 0 then Au.listings(s, now) break end
     end
+    -- (a running bid with ten minutes left: told once, kept in the bid so it rewinds with the save)
+    for _, b in pairs(d.bids) do
+      local left = (b.finish or 0) - now
+      if left > 0 and left <= SOON and not b.soon then
+        b.soon = true
+        any = true
+        notify("soon", b)
+      end
+    end
     for key, b in pairs(d.bids) do
       if now >= (b.finish or 0) then
         any = true
@@ -538,6 +556,8 @@ return function(engine, deps)
             d.bids[key] = nil
             won, lastSp = won + 1, b.sp
             d.unread = d.unread + 1
+            b.where = where
+            notify("won", b)
           end
           -- (no room in the party or the PC: it waits, won, for the next time)
         else
@@ -547,6 +567,7 @@ return function(engine, deps)
           d.bids[key] = nil
           lost = lost + 1
           d.unread = d.unread + 1
+          notify("lost", b)
         end
       end
     end

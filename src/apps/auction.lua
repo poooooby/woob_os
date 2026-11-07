@@ -70,6 +70,14 @@ return function(ctx, env)
     hotKey = nil,
   }
   W.state = st
+  -- (opened from a notification: its tab, the auction it was about)
+  local resume = ctx.resume
+  if resume and resume.app == ctx.app and type(resume.state) == "table" then
+    st.tab = resume.state.tab == "mine" and "mine" or "browse"
+    st.key = resume.state.key
+    if st.tab == "mine" and Au.seen then Au.seen() end
+  end
+  ctx.resume = nil
 
   -- the confetti: a fixed pool (no tables made after this)
   local P = {}
@@ -532,9 +540,18 @@ return function(ctx, env)
     local pw = pill(T(TIER_KEY[L.tier]), tx, y + 9.3, 3.4, tc)
     K.text(levelText(L.level), tx + pw + 2, y + 9.4, 3.8, C.soft)
     local fl = flashing(L, clock)
-    local mw = money(L.price, tx, y + h - 12.5, 7, fl and C.white or C.gold)
-    if fl then upArrow(tx + mw + 1.5, y + h - 11, 3, C.green, 1) end
-    K.text(bidsText(L.nbids), tx + mw + (fl and 6 or 2), y + h - 10.6, 3.6, C.soft)
+    if h < 32 then
+      -- (a short card, a phone's: the price at the right under the tag, the bids under it, so the
+      -- tier and level keep their row)
+      local right = x + w - 3
+      local mw = money(L.price, right, y + 8.6, 7, fl and C.white or C.gold, true)
+      if fl then upArrow(right - mw - 4.5, y + 10.4, 3, C.green, 1) end
+      K.text(bidsText(L.nbids), tx, y + h - 4.9, 3.6, C.soft, "right", right - tx)
+    else
+      local mw = money(L.price, tx, y + h - 12.5, 7, fl and C.white or C.gold)
+      if fl then upArrow(tx + mw + 1.5, y + h - 11, 3, C.green, 1) end
+      K.text(bidsText(L.nbids), tx + mw + (fl and 6 or 2), y + h - 10.6, 3.6, C.soft)
+    end
     local left = L.finish - t
     local urgent = left < 600
     local la = urgent and (0.6 + 0.4 * abs(sin(clock * 5))) or 1
@@ -839,13 +856,13 @@ return function(ctx, env)
       drawMine(x + M, top, w - M * 2, bodyH, t, clock)
     elseif portrait then
       -- (the whole detail -- types, IVs, the last bids -- when it fits, the list takes what's left)
-      local dh = min(122, bodyH * 0.52)
+      local dh = min(122, bodyH * 0.56)
       local hh = min(30, (bodyH - dh) * 0.3)
       local lh = bodyH - dh - hh - M * 2
       drawHot(x + M, top, w - M * 2, hh, clock, t)
       drawBrowseList(x + M, top + hh + M, w - M * 2, lh, st.focus == "list", t, clock)
       K.scissor(body)
-      drawDetail(L, x + M, top + hh + lh + M * 2, w - M * 2, dh, t, dh < 100, clock)
+      drawDetail(L, x + M, top + hh + lh + M * 2, w - M * 2, dh, t, dh < 92, clock)
     else
       local lw = floor((w - M * 3) * 0.52)
       local hh = min(34, bodyH * 0.38)

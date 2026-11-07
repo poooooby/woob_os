@@ -344,6 +344,16 @@ return function(deps)
     K.t = clock or 0
     return pw, ph, portrait
   end
+  -- start a frame at a scale of our own: units from x, y (window pixels), `scale` pixels each (the
+  -- field's banner, in the game's own pixels)
+  function K.place(g, x, y, scale, clock)
+    G = g
+    nRect, nHitRec = 0, 0
+    for i = #hits, 1, -1 do hits[i] = nil end
+    sc, ox, oy = scale, x, y
+    K.sc, K.ox, K.oy = sc, ox, oy
+    K.t = clock or 0
+  end
   function K.graphics() return G end
 
   -- ------- pieces

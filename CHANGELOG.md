@@ -3,11 +3,26 @@
 All notable changes to this mod are documented here, in
 [keep a changelog](https://keepachangelog.com/en/1.1.0/) format.
 
-## [Unreleased]
+## [0.3.0] - 2026-11-06
+
+### Added
+- **WoobWatch:** the PC's apps on a smartwatch, from a WATCH row in the START menu, anywhere you
+  can open it. A face with the time, your money, your party and tiles for R-Bay, the GTS, Slots
+  and the Mart; the apps in a honeycomb (L / R turn the crown); Boxes, Items, Mail, GTS, Mart,
+  R-Bay, Slots and Settings all on the watch.
+- **Notifications:** outbid on R-Bay, an auction with ten minutes left, won or lost, a GTS
+  deposit traded. A banner over the game while you're free to move (tap it to open that app on
+  the watch), over the PC's or the watch's screen while one is open, and a list on the watch.
+- **Settings > Watch:** the START menu's row and the banners, each on or off.
+
+### Changed
+- R-Bay and the GTS settle while you play, not only while the PC is open.
 
 ### Fixed
 - **R-Bay:** outbid, your money comes back at once (it was held until the auction ended), and
   the rival's answer shows as the new top bid.
+- **R-Bay:** on a phone (and the watch), the Hot Auction's price sits at the right under its tag,
+  clear of the tier badge.
 
 ## [0.2.3] - 2026-11-02
 

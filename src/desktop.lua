@@ -279,6 +279,23 @@ return function(deps)
     se("SE_SELECT")
   end
   D.closeWindow = function() if r then closeWindow() end end
+  -- an app's window at once (a notification's), its state handed over as ctx.resume
+  function D.openApp(id, state)
+    if not r then return false end
+    local app = deps.apps.byId(id)
+    if not (app and app.window) then return false end
+    if r.win then
+      local w = r.win
+      r.win, r.winApp = nil, nil
+      if w.close then pcall(w.close) end
+    end
+    r.zoom = nil
+    r.ctx.resume = { app = id, state = state }
+    openWindow(app)
+    r.ctx.resume = nil
+    se("SE_SELECT")
+    return true
+  end
   D.window = function() return r and r.win end
 
   -- an item crossing the pad: "out" (Bag -> PC) or "in" (PC -> Bag). One plays at a time; a
@@ -671,6 +688,11 @@ return function(deps)
     elseif kind == "power" then D.sheet("logoff"); se("SE_SELECT")
     elseif kind == "dot" then setPage(arg)
     elseif kind == "winclose" then closeWindow()
+    elseif kind == "notify" then
+      local Nt = deps.notify
+      local rec = Nt and Nt.showing()
+      if Nt then Nt.dismiss() end
+      if rec then D.openApp(rec.app, rec.state) end
     elseif kind == "win" then
       if r.win and r.win.tap then
         local ok, err = pcall(r.win.tap, arg, x, y)
@@ -990,6 +1012,8 @@ return function(deps)
       end
     end
   end
+
+  D.glyph = glyph
 
   -- an app's icon: a rounded tile in its colour with a gloss, the picture (units)
   local function appIcon(app, x, y, s, lift, a)
@@ -1831,7 +1855,7 @@ return function(deps)
     local step = r.dt / D.PAD.light
     r.padGlow = want > r.padGlow and min(want, r.padGlow + step) or max(want, r.padGlow - step)
     if r.padN > 0 and clock - r.padQ[1].t0 >= padLength(r.padQ[1].dir) then padNext(clock) end
-    -- (once a second: the apps' own ticks (R-Bay settles its ended auctions) and their icons' counts)
+    -- (once a second: the icons' counts; the apps' models tick in the shell, open or not)
     if not r.tickAt or clock - r.tickAt >= 1 or clock < r.tickAt then
       r.tickAt = clock
       if deps.tick then pcall(deps.tick, r.ctx) end
@@ -1899,6 +1923,18 @@ return function(deps)
     end
     drawMenu(L)
     drawSheet(L)
+    -- (a notification arriving: a banner at the top right, under the menu bar; a tap opens it)
+    local Nt = deps.notify
+    if Nt then
+      local rec, k = Nt.step(clock, not booting())
+      if rec then
+        local sb, mb = L.screen, L.menubar
+        local bw = min(124, sb[3] - 10)
+        local b = K.R(sb[1] + sb[3] - bw - 4 + (1 - k) * (bw + 8), mb[2] + mb[4] + 3, bw, 24)
+        Nt.drawCard(rec, b, min(1, k * 1.5))
+        K.addHit(b, "notify")
+      end
+    end
     drawScreenCorners(L)
     local bt = bootAge()
     if bt then drawBoot(L, bt) end

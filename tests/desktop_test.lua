@@ -1043,8 +1043,9 @@ end
 VP.width, VP.height = 480, 320
 press("b")
 T.check(D.window() == nil, "B closes R-Bay")
--- it ends while the desktop is open: settled on the tick, a count on the icon
+-- it ends while the desktop is open: settled on the shell's tick, a count on the icon
 tnow = chosen.finish + 1
+X._test.tick()
 draw(90)
 local auApp = Apps.byId("auction")
 T.check(#Au.results() >= 1 and (auApp.badgeN or 0) >= 1, "it ends: settled, a count on R-Bay's icon (" ..

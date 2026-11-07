@@ -1064,6 +1064,87 @@ local function body(game, log)
   D.state().ctx.logoff()
   check(closed and not D.isOpen(), "the bedroom PC logs off")
 
+  -- WoobWatch: START, its row, the face, the apps (each one), back to the START menu
+  local Wt, Nt = X._test.watch, X._test.notify
+  local StartMenu = require("src.ui.game3.start_menu")
+
+  check(waitFor(function() return Sh.free(game) end, 900), "the player free in the field")
+  U.tap(game, "start")
+  check(waitFor(function() return StartMenu.isOpen() end, 120), "START: the menu")
+  local row
+  for i, e in ipairs(StartMenu.ENTRIES or {}) do if e.id == "woob_watch" then row = i end end
+  local nextId = row and StartMenu.ENTRIES[row + 1] and StartMenu.ENTRIES[row + 1].id
+  check(nextId == "exit" or nextId == "mods", "the watch's row in it, above EXIT (or the engine's MODS)")
+  U.wait(10)
+  shot("w0_start_menu")
+  if row then
+    StartMenu.cursor = row
+    U.tap(game, "a")
+    check(waitFor(function() return Wt.isOpen() end, 120), "chosen: WoobWatch")
+    U.wait(40)
+    shot("w1_watch_face")
+    local ws = Wt.state()
+    U.tap(game, "a"); U.wait(4)
+    check(ws.screen == "grid", "A: the apps")
+    U.wait(30)
+    shot("w2_watch_apps")
+    -- (the draw's garbage on the face and the apps, warmed up first)
+    local wdraw, wKb, wN = Wt.draw, 0, 0
+    U.wait(60)
+    Wt.draw = function(...)
+      local was = collectgarbage("isrunning")
+      collectgarbage("stop")
+      local kb0 = collectgarbage("count")
+      wdraw(...)
+      wKb, wN = wKb + (collectgarbage("count") - kb0), wN + 1
+      if was then collectgarbage("restart") end
+    end
+    U.wait(90)
+    ws.screen = "face"
+    U.wait(90)
+    Wt.draw = wdraw
+    log(("  the watch's draw: %.3f KB per frame over %d frames"):format(wKb / math.max(1, wN), wN))
+    check(wKb / math.max(1, wN) < 0.5, "the watch's draw makes next to no garbage")
+    ws.screen = "grid"
+    for i, app in ipairs(ws.apps) do
+      ws.cursor = i
+      U.tap(game, "a")
+      waitFor(function() return Wt.window() ~= nil end, 600)
+      U.wait(40)
+      shot("w3_watch_" .. app.id)
+      check(Wt.window() ~= nil and not ws.winFailed, app.id .. " on the watch")
+      Wt.closeWindow()
+      waitFor(function() return ws.zoom == nil end, 600)
+    end
+    U.wait(10)
+    U.tap(game, "down"); U.wait(4)
+    U.tap(game, "b"); U.wait(4)
+    check(ws.screen == "face", "B: the face")
+    U.tap(game, "down"); U.wait(20)
+    shot("w4_watch_notes")
+    U.tap(game, "b"); U.wait(4)
+    U.tap(game, "b"); U.wait(10)
+    check(not Wt.isOpen() and StartMenu.isOpen(), "B on the face: the START menu again")
+    U.tap(game, "b")
+    waitFor(function() return not StartMenu.isOpen() end, 120)
+  end
+  -- a notification over the field; a tap on it opens the watch on that app
+  check(waitFor(function() return Sh.free(game) end, 600), "the field again")
+  Nt.push("outbid", { name = "PIKACHU", sp = require("src.core.game3.pokemon").speciesFromNational(25) })
+  check(waitFor(function() return Nt.fieldRect() ~= nil end, 120), "a notification: its banner over the field")
+  U.wait(30)
+  shot("w5_field_banner")
+  local fr = Nt.fieldRect()
+  if fr then
+    Sh.pointer({ id = 1, phase = "pressed", x = fr[1] + fr[3] / 2, y = fr[2] + fr[4] / 2 })
+    check(waitFor(function() return Wt.window() ~= nil end, 120) and Wt.state().winApp.id == "auction",
+      "tapped: WoobWatch, on R-Bay")
+    U.wait(40)
+    shot("w6_banner_rbay")
+    Wt.state().ctx.done()
+    check(waitFor(function() return Sh.free(game) end, 120), "closed: the field")
+  end
+
   -- window shapes
   check(pcOn(), "the PC again")
   D.skipBoot()
@@ -1097,6 +1178,29 @@ local function body(game, log)
   U.wait(10)
   D.state().ctx.logoff()
   waitFor(function() return not D.isOpen() end, 60)
+
+  -- the watch in a tall window
+  love.window.setMode(430, 900, flags)
+  if love.resize then pcall(love.resize, 430, 900) end
+  U.wait(10)
+  -- (a party lent for the face's icons, made in a throwaway session; last: a party in the field
+  -- brings out another mod's follower, which stands in front of the PC after)
+  local partyW0 = s0.party
+  do
+    local PokeW = require("src.core.game3.pokemon")
+    local tmp = { party = {}, name = "WOS", trainerId = s0.trainerId, dex = { seen = {}, owned = {}, caught = {} } }
+    for _, nat in ipairs({ 25, 6, 9, 130 }) do Party.giveMon(tmp, PokeW.speciesFromNational(nat), 30) end
+    if tmp.party[2] then tmp.party[2].hp = math.floor((tmp.party[2].maxHp or 10) * 0.4) end
+    s0.party = tmp.party
+  end
+  Sh.openWatch(s0)
+  U.wait(40)
+  shot("w7_watch_portrait")
+  if Wt.isOpen() then Wt.state().ctx.done() end
+  s0.party = partyW0
+  love.window.setMode(W0, H0, flags)
+  if love.resize then pcall(love.resize, W0, H0) end
+  U.wait(10)
   log(("%d failures"):format(fails))
 end
 
