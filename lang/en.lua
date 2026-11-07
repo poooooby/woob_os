@@ -207,6 +207,7 @@ return {
     ["hint.bid"] = "Bid",
     ["hint.step"] = "Step",
     ["auction.hot"] = "HOT AUCTION",
+    ["auction.shiny"] = "Shiny",
     ["auction.endsIn"] = "Ends in",
     ["hint.hot"] = "Hot",
     ["auction.browse"] = "Browse",

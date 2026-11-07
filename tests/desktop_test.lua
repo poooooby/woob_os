@@ -1402,12 +1402,15 @@ do
   local same = #a == #b
   for i, L in ipairs(b) do same = same and keys[i] == L.key .. ":" .. tostring(L.sp) .. ":" .. tostring(L.ask) end
   T.check(#a >= 6 and same, "ten listings each half hour, the same within it (" .. #a .. ")")
+  -- (one asking for something other than the first in the party: that one is the wrong Pokémon)
+  local first = tonumber(gs.party[1].species)
   local L = a[1]
+  for _, M in ipairs(a) do if M.ask ~= first then L = M break end end
   local range = Gx.LEVELS[L.levels]
   Party.giveMon(gs, L.ask, math.max(2, range[1]))
   local mineAddr = BxG.addr("party", #gs.party)
   ok, why = Gx.accept(gs, L, BxG.addr("party", 1))
-  if tonumber(gs.party[1].species) ~= L.ask then T.check(not ok and why == "wrong", "the wrong Pokémon: refused") end
+  if first ~= L.ask then T.check(not ok and why == "wrong", "the wrong Pokémon: refused") end
   local list = Gx.offers(gs, gnow + 120)
   local canDo = false
   for _, M in ipairs(list) do if M.key == L.key then canDo = M.canDo end end

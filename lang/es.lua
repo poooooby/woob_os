@@ -195,6 +195,7 @@ return {
     ["hint.bid"] = "Pujar",
     ["hint.step"] = "Tramo",
     ["auction.hot"] = "SUBASTA ESTRELLA",
+    ["auction.shiny"] = "Variocolor",
     ["auction.endsIn"] = "Acaba en",
     ["hint.hot"] = "Estrella",
     ["auction.browse"] = "Explorar",

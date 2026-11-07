@@ -29,7 +29,7 @@ local C = {
   green = { 64, 204, 112 }, gold = { 244, 192, 40 }, goldTop = { 255, 230, 120 }, goldDark = { 176, 120, 16 },
   bar = { 255, 255, 255, 0.1 }, ivTop = { 250, 90, 90 }, ivFoot = { 190, 24, 40 }, white = { 255, 255, 255 },
   heroTop = { 78, 18, 28 }, heroFoot = { 26, 12, 16 }, flameOut = { 255, 140, 30 }, flameIn = { 255, 230, 120 },
-  wonTop = { 84, 66, 20 }, blue = { 70, 150, 255 }, pink = { 255, 92, 170 }, cyan = { 80, 220, 230 },
+  shinyInk = { 74, 48, 0 }, wonTop = { 84, 66, 20 }, blue = { 70, 150, 255 }, pink = { 255, 92, 170 }, cyan = { 80, 220, 230 },
 }
 local CONFETTI = { C.gold, C.red, C.blue, C.pink, C.cyan, C.green, C.white, C.flameOut }
 local TIER_C = {
@@ -193,7 +193,9 @@ return function(ctx, env)
     for _, L in ipairs(st.rows) do
       local left = L.finish - t
       if left > 60 then
-        local s = (TIER_RANK[L.tier] or 0) * 1000000 + (L.value or 0) + L.nbids * 2000 + (left < 1800 and 30000 or 0)
+        -- (a shiny almost always: worth more than four tiers)
+        local s = (TIER_RANK[L.tier] or 0) * 1000000 + (L.shiny and 4500000 or 0) + (L.value or 0) + L.nbids * 2000
+          + (left < 1800 and 30000 or 0)
         if s > bestScore then best, bestScore = L, s end
       end
     end
@@ -420,6 +422,16 @@ return function(ctx, env)
     local x, y, r, q = K.X(cx), K.Y(cy), s * K.sc, s * K.sc * 0.22
     g.polygon("fill", x, y - r, x + q, y - q, x + r, y, x + q, y + q, x, y + r, x - q, y + q, x - r, y, x - q, y - q)
   end
+  -- the Shiny badge: gold, a star at its left -> its width
+  local function shinyBadge(x, y, size, clock)
+    local word = T("auction.shiny")
+    local w = K.width(word, size) + size * 1.6 + 3
+    local b = K.R(x, y, w, size * 1.35)
+    K.grad(b, size * 0.6, C.goldTop, C.goldDark)
+    sparkle(x + size * 0.85, y + size * 0.68, size * 0.55 * (0.85 + 0.15 * sin((clock or 0) * 5)), C.white, 1)
+    K.bold(word, x + size * 1.6, y + size * 0.12, size, C.shinyInk, "center", w - size * 1.6 - 1)
+    return w
+  end
   local function rays(cx, cy, r, clock, c, a)
     local g = G()
     g.push()
@@ -520,7 +532,7 @@ return function(ctx, env)
       g.circle("fill", K.X(ax), K.Y(ay), ps * (0.2 + 0.12 * (3 - k)) * K.sc)
     end
     local bob = sin(clock * 2.2) * 0.8
-    if not (env.monPic and env.monPic(L.sp, ax - ps / 2, ay - ps / 2 + bob, ps)) then
+    if not (env.monPic and env.monPic(L.sp, ax - ps / 2, ay - ps / 2 + bob, ps, 1, L.picMon)) then
       monIcon(L.sp, ax - ps * 0.4, ay - ps * 0.4 + bob, ps * 0.8)
     end
     sparkle(ax - ps * 0.42, ay - ps * 0.3, 1 + 0.7 * abs(sin(clock * 3)), C.white, 0.9)
@@ -539,6 +551,7 @@ return function(ctx, env)
     K.bold(L.name, tx, y + 2.6 + (5.6 - ns) * 0.5, ns, C.text)
     local pw = pill(T(TIER_KEY[L.tier]), tx, y + 9.3, 3.4, tc)
     K.text(levelText(L.level), tx + pw + 2, y + 9.4, 3.8, C.soft)
+    if L.shiny then shinyBadge(tx + pw + 4 + K.width(levelText(L.level), 3.8), y + 9.3, 3.4, clock) end
     local fl = flashing(L, clock)
     if h < 32 then
       -- (a short card, a phone's: the price at the right under the tag, the bids under it, so the
@@ -595,6 +608,7 @@ return function(ctx, env)
     px = px + pill(T(TIER_KEY[L.tier]), px, ry + 7.3, 3.4, tc) + 2
     K.text(levelText(L.level), px, ry + 7.4, 3.8, C.soft)
     px = px + K.width(levelText(L.level), 3.8) + 2
+    if L.shiny then px = px + shinyBadge(px, ry + 7.3, 3.4, clock) + 2 end
     if L.mine then
       local lead = L.leader == 0
       pill(T(lead and "auction.winning" or "auction.outbid"), px, ry + 7.3, 3.4, lead and C.green or C.red,
@@ -669,13 +683,14 @@ return function(ctx, env)
       g.circle("fill", K.X(ax), K.Y(ay), ps * (0.2 + 0.12 * (3 - k)) * K.sc)
     end
     K.scissor(nil)
-    local drawn = env.monPic and env.monPic(L.sp, x + 3, y + 3, ps)
+    local drawn = env.monPic and env.monPic(L.sp, x + 3, y + 3, ps, 1, L.picMon)
     if not drawn then monIcon(L.sp, x + 3 + ps * 0.1, y + 3 + ps * 0.1, ps * 0.8) end
     local tx = x + ps + 6
     local ns = K.fit(L.name, 5.4, w - (tx - x) - 3)
     K.bold(L.name, tx, y + 3.5 + (5.4 - ns) * 0.5, ns, C.text)
     local pw = pill(T(TIER_KEY[L.tier]), tx, y + 10.3, 3.6, tc)
     K.text(levelText(L.level), tx + pw + 2, y + 10.4, 4, C.soft)
+    if L.shiny then shinyBadge(tx + pw + 4 + K.width(levelText(L.level), 4), y + 10.3, 3.6, clock) end
     if not compact and L.types ~= "" then K.text(L.types, tx, y + 16, 3.8, C.faint, "left", w - (tx - x) - 3) end
     local yy = y + ps + 6
     if not compact then
@@ -787,6 +802,7 @@ return function(ctx, env)
       local px = x + 15
       px = px + pill(T(TIER_KEY[r.tier] or TIER_KEY.common), px, ry + 7.3, 3.4, TIER_C[r.tier] or TIER_C.common) + 2
       K.text(levelText(r.level or 1), px, ry + 7.4, 3.8, C.soft)
+      if r.shiny then shinyBadge(px + K.width(levelText(r.level or 1), 3.8) + 2, ry + 7.3, 3.4, clock) end
       if running then
         local tag = T(L and (lead and "auction.winning" or "auction.outbid") or "auction.ended")
         K.text(tag, x + w - 4 - 40, ry + 1.8, 4.2, L and (lead and C.green or C.red) or C.soft, "right", 40)

@@ -283,13 +283,28 @@ return function(mod)
     end)
     return ok and type(names) == "table" and #names > 0 and #names or 16
   end
-  -- a species' front picture (64 px), `size` units square at x, y -> true when drawn (kept per species)
+  -- a species' front picture (64 px), `size` units square at x, y -> true when drawn (kept per
+  -- species); with `mon`, that Pokémon's own (shiny when it is; kept per Pokémon)
   local pics = {}
-  local function monPic(species, x, y, size, a)
-    local pic = pics[species]
+  local picOf = setmetatable({}, { __mode = "k" })
+  local function monPic(species, x, y, size, a, mon)
+    local pic
+    if type(mon) == "table" then
+      pic = picOf[mon]
+      if pic == nil then
+        local P = engine("src.core.game3.pokemon")
+        local ok, got = pcall(P and P.monFrontPic or error, mon, nil, "box")
+        pic = ok and type(got) == "table" and got.image and got or false
+        picOf[mon] = pic
+      end
+    else
+      pic = pics[species]
+    end
     if pic == nil then
       local P = engine("src.core.game3.pokemon")
-      local ok, got = pcall(P and P.monFrontPic or error, { species = species }, nil, "box")
+      -- (a species, not a Pokémon: told it isn't shiny, else no personality and no OT ID read as
+      -- the shiny one; the listing's Pokémon is made later with its own)
+      local ok, got = pcall(P and P.monFrontPic or error, { species = species, isShiny = false }, nil, "box")
       pic = ok and type(got) == "table" and got.image and got or false
       pics[species] = pic
     end
@@ -384,7 +399,7 @@ return function(mod)
       now = os.time,
       seed = function(s) return env.auction and env.auction.seedOf and env.auction.seedOf(s) or 1 end,
       pools = env.auction.pools, tierOf = env.auction.tierOf, minLevel = env.auction.minLevel,
-      frlg = frlg, bx = env.bx, notify = notify,
+      frlg = frlg, bx = env.bx, notify = notify, shinyPersonality = env.auction.shinyPersonality,
     })
   end
   -- (the Boxes preview's Dynamax row: WoobleDex's levels and factors, when it's on)

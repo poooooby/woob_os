@@ -130,6 +130,24 @@ require("src.core.game3.runtime").getSession = function() return s end
 Party.giveMon(s, spOf(16), 10)
 Party.giveMon(s, spOf(19), 12)
 
+-- ------- the pictures: a species' is never the shiny one (R-Bay's listings, Wonder Trade's picker)
+do
+  local env = X._test.env
+  T.check(PokeG.isShiny({ species = spOf(385) }) == true,
+    "(the engine: a bare species, no personality or OT ID, reads as shiny)")
+  local real, seen = PokeG.monFrontPic, nil
+  PokeG.monFrontPic = function(m, ...) seen = m return real(m, ...) end
+  env.monPic(spOf(385), 0, 0, 16)
+  PokeG.monFrontPic = real
+  T.check(seen ~= nil and PokeG.isShiny(seen) == false, "a species' picture asks for the normal one")
+  local shinyMon = { species = spOf(385), isShiny = true }
+  seen = nil
+  PokeG.monFrontPic = function(m, ...) seen = m return real(m, ...) end
+  env.monPic(spOf(385), 0, 0, 16, 1, shinyMon)
+  PokeG.monFrontPic = real
+  T.check(seen == shinyMon, "a Pokémon's own picture is its own (shiny when it is)")
+end
+
 -- ------- the START menu's row
 
 local function startList(save)
@@ -372,6 +390,77 @@ do
   T.check(rec.kind == "gts" and rec.app == "gts" and rec.state.tab == "deposit" and rec.sp ~= nil,
     "a notification: the GTS, its deposit tab, the Pokémon")
   Gx.store, Gx.rng, Gx.now = gStore0, gRng0, gNow0
+end
+
+-- ------- shiny Pokémon: one in ten on R-Bay and the GTS, the badge's, and what you get is shiny
+do
+  local Au, Gx = X._test.auction, X._test.gts
+  local fake = { data = {} }
+  function fake.get(self, k) return self.data[k] end
+  function fake.set(self, k, v) self.data[k] = v end
+  local store0, now0 = Au.store, Au.now
+  Au.store = fake
+  local shinies, total, pics = 0, 0, true
+  for n = 9000, 9199 do
+    for k = 0, 11 do
+      local L = Au.generate(s, k, n, 0)
+      total = total + 1
+      if L.shiny then
+        shinies = shinies + 1
+        pics = pics and L.picMon ~= nil and L.picMon.isShiny == true
+      end
+    end
+  end
+  T.check(shinies > total * 0.07 and shinies < total * 0.13,
+    ("R-Bay: about one listing in ten is shiny (%d of %d)"):format(shinies, total))
+  T.check(pics, "a shiny listing's picture is the shiny one")
+  -- the Hot Auction: a shiny one when there is (a mythical may still win it)
+  local tt, found
+  for step = 0, 200 do
+    tt = 1800000000 + step * 900
+    for _, L in ipairs(Au.listings(s, tt)) do
+      if L.shiny and L.finish - tt > 3600 then found = L end
+    end
+    if found then break end
+  end
+  T.check(found ~= nil, "a shiny auction running")
+  if found then
+    Au.now = function() return tt end
+    -- (a bid nobody beats, then it ends: the winner's Pokémon is shiny, its OT the player)
+    s.money = 999999
+    s.party = { s.party[1] }
+    T.check(Au.bid(s, found, 999000, tt), "a bid on the shiny one")
+    local won = Au.settle(s, found.finish + 1)
+    local got = s.party[#s.party]
+    T.check(won == 1 and got and tonumber(got.species) == found.sp and PokeG.isShiny(got),
+      "won: the Pokémon is shiny, as listed")
+    T.check(Au.results()[1].shiny == true, "and its result says so")
+  end
+  Au.store, Au.now = store0, now0
+  -- the GTS: a stranger's shiny is shiny for its own OT; one in ten listings
+  local Gx0 = Gx.rng
+  local lcg = 4242
+  Gx.rng = function(n)
+    lcg = (lcg * 1103515245 + 12345) % 2147483648
+    return lcg % n + 1
+  end
+  local recv = Gx.make(s, spOf(129), 20, Gx.STRANGERS[2], 0x12345678, true)
+  T.check(recv and PokeG.isShiny(recv) and recv.otName == "Pierre", "the GTS: a stranger's shiny Magikarp, theirs")
+  local plain = 0
+  for _ = 1, 200 do
+    local m = Gx.make(s, spOf(129), 20, Gx.STRANGERS[2], 0x12345678, false)
+    if m and PokeG.isShiny(m) then plain = plain + 1 end
+  end
+  T.check(plain <= 2, "not asked for: shiny only at the game's own odds (" .. plain .. " of 200)")
+  Gx.rng = Gx0
+  local gs, gt = 0, 0
+  for w = 1, 60 do
+    for _, L in ipairs(Gx.offers(s, 1800000000 + w * 1800)) do
+      gt = gt + 1
+      if L.shiny then gs = gs + 1 end
+    end
+  end
+  T.check(gt > 0 and gs > gt * 0.04 and gs < gt * 0.18, ("the GTS: about one listing in ten shiny (%d of %d)"):format(gs, gt))
 end
 
 -- ------- the banner over the field

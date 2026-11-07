@@ -195,6 +195,7 @@ return {
     ["hint.bid"] = "Dar lance",
     ["hint.step"] = "Passo",
     ["auction.hot"] = "LEILÃO QUENTE",
+    ["auction.shiny"] = "Brilhante",
     ["auction.endsIn"] = "Termina em",
     ["hint.hot"] = "Quente",
     ["auction.browse"] = "Explorar",

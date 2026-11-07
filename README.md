@@ -61,9 +61,10 @@ opens a desktop in a sleek monitor instead of a text menu.
   - **Wonder Trade:** pick any Pokémon from your party or a box and send it off. The globe spins
     while it searches, a Trainer from somewhere (Yuki from Johto, Pierre from Kalos …) is found,
     the Poké Balls swap on the pad, and you see who you got: usually something everyday, now and
-    then a rare one, very rarely a legend.
+    then a rare one, very rarely a legend. About one in ten is shiny.
   - **GTS listings:** Trainers' offers, refreshed every half hour, each saying what they want in
-    return. The ones you can answer light up.
+    return. The ones you can answer light up, and about one in ten offers a shiny (a gold Shiny
+    badge). A deposit's answer is shiny about one time in ten too.
   - **My Deposit:** put one of yours up and ask for a species you've seen, at a level range.
     Someone answers in real time if the deal is fair (ask for a legend in exchange for a Pidgey
     and you'll wait forever); collect your new Pokémon, or withdraw yours any time before.
@@ -90,7 +91,10 @@ opens a desktop in a sleek monitor instead of a text menu.
   you can't win. Set the most you'll pay and R-Bay bids for you, one step at a time, like eBay.
   Your maximum is held while you lead. Outbid, and it all comes back at once, with the rival's
   answer showing as the new top bid. Win and you pay only the final price, the rest comes back,
-  and the Pokémon joins your party (or the PC) with the IVs it was listed with. The Hot Auction sits at the top of Browse: the most wanted Pokémon on sale right
+  and the Pokémon joins your party (or the PC) with the IVs it was listed with. About one auction
+  in ten is for a shiny: it wears a gold Shiny badge, shows in its shiny colours, is worth far
+  more, draws more and keener bidders, and is almost always the Hot Auction. Win it and the
+  Pokémon you get is that shiny. The Hot Auction sits at the top of Browse: the most wanted Pokémon on sale right
   now, with its price and countdown (SELECT jumps to it). Prices flash up as rival bids land, the
   clock turns red in the last ten minutes, taking the lead throws confetti and losing it tells you
   at once. My Bids shows where you stand, and a count on R-Bay's icon tells you an auction has

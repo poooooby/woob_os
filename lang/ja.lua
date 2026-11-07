@@ -196,6 +196,7 @@ return {
     ["hint.bid"] = "にゅうさつ",
     ["hint.step"] = "きざみ",
     ["auction.hot"] = "ちゅうもく",
+    ["auction.shiny"] = "いろちがい",
     ["auction.endsIn"] = "のこり",
     ["hint.hot"] = "ちゅうもく",
     ["auction.browse"] = "さがす",

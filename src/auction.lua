@@ -103,9 +103,29 @@ end
 local function randInt(st, a, b) return a + nextRand(st) % (b - a + 1) end
 local function frac(st) return nextRand(st) / M end
 
+-- shiny Pokémon: one auction in SHINY, worth SHINY_VALUE times as much, SHINY_BIDDERS more
+-- bidders and keener; the game's own test (the OT's IDs and the personality's halves, xor'd, under
+-- 8) met by the personality the winner's Pokémon is made with
+local SHINY, SHINY_VALUE, SHINY_BIDDERS = 10, 2.5, 2
+local function xor16(a, b)
+  local r, v = 0, 1
+  for _ = 1, 16 do
+    if a % 2 ~= b % 2 then r = r + v end
+    a, b, v = floor(a / 2), floor(b / 2), v * 2
+  end
+  return r
+end
+-- a personality that's shiny for the OT tid / sid (its low half lo, k 0..7)
+local function shinyPersonality(tid, sid, lo, k)
+  lo = lo % 65536
+  local hi = xor16(xor16(xor16(tid % 65536, sid % 65536), lo), k % 8)
+  return hi * 65536 + lo
+end
+
 return function(engine, deps)
   deps = deps or {}
   local Au = { SLOTS = SLOTS, DURATION = DUR, TURN = OFF, TIERS = TIERS, IV_KEYS = IV_KEYS, step = step,
+               SHINY = SHINY, shinyPersonality = shinyPersonality,
                CAP = CAP, store = deps.save, now = deps.now or os.time }
 
   -- ------- the kept part: the player's bids and results (in the save)
@@ -277,6 +297,7 @@ return function(engine, deps)
   end
 
   local rng = { x = 1 }
+  local shinyDice = { x = 1 }
   local function generate(s, k, n, badges)
     local seed = seedOf(s)
     rng.x = (seed * 7919 + k * 104729 + n * 15485863) % M
@@ -311,12 +332,22 @@ return function(engine, deps)
     local q = sum / 186
     -- the market value: the tier's, better IVs worth more
     local V = (def.v[1] + frac(rng) * (def.v[2] - def.v[1])) * (0.6 + 0.8 * q * q) * (1 + 0.08 * perfect)
+    -- (shiny: from the seed and the slot alone, not the dice: one in SHINY, worth far more)
+    shinyDice.x = (seed * 69621 + k * 40692 + n * 48271 + 12345) % M
+    if shinyDice.x == 0 then shinyDice.x = 1 end
+    for _ = 1, 3 do nextRand(shinyDice) end
+    L.shiny = (nextRand(shinyDice) % SHINY) == 0
+    if L.shiny then
+      V = V * SHINY_VALUE
+      L.picMon = { species = pick.sp, isShiny = true }
+    end
     V = min(MAX_MONEY, roundTo(V, V < 10000 and 50 or 500))
     L.value = V
     L.startPrice = max(100, roundTo(V * 0.2, 10))
     -- the other bidders: more of them, and keener, the rarer it is (good IVs draw one more)
-    local nb = randInt(rng, def.bidders[1], def.bidders[2]) + (q > 0.75 and 1 or 0)
-    local lo, hi = 0.45 + 0.2 * q, min(CAP, def.hi + (q > 0.75 and 0.05 or 0))
+    local nb = randInt(rng, def.bidders[1], def.bidders[2]) + (q > 0.75 and 1 or 0) + (L.shiny and SHINY_BIDDERS or 0)
+    local lo, hi = 0.45 + 0.2 * q, min(CAP, def.hi + (q > 0.75 and 0.05 or 0) + (L.shiny and 0.08 or 0))
+    if L.shiny then lo = min(hi, lo + 0.1) end
     local bidders = {}
     local first = randInt(rng, 1, #HANDLES)
     for i = 1, nb do
@@ -481,7 +512,7 @@ return function(engine, deps)
       local ivs = {}
       for _, key in ipairs(IV_KEYS) do ivs[key] = L.ivs[key] end
       mine = { k = L.k, n = L.n, key = L.key, sp = L.sp, name = L.name, level = L.level, tier = L.tier,
-               ivs = ivs, finish = L.finish, steps = {} }
+               ivs = ivs, finish = L.finish, steps = {}, shiny = L.shiny or nil }
       d.bids[L.key] = mine
     end
     mine.max, mine.held = amount, amount
@@ -507,7 +538,19 @@ return function(engine, deps)
   local function deliver(s, b)
     local Party = engine("src.core.game3.party")
     if not (Party and Party.giveMonToPlayer) then return nil end
-    local ok, code, mon = pcall(Party.giveMonToPlayer, s, b.sp, b.level)
+    local ok, code, mon
+    if b.shiny and Party.giveMon then
+      -- (the shiny one listed: a personality shiny for the player as its OT)
+      local P = Pokemon()
+      local tid = tonumber(s.trainerId or s.id or s.playerId) or 12345
+      local okS, sid = pcall(P and P.playerSecretId or error, s)
+      local R = love and love.math and love.math.random or math.random
+      local pid = shinyPersonality(tid, okS and tonumber(sid) or floor(tid / 65536), R(0, 65535), R(0, 7))
+      local okG, _, c, m = pcall(Party.giveMon, s, b.sp, b.level, nil, { toPC = true, fixedPersonality = pid })
+      ok, code, mon = okG, c, m
+    else
+      ok, code, mon = pcall(Party.giveMonToPlayer, s, b.sp, b.level)
+    end
     if not ok or code == nil or code == 2 or type(mon) ~= "table" then return nil end
     mon.ivs = mon.ivs or {}
     for _, key in ipairs(IV_KEYS) do
@@ -557,7 +600,7 @@ return function(engine, deps)
           if where then
             pay(s, heldOf(b) - price)
             table.insert(d.results, 1, { sp = b.sp, name = b.name, level = b.level, price = price, won = true,
-                                         where = where, at = b.finish, tier = b.tier })
+                                         where = where, at = b.finish, tier = b.tier, shiny = b.shiny })
             d.bids[key] = nil
             won, lastSp = won + 1, b.sp
             d.unread = d.unread + 1
@@ -568,7 +611,7 @@ return function(engine, deps)
         else
           pay(s, heldOf(b))
           table.insert(d.results, 1, { sp = b.sp, name = b.name, level = b.level, price = price, won = false,
-                                       refund = b.max, at = b.finish, tier = b.tier })
+                                       refund = b.max, at = b.finish, tier = b.tier, shiny = b.shiny })
           d.bids[key] = nil
           lost = lost + 1
           d.unread = d.unread + 1

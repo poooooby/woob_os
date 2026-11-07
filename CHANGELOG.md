@@ -3,6 +3,20 @@
 All notable changes to this mod are documented here, in
 [keep a changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [0.3.2] - 2026-11-06
+
+### Added
+- **Shiny Pokémon on R-Bay and the GTS:** about one in ten auctions, GTS listings, Wonder Trades
+  and deposit answers is shiny, with a gold Shiny badge and its shiny colours. A shiny auction is
+  worth far more, draws more and keener bidders and is almost always the Hot Auction; what you
+  win or receive is that shiny.
+
+### Fixed
+- **R-Bay and the GTS:** the Pokémon's pictures show their normal colours. They showed the shiny
+  ones (a species with no Pokémon behind it read as shiny), while what you got was normal. A
+  Pokémon that really is shiny (yours in the GTS's picker, the one Wonder Trade brings) shows as
+  shiny.
+
 ## [0.3.1] - 2026-11-06
 
 ### Added

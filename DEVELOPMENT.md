@@ -217,6 +217,17 @@ the hidden value `V` (the tier's band x `0.6 + 0.8 q^2` x `1 + 0.08` per 31), an
 - **Tests** swap `Au.store` (a fake `mod.save`) and `Au.now` (the clock). The probe's garbage
   checks warm up first: LuaJIT compiling new paths' traces landed 0.5-3 KB one-off spikes.
 
+- **Shiny auctions:** `L.shiny` from its own dice (`shinyDice`: the seed, the slot, the number;
+  not the market's rolls), one in `SHINY` (10): the value x `SHINY_VALUE` (2.5), `SHINY_BIDDERS`
+  (2) more bidders, keener; `L.picMon = { species, isShiny = true }` for `env.monPic`'s sixth
+  argument; the Hot Auction's score +4.5M (four tiers). The bid record keeps `shiny`; `deliver`
+  makes it with `Party.giveMon(..., { toPC = true, fixedPersonality })`, the personality from
+  `Au.shinyPersonality(tid, sid, lo, k)` (the game's test: tid ^ sid ^ hi ^ lo < 8) for the player
+  as its OT. The GTS uses the same (`deps.shinyPersonality`): `Gx.make(..., shiny)` for the
+  stranger's IDs; `Gx.SHINY` (10) for Wonder Trade, a deposit's answer, a listing (`L.shiny`).
+- **Pictures:** `env.monPic(sp, x, y, size, a, mon)` asks a bare species for the normal colours
+  (`isShiny = false`: no personality or OT ID would read as shiny); with `mon`, its own.
+
 ## Slots
 
 `src/slots.lua`: three fixed strips of 20 stops (6 Poké Balls, 4 Great, 3 Ultra, 2 Rare Candies,

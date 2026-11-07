@@ -195,6 +195,7 @@ return {
     ["hint.bid"] = "Enchérir",
     ["hint.step"] = "Palier",
     ["auction.hot"] = "ENCHÈRE PHARE",
+    ["auction.shiny"] = "Chromatique",
     ["auction.endsIn"] = "Fin dans",
     ["hint.hot"] = "Phare",
     ["auction.browse"] = "Parcourir",

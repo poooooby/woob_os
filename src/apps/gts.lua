@@ -29,7 +29,7 @@ local C = {
   line = { 255, 255, 255, 0.07 }, text = { 236, 242, 250 }, soft = { 150, 172, 204 }, faint = { 92, 110, 140 },
   teal = { 40, 214, 204 }, blue = { 54, 144, 255 }, blueDeep = { 18, 64, 150 }, blueTop = { 80, 170, 255 },
   sea = { 24, 96, 190 }, land = { 60, 190, 120 }, green = { 64, 204, 112 }, red = { 236, 64, 70 },
-  gold = { 250, 200, 60 }, goldTop = { 255, 232, 130 }, white = { 255, 255, 255 }, black = { 0, 0, 0 },
+  gold = { 250, 200, 60 }, goldTop = { 255, 232, 130 }, goldDark = { 176, 120, 16 }, shinyInk = { 74, 48, 0 }, white = { 255, 255, 255 }, black = { 0, 0, 0 },
   shade = { 0, 0, 0, 0.55 }, pink = { 255, 110, 170 }, boy = { 70, 150, 255 }, girl = { 255, 100, 150 },
   btnTop = { 60, 160, 255 }, btnFoot = { 20, 90, 200 }, okTop = { 80, 220, 140 }, okFoot = { 30, 150, 90 },
 }
@@ -226,11 +226,12 @@ return function(ctx, env)
       ot = T.f("gts.ot", sh.who[1], regionName(sh.who[2])), item = item and T.f("gts.holding", item) or nil,
       ivs = (mon.ivs and ((mon.ivs.hp or 0) + (mon.ivs.atk or 0) + (mon.ivs.def or 0) + (mon.ivs.spa or 0)
         + (mon.ivs.spd or 0) + (mon.ivs.spe or 0))) or 0,
-      evolve = Gx.evolveTarget(s, mon),
+      evolve = Gx.evolveTarget(s, mon), shiny = info and info.shiny == true,
     }
     local rank = RANK[sh.tier] or 1
-    if rank >= 4 then confetti(50) end
-    se(rank >= 5 and "SE_APPLAUSE" or (rank >= 3 and "SE_SHINY" or "SE_SUCCESS"))
+    -- (a shiny: the confetti and its own chime, whatever its tier)
+    if rank >= 4 or st.reveal.shiny then confetti(50) end
+    se(rank >= 5 and "SE_APPLAUSE" or ((rank >= 3 or st.reveal.shiny) and "SE_SHINY" or "SE_SUCCESS"))
     rebuildRows()
   end
   local function advance(t)
@@ -602,6 +603,16 @@ return function(ctx, env)
     K.text(text, x, y + size * 0.12, size, C.white, "center", w, a)
     return w
   end
+  -- the Shiny badge: gold, a star at its left -> its width
+  local function shinyBadge(x, y, size, clock, a)
+    local word = T("auction.shiny")
+    local w = K.width(word, size) + size * 1.6 + 3
+    local b = K.R(x, y, w, size * 1.35)
+    K.grad(b, size * 0.6, C.goldTop, C.goldDark, a)
+    sparkle(x + size * 0.85, y + size * 0.68, size * 0.55 * (0.85 + 0.15 * sin((clock or 0) * 5)), C.white, a or 1)
+    K.bold(word, x + size * 1.6, y + size * 0.12, size, C.shinyInk, "center", w - size * 1.6 - 1, a)
+    return w
+  end
   local function button(b, label, focused, kind, clock)
     local top, foot = C.btnTop, C.btnFoot
     if kind == "ok" then top, foot = C.okTop, C.okFoot elseif kind == "off" then top, foot = C.cardHi, C.card end
@@ -793,7 +804,7 @@ return function(ctx, env)
       local cy = y + h - 30
       K.col(C.bg, 0.5)
       K.box("fill", K.R(x + 3, cy - 2, w - 6, 15), 3)
-      local drawn = env.monPic and r.sp and env.monPic(r.sp, x + 4, cy - 1.5, 13)
+      local drawn = env.monPic and r.sp and env.monPic(r.sp, x + 4, cy - 1.5, 13, 1, r.mon)
       if not drawn and env.monIconOf then pcall(env.monIconOf, r.mon, x + 4, cy - 1.5, 13, 0, 1) end
       local ns = K.fit(r.name, 4.8, w - 24)
       K.bold(r.name, x + 19, cy + 0.8, ns, C.text)
@@ -839,6 +850,7 @@ return function(ctx, env)
       K.bold(L.offerName, x + 15, ry + 1.6, ns, C.text, nil, nil, a)
       local pw = pill(T(TIER_KEY[L.tier] or TIER_KEY.common), x + 15, ry + 7.2, 3.2, tc, a)
       K.text(levelText(L.level), x + 17 + pw, ry + 7.2, 3.6, C.soft, nil, nil, a)
+      if L.shiny then shinyBadge(x + 15 + pw + 3 + K.width(levelText(L.level), 3.6), ry + 7.2, 3.2, clock, a) end
       K.text(L.whoText, x + 15, ry + 11.6, 3.2, C.faint, nil, nil, a)
       -- (the swap arrows, then what they want)
       local mx = x + 5 + half
@@ -901,7 +913,8 @@ return function(ctx, env)
     end
     K.col(C.bg, 0.6)
     g.circle("fill", K.X(cx), K.Y(py), r * 0.95 * K.sc)
-    if not (env.monPic and d.sp and env.monPic(d.sp, cx - r * 0.8, py - r * 0.8 + sin(clock * 2) * 0.6, r * 1.6)) then
+    local depMon = Gx.posted() and Gx.posted().mon
+    if not (env.monPic and d.sp and env.monPic(d.sp, cx - r * 0.8, py - r * 0.8 + sin(clock * 2) * 0.6, r * 1.6, 1, depMon)) then
       if env.monIcon and d.sp then pcall(env.monIcon, d.sp, cx - r * 0.6, py - r * 0.6, r * 1.2) end
     end
     local ty = py + r + 3
@@ -978,7 +991,8 @@ return function(ctx, env)
     local s = age < 0.3 and (age / 0.3) * 1.2 or (age < 0.5 and 1.2 - (age - 0.3) or 1 + 0.03 * sin(clock * 3))
     scaleAbout(cx, cy, s)
     local sp = tonumber(rv.mon.species or rv.mon.speciesId)
-    if not (env.monPic and env.monPic(sp, cx - r, cy - r, r * 2)) and env.monIconOf then
+    -- (the Pokémon itself: shiny when it really is)
+    if not (env.monPic and env.monPic(sp, cx - r, cy - r, r * 2, 1, rv.mon)) and env.monIconOf then
       pcall(env.monIconOf, rv.mon, cx - r * 0.8, cy - r * 0.8, r * 1.6, 0, 1)
     end
     g.pop()
@@ -991,9 +1005,11 @@ return function(ctx, env)
     local pw = K.width(tier, 3.6) + 3
     local lv = levelText(rv.level)
     local lw = K.width(lv, 4)
-    local sx = cx - (pw + 2 + lw) / 2
+    local shw = rv.shiny and (K.width(T("auction.shiny"), 3.6) + 3.6 * 1.6 + 3 + 2) or 0
+    local sx = cx - (pw + 2 + lw + shw) / 2
     pill(tier, sx, ty + 7.4, 3.6, tc)
     K.text(lv, sx + pw + 2, ty + 7.4, 4, C.soft)
+    if rv.shiny then shinyBadge(sx + pw + 4 + lw, ty + 7.4, 3.6, clock) end
     K.text(rv.ot, x, ty + 13, 3.8, C.teal, "center", w)
     local yy = ty + 18.5
     if rv.item then

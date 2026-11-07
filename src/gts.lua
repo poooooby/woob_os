@@ -12,7 +12,7 @@
 --   Gx = gts(engine, deps)  deps: save (mod.save), now() -> epoch seconds, rng(n) -> 1..n,
 --                           seed(s), pools() / tierOf(sp) / minLevel(sp) (R-Bay's), frlg() -> bool,
 --                           bx (src/boxes.lua), notify(kind, { name, sp, who }) ("gts": a
---                           deposit traded)
+--                           deposit traded), shinyPersonality(tid, sid, lo, k) (R-Bay's)
 --   Gx.REGIONS, Gx.LEVELS (request ranges)
 --   Gx.canSend(s, addr) -> true | false, reason        addr: Bx.addr(...)
 --   Gx.candidates(s, box, filter) -> { addr ... }       (the party, then that box)
@@ -58,8 +58,9 @@ end
 
 return function(engine, deps)
   deps = deps or {}
+  -- (a stranger's Pokémon is shiny one time in SHINY: Wonder Trade, a deposit's answer, a listing)
   local Gx = { REGIONS = REGIONS, LEVELS = LEVELS, STRANGERS = STRANGERS, store = deps.save,
-               now = deps.now or os.time, rng = deps.rng }
+               now = deps.now or os.time, rng = deps.rng, SHINY = 10 }
 
   local function P() return engine("src.core.game3.pokemon") end
   local function Trade() return engine("src.core.game3.scripting.natives_trade") end
@@ -183,13 +184,18 @@ return function(engine, deps)
   end
   -- the stranger's Pokémon: made on a scratch session (the real party and Pokédex untouched), then
   -- theirs: name, ID, gender, met in a trade, perhaps holding something
-  function Gx.make(s, sp, level, who, id)
+  -- (shiny: a personality shiny for the stranger's IDs, the game's own test)
+  function Gx.make(s, sp, level, who, id, shiny)
     local Party, Pk = engine("src.core.game3.party"), P()
     if not (Party and Pk) then return nil end
     local tid, sid = id % 65536, floor(id / 65536)
     local scratch = { party = {}, name = who[1], trainerId = tid, secretId = sid,
                       dex = { seen = {}, owned = {}, caught = {} }, gender = who[3] }
-    local ok, given, _, mon = pcall(Party.giveMon, scratch, sp, level, nil, nil)
+    local opts = nil
+    if shiny and deps.shinyPersonality then
+      opts = { fixedPersonality = deps.shinyPersonality(tid, sid, roll(65536) - 1, roll(8) - 1) }
+    end
+    local ok, given, _, mon = pcall(Party.giveMon, scratch, sp, level, nil, opts)
     if not (ok and given and type(mon) == "table") then return nil end
     mon.ot, mon.otName, mon.otId, mon.otSecretId, mon.otGender = who[1], who[1], tid, sid, who[3]
     mon.metLocation = 0xFE
@@ -272,7 +278,7 @@ return function(engine, deps)
     if not sp then return false, "invalid" end
     local who, id = stranger(s)
     local level = levelOf((tonumber(mine.level) or 5) + roll(11) - 6, sp)
-    local recv = Gx.make(s, sp, level, who, id)
+    local recv = Gx.make(s, sp, level, who, id, roll(Gx.SHINY) == 1)
     if not recv then return false, "invalid" end
     local sent = Gx.swap(s, addr, recv, who)
     if not sent then return false, "gone" end
@@ -336,7 +342,7 @@ return function(engine, deps)
     local range = LEVELS[dep.levels] or LEVELS[1]
     local base = dep.levels == 1 and ((tonumber(dep.mon.level) or 5) + roll(11) - 6) or (range[1] + roll(range[2] - range[1] + 1) - 1)
     local who, id = stranger(s)
-    local recv = Gx.make(s, dep.species, levelOf(base, dep.species), who, id)
+    local recv = Gx.make(s, dep.species, levelOf(base, dep.species), who, id, roll(Gx.SHINY) == 1)
     if not recv then return false end
     dep.received, dep.stranger = recv, { who[1], who[2], who[3] }
     save(d)
@@ -415,6 +421,8 @@ return function(engine, deps)
           L.ask = pickSpecies(s, droll(3) == 1 and "uncommon" or "common")
         end
         L.levels = droll(3) == 1 and (droll(5) + 1) or 1
+        L.shiny = droll(Gx.SHINY) == 1
+        if L.shiny and L.sp then L.picMon = { species = L.sp, isShiny = true } end
         if L.sp and L.ask and L.ask ~= L.sp then list[#list + 1] = L end
       end
       Gx.rng = saved
@@ -461,7 +469,7 @@ return function(engine, deps)
     local ok, why = Gx.canSend(s, addr)
     if not ok then return false, why end
     local _, id = stranger(s)
-    local recv = Gx.make(s, L.sp, L.level, L.who, id)
+    local recv = Gx.make(s, L.sp, L.level, L.who, id, L.shiny)
     if not recv then return false, "invalid" end
     local sent = Gx.swap(s, addr, recv, L.who)
     if not sent then return false, "gone" end
