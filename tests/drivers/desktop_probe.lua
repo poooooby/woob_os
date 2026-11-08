@@ -137,6 +137,8 @@ local function body(game, log)
   s0.party = lend({ 1, 4, 7 })
   local lent = lend({ 25, 133, 152, 155, 158, 175 })
   for i, slot in ipairs({ 1, 2, 7, 8, 14, 20 }) do stor.boxes[1].mons[slot] = lent[i] end
+  -- (one shiny: the sparkle on its icon in the grid)
+  if lent[4] then lent[4].isShiny = true end
   stor.currentBox = 1
   -- (Down past the home screen's rows)
   for _ = 1, 4 do
@@ -176,6 +178,13 @@ local function body(game, log)
     check(pv and pv.dmax == 6 and pv.gmax == true, "the preview: Dynamax Level 6, the G-Max Factor")
     shot("d2_boxes")
     Bx.dynamax = dynamax0
+    -- (the shiny: its sparkle on the icon and in the preview)
+    bst.area, bst.bi = "box", 8
+    U.wait(4)
+    check(Bx.shiny(Bx.boxMons(s0, 1)[8]) == true, "a shiny: the sparkle on its icon")
+    shot("d2_boxes_shiny")
+    bst.area, bst.bi = "box", 1
+    U.wait(2)
     -- Swap: carry one two along
     U.tap(game, "select"); U.wait(4)
     check(bst.mode == BW.SWAP, "SELECT: Swap")

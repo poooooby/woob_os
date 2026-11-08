@@ -168,7 +168,8 @@ opens a desktop in a sleek monitor instead of a text menu.
 - 🔴 **Boxes:** the Pokémon Storage System in one window: your party on the left, a box in the
   middle (L and R go through all 14, or all 40 with WoobleDex's Bigger PC), and the Pokémon under the cursor on the right, with its
   picture, types, nature, ability, item and moves. With WoobleDex, its Dynamax Level shows as a
-  gauge of ten, and a G-Max badge marks a Pokémon with the Gigantamax Factor. Three cursor modes, switched with SELECT or a
+  gauge of ten, and a G-Max badge marks a Pokémon with the Gigantamax Factor. A shiny has a gold sparkle
+  on its icon, in the box and in your party, so you can spot it without moving the cursor onto it. Three cursor modes, switched with SELECT or a
   tap on their icons under the box:
   - **Select** (red): A opens a Pokémon's options: Move, Summary, Item (take it to the Bag or give
     one) and Release. A on the box's name, or START, jumps to a box, renames it or changes its

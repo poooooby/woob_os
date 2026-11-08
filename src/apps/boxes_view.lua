@@ -8,6 +8,19 @@
 
 local floor, max, min, abs = math.floor, math.max, math.min, math.abs
 
+-- the sparkle's star, radius 1 round 0, 0: four points, the sides curving in between them
+-- (|x|^0.625 + |y|^0.625 = 1), and its three stars in a square of 1 (centre x, y, radius)
+local STAR_N = 48
+local STAR_X, STAR_Y = {}, {}
+for i = 1, STAR_N do
+  local t = (i - 1) / STAR_N * 2 * math.pi
+  local c, n = math.cos(t), math.sin(t)
+  STAR_X[i] = (c < 0 and -1 or 1) * abs(c) ^ 3.2
+  STAR_Y[i] = (n < 0 and -1 or 1) * abs(n) ^ 3.2
+end
+local CLUSTER = { { 0.3, 0.3, 0.3 }, { 0.76, 0.5, 0.24 }, { 0.42, 0.78, 0.22 } }
+local starMesh
+
 -- (the system colours of the kit's K.UI, the macOS / iOS look every window shares)
 local C = {
   ink = { 28, 28, 30 }, soft = { 112, 112, 120 }, faint = { 162, 162, 170 }, card = { 255, 255, 255 },
@@ -47,8 +60,17 @@ return function(K, env, T, Bx, st, A)
   local countText = K.textCache(function(n) return tostring(n) .. "/" .. Bx.SLOTS end)
   local function session() return env.session and env.session() end
 
+  local sparkle
+  -- a Pokémon's icon, `size` units square
   local function icon(mon, x, y, size, frame, a)
     if env.monIconOf then pcall(env.monIconOf, mon, x, y, size, frame, a) end
+  end
+  -- a shiny's gold sparkle in the top right of its cell (bx, by, bs units square; the white edge
+  -- included), the game's icons having no shiny colours
+  local function mark(mon, bx, by, bs)
+    if not Bx.shiny(mon) then return end
+    local s, m = bs * 0.46, bs * 0.05
+    sparkle(K.graphics(), bx + bs - m - s * 1.06, by + m + s * 0.07, s, true)
   end
   local function wallpaper(id, x, y, w, h)
     if env.boxWall then
@@ -89,14 +111,31 @@ return function(K, env, T, Bx, st, A)
       G.line(K.X(cx - r * 0.8), K.Y(y + s * 0.8), K.X(cx + r * 0.8), K.Y(y + s * 0.8))
     end
   end
-  local function sparkle(G, x, y, s)
+  -- the shiny sparkle: three four-pointed stars with pinched, curved sides (a big one at the top
+  -- left, two by it), `s` units square at x, y; `halo`: a white edge under them first, to show on
+  -- any wallpaper. Each star is a fan from its centre: a kept mesh, or triangles without meshes
+  local function star(G, cx, cy, r)
     local sc = K.sc
+    local px, py, pr = K.X(cx), K.Y(cy), r * sc
+    if starMesh == nil and G.newMesh then
+      local verts = { { 0, 0 } }
+      for i = 0, STAR_N do verts[#verts + 1] = { STAR_X[i % STAR_N + 1], STAR_Y[i % STAR_N + 1] } end
+      local ok, m = pcall(G.newMesh, verts, "fan", "static")
+      starMesh = ok and m or false
+    end
+    if starMesh then return G.draw(starMesh, px, py, 0, pr, pr) end
+    for i = 1, STAR_N do
+      local j = i % STAR_N + 1
+      G.polygon("fill", px, py, px + STAR_X[i] * pr, py + STAR_Y[i] * pr, px + STAR_X[j] * pr, py + STAR_Y[j] * pr)
+    end
+  end
+  function sparkle(G, x, y, s, halo)
+    if halo then
+      K.col(K.WHITE, 0.95)
+      for k = 1, 3 do star(G, x + CLUSTER[k][1] * s, y + CLUSTER[k][2] * s, CLUSTER[k][3] * s * 1.22) end
+    end
     K.col(C.shiny)
-    G.setLineWidth(max(1, s * 0.18 * sc))
-    G.line(K.X(x + s / 2), K.Y(y), K.X(x + s / 2), K.Y(y + s))
-    G.line(K.X(x), K.Y(y + s / 2), K.X(x + s), K.Y(y + s / 2))
-    G.line(K.X(x + s * 0.2), K.Y(y + s * 0.2), K.X(x + s * 0.8), K.Y(y + s * 0.8))
-    G.line(K.X(x + s * 0.8), K.Y(y + s * 0.2), K.X(x + s * 0.2), K.Y(y + s * 0.8))
+    for k = 1, 3 do star(G, x + CLUSTER[k][1] * s, y + CLUSTER[k][2] * s, CLUSTER[k][3] * s) end
   end
 
   -- ------- the party
@@ -123,10 +162,13 @@ return function(K, env, T, Bx, st, A)
         if portrait then
           local is = min(sw, sh) * 1.05
           icon(mon, sx + (sw - is) / 2, sy + (sh - is) / 2 - 1, is, frame)
+          local bs = min(sw, sh)
+          mark(mon, sx + sw - bs, sy, bs)
           hpBar(mon, sx + 2, sy + sh - 2.2, sw - 4)
         else
           local is = sh * 1.25
           icon(mon, sx - 1, sy + (sh - is) / 2 - 0.5, is, frame)
+          mark(mon, sx + is - 2 - sh, sy, sh)
           local info = Bx.info(mon, T)
           K.bold(info.levelText, sx + is - 1, sy + 1.6, 3.8, C.ink)
           hpBar(mon, sx + is - 1, sy + sh - 3.2, sw - is - 1)
@@ -208,6 +250,7 @@ return function(K, env, T, Bx, st, A)
       if mon then
         local hover = on or (st.usePtr and st.hoverArea == "box" and st.hoverIdx == i)
         icon(mon, cx + (cell - is) / 2, cy + (cell - is) / 2 - 1, is, hover and floor(clock * 4) % 2 or 0)
+        mark(mon, cx, cy, cell)
       end
       local cb = K.R(cx, cy, cell, cell)
       if on and not st.usePtr then K.ring(cb, 2, color, K.pulse(), 0.9) end
@@ -337,6 +380,7 @@ return function(K, env, T, Bx, st, A)
       K.col(K.BLACK, 0.18)
       K.graphics().ellipse("fill", K.X(x + cell / 2), K.Y(y + cell + 3), cell * 0.32 * K.sc, cell * 0.1 * K.sc)
       icon(held.mons[i], x + (cell - is) / 2, y + (cell - is) / 2, is, floor(clock * 6) % 2)
+      mark(held.mons[i], x, y, cell)
     end
   end
 
@@ -407,7 +451,7 @@ return function(K, env, T, Bx, st, A)
       local lx = horizontal and tx or tx + (tw - lw - 10) / 2
       K.text(info.levelText, lx, ty, 4.2, C.soft)
       genderMark(G, info.gender, lx + lw + 2, ty + 0.4, 4)
-      if info.shiny then sparkle(G, lx + lw + 7, ty + 0.4, 4) end
+      if info.shiny then sparkle(G, lx + lw + 7, ty - 0.3, 5) end
       ty = ty + 6
       -- the types
       local total = 0

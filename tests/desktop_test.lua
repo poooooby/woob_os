@@ -1616,6 +1616,15 @@ do
   T.check(Bx.info(m, X._test.env.T).dmax == nil, "no row for a Pokémon that can't Dynamax")
   Dx.canDynamax = function() return true end
   Bx.forget(m)
+  -- (a shiny: the grid's sparkle asks once per Pokémon, forgotten with the rest)
+  T.check(Bx.shiny(m) == false, "not shiny: no sparkle on its icon")
+  m.isShiny = true
+  T.check(Bx.shiny(m) == false, "kept per Pokémon")
+  Bx.forget(m)
+  T.check(Bx.shiny(m) == true and Bx.info(m, X._test.env.T).shiny == true, "shiny: the sparkle on its icon and in the preview")
+  -- (one in box 1 too, so the window's draws below draw a sparkle)
+  local first = Bx.get(s, Bx.addr("box", 1, 1))
+  if first then first.isShiny = true; Bx.forget(first) end
 end
 Bx.rename(s, 3, "TEAM")
 Bx.setWallpaper(s, 3, 5)

@@ -18,7 +18,7 @@
 --   Bx.putBack(s, held) ; Bx.release(s, addr) -> true, mon | false, reason
 --   Bx.takeItem(s, mon) / Bx.giveItem(s, mon, itemId) -> true, itemId | false, reason
 --   Bx.holdable(s, itemId) -> bool ; Bx.info(mon) -> the preview's words and pictures (kept per Pokémon
---       until Bx.forget(mon))
+--       until Bx.forget(mon)) ; Bx.shiny(mon) -> bool (kept per Pokémon: the grid's sparkle, every frame)
 --   Bx.dynamax = fn() -> WoobleDex's exports.dynamax | nil (main.lua): the preview's Dynamax Level
 --       (info.dmax 0..10, nil when it can't Dynamax) and Gigantamax Factor (info.gmax)
 --   Bx.sendBox(s) the box caught Pokémon go to = the current one (as the game's own screen does on close)
@@ -364,7 +364,8 @@ return function(engine)
   -- ------- the preview (made once per Pokémon, kept until it changes)
 
   local infos = setmetatable({}, { __mode = "k" })
-  function Bx.forget(mon) if mon then infos[mon] = nil end end
+  local shinies = setmetatable({}, { __mode = "k" })
+  function Bx.forget(mon) if mon then infos[mon], shinies[mon] = nil, nil end end
   local function call(f, ...)
     if not f then return nil end
     local ok, a, b = pcall(f, ...)
@@ -426,6 +427,18 @@ return function(engine)
       got.itemName = tostring(call(I and I.displayName, item) or ("#" .. item))
     end
     infos[mon] = got
+    return got
+  end
+
+  -- a shiny? (just that, without the preview's pictures: the game's check, or a mod's shiny.roll,
+  -- makes garbage, so once per Pokémon; an egg never)
+  function Bx.shiny(mon)
+    if not mon then return false end
+    local got = shinies[mon]
+    if got ~= nil then return got end
+    local P = Pokemon()
+    got = not isEgg(mon) and call(P and P.isShiny, mon) == true
+    shinies[mon] = got
     return got
   end
 

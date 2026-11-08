@@ -3,6 +3,12 @@
 All notable changes to this mod are documented here, in
 [keep a changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [0.5.3] - 2026-11-07
+
+### Added
+- **Shinies sparkle in Boxes:** a gold sparkle on a shiny's icon in the box grid, in the party and
+  while it's carried (the game's icons have no shiny colours).
+
 ## [0.5.2] - 2026-11-07
 
 ### Changed
