@@ -1070,97 +1070,154 @@ function slotsSave.set(self, k, v) self.data[k] = v end
 local slotsStore0, slotsRng0 = Sl.store, Sl.rng
 Sl.store = slotsSave
 do
-  -- every way the reels can stop: what comes back of a bet, how rare the jackpot is
-  local R1, R2, R3 = Sl.REELS[1], Sl.REELS[2], Sl.REELS[3]
-  local back, n, jack, rarest = 0, 0, 0, true
-  local count = {}
-  for _, a in ipairs(R1) do
-    for _, b in ipairs(R2) do
-      for _, c in ipairs(R3) do
-        n = n + 1
-        local x, _, j = Sl.payout(a, b, c)
-        back = back + x
-        if j then jack = jack + 1 end
-        if a == b and b == c then count[a] = (count[a] or 0) + 1 end
-      end
-    end
+  -- the machine's return, exactly: every way five reels can show (by how many of each symbol a
+  -- reel has), the Bonus's pays and the free spins
+  local NS, tally = #Sl.SYMBOLS, {}
+  local right = true
+  for r = 1, 5 do
+    tally[r] = {}
+    for s0 = 1, NS do tally[r][s0] = 0 end
+    for _, v in ipairs(Sl.REELS[r]) do tally[r][v] = tally[r][v] + 1 end
+    right = right and #Sl.REELS[r] == 30 and tally[r][Sl.BONUS] == 1
+    -- (no two the same side by side; at most one Bonus shows on a reel)
+    for i = 1, 30 do right = right and Sl.REELS[r][i] ~= Sl.REELS[r][i % 30 + 1] end
   end
-  local rtp = back / n
-  T.check(#R1 == 20 and #R2 == 20 and #R3 == 20, "three reels of twenty")
-  T.check(rtp > 0.85 and rtp < 0.97, ("the machine pays back %.1f%% of what's bet"):format(rtp * 100))
-  for sym, k in pairs(count) do if sym ~= Sl.ROCKET and k < (count[Sl.ROCKET] or 0) then rarest = false end end
-  T.check(jack > 0 and rarest, "the jackpot can come up, rarest of all (1 in " .. math.floor(n / math.max(1, jack)) .. ")")
-  -- every line pays back the same: more lines, the same return, only bigger swings
-  local same = true
-  for l = 2, #Sl.LINES do
-    local row, backL = Sl.LINES[l], 0
-    for s1 = 1, 20 do
-      for s2 = 1, 20 do
-        for s3 = 1, 20 do
-          backL = backL + Sl.payout(Sl.at(1, s1, row[1]), Sl.at(2, s2, row[2]), Sl.at(3, s3, row[3]))
-        end
-      end
+  T.check(right, "five reels of thirty, one Bonus each")
+  T.check(tally[1][Sl.WILD] == 0 and tally[5][Sl.WILD] == 0 and tally[3][Sl.WILD] > 0, "wilds on the middle three reels")
+  local line, jack, five = 0, 0, 0
+  for a = 1, NS do for b = 1, NS do for c = 1, NS do for d = 1, NS do for e = 1, NS do
+    local w = tally[1][a] * tally[2][b] * tally[3][c] * tally[4][d] * tally[5][e]
+    if w > 0 then
+      w = w / 30 ^ 5
+      local x, _, j, _, n = Sl.payout(a, b, c, d, e)
+      line = line + x * w
+      if j then jack = jack + w end
+      if n == 5 then five = five + w end
     end
-    if backL ~= back then same = false end
+  end end end end end
+  local seen = { [0] = 1, 0, 0, 0, 0, 0 }
+  for _ = 1, 5 do
+    for k = 5, 1, -1 do seen[k] = seen[k] * 0.9 + seen[k - 1] * 0.1 end
+    seen[0] = seen[0] * 0.9
   end
-  T.check(#Sl.LINES == 5 and same, "five lines, each paying back the same")
+  local pays, chance, spins = 0, 0, 0
+  for k = 3, 5 do
+    pays = pays + seen[k] * Sl.BONUS_PAY[k]
+    chance = chance + seen[k]
+    spins = spins + seen[k] * Sl.FREE[k]
+  end
+  local each = spins / chance
+  local free = chance * (each / (1 - chance * each)) * (line + pays) * Sl.FREE_MULT
+  local rtp = line + pays + free
+  T.check(rtp > 0.88 and rtp < 0.95, ("the machine pays back %.1f%% of what's bet (lines %.1f, Bonus %.1f, free spins %.1f)"):format(
+    rtp * 100, line * 100, pays * 100, free * 100))
+  T.check(chance > 1 / 200 and chance < 1 / 60, "free spins about 1 spin in " .. math.floor(1 / chance))
+  T.check(jack > 0 and jack < five, "the jackpot can come up, rarely (1 line in " .. math.floor(1 / jack) .. ")")
+  -- the lines
+  local keys, distinct = {}, #Sl.LINES == 20
+  for _, row in ipairs(Sl.LINES) do
+    distinct = distinct and #row == 5
+    local k = table.concat(row, ",")
+    distinct = distinct and not keys[k]
+    keys[k] = true
+  end
+  T.check(distinct, "twenty different lines of five")
+  -- what a line pays
+  local W_, B_ = Sl.WILD, Sl.BONUS
+  T.eq(Sl.payout(1, 1, 1, 2, 3), Sl.PAYS[1].x[1], "three from the left")
+  T.eq(Sl.payout(4, W_, 4, W_, 4), Sl.PAYS[4].x[3], "wilds stand in: five of a kind")
+  T.eq(Sl.payout(1, W_, 2, 2, 2), 0, "a wild can't join two different symbols")
+  T.eq(Sl.payout(1, 1, B_, 1, 1), 0, "a Bonus breaks the line")
+  T.eq(Sl.payout(2, 1, 1, 1, 1), 0, "only from the left")
+  local _, _, j = Sl.payout(Sl.ROCKET, W_, Sl.ROCKET, W_, Sl.ROCKET)
+  T.check(j, "five R's with wilds: the jackpot")
 end
 -- spins, with the reels told where to stop
 local queue = {}
 Sl.rng = function(nn) return table.remove(queue, 1) or 1 end
-local function stopsFor(a, b, c)
+-- (these symbols on the middle row)
+local function stopsFor(a, b, c, d, e)
   local function at(r, sym) for i, v in ipairs(Sl.REELS[r]) do if v == sym then return i end end end
-  queue = { at(1, a), at(2, b), at(3, c) }
+  queue = { at(1, a), at(2, b), at(3, c), at(4, d), at(5, e) }
 end
 local ss = newSession()
 ss.money = 40
 ok, why = Sl.spin(ss, 1)
 T.check(not ok and why == "money" and ss.money == 40, "less than the bet: no spin")
 ss.money = 10000
-stopsFor(1, 2, 3)
+stopsFor(1, 2, 3, 4, 5)
 ok = Sl.spin(ss, 2)
 T.check(ok and Sl.collect(ss) == 0 and ss.money == 9900, "a losing spin: only the bet goes")
-stopsFor(Sl.PIKACHU, Sl.PIKACHU, Sl.PIKACHU)
+stopsFor(5, 5, 5, 1, 2)
 ok = Sl.spin(ss, 2)
 T.eq(ss.money, 9800, "the win held back while the reels turn")
 local pays, tickets = Sl.collect(ss)
-T.check(pays == 7500 and ss.money == 17300, "three Pikachu: 75 times the bet (" .. tostring(pays) .. ")")
-T.check(tickets == 6 and Sl.tickets() == 6, "and Rocket Tickets: 3 a ₽50, ×2 (" .. tostring(tickets) .. ")")
+T.check(pays == 2000 and ss.money == 11800, "three Pikachu: 20 times the bet (" .. tostring(pays) .. ")")
+T.check(tickets == 2 and Sl.tickets() == 2, "and Rocket Tickets: 1 a ₽50, ×2 (" .. tostring(tickets) .. ")")
+T.check(Sl.result.count[1] == 3 and Sl.result.sym[1] == 5, "the result says what lined up")
 T.check(Sl.collect(ss) == 0, "paid once")
-stopsFor(Sl.ROCKET, Sl.ROCKET, Sl.ROCKET)
+stopsFor(Sl.ROCKET, Sl.ROCKET, Sl.ROCKET, Sl.ROCKET, Sl.ROCKET)
 ss.money = 999000
 local okJ, res = Sl.spin(ss, 4)
 Sl.collect(ss)
 T.check(okJ and res.jackpot and ss.money == 999999, "the jackpot, the money stops at 999,999")
 T.eq(Sl.stats().jackpots, 1, "counted")
--- more lines: the bet on each; three Great Balls on the top row pay only when it's played
+-- more lines: the bet on each; five Great Balls on the top row pay only when it's played
 do
-  local function above(r, sym) for i, v in ipairs(Sl.REELS[r]) do if v == sym then return i % 20 + 1 end end end
-  local function expect(lines, bet)
-    local total = 0
-    for l = 1, lines do
-      local row = Sl.LINES[l]
-      total = total + Sl.payout(Sl.at(1, queue[1], row[1]), Sl.at(2, queue[2], row[2]), Sl.at(3, queue[3], row[3])) * bet
-    end
-    return total
-  end
-  queue = { above(1, 2), above(2, 2), above(3, 2) }
-  local want1 = expect(1, 100)
+  local function above(r, sym) for i, v in ipairs(Sl.REELS[r]) do if v == sym then return i % 30 + 1 end end end
+  local function topRow() return { above(1, 2), above(2, 2), above(3, 2), above(4, 2), above(5, 2) } end
+  queue = topRow()
   ss.money = 10000
   ok = Sl.spin(ss, 2, 1)
   T.check(ok and ss.money == 9900 and Sl.result.won[2] == 0, "one line: the top row isn't played")
-  T.eq(Sl.collect(ss), want1, "one line: only the middle pays")
-  queue = { above(1, 2), above(2, 2), above(3, 2) }
-  local want3 = expect(3, 100)
+  Sl.collect(ss)
+  queue = topRow()
   ss.money = 10000
-  ok = Sl.spin(ss, 2, 3)
-  T.check(ok and ss.money == 9700, "three lines: three bets taken")
-  T.check(Sl.result.won[2] == 20 and Sl.result.symbol ~= nil, "the top line: three Great Balls, 20 times its bet")
-  local p3 = Sl.collect(ss)
-  T.check(p3 == want3 and p3 >= 2000, "paid line by line (" .. tostring(p3) .. ")")
+  ok = Sl.spin(ss, 2, 5)
+  T.check(ok and ss.money == 9500, "five lines: five bets taken")
+  T.check(Sl.result.won[2] == Sl.PAYS[2].x[3], "the top line: five Great Balls")
+  local p5, sum = Sl.collect(ss), 0
+  for l = 1, 5 do sum = sum + Sl.result.won[l] * 100 end
+  T.check(p5 == sum and p5 >= 4500, "paid line by line (" .. tostring(p5) .. ")")
   ss.money = 400
   ok, why = Sl.spin(ss, 2, 5)
   T.check(not ok and why == "money" and ss.money == 400, "five lines of ₽100 with ₽400: no spin")
+end
+-- free spins: three Bonus anywhere pay on the whole bet and give ten; they keep the bet, cost nothing,
+-- triple their wins, can give more, and last in the save until they've run
+do
+  local B = Sl.BONUS
+  ss.money = 10000
+  stopsFor(B, B, B, 1, 2)
+  ok, res = Sl.spin(ss, 2, 5)
+  T.check(ok and res.scatters == 3 and res.freeAdded == 10, "three Bonus: ten free spins")
+  local paid = Sl.collect(ss)
+  T.eq(paid, Sl.BONUS_PAY[3] * 100 * 5, "and they pay on the whole bet")
+  local f = Sl.freeState()
+  T.check(f and f.left == 10 and f.level == 2 and f.lines == 5, "kept with the bet that won them")
+  T.check(slotsSave.data.slots.free == f, "in the save")
+  local m0 = ss.money
+  stopsFor(5, 5, 5, 1, 2)
+  ok, res = Sl.spin(ss, 4, 1)
+  T.check(ok and res.free and res.mult == 3 and res.lines == 5 and res.level == 2 and ss.money == m0, "a free spin: no cost, the same bet")
+  T.check(Sl.freeState().left == 9, "one fewer")
+  local p3 = Sl.collect(ss)
+  T.check(p3 >= 2000 * 3, "its wins tripled (" .. tostring(p3) .. ")")
+  stopsFor(B, B, B, 1, 2)
+  ok, res = Sl.spin(ss, 2, 5)
+  T.check(res.freeAdded == 10 and Sl.freeState().left == 18, "more Bonus: more free spins")
+  Sl.collect(ss)
+  Sl.freeState().left = 1
+  local total0 = Sl.freeState().total
+  stopsFor(1, 2, 3, 4, 5)
+  ok, res = Sl.spin(ss, 2, 5)
+  local lastPay = Sl.collect(ss)
+  T.check(Sl.freeState() == nil and res.freeTotal == total0 + lastPay and total0 > 0, "the last one: over, with what they won")
+  T.check(slotsSave.data.slots.free == nil, "gone from the save")
+  ss.money = 100
+  ok = Sl.spin(ss, 2, 1)
+  T.check(ok and ss.money == 0, "then spins cost again")
+  Sl.collect(ss)
 end
 -- the prize corner
 local list = Sl.prizes()
@@ -1205,30 +1262,35 @@ local SW = D.window()
 T.check(SW and SW.title == "Slots", "Slots opens")
 local sws = SW.state
 press("left")
-T.eq(sws.bet, 1, "Left: a smaller bet")
+T.eq(sws.bet, 1, "Left: no smaller than the smallest")
 press("right")
 press("right")
 T.eq(sws.bet, 3, "Right: a bigger one (₽500)")
-stopsFor(Sl.PIKACHU, Sl.PIKACHU, Sl.PIKACHU)
+T.eq(Sl.LINE_SETS[sws.lines], 5, "five lines to begin with")
+stopsFor(5, 5, 5, 5, 5)
 press("a")
-T.check(sws.spinning and s.money == 49500, "A: spinning, the bet taken")
+T.check(sws.spinning and s.money == 50000 - 2500, "A: spinning, the bet taken")
 draw(40)
 T.check(sws.stopped[1] == false or sws.stopped[1] == true, "(the reels turning)")
 press("a")
 draw(1)
-T.check(sws.stopped[1] and not sws.stopped[3], "A again: the first reel stops")
-T.check(sws.tease and sws.stopAt[3] - sws.stopAt[2] > 1.5, "two Pikachu on the line: the last reel held back")
-for _ = 1, 600 do
+T.check(sws.stopped[1] and not sws.stopped[5], "A again: the first reel stops")
+for _ = 1, 900 do
   if not sws.spinning then break end
   draw(1)
 end
-T.check(not sws.spinning and sws.win and sws.win.pays == 37500 and s.money == 87000, "the reels stop: 75 times ₽500 paid")
-T.check(sws.win.tier and sws.win.tier.key == "slots.mega", "a MEGA WIN (" .. tostring(sws.win.tier and sws.win.tier.key) .. ")")
+do
+  local want = Sl.result.pays
+  T.check(not sws.spinning and sws.win and want >= 125000 and s.money == 47500 + want, "the reels stop: five Pikachu paid (" .. tostring(want) .. ")")
+  T.check(sws.win.x >= 20 and sws.win.tier.key ~= "slots.win", "a big win (" .. tostring(sws.win.tier.key) .. ")")
+end
 draw(5)
-T.eq(Sl.tickets(), 30, "and 30 tickets")
-local mid = true
-for r = 1, 3 do mid = mid and Sl.REELS[r][((math.floor(sws.pos[r] + 0.5) - 1) % 20) + 1] == Sl.PIKACHU end
-T.check(mid, "the reels show three Pikachu on the line")
+T.check(Sl.tickets() >= 80, "and tickets (" .. Sl.tickets() .. ")")
+do
+  local mid = true
+  for r = 1, 5 do mid = mid and Sl.REELS[r][((math.floor(sws.pos[r] + 0.5) - 1) % 30) + 1] == 5 end
+  T.check(mid, "the reels show five Pikachu on the line")
+end
 press("start")
 T.check(sws.table, "START: the pay table")
 draw(2)
@@ -1237,26 +1299,84 @@ T.check(not sws.table and D.window() == SW, "B: back to the machine")
 -- the lines: Up / Down, the LINES button going round
 press("up")
 press("up")
-T.eq(Sl.LINE_SETS[sws.lines], 5, "Up: five lines")
+T.eq(Sl.LINE_SETS[sws.lines], 20, "Up: twenty lines")
 press("up")
-T.eq(Sl.LINE_SETS[sws.lines], 5, "(no more than five)")
+T.eq(Sl.LINE_SETS[sws.lines], 20, "(no more than twenty)")
 press("down")
-T.eq(Sl.LINE_SETS[sws.lines], 3, "Down: three")
+T.eq(Sl.LINE_SETS[sws.lines], 10, "Down: ten")
 SW.tap(2008)
-T.eq(Sl.LINE_SETS[sws.lines], 5, "LINES: five")
+T.eq(Sl.LINE_SETS[sws.lines], 20, "LINES: twenty")
 SW.tap(2008)
 T.eq(Sl.LINE_SETS[sws.lines], 1, "LINES again: round to one")
 press("up")
 do
   local m0 = s.money
-  stopsFor(1, 2, 3)
+  stopsFor(1, 2, 3, 4, 5)
   press("a")
-  T.check(sws.spinning and s.money == m0 - 3 * Sl.BETS[sws.bet], "three lines: the bet three times")
-  for _ = 1, 600 do
+  T.check(sws.spinning and s.money == m0 - 5 * Sl.BETS[sws.bet], "five lines: the bet five times")
+  for _ = 1, 900 do
     if not sws.spinning then break end
     draw(1)
   end
   T.check(not sws.spinning, "(stopped)")
+end
+-- two Bonus down: the rest held back; three: the card, then the free spins run by themselves
+do
+  local B, wait = Sl.BONUS, 0
+  sws.bet = 1
+  draw(30)
+  stopsFor(B, B, 1, 2, 3)
+  press("a")
+  T.check(sws.teaseFrom == 3 and sws.stopAt[3] - sws.stopAt[2] > 0.9, "two Bonus: the next reels held back")
+  for _ = 1, 900 do
+    if not sws.spinning then break end
+    draw(1)
+  end
+  T.check(Sl.freeState() == nil and not sws.intro, "only two: nothing comes of it")
+  draw(60)
+  stopsFor(B, B, B, 1, 2)
+  press("a")
+  for _ = 1, 900 do
+    if not sws.spinning then break end
+    draw(1)
+  end
+  T.check(Sl.freeState() and Sl.freeState().left == 10 and sws.intro and sws.intro.n == 10, "three Bonus: free spins, their card")
+  local betBefore = sws.bet
+  press("right")
+  T.eq(sws.bet, betBefore, "the bet can't change during free spins")
+  local money0 = s.money
+  for _ = 1, 3000 do
+    if sws.spinning then break end
+    draw(1)
+  end
+  T.check(sws.spinning and Sl.result.free and s.money >= money0, "the first one starts by itself, free")
+  for _ = 1, 9000 do
+    if not Sl.freeState() and not sws.spinning and not sws.intro then break end
+    queue = { 1, 2, 3, 4, 5 }
+    draw(1)
+  end
+  T.check(Sl.freeState() == nil and not sws.spinning, "they all run")
+  T.check(sws.outro and sws.outro.total >= 0, "the card with what they won")
+  draw(600)
+  T.check(not sws.outro, "and it goes")
+  -- Auto
+  local m0 = s.money
+  press("select")
+  T.check(sws.auto, "SELECT: Auto")
+  for _ = 1, 3000 do
+    if sws.spinning then break end
+    queue = { 1, 2, 3, 4, 5 }
+    draw(1)
+  end
+  T.check(sws.spinning and s.money < m0, "it spins by itself")
+  press("select")
+  T.check(not sws.auto, "SELECT again: off")
+  for _ = 1, 900 do
+    if not sws.spinning then break end
+    draw(1)
+  end
+  draw(400)
+  T.check(not sws.spinning, "and it stops at that")
 end
 -- the garbage: idle, then spinning (warmed up)
 local FrlgFont3 = require("src.ui.game3.frlg_font")
@@ -1266,7 +1386,7 @@ draw(60)
 local perIdle = garbageOf(120)
 local perSpin = garbageOf(60, function()
   draw(150)
-  stopsFor(1, 2, 3)
+  stopsFor(1, 2, 3, 4, 5)
   SW.input(input({ "a" }, { "a" }), {})
   draw(30)
 end)

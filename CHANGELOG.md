@@ -3,6 +3,20 @@
 All notable changes to this mod are documented here, in
 [keep a changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [Unreleased]
+
+### Changed
+- **Slots is a five-reel video slot:** a new look (a dark stage, wide reels, a pay ladder, a round
+  SPIN button, a BALANCE / WIN / BET bar, full-window big wins), 1 / 5 / 10 / 20 lines, and three,
+  four or five of a kind from the left. The return stays about 91%.
+
+### Added
+- **Slots:** Ditto is wild; Bonus coins pay anywhere and give 10, 15 or 25 free spins with wins
+  tripled; Auto (SELECT).
+
+### Removed
+- **Slots:** the lever, and Pikachu paying on the first reels alone.
+
 ## [0.5.3] - 2026-11-07
 
 ### Added

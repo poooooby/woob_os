@@ -580,8 +580,10 @@ return function(ctx, env)
   local function sparkle(cx, cy, s, c, a)
     local g = G()
     K.col(c, a)
-    local x, y, r, q = K.X(cx), K.Y(cy), s * K.sc, s * K.sc * 0.22
-    g.polygon("fill", x, y - r, x + q, y - q, x + r, y, x + q, y + q, x, y + r, x - q, y + q, x - r, y, x - q, y - q)
+    -- (two thin diamonds crossed: love's filled polygons have to be convex)
+    local x, y, r, q = K.X(cx), K.Y(cy), s * K.sc, s * K.sc * 0.3
+    g.polygon("fill", x, y - r, x + q, y, x, y + r, x - q, y)
+    g.polygon("fill", x - r, y, x, y - q, x + r, y, x, y + q)
   end
   local function rays(cx, cy, r, clock, c, a)
     local g = G()

@@ -149,19 +149,22 @@ opens a desktop in a sleek monitor instead of a text menu.
   clock turns red in the last ten minutes, taking the lead throws confetti and losing it tells you
   at once. My Bids shows where you stand, and a count on R-Bay's icon tells you an auction has
   ended.
-- 🎰 **Slots:** Team Rocket's slot machine, played with your money: ₽50, ₽100, ₽500 or ₽1,000 a
-  line, on one, three or five lines (Up / Down or the LINES button: the middle row, then the top
-  and bottom rows, then both diagonals; each line costs its own bet). Three of a kind on a gold
-  line pays, from Poké Balls (10×) up to three Rocket R's (the
-  500× jackpot), and a Pikachu on the first reel gives your bet back. The rarer wins also drop
-  Rocket Tickets, more for bigger bets. Pull the lever (or press A) and the reels roll; A stops
-  them one by one, or let them land. Two good symbols on the line hold the last reel back while
-  the notes climb. Wins come as WIN, BIG WIN, MEGA WIN or JACKPOT: a banner, a shower of coins, the
-  payout counting up and your tickets flying to their counter. START shows the pay table. In the Prizes tab, trade tickets for Nuggets, Rare Candies, PP Ups,
-  TMs (Ice Beam, Thunderbolt, Flamethrower, Earthquake, Hyper Beam), a Master Ball, or Abra,
-  Clefairy, Scyther, Pinsir, Dratini and Porygon, whose level grows with your badges. Prizes are
-  sorted by rarity, a bar shows how close you are to the one you've picked, the Prizes tab counts
-  the ones you can afford, and a redeemed prize bursts into confetti and appears on the pad.
+- 🎰 **Slots:** Team Rocket's five-reel video slot, played with your money: ₽50, ₽100, ₽500 or
+  ₽1,000 a line, on 1, 5, 10 or 20 lines (each line costs its own bet). Three, four or five of a kind
+  from the left pay, from Poké Balls up to five Rocket R's (the 2,500× jackpot), and a pay ladder
+  beside the reels shows what five of each are worth at your bet. Ditto is wild and stands in for
+  any symbol except Bonus. Three or more Bonus coins anywhere pay on your whole bet and give 10, 15
+  or 25 free spins that keep your bet, triple their wins, can give more, and carry on if you close
+  the window. The rarer wins also drop Rocket Tickets, more for bigger bets. Press SPIN (or A) and
+  the reels roll; A stops them one by one, or let them land. Two Bonus down hold the remaining reels
+  back while the notes climb. Auto (SELECT) keeps spinning until you turn it off. A small win
+  lights its line and counts up over the reels; BIG WIN, MEGA WIN and JACKPOT take the whole window
+  with rays, a rain of coins and the payout counting up. START shows the full pay table. In the
+  Prizes tab, trade tickets for Nuggets, Rare Candies, PP Ups, TMs (Ice Beam, Thunderbolt,
+  Flamethrower, Earthquake, Hyper Beam), a Master Ball, or Abra, Clefairy, Scyther, Pinsir, Dratini
+  and Porygon, whose level grows with your badges. Prizes are sorted by rarity, a bar shows how
+  close you are to the one you've picked, the Prizes tab counts the ones you can afford, and a
+  redeemed prize bursts into confetti and appears on the pad.
 - ✉️ **Mail:** your mailbox as an inbox. Read each letter on its own stationery, move it to the
   Bag, or give it to a Pokémon in your party. The Held folder shows the mail your Pokémon are
   carrying, and Take files a letter back in the inbox. Works in all five games.

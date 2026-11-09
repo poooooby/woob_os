@@ -660,45 +660,68 @@ local function body(game, log)
     local queue = {}
     local function at(r, sym) for i, v in ipairs(Sl.REELS[r]) do if v == sym then return i end end end
     Sl.rng = function() return table.remove(queue, 1) or 1 end
-    queue = { at(1, Sl.ROCKET), at(2, Sl.ROCKET), at(3, Sl.ROCKET) }
+    local R5 = Sl.ROCKET
+    queue = { at(1, Sl.BONUS), at(2, Sl.BONUS), at(3, 1), at(4, 2), at(5, 3) }
+    local cost = Sl.BETS[ss.bet] * Sl.LINE_SETS[ss.lines]
     U.tap(game, "a"); U.wait(2)
-    check(ss.spinning and s0.money == 20000 - Sl.BETS[ss.bet], "A: spinning, the bet taken")
+    check(ss.spinning and s0.money == 20000 - cost, "A: spinning, the bet taken")
     U.wait(20)
     shot("d13b_slots_spin")
-    check(waitFor(function() return ss.tease and ss.stopped[2] and not ss.stopped[3] end, 600), "two R's: the last reel held back")
-    U.wait(30)
+    check(waitFor(function() return ss.teaseFrom and ss.stopped[2] and not ss.stopped[3] end, 600), "two Bonus: the next reels held back")
+    U.wait(20)
     shot("d13b2_slots_tease")
     check(waitFor(function() return not ss.spinning end, 900), "the reels stop")
+    U.wait(30)
+    -- the jackpot
+    queue = { at(1, R5), at(2, R5), at(3, R5), at(4, R5), at(5, R5) }
+    local before = s0.money
+    U.tap(game, "a"); U.wait(2)
+    check(waitFor(function() return not ss.spinning end, 900), "the reels stop")
     U.wait(40)
-    check(ss.win and ss.win.jackpot and s0.money == 20000 - Sl.BETS[ss.bet] + Sl.BETS[ss.bet] * Sl.PAYS[Sl.ROCKET].x,
-      "the jackpot, paid")
+    check(ss.win and ss.win.jackpot and Sl.result.jackpot, "the jackpot, paid")
     shot("d13c_slots_jackpot")
-    U.wait(60)
+    U.wait(90)
     shot("d13c2_slots_jackpot_coins")
     U.tap(game, "start"); U.wait(6)
     check(ss.table, "START: the pay table")
     shot("d13d_slots_table")
     U.tap(game, "b"); U.wait(4)
-    -- five lines: three Meowth down the diagonal
     local nowS = function() return love.timer.getTime() end
     waitFor(function() return nowS() - ss.win.t > ss.win.tier.count + 2.2 end, 3000)
+    -- twenty lines
     U.tap(game, "up"); U.wait(3)
-    U.tap(game, "up"); U.wait(20)
-    check(Sl.LINE_SETS[ss.lines] == 5, "Up, Up: five lines")
-    shot("d13d2_slots_five_lines")
-    local n = #Sl.REELS[1]
-    local i1, i2, i3 = at(1, 6), at(2, 6), at(3, 6)
-    queue = { i1 % n + 1, i2, (i3 - 2) % n + 1 }
-    local before = s0.money
+    U.tap(game, "up"); U.wait(12)
+    check(Sl.LINE_SETS[ss.lines] == 20, "Up, Up: twenty lines")
+    shot("d13d2_slots_twenty_lines")
+    -- a small win on a line with a wild
+    queue = { at(1, 1), at(2, Sl.WILD), at(3, 1), at(4, 2), at(5, 3) }
     U.tap(game, "a"); U.wait(2)
-    check(s0.money == before - 5 * Sl.BETS[ss.bet], "five lines: five bets")
     check(waitFor(function() return not ss.spinning end, 900), "the reels stop")
     U.wait(30)
-    check(Sl.result.won[4] == Sl.PAYS[6].x and ss.win and ss.win.pays >= Sl.PAYS[6].x * Sl.BETS[ss.bet],
-      "the diagonal pays")
-    shot("d13d3_slots_diagonal")
-    waitFor(function() return nowS() - ss.win.t > ss.win.tier.count + 2.3 end, 3000)
-    shot("d13d4_slots_diagonal_line")
+    check(Sl.result.won[1] > 0 and ss.win ~= nil, "a wild makes a line")
+    shot("d13d3_slots_wild")
+    U.wait(100)
+    shot("d13d4_slots_wild_line")
+    -- free spins
+    waitFor(function() return nowS() - ss.win.t > ss.win.tier.count + 1 end, 3000)
+    queue = { at(1, Sl.BONUS), at(2, Sl.BONUS), at(3, Sl.BONUS), at(4, 1), at(5, 2) }
+    U.tap(game, "a"); U.wait(2)
+    check(waitFor(function() return not ss.spinning end, 900), "the reels stop")
+    check(Sl.freeState() and Sl.freeState().left == 10, "three Bonus: ten free spins")
+    check(waitFor(function() return ss.intro and nowS() >= ss.intro.t + 0.6 end, 1200), "their card")
+    shot("d13g_slots_free_card")
+    check(waitFor(function() return ss.spinning and Sl.result.free end, 1800), "the first one starts by itself")
+    U.wait(30)
+    shot("d13h_slots_free_spin")
+    Sl.freeState().left = 1
+    check(waitFor(function() return Sl.freeState() == nil and ss.outro and nowS() >= ss.outro.t + 0.6 end, 3000), "the last one: the total")
+    shot("d13i_slots_free_total")
+    waitFor(function() return not ss.outro end, 1200)
+    U.tap(game, "down"); U.wait(3)
+    U.tap(game, "down"); U.wait(3)
+    U.tap(game, "down"); U.wait(3)
+    U.tap(game, "up"); U.wait(3)
+    ss.nextAt = nil
     U.wait(150)
     -- the draw's garbage: idle, then a spin (each warmed up)
     local drawS, kbS, nS, on = D.draw, 0, 0, false
@@ -714,7 +737,7 @@ local function body(game, log)
     U.wait(240)
     on = true
     U.wait(60)
-    queue = { 1, 2, 3 }
+    queue = { 1, 2, 3, 4, 5 }
     U.tap(game, "a")
     U.wait(90)
     D.draw = drawS
