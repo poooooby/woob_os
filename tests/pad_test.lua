@@ -163,10 +163,14 @@ local PAD_ID = Sh.PAD_ID
 local K = X._test.kit
 do
   local got = Runtime.call("ui.start_menu.items", vanilla, {}, startList(true))
-  T.check(got[#got - 1] and got[#got - 1].id == "woob_watch" and got[#got].id == "exit",
-    "the pad's row, just above EXIT (" .. ids(got) .. ")")
-  T.eq(got[#got - 1].label, X._test.i18n("watch.start"), "its words: WOOBPAD")
-  T.check(type(got[#got - 1].onSelect) == "function", "and its onSelect")
+  T.check(got[3].id == "bag" and got[4] and got[4].id == "woob_watch",
+    "no PokéNav yet: the pad's row under BAG, where it would be (" .. ids(got) .. ")")
+  T.eq(got[4].label, X._test.i18n("watch.start"), "its words: WOOBPAD")
+  T.check(type(got[4].onSelect) == "function", "and its onSelect")
+  local noBag = {}
+  for _, e in ipairs(startList(true)) do if e.id ~= "bag" then noBag[#noBag + 1] = e end end
+  local odd = Runtime.call("ui.start_menu.items", vanilla, {}, noBag)
+  T.check(odd[#odd - 1].id == "woob_watch" and odd[#odd].id == "exit", "a menu without BAG: above EXIT (" .. ids(odd) .. ")")
   local link = Runtime.call("ui.start_menu.items", vanilla, {}, startList(false))
   T.check(not ids(link):find("woob_watch", 1, true), "not in a link room's or the Safari Zone's menu")
   Settings.set("watchRow", false)
@@ -179,7 +183,7 @@ do
   local nav = Runtime.call("ui.start_menu.items", vanilla, {}, withNav)
   T.check(nav[3].id == "woob_watch" and not ids(nav):find("pokenav", 1, true) and #nav == #withNav,
     "in the PokéNav's place (" .. ids(nav) .. ")")
-  got[#got - 1].onSelect({}, s)
+  got[4].onSelect({}, s)
 end
 T.check(Wt.isOpen() and Stack.has(PAD_ID), "chosen: the pad opens on its layer")
 local st = Wt.state()

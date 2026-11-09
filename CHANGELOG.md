@@ -9,6 +9,8 @@ All notable changes to this mod are documented here, in
 - **Slots is a five-reel video slot:** a new look (a dark stage, wide reels, a pay ladder, a round
   SPIN button, a BALANCE / WIN / BET bar, full-window big wins), 1 / 5 / 10 / 20 lines, and three,
   four or five of a kind from the left. The return stays about 91%.
+- **WoobPad's START row** sits under BAG before you have the PokéNav (and on FireRed / LeafGreen),
+  instead of at the bottom.
 
 ### Added
 - **PC Games app:** with the PC Games mod installed, its games fill the screen of the desktop and

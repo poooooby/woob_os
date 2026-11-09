@@ -1156,8 +1156,8 @@ local function body(game, log)
   check(waitFor(function() return StartMenu.isOpen() end, 120), "START: the menu")
   local row
   for i, e in ipairs(StartMenu.ENTRIES or {}) do if e.id == "woob_watch" then row = i end end
-  local nextId = row and StartMenu.ENTRIES[row + 1] and StartMenu.ENTRIES[row + 1].id
-  check(nextId == "exit" or nextId == "mods", "the pad's row in it, above EXIT (or the engine's MODS)")
+  local prevId = row and row > 1 and StartMenu.ENTRIES[row - 1].id
+  check(prevId == "bag", "the pad's row in it, under BAG")
   U.wait(10)
   shot("w0_start_menu")
   if row then

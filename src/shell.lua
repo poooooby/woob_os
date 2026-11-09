@@ -590,18 +590,21 @@ return function(mod, deps)
     end
     return nil
   end
-  -- the START menu's rows with the pad's above EXIT (the Desktop option and the Settings choice on)
+  -- the START menu's rows with the pad's where the PokéNav's is or would be, under BAG (the Desktop
+  -- option and the Settings choice on)
   function Sh.startRows(list)
     if not (Wt and type(list) == "table" and #list > 0) then return list end
     if Sh.enabled and not Sh.enabled() then return list end
     if deps.watchRow and not deps.watchRow() then return list end
     -- (the game's own START menu only: one with SAVE in it, not a link room's or the Safari Zone's)
-    local at, normal, nav = #list, false, nil
+    local at, normal, nav, bag = #list, false, nil, nil
     for i, e in ipairs(list) do
       if e.id == "save" then normal = true end
       if e.id == "pokenav" then nav = i end
+      if e.id == "bag" then bag = i end
       if (e.id == "exit" or e.id == "mods") and at == #list then at = i end
     end
+    if bag then at = bag + 1 end
     if not normal then return list end
     local label = deps.watchLabel and deps.watchLabel() or "WATCH"
     local row = { id = "woob_watch", label = label, onSelect = function(_, s) Sh.openWatch(s) end }
