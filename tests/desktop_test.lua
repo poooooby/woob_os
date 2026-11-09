@@ -1418,6 +1418,79 @@ end
 VP.width, VP.height = 480, 320
 press("b")
 T.check(D.window() == nil, "B closes Slots")
+
+-- ------- PC Games (another mod's screen): kept in a window instead of on the game's stack
+do
+  local H = X._test.pcgames
+  T.check(H and not H.available(), "without the PC Games mod: no app")
+  T.check(Apps.byId("pcgames").available() == false, "(its icon stays away)")
+  local seen = { opens = 0, ticks = 0, draws = 0 }
+  local ex = { openGames = function(game)
+    seen.opens, seen.game = seen.opens + 1, game
+    Stack.push("pc_solitaire", {
+      isMenu = true,
+      draw = function() seen.draws = seen.draws + 1 end,
+      handleInput = function(inp)
+        seen.a, seen.up, seen.held = inp:wasPressed("a"), inp:wasPressed("up"), inp:isDown("up")
+        if inp:wasPressed("b") and seen.top then Stack.pop("pc_solitaire") end
+      end,
+      update = function(dt) seen.ticks, seen.dt = seen.ticks + 1, dt end,
+    }, { fullscreen = true, hideBelow = true })
+  end }
+  local find0, game0 = H.find, H.game
+  local theGame = {}
+  H.find, H.game = function() return { exports = ex } end, function() return theGame end
+  T.check(H.available() and Apps.byId("pcgames").available() == true, "with it: the app")
+  local depth0 = Stack.depth()
+  T.check(D.openApp("pcgames"), "PC Games opens in a window")
+  draw(3)
+  local PW = D.window()
+  T.check(PW and PW.state.ok and seen.opens == 1 and seen.game == theGame, "that mod opened itself, for this game")
+  T.check(Stack.depth() == depth0 and not Stack.has("pc_solitaire"), "its screen is in the window, not on the game's stack")
+  H.draw()
+  T.check(seen.draws == 1, "it draws when asked")
+  D.input(input({ "a" }, { "a" }))
+  T.check(seen.a == true, "A reaches it")
+  D.input(input({}, {}))
+  draw(2)
+  T.check(seen.ticks >= 1 and seen.dt > 0 and seen.dt <= 0.1, "it runs, a frame at a time")
+  T.check(PW.fullscreen == true, "across the whole monitor")
+  do
+    local function closeShown()
+      for _, h in ipairs(X._test.kit.hits) do if h.kind == "winclose" then return true end end
+      return false
+    end
+    draw(2)
+    T.check(not closeShown(), "no close button until the pointer moves")
+    T.check(PW.pointer("hover", 10, 10, 1) == false, "a touch or a move brings it (and goes on to the tap)")
+    draw(2)
+    T.check(closeShown(), "the close button")
+    draw(240)
+    T.check(not closeShown(), "and it goes again")
+  end
+  -- closing only pauses it: the next open carries on
+  D.closeWindow()
+  draw(60)
+  T.check(D.window() == nil and H.open() and seen.opens == 1, "closed and open again: it carries on")
+  D.openApp("pcgames")
+  draw(3)
+  seen.top = true
+  press("b")
+  draw(60)
+  T.check(D.window() == nil, "it closes itself: the window goes")
+  T.check(Stack.depth() == depth0, "the game's stack untouched")
+  T.check(H.open() and seen.opens == 2, "and it starts afresh next time")
+  H.reset()
+  -- if it doesn't open the way we know, it's left to itself
+  local pushed = false
+  local real = ex.openGames
+  ex.openGames = function() Stack.push("pc_other", { draw = function() end }, {}); pushed = true end
+  T.check(H.open() == false and pushed and Stack.has("pc_other"), "some other way of opening: left alone")
+  Stack.pop("pc_other")
+  ex.openGames = real
+  H.reset()
+  H.find, H.game = find0, game0
+end
 draw(30)
 Sl.store, Sl.rng = slotsStore0, slotsRng0
 

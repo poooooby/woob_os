@@ -923,6 +923,45 @@ local function body(game, log)
   -- installation's settings file back as it was
   local XT = X._test
   local I18n, Set, Wall, Env = XT.i18n, XT.settings, XT.wall, XT.env
+  -- PC Games (only when that mod is on): its screen in a window, crisp; closing pauses it
+  do
+    local PG = X._test.pcgames
+    if PG and PG.available() then
+      local Stack3 = require("src.ui.game3.stack")
+      local function launch()
+        for i, app in ipairs(st.grid) do if app.id == "pcgames" then st.focus, st.cursor = "grid", i end end
+        U.tap(game, "a")
+        waitFor(function() return D.window() ~= nil end, 600)
+        U.wait(20)
+      end
+      launch()
+      local PW = D.window()
+      check(PW and PW.title == "PC Games" and PW.state.ok, "PC Games: its window")
+      check(not Stack3.has("pc_solitaire"), "in the window, not on the game's stack")
+      shot("d15_pcgames")
+      PW.pointer("hover", 10, 10, 1)
+      U.wait(3)
+      shot("d15a_pcgames_close")
+      U.tap(game, "down"); U.wait(4)
+      U.tap(game, "a"); U.wait(40)
+      shot("d15b_pcgames_snake")
+      U.tap(game, "b"); U.wait(6)
+      shot("d15c_pcgames_pause")
+      D.closeWindow()
+      waitFor(function() return D.window() == nil and st.zoom == nil end, 600)
+      check(PG.open(), "closed: kept, paused")
+      launch()
+      U.wait(6)
+      shot("d15d_pcgames_resumed")
+      U.tap(game, "up"); U.wait(4)
+      U.tap(game, "a"); U.wait(6)
+      shot("d15e_pcgames_after_pause")
+      U.tap(game, "b")
+      check(waitFor(function() return D.window() == nil and st.zoom == nil end, 600), "back to its menu, B: the window closes itself")
+    else
+      log("  PC Games not on: skipped")
+    end
+  end
   local savedSettings = Set.cache and Set.cache.read and Set.cache:read("settings.lua")
   for i, app in ipairs(st.grid) do if app.id == "settings" then st.focus, st.cursor = "grid", i end end
   U.tap(game, "a")
@@ -1330,7 +1369,8 @@ local function body(game, log)
       L.pw or 0, L.ph or 0, L.cols or 0, L.rows or 0))
     shot("d9_" .. shape[1])
     if shape[1] == "w16x9" or shape[1] == "portrait" then
-      for _, id in ipairs({ "storage", "items", "mail", "auction", "mart", "slots", "gts", "map" }) do
+      for _, id in ipairs({ "storage", "items", "mail", "auction", "mart", "slots", "gts", "map",
+                            X._test.pcgames.available() and "pcgames" or nil }) do
         for i, app in ipairs(st.dock) do if app.id == id then D.launch("dock", i) end end
         for i, app in ipairs(st.grid) do if app.id == id then D.launch("grid", i) end end
         waitFor(function() return D.window() ~= nil end, 600)

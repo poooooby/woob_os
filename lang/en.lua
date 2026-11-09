@@ -253,6 +253,7 @@ return {
 
     -- Rocket Slots
     ["app.slots"] = "Slots",
+    ["app.pcgames"] = "PC Games",
     ["hint.spin"] = "Spin",
     ["hint.betLines"] = "Bet / Lines",
     ["hint.auto"] = "Auto",

@@ -242,6 +242,7 @@ return {
 
     -- Rocket Slots
     ["app.slots"] = "スロット",
+    ["app.pcgames"] = "PCゲーム",
     ["hint.spin"] = "まわす",
     ["hint.betLines"] = "ベット / ライン",
     ["hint.auto"] = "オート",

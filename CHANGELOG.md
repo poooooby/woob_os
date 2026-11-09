@@ -11,6 +11,8 @@ All notable changes to this mod are documented here, in
   four or five of a kind from the left. The return stays about 91%.
 
 ### Added
+- **PC Games app:** with the PC Games mod installed, its games fill the screen of the desktop and
+  WoobPad, at a whole-pixel size.
 - **Slots:** Ditto is wild; Bonus coins pay anywhere and give 10, 15 or 25 free spins with wins
   tripled; Auto (SELECT).
 

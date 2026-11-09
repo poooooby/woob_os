@@ -10,6 +10,7 @@
 --   src/auction.lua, src/apps/auction.lua   R-Bay: the auction market (worked out from a seed and the
 --                                       clock; the player's bids in the save), its window
 --   src/slots.lua, src/apps/slots.lua   Rocket Slots: the machine, its tickets and prize corner, its window
+--   src/pcgames.lua, src/apps/pcgames.lua   the PC Games mod's screen in a window
 --   src/gts.lua, src/apps/gts.lua       the GTS: Wonder Trade and the Global Trade Station, its window
 --   src/boxes.lua, src/apps/boxes.lua, src/apps/boxes_view.lua   the Pokémon model, the Boxes window
 --   src/i18n.lua, lang/*.lua            the words, by language ; src/settings.lua the kept choices
@@ -57,6 +58,7 @@ return function(mod)
   local makeMart, martWindow = loadSibling(mod, "src/mart.lua"), loadSibling(mod, "src/apps/mart.lua")
   local makeAuction, auctionWindow = loadSibling(mod, "src/auction.lua"), loadSibling(mod, "src/apps/auction.lua")
   local makeSlots, slotsWindow = loadSibling(mod, "src/slots.lua"), loadSibling(mod, "src/apps/slots.lua")
+  local makePcGames, pcGamesWindow = loadSibling(mod, "src/pcgames.lua"), loadSibling(mod, "src/apps/pcgames.lua")
   local makeGts, gtsWindow = loadSibling(mod, "src/gts.lua"), loadSibling(mod, "src/apps/gts.lua")
   local makeNotify = loadSibling(mod, "src/notify.lua")
   local makeMapModel, makeMapRender = loadSibling(mod, "src/map3d/model.lua"), loadSibling(mod, "src/map3d/render.lua")
@@ -495,6 +497,16 @@ return function(mod)
       return nd and nd.exports and nd.exports.dynamax or nil
     end
   end
+  if makePcGames and pcGamesWindow then
+    env.pcgames = makePcGames(engine, {
+      find = function() return mod.find("pc_solitaire") end,
+      game = function()
+        local Runtime = engine("src.core.game3.runtime")
+        return Runtime and Runtime._game
+      end,
+      log = function(...) mod.log:warn(...) end,
+    })
+  end
   local Apps = makeApps({
     boxes = env.bx and boxesWindow and boxesView
       and function(ctx, e) return boxesWindow(ctx, e, boxesView) end or nil,
@@ -503,6 +515,8 @@ return function(mod)
     mart = env.mart and martWindow or nil,
     auction = env.auction and auctionWindow or nil,
     slots = env.slots and slotsWindow or nil,
+    pcgames = env.pcgames and pcGamesWindow or nil,
+    pcgamesAvailable = env.pcgames and env.pcgames.available or nil,
     gts = env.gts and gtsWindow or nil,
     map = env.map3d and function(ctx, e) return mapScene(ctx, e, { mode = "app" }) end or nil,
     phone = env.phone and phoneWindow or nil,
@@ -664,6 +678,7 @@ return function(mod)
   local okI, errI = pcall(Sh.install)
   if not okI then mod.log:warn("the desktop's hooks failed: %s", tostring(errI)) end
   mod.events:on("game.ready", function()
+    if env.pcgames then env.pcgames.reset() end
     local ok, err = pcall(Sh.ready)
     if not ok then mod.log:warn("the PC keeps its own menu: %s", tostring(err)) end
   end)
@@ -680,7 +695,7 @@ return function(mod)
   -- open | window }
   mod.exports.apps = { register = Apps.register, list = function() return Apps.apps end }
   mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
-                        mart = env.mart, auction = env.auction, slots = env.slots, gts = env.gts,
+                        mart = env.mart, auction = env.auction, slots = env.slots, pcgames = env.pcgames, gts = env.gts,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange,
                         watch = Watch, pad = Watch, notify = Nt, tick = tick, map3d = env.map3d, townmap = TownMap,
                         phone = env.phone, condition = env.condition, pokenav = Pokenav, onCall = onCall }

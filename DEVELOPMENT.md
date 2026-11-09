@@ -21,6 +21,7 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/gts.lua` | The GTS: strangers and their Pokémon (traded, their OT), the trade rules, Wonder Trade, the deposit and its match, the listings |
 | `src/apps/gts.lua` | The GTS window: Wonder Trade's picker, the globe search and the reveal; the listings; My Deposit |
 | `src/slots.lua` | Rocket Slots: the reels, the pay table, spins (the win held until the reels stop), tickets and the prize corner |
+| `src/pcgames.lua`, `src/apps/pcgames.lua` | The PC Games mod's screen kept in a window: catching its layer, the picture |
 | `src/apps/slots.lua` | The Slots window: the stage, the reels' roll, the pay ladder and table, free spins, Auto, Prizes |
 | `src/mart.lua` | The shop model: the badge-gated stock, buy / sell on the session's money and the engine's `Bag` |
 | `src/apps/mart.lua` | The Mart window: Buy \| Sell, a tabbed list, the chosen item with its stepper |
@@ -267,6 +268,24 @@ loss whatever the bet, which prices the prize corner (Rare Candy 15 ≈ ₽4.4k,
   `st.intro` / `st.outro` cards. `glow` is one kept additive mesh, nothing without meshes (headless).
   Sounds queue with `seLater` (the engine plays one at a time). Coins, confetti and flying tickets come
   from a fixed pool of `PARTICLES` records.
+
+## PC Games
+
+The app appears only when the PC Games mod (`pc_solitaire`) is on. `src/pcgames.lua` calls its public
+`exports.openGames(game)` with `Stack.push` stood in for during that one call, and keeps the layer
+(`draw` / `handleInput` / `update`) instead of letting it reach the stack; anything else it pushes
+goes through untouched, so a future change of shape falls back to it opening over the desktop. Its
+`Stack.pop("pc_solitaire")` is watched only while its own code runs, which is how we learn it closed.
+
+- **Closing:** it has no way to be closed from outside, so closing the window keeps the layer and the
+  next open carries on; `H.reset()` at `game.ready`, when the mod forgets its own. While it's kept,
+  that mod's other ways in (the Kanto Gear app; the PC menu with the desktop off) do nothing.
+- **The picture:** drawn 240 x 160 into a canvas and shown at a whole number of screen pixels.
+  `g.setCanvas(target)` comes before `g.pop()`: restoring the scissor with the picture still bound
+  works it out for the wrong target's height and clips the top and bottom of the screen.
+- **Buttons:** the real ones only, handed straight to it, as when it opens on its own.
+- **The whole screen:** `win.fullscreen = true` gives a window `L.screen` as its body, with no toolbar
+  and no menu bar. The window draws its own way out (a `"winclose"` hit), shown on `win.pointer`.
 
 ## GTS
 

@@ -241,6 +241,7 @@ return {
 
     -- Rocket Slots
     ["app.slots"] = "Machines",
+    ["app.pcgames"] = "Jeux PC",
     ["hint.spin"] = "Lancer",
     ["hint.betLines"] = "Mise / Lignes",
     ["hint.auto"] = "Auto",

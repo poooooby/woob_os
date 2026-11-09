@@ -152,6 +152,12 @@ return function(deps)
                    return ctx.mode == "pad" and (not deps.pokenavAvailable or deps.pokenavAvailable(ctx))
                  end, open = deps.pokenav })
   end
+  -- the PC Games mod's games, in a window, when it's installed
+  if deps.pcgames then
+    A.register({ id = "pcgames", labelKey = "app.pcgames", label = "PC Games",
+                 glyph = "gamepad", color = { 104, 86, 214 }, order = 35,
+                 available = deps.pcgamesAvailable, window = deps.pcgames })
+  end
   -- the bedroom's Decoration (Ruby / Sapphire / Emerald): the game's own menu
   if deps.decorate then
     A.register({ id = "decorate", labelKey = "app.decorate", label = "Decorate",

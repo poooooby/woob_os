@@ -241,6 +241,7 @@ return {
 
     -- Rocket Slots
     ["app.slots"] = "Caça-níqueis",
+    ["app.pcgames"] = "Jogos PC",
     ["hint.spin"] = "Girar",
     ["hint.betLines"] = "Aposta / Linhas",
     ["hint.auto"] = "Auto",

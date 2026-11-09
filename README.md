@@ -165,6 +165,10 @@ opens a desktop in a sleek monitor instead of a text menu.
   and Porygon, whose level grows with your badges. Prizes are sorted by rarity, a bar shows how
   close you are to the one you've picked, the Prizes tab counts the ones you can afford, and a
   redeemed prize bursts into confetti and appears on the pad.
+- 🕹️ **PC Games:** with the PC Games mod installed, its games (Solitaire, Snake, Tetris, Blackjack,
+  Collapse, Minesweeper and PokePet) get an icon on the desktop and on WoobPad and fill the screen, sharp
+  at a whole-pixel size, with your buttons. Move the mouse or touch the screen for a close button;
+  close mid-game and it picks up where you left off.
 - ✉️ **Mail:** your mailbox as an inbox. Read each letter on its own stationery, move it to the
   Bag, or give it to a Pokémon in your party. The Held folder shows the mail your Pokémon are
   carrying, and Take files a letter back in the inbox. Works in all five games.

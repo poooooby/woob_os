@@ -282,6 +282,7 @@ return function(deps)
   -- an app's window: made when its zoom ends, closed back into its icon
   local function openWindow(app)
     r.ctx.app = app.id
+    r.ctx.closeWindow = D.closeWindow
     local ok, w = pcall(app.window, r.ctx, deps.env)
     if not (ok and type(w) == "table" and w.draw) then
       if deps.log then deps.log("the app %s failed to open: %s", app.id, tostring(w)) end
@@ -955,6 +956,16 @@ return function(deps)
     G.setLineWidth(lw)
     if type(kind) == "function" then
       pcall(kind, K, cx, cy, s, a)
+    elseif kind == "gamepad" then
+      -- (a handheld held sideways: the D-pad and two buttons)
+      local w, h = s * 0.68, s * 0.42
+      G.rectangle("fill", cx - w / 2, cy - h / 2, w, h, s * 0.13, s * 0.13)
+      G.setColor(0.41, 0.34, 0.84, a)
+      local dx, arm, t = cx - w * 0.25, s * 0.11, s * 0.05
+      G.rectangle("fill", dx - arm, cy - t / 2, arm * 2, t)
+      G.rectangle("fill", dx - t / 2, cy - arm, t, arm * 2)
+      G.circle("fill", cx + w * 0.17, cy + h * 0.13, s * 0.042)
+      G.circle("fill", cx + w * 0.32, cy - h * 0.13, s * 0.042)
     elseif kind == "ball" then
       local rad = s * 0.31
       G.circle("line", cx, cy, rad)
@@ -1625,6 +1636,22 @@ return function(deps)
   -- an app's window over the screen: a macOS toolbar (the close, minimise and zoom lights, the
   -- title), then the app on the grouped grey
   local function drawWindow(L, clock, portrait)
+    -- (win.fullscreen: the whole screen, no toolbar and no menu bar over it)
+    if r.win.fullscreen then
+      local body = L.screen
+      local wa = r.winArea or {}
+      r.winArea = wa
+      wa[1], wa[2], wa[3], wa[4] = K.X(body[1]), K.Y(body[2]), body[3] * K.sc, body[4] * K.sc
+      K.scissor(body)
+      local ok, err = pcall(r.win.draw, body, clock, portrait)
+      K.scissor(nil)
+      K.graphics().setColor(1, 1, 1, 1)
+      if not ok and not r.winFailed then
+        r.winFailed = true
+        if deps.log then deps.log("the window's draw failed: %s", tostring(err)) end
+      end
+      return
+    end
     local G = K.graphics()
     local UI = K.UI
     local wb, tb = L.win, L.winTitle
@@ -2102,7 +2129,7 @@ return function(deps)
       drawDock(L, clock)
       if r.edit then drawArranging(L) end
     end
-    drawMenuBar(L, clock)
+    if not (r.win and r.win.fullscreen) then drawMenuBar(L, clock) end
     -- an app zooming up from its icon (then it runs), or back down into it
     local z = r.zoom
     local launch

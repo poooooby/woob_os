@@ -242,6 +242,7 @@ return {
 
     -- Rocket Slots
     ["app.slots"] = "Spielautomat",
+    ["app.pcgames"] = "PC-Spiele",
     ["hint.spin"] = "Drehen",
     ["hint.betLines"] = "Einsatz / Linien",
     ["hint.auto"] = "Auto",
