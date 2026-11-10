@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-09
+
 ### Added
 - **Kanto Gear apps:** Slots, R-Bay and the GTS are in its Silph Store, each opening from its own tile
   and staying on the Gear's second screen with the game still running. They wait while the game is in
