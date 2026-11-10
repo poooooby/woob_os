@@ -42,6 +42,14 @@ return function(ctx, env)
     grow = 0,
   }
   W.state = st
+  -- (opened on the search: from the PokéNav's menu)
+  do
+    local resume = ctx.resume and ctx.resume.app == ctx.app and ctx.resume.state
+    if resume then
+      st.mode, st.cat = resume.mode or st.mode, resume.cat or st.cat
+      ctx.resume = nil
+    end
+  end
 
   local nameOf = setmetatable({}, { __mode = "k" })
   local function info(mon)

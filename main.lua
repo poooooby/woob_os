@@ -11,6 +11,9 @@
 --                                       clock; the player's bids in the save), its window
 --   src/slots.lua, src/apps/slots.lua   Rocket Slots: the machine, its tickets and prize corner, its window
 --   src/pcgames.lua, src/apps/pcgames.lua   the PC Games mod's screen in a window
+--   src/ribbons.lua, src/apps/ribbons.lua   the Ribbons app
+--   src/hall.lua, src/apps/hall.lua   the Hall of Fame app
+--   src/oak.lua, src/apps/oak.lua   the Oak's PC app
 --   src/gts.lua, src/apps/gts.lua       the GTS: Wonder Trade and the Global Trade Station, its window
 --   src/boxes.lua, src/apps/boxes.lua, src/apps/boxes_view.lua   the Pokémon model, the Boxes window
 --   src/i18n.lua, lang/*.lua            the words, by language ; src/settings.lua the kept choices
@@ -66,6 +69,9 @@ return function(mod)
   local makeTowns = loadSibling(mod, "src/map3d/towns.lua")
   local makePhone, phoneWindow = loadSibling(mod, "src/phone.lua"), loadSibling(mod, "src/apps/phone.lua")
   local makeCondition, conditionWindow = loadSibling(mod, "src/condition.lua"), loadSibling(mod, "src/apps/condition.lua")
+  local makeRibbons, ribbonsWindow = loadSibling(mod, "src/ribbons.lua"), loadSibling(mod, "src/apps/ribbons.lua")
+  local makeHall, hallWindow = loadSibling(mod, "src/hall.lua"), loadSibling(mod, "src/apps/hall.lua")
+  local makeOak, oakWindow = loadSibling(mod, "src/oak.lua"), loadSibling(mod, "src/apps/oak.lua")
   local makePokenav = loadSibling(mod, "src/pokenav.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell) then return end
 
@@ -458,7 +464,11 @@ return function(mod)
         local info = Rtc.hostInfo(nil)
         return info.hour, info.minute
       end,
-      flyCheck = function(_, s) return Model.flyCheck(s) end,
+      flyCheck = function(ctx, s)
+        -- (over the PokéNav there's no flying off: it has to be closed first)
+        if ctx and ctx.mode == "pokenav" then return nil, "none" end
+        return Model.flyCheck(s)
+      end,
       -- (the mod's options: the camera's turn and tilt inverted)
       invert = function()
         return option("mapInvertX", false) == true, option("mapInvertY", false) == true
@@ -490,6 +500,11 @@ return function(mod)
   -- save) and Condition (the contest conditions, the Pokéblock case)
   if makePhone then env.phone = makePhone(engine, { save = mod.save, now = os.time, notify = notify }) end
   if makeCondition and env.bx then env.condition = makeCondition(engine, { bx = env.bx }) end
+  if makeHall then env.hall = makeHall(engine) end
+  if makeOak then env.oak = makeOak(engine) end
+  if makeRibbons and env.condition and env.phone then
+    env.ribbons = makeRibbons(engine, { family = env.phone.family, available = env.condition.available })
+  end
   -- (the Boxes preview's Dynamax row: WoobleDex's levels and factors, when it's on)
   if env.bx then
     env.bx.dynamax = function()
@@ -521,20 +536,14 @@ return function(mod)
     map = env.map3d and function(ctx, e) return mapScene(ctx, e, { mode = "app" }) end or nil,
     phone = env.phone and phoneWindow or nil,
     condition = env.condition and conditionWindow or nil,
+    ribbons = env.ribbons and ribbonsWindow or nil,
+    hall = env.hall and hallWindow or nil,
+    oak = env.oak and oakWindow or nil,
+    oakAvailable = env.oak and function(ctx) return env.oak.available(ctx.session or session()) end or nil,
+    hallTeams = env.hall and function(ctx) return env.hall.count(ctx.session or session()) end or nil,
+    ribbonsAvailable = env.ribbons and function(ctx) return env.ribbons.available(ctx.session or session()) end or nil,
     phoneAvailable = env.phone and function(ctx) return env.phone.available(ctx.session or session()) end or nil,
     conditionAvailable = env.condition and function(ctx) return env.condition.available(ctx.session or session()) end
-      or nil,
-    -- (the game's PokéNav, from WoobPad: its START row is the pad's now)
-    pokenav = env.condition and function(ctx)
-      ctx.over(function(onClose)
-        local Screens, Runtime = engine("src.ui.game3.screens"), engine("src.core.game3.runtime")
-        local s = ctx.session or session()
-        local nav = Screens and Screens.get("pokenav", s)
-        if not (nav and nav.show) then error("the game has no PokéNav") end
-        nav.show({ session = s, game = Runtime and Runtime._game, onClose = onClose })
-      end)
-    end or nil,
-    pokenavAvailable = env.condition and function(ctx) return env.condition.available(ctx.session or session()) end
       or nil,
     gtsBadge = env.gts and function() return env.gts.waiting() end or nil,
     auctionBadge = env.auction and function() return env.auction.unread() end or nil,
@@ -651,7 +660,7 @@ return function(mod)
   end
   -- the PokéNav's Match Call / Trainer's Eyes and Condition: our apps instead (Settings: pokenavApps)
   local Pokenav = makePokenav and makePokenav(engine, {
-    open = function(appId, s, onClose) return Sh and Sh.openFull(appId, s, onClose) or false end,
+    open = function(appId, s, onClose, state) return Sh and Sh.openFull(appId, s, onClose, state) or false end,
     enabled = function()
       return option("desktop", true) ~= false and (not Settings or Settings.get("pokenavApps", true) ~= false)
     end,
@@ -698,5 +707,5 @@ return function(mod)
                         mart = env.mart, auction = env.auction, slots = env.slots, pcgames = env.pcgames, gts = env.gts,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange,
                         watch = Watch, pad = Watch, notify = Nt, tick = tick, map3d = env.map3d, townmap = TownMap,
-                        phone = env.phone, condition = env.condition, pokenav = Pokenav, onCall = onCall }
+                        phone = env.phone, condition = env.condition, ribbons = env.ribbons, hall = env.hall, oak = env.oak, pokenav = Pokenav, onCall = onCall }
 end

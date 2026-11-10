@@ -1,5 +1,5 @@
--- The PokéNav's Match Call (Emerald) or Trainer's Eyes (Ruby / Sapphire) and its Condition (the
--- party's graph) open WoobOS's Phone and Condition apps instead, full screen over the PokéNav (the
+-- The PokéNav's Match Call (Emerald) or Trainer's Eyes (Ruby / Sapphire), its Condition and search,
+-- its Hoenn Map and its Ribbons open WoobOS's apps instead, full screen over the PokéNav (the
 -- shell's host, src/townmap.lua); closing them is the PokéNav's menu again, exactly as the game's own
 -- screens leave it. No engine edits: the screens' constructors are wrapped once per process
 -- (`__woobOs` on each module, calling this instance's `impl`), and our stand-in screens speak the
@@ -7,12 +7,12 @@
 --   - Emerald (src.ui.game3.rse.pokenav.*): new(shell, menuId) -> a screen with open (a coroutine),
 --     callback(inp) -> 0 | a number for loopTask | the next menu's id, loopTask, frame, draw, free.
 --     Opened on black with the header slid up; the way out runs the original's: the header back
---     down, the left headers hidden, then MAIN_MENU_CURSOR_ON_MATCH_CALL / CONDITION_MENU. The
---     tutorial's forced call and the condition search's graph stay the game's
+--     down, the left headers hidden, then the original's menu id. The tutorial's forced call stays
+--     the game's
 --   - Ruby / Sapphire (src.ui.game3.rs.pokenav.*): a feature object, frame(inp) -> "exit" when done,
 --     draw(); Trainer's Eyes only when it has trainers (the game's own empty answer otherwise)
 --
---   Pn = Pokenav(engine, deps)   deps: open(appId, session, onClose) -> true (our host up) ;
+--   Pn = Pokenav(engine, deps)   deps: open(appId, session, onClose, state) -> true (our host up) ;
 --                                enabled() -> the takeover wanted ; log
 --   Pn.install() (at game.ready) -> true
 
@@ -49,12 +49,12 @@ return function(engine, deps)
 
   local Em = {}
   Em.__index = Em
-  local function emScreen(shell, app, back, slideBack)
-    return setmetatable({ shell = shell, session = shell.session, app = app, back = back, slideBack = slideBack }, Em)
+  local function emScreen(shell, app, back, slideBack, state)
+    return setmetatable({ shell = shell, session = shell.session, app = app, back = back, slideBack = slideBack, state = state }, Em)
   end
   function Em:open()
     local me = self
-    local ok, opened = pcall(deps.open, self.app, self.session, function() me.closed = true end)
+    local ok, opened = pcall(deps.open, self.app, self.session, function() me.closed = true end, self.state)
     if not (ok and opened) then
       if not ok then log("the PokéNav's %s failed to open: %s", self.app, tostring(opened)) end
       self.closed = true
@@ -87,14 +87,14 @@ return function(engine, deps)
 
   local Rs = {}
   Rs.__index = Rs
-  local function rsFeature(session, app, entries)
-    return setmetatable({ session = session, app = app, entries = entries or {} }, Rs)
+  local function rsFeature(session, app, entries, state)
+    return setmetatable({ session = session, app = app, entries = entries or {}, state = state }, Rs)
   end
   function Rs:frame()
     if not self.opened then
       self.opened = true
       local me = self
-      local ok, opened = pcall(deps.open, self.app, self.session, function() me.done = true end)
+      local ok, opened = pcall(deps.open, self.app, self.session, function() me.done = true end, self.state)
       if not (ok and opened) then return "exit" end
     end
     if self.done then return "exit" end
@@ -125,6 +125,30 @@ return function(engine, deps)
     if wrap("src.ui.game3.rse.pokenav.condition", function(orig, shell, menuId)
       if not on() or not shell or menuId ~= (MENU.CONDITION_GRAPH_PARTY or "condition_graph_party") then return nil end
       return emScreen(shell, "condition", MENU.CONDITION_MENU or "condition_menu", "condition")
+    end) then n = n + 1 end
+    -- (Emerald's Hoenn Map, Ribbons and the condition search's results)
+    if wrap("src.ui.game3.rse.pokenav.region_map", function(orig, shell)
+      if not on() or not shell then return nil end
+      return emScreen(shell, "map", MENU.MAIN_MENU_CURSOR_ON_MAP or "main_menu_cursor_on_map", true)
+    end) then n = n + 1 end
+    if wrap("src.ui.game3.rse.pokenav.ribbons", function(orig, shell)
+      if not on() or not shell then return nil end
+      return emScreen(shell, "ribbons", MENU.MAIN_MENU_CURSOR_ON_RIBBONS or "main_menu_cursor_on_ribbons", true)
+    end) then n = n + 1 end
+    if wrap("src.ui.game3.rse.pokenav.condition_search", function(orig, shell)
+      if not on() or not shell then return nil end
+      return emScreen(shell, "condition", MENU.CONDITION_SEARCH_MENU or "condition_search_menu", "condition",
+        { mode = "search", cat = (tonumber(shell.conditionSearchId) or 0) + 1 })
+    end) then n = n + 1 end
+    -- (Ruby / Sapphire's Hoenn Map, and the condition search's and Ribbons' lists)
+    if wrap("src.ui.game3.rs.pokenav.map", function(orig, session)
+      if not on() then return nil end
+      return rsFeature(session, "map")
+    end) then n = n + 1 end
+    if wrap("src.ui.game3.rs.pokenav.condition_search", function(orig, session, category, rows, index, ribbons)
+      if not on() or rows ~= nil then return nil end
+      if ribbons then return rsFeature(session, "ribbons") end
+      return rsFeature(session, "condition", nil, { mode = "search", cat = (tonumber(category) or 0) + 1 })
     end) then n = n + 1 end
     -- (Ruby / Sapphire's Trainer's Eyes: our Phone when there are trainers)
     if wrap("src.ui.game3.rs.pokenav.eyes", function(orig, session, game, man, region)

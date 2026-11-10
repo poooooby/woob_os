@@ -145,22 +145,8 @@ setFlag("FLAG_SYS_POKENAV_GET")
 if EMERALD then setFlag("FLAG_ADDED_MATCH_CALL_TO_POKENAV") end
 T.check(ids(Apps.list(ctxW)):find(" phone ") and ids(Apps.list(ctxW)):find(" condition "),
   "the PokéNav (and its Match Call): the Phone and Condition")
-T.check(ids(Apps.list(ctxW)):find(" pokenav "), "and the game's own PokéNav, on WoobPad")
-do
-  -- (it opens the game's PokéNav over the pad, the pad back when it closes)
-  local opened, reopened
-  local ctxO = { session = s, mode = "pad", family = "rse", rows = {} }
-  function ctxO.over(open) open(function() reopened = true end) end
-  local Screens = require("src.ui.game3.screens")
-  local realGet = Screens.get
-  Screens.get = function(id, ...)
-    if id == "pokenav" then return { show = function(o) opened = o; o.onClose() end } end
-    return realGet(id, ...)
-  end
-  Apps.byId("pokenav").open(ctxO)
-  Screens.get = realGet
-  T.check(opened and opened.session == s and reopened, "the PokéNav app: the game's PokéNav, then the pad again")
-end
+T.check(not ids(Apps.list(ctxW)):find(" pokenav "), "no PokéNav icon: WoobOS's own apps instead")
+T.check(ids(Apps.list(ctxW)):find(" ribbons ") and ids(Apps.list(ctxW)):find(" map "), "Ribbons and the Map among them")
 
 -- ------- the Phone
 
@@ -232,6 +218,30 @@ m2.contest.sheen = 255
 local ok2, why = Cd.feed(s, 0, m2)
 T.check(not ok2 and why == "full" and #Cd.blocks(s) == 1, "full sheen: it won't eat any more (the block kept)")
 
+-- ------- Ribbons
+
+local Rb, RC = X._test.ribbons, require("src.core.game3.rse.ribbons")
+T.eq(#Rb.list(s), 0, "nobody has a Ribbon: an empty list")
+RC.set(m1, "cool", 2)
+RC.set(m1, "champion", 1)
+RC.set(m2, "marine", 1)
+if boxed then RC.set(boxed, "tough", 4) end
+do
+  local list = Rb.list(s)
+  T.check(list[1] and list[1].mon == boxed and list[1].count == 4 and list[1].box == 1, "most Ribbons first, the boxes' too")
+  T.check(list[2].mon == m1 and list[2].count == 3 and list[2].box == nil, "then the party's")
+  T.eq(#list, 3, "only Pokémon with Ribbons")
+  local normal, gift = Rb.ids(m1)
+  T.check(#normal == 3 and #gift == 0, "its Ribbons (" .. #normal .. ")")
+  local words = Rb.desc(s, normal[1])
+  T.check(type(words) == "string" and #words > 8, "in the game's own words (" .. tostring(words) .. ")")
+  local n2, g2 = Rb.ids(m2)
+  T.check(#n2 == 0 and #g2 == 1, "a gift Ribbon apart")
+  T.eq(Rb.desc(s, g2[1]), nil, "(no words for it until the save names one)")
+  local ranks = Rb.contest(m1)
+  T.check(ranks[1] == 2 and ranks[5] == 0, "its contest ranks")
+end
+
 -- ------- the windows: draw, no garbage
 
 local VP = { width = 480, height = 320 }
@@ -240,7 +250,7 @@ local function drawWin(W, portrait)
   K.frame(G, VP, PAGE, clock)
   W.draw(portrait and { 0, 0, 115, 138 } or { 0, 0, 260, 130 }, clock, portrait)
 end
-for _, id in ipairs({ "phone", "condition" }) do
+for _, id in ipairs({ "phone", "condition", "ribbons" }) do
   local app = Apps.byId(id)
   local ctx = { session = s, mode = "watch", app = id, rows = {} }
   local okO, W = pcall(app.window, ctx, X._test.env)
@@ -256,6 +266,26 @@ for _, id in ipairs({ "phone", "condition" }) do
     local kb = garbageOf(120, function() drawWin(W, false) end)
     T.check(kb < 0.5, string.format("%s: next to no garbage (%.3f KB/frame)", id, kb))
   end
+end
+
+do
+  local W = Apps.byId("ribbons").window({ session = s, mode = "pad", app = "ribbons", rows = {} }, X._test.env)
+  local st = W.state
+  local NAVR = setmetatable({ right = true }, { __index = NONE })
+  local NAVD = setmetatable({ down = true }, { __index = NONE })
+  drawWin(W, false)
+  W.input(input({ "a" }), NONE)
+  T.eq(st.focus, "grid", "A: its Ribbons")
+  W.input(input({}), NAVR)
+  T.eq(st.pick, 2, "Right: the next Ribbon")
+  W.input(input({ "b" }), NONE)
+  T.eq(st.focus, "list", "B: back to the list")
+  W.input(input({}), NAVD)
+  T.eq(st.cursor, 2, "Down: the next Pokémon")
+  T.eq(st.pick, 1, "from its first Ribbon")
+  T.check(W.input(input({ "b" }), NONE) == false, "B on the list: closed")
+  local Empty = Apps.byId("ribbons").window({ session = { party = {}, storage = Storage.new() }, mode = "pad", app = "ribbons", rows = {} }, X._test.env)
+  T.check(pcall(drawWin, Empty, false), "nobody with a Ribbon: it says so")
 end
 
 -- ------- the PokéNav: ours instead of its Match Call / Trainer's Eyes and Condition
@@ -295,6 +325,20 @@ if EMERALD then
   local tut = stubShell()
   tut.mode = 1
   T.check(MCs.new(tut, "match_call").app == nil, "the tutorial's forced call: the game's Match Call")
+  -- (the rest of its screens: ours, each back to the game's menu)
+  do
+    local MapS, RibS, SrchS = require("src.ui.game3.rse.pokenav.region_map"), require("src.ui.game3.rse.pokenav.ribbons"),
+      require("src.ui.game3.rse.pokenav.condition_search")
+    local a = MapS.new(stubShell())
+    T.check(a.app == "map" and a.back == "main_menu_cursor_on_map", "its Hoenn Map: ours")
+    local b = RibS.new(stubShell(), "ribbons_mon_list")
+    T.check(b.app == "ribbons" and b.back == "main_menu_cursor_on_ribbons", "its Ribbons: ours")
+    local sh2 = stubShell()
+    sh2.conditionSearchId = 2
+    local c = SrchS.new(sh2, "condition_search_results")
+    T.check(c.app == "condition" and c.back == "condition_search_menu" and c.state.mode == "search" and c.state.cat == 3,
+      "the condition search: ours, on that condition")
+  end
   -- (Condition: the party's graph ours, the search's the game's)
   local cs = Cs.new(stubShell(), "condition_graph_party")
   T.check(cs.app == "condition", "Condition (the party): ours")
@@ -313,6 +357,13 @@ if EMERALD then
   T.check(MCs.new(stubShell(), "match_call").app == nil, "Settings off: the game's Match Call")
   Settings.set("pokenavApps", true)
 else
+  do
+    local RsM, RsS = require("src.ui.game3.rs.pokenav.map"), require("src.ui.game3.rs.pokenav.condition_search")
+    T.eq(RsM.new(s, nil, {}).app, "map", "its Hoenn Map: ours")
+    T.eq(RsS.new(s, 0, nil, nil, true).app, "ribbons", "its Ribbons: ours")
+    local srch = RsS.new(s, 1)
+    T.check(srch.app == "condition" and srch.state.cat == 2, "the condition search: ours, on that condition")
+  end
   local RsC = require("src.ui.game3.rs.pokenav.condition")
   local f = RsC.new(s, nil, 1, nil)
   T.check(f.app == "condition", "Condition (the party): ours")
@@ -340,8 +391,9 @@ do
   end
   local en = assert(load(readFile("lang/en.lua"), "en", "t", {}))().strings
   local missing = {}
-  local PREFIX = { phone = 1, cond = 1, app = 1, hint = 1, settings = 1, pokenav = 1, notify = 1 }
+  local PREFIX = { phone = 1, cond = 1, app = 1, hint = 1, settings = 1, pokenav = 1, notify = 1, ribbons = 1 }
   for _, file in ipairs({ "src/phone.lua", "src/condition.lua", "src/apps/phone.lua", "src/apps/condition.lua",
+                          "src/ribbons.lua", "src/apps/ribbons.lua",
                           "src/pokenav.lua", "src/townmap.lua", "src/notify.lua", "src/apps/settings.lua" }) do
     for key in (readFile(file) or ""):gmatch('"([%a][%w_]*%.[%w_%.]+)"') do
       if PREFIX[key:match("^(%a+)")] and not key:match("%.$") and not key:match("%.lua$") and not en[key]
@@ -358,7 +410,8 @@ do
     local t = assert(load(readFile("lang/" .. l .. ".lua"), l, "t", {}))().strings
     local gaps = {}
     for k, v in pairs(en) do
-      if k:match("^phone%.") or k:match("^cond%.") or k:match("^pokenav%.") or k == "app.phone" or k == "app.condition"
+      if k:match("^phone%.") or k:match("^cond%.") or k:match("^pokenav%.") or k:match("^ribbons%.") or k == "app.phone"
+          or k == "app.condition" or k == "app.ribbons"
           or k:match("^settings%.pokenav") or k == "notify.call" then
         if not t[k] then gaps[#gaps + 1] = k
         else

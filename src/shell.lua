@@ -368,11 +368,12 @@ return function(mod, deps)
 
   -- an app full screen over one of the game's screens (the PokéNav's Phone and Condition,
   -- src/pokenav.lua); onClose() when it closes -> true when it opened
-  function Sh.openFull(appId, s, onClose)
+  function Sh.openFull(appId, s, onClose, state)
     if not Tm or Tm.isOpen() or D.isOpen() or (Wt and Wt.isOpen()) then return false end
     local app = A.byId(appId)
     if not (app and app.window) then return false end
     local ctx = { session = s, mode = "pokenav", family = familyOf(gameId()), rows = {}, app = appId }
+    if state then ctx.resume = { app = appId, state = state } end
     function ctx.row() return nil end
     local closed = false
     local function close()

@@ -1419,6 +1419,78 @@ VP.width, VP.height = 480, 320
 press("b")
 T.check(D.window() == nil, "B closes Slots")
 
+-- ------- the Hall of Fame: the game's records, newest first
+do
+  local Hl = X._test.hall
+  local before = s.hallOfFameTeams
+  s.hallOfFameTeams = nil
+  T.eq(#Hl.teams(s), 0, "no team yet")
+  local function rec(sp, lv) return { species = sp, level = lv, nickname = "M" .. sp, trainerId = 70000, personality = 5 } end
+  s.hallOfFameTeams = { { rec(1, 50), rec(4, 51), rec(7, 52), rec(25, 53) }, { rec(130, 60), rec(6, 61) } }
+  local stats0 = s.gameStats
+  s.gameStats = { [10] = 7 }
+  local teams = Hl.teams(s)
+  T.check(#teams == 2 and teams[1].number == 7 and teams[2].number == 6, "newest first, numbered as the game counts them")
+  T.check(#teams[1].members == 2 and teams[1].members[1].species == 130 and teams[2].members[4].level == 53, "their members")
+  T.eq(teams[1].members[1].trainerId, 70000 % 65536, "the ID as the game shows it")
+  T.check(teams[1].members[1].sameName == false, "a nickname: its species shown under it")
+  do
+    local plain = Hl.teams({ hallOfFameTeams = { { { species = 25, level = 5, nickname = require("src.core.game3.pokemon").name(25) } } } })
+    T.check(plain[1].members[1].sameName == true, "no nickname: the name only once")
+  end
+  T.check(Apps.byId("hall").window ~= nil and Apps.byId("hall").available({ session = s, row = function() return nil end, mode = "pad" }),
+    "a window now, wherever there's a team")
+  T.check(D.openApp("hall"), "Hall of Fame opens")
+  draw(3)
+  local HW = D.window()
+  local hs = HW.state
+  press("right")
+  T.eq(hs.pick, 2, "Right: the next Pokémon")
+  press("right")
+  T.eq(hs.pick, 2, "(the end of the team)")
+  press("l")
+  T.check(hs.team == 2 and hs.pick == 1, "L: the older team")
+  press("down")
+  T.eq(hs.pick, 4, "Down: the row below")
+  press("l")
+  T.eq(hs.team, 2, "(the oldest)")
+  press("r")
+  T.eq(hs.team, 1, "R: the newer one")
+  draw(3)
+  VP.width, VP.height = 320, 480
+  draw(3)
+  T.check(not D.state().winFailed, "draws in portrait")
+  VP.width, VP.height = 480, 320
+  draw(2)
+  press("b")
+  draw(60)
+  T.check(D.window() == nil, "B closes it")
+  s.hallOfFameTeams, s.gameStats = before, stats0
+end
+
+-- ------- Oak's PC (FireRed / LeafGreen): the counts and the game's own rating
+if GAME == "firered" or GAME == "leafgreen" then
+  local Ok, DexM = X._test.oak, require("src.core.game3.dex")
+  local dex0 = s.dex
+  s.dex = DexM.new and DexM.new() or {}
+  local r0 = Ok.rating(s)
+  T.check(r0.seen == 0 and r0.caught == 0 and #r0.words > 10 and not r0.complete, "nothing caught: Oak's first words (" .. r0.words .. ")")
+  T.check(#r0.map == 151 and r0.map[1] == 0 and r0.toNext == 10 and r0.toward == 0, "the mosaic and the way to his next rating")
+  T.check(Apps.byId("oak").window ~= nil, "a window now")
+  D.openApp("oak")
+  draw(3)
+  T.check(D.window() and not D.state().winFailed, "Oak's PC draws")
+  VP.width, VP.height = 320, 480
+  draw(3)
+  T.check(not D.state().winFailed, "and in portrait")
+  VP.width, VP.height = 480, 320
+  draw(2)
+  press("b")
+  draw(60)
+  T.check(D.window() == nil, "B closes it")
+  s.dex = dex0
+end
+
 -- ------- PC Games (another mod's screen): kept in a window instead of on the game's stack
 do
   local H = X._test.pcgames

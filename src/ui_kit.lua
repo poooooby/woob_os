@@ -15,7 +15,7 @@
 --         page = { height, minWidth, maxWidth, portraitWidth, portraitHeight, portraitAspect }
 --   K.R(x, y, w, h) ; K.X(u) ; K.Y(u) ; K.col(c, a) ; K.box(mode, b, rad) ; K.grad(b, rad, top, foot, a)
 --   K.gradient(G, x, y, w, h, rad, top, foot, a) (window pixels) ; K.shadow(b, rad, lift, a)
---   K.ring(b, rad, c, a, w) ; K.addHit(b, kind, arg, clip) ; K.hits (this frame's, last on top)
+--   K.glow(cx, cy, rx, ry, c, a) ; K.ring(b, rad, c, a, w) ; K.addHit(b, kind, arg, clip) ; K.hits (this frame's, last on top)
 --   K.font(px) ; K.width(s, size) ; K.text(s, x, y, size, c, align, w, a) ; K.label(...) (shadowed)
 --   K.fit(s, size, w) ; K.scissor(b | nil) ; K.pulse() ; K.textCache(make) ; K.inside(rect, x, y)
 --   K.mix / light / dark / fade ; K.WHITE / BLACK ; K.drawPlate(title, x, y, maxW, accent, body, outline)
@@ -204,6 +204,24 @@ return function(deps)
     gradient(G, X(b[1]), Y(b[2]), b[3] * sc, b[4] * sc, (rad or 0) * sc, top, foot, alpha)
   end
   K.grad = grad
+  -- a soft light (additive), rx x ry units round cx, cy; nothing without meshes
+  local glowMesh
+  function K.glow(cx, cy, rx, ry, c, a)
+    if glowMesh == nil then
+      local v = { { 0, 0, 0, 0, 1, 1, 1, 1 } }
+      for i = 0, 28 do
+        local t = i / 28 * 2 * math.pi
+        v[#v + 1] = { math.cos(t), math.sin(t), 0, 0, 1, 1, 1, 0 }
+      end
+      local ok, m = pcall(G.newMesh, v, "fan", "static")
+      glowMesh = ok and m or false
+    end
+    if not glowMesh then return end
+    G.setBlendMode("add")
+    col(c, a)
+    G.draw(glowMesh, X(cx), Y(cy), 0, rx * sc, ry * sc)
+    G.setBlendMode("alpha")
+  end
   -- a soft shadow under b, `lift` units down
   function K.shadow(b, rad, lift, a)
     for i = 1, 3 do

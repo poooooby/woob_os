@@ -143,14 +143,11 @@ return function(deps)
                  available = function(ctx) return not deps.conditionAvailable or deps.conditionAvailable(ctx) end,
                  window = deps.condition })
   end
-  -- the game's own PokéNav (its Map, Ribbons ...; Match Call and Condition open ours): on WoobPad,
-  -- which takes its START menu row
-  if deps.pokenav then
-    A.register({ id = "pokenav", labelKey = "app.pokenav", label = "PokéNav",
-                 glyph = "pokenav", color = { 255, 140, 40 }, order = 33,
-                 available = function(ctx)
-                   return ctx.mode == "pad" and (not deps.pokenavAvailable or deps.pokenavAvailable(ctx))
-                 end, open = deps.pokenav })
+  if deps.ribbons then
+    A.register({ id = "ribbons", labelKey = "app.ribbons", label = "Ribbons",
+                 glyph = "ribbon", color = { 226, 76, 112 }, order = 32.5,
+                 available = function(ctx) return not deps.ribbonsAvailable or deps.ribbonsAvailable(ctx) end,
+                 window = deps.ribbons })
   end
   -- the PC Games mod's games, in a window, when it's installed
   if deps.pcgames then
@@ -167,10 +164,16 @@ return function(deps)
   end
   A.register({ id = "oak", labelKey = "app.oak", label = "Oak's PC",
                glyph = "dex", color = { 232, 120, 64 }, order = 30,
-               available = hasRow("oak"), open = toRow("oak") })
+               available = function(ctx)
+                 return hasRow("oak")(ctx) or (ctx.mode == "pad" and deps.oakAvailable ~= nil and deps.oakAvailable(ctx))
+               end,
+               window = deps.oak, open = not deps.oak and toRow("oak") or nil })
   A.register({ id = "hall", labelKey = "app.hall", label = "Hall of Fame",
                glyph = "trophy", color = { 236, 176, 48 }, order = 40,
-               available = hasRow("hall"), open = toRow("hall") })
+               available = function(ctx)
+                 return hasRow("hall")(ctx) or (deps.hallTeams ~= nil and deps.hallTeams(ctx) > 0)
+               end,
+               window = deps.hall, open = not deps.hall and toRow("hall") or nil })
   if deps.settings then
     A.register({ id = "settings", labelKey = "app.settings", label = "Settings", glyph = "gear",
                  color = { 132, 140, 158 }, order = 70, window = deps.settings })

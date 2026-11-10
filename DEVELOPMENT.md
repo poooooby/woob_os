@@ -37,7 +37,10 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/map3d/towns.lua` | The 3D map's towns: sizes by tier, roofs by name, the signature structures and landmarks, the Center / Mart / Gym, trees |
 | `src/phone.lua`, `src/apps/phone.lua` | The Phone: Match Call's contacts (Emerald) or Trainer's Eyes' (Ruby / Sapphire), the game's calls, recents / favourites in `mod.save` "phone"; its window |
 | `src/condition.lua`, `src/apps/condition.lua` | Condition: the contest conditions, the search, the Pokéblock case and feeding; its radar window |
-| `src/pokenav.lua` | The PokéNav takeover: stand-in screens for Match Call / Trainer's Eyes and Condition |
+| `src/ribbons.lua`, `src/apps/ribbons.lua` | Ribbons: who wears what, the game's words and pictures; its window |
+| `src/hall.lua`, `src/apps/hall.lua` | The Hall of Fame: the game's records, newest first; the trophy case |
+| `src/oak.lua`, `src/apps/oak.lua` | Oak's PC (FireRed / LeafGreen): the Kanto counts and the game's rating |
+| `src/pokenav.lua` | The PokéNav takeover: stand-in screens for every feature, which open our apps |
 | `src/townmap.lua` | The third host: the 3D map full screen in place of the game's Town Map / Fly map |
 
 ## How the PC is taken over
@@ -327,7 +330,7 @@ is up.
 
 - **The row:** the `ui.start_menu.items` hook (`Sh.startRows`) puts `{ id = "woob_watch", label =
   T("watch.start") ("WOOBPAD"), onSelect }` in the `pokenav` row's place (Ruby / Sapphire / Emerald:
-  the PokéNav is the pad's `pokenav` app, `ctx.over` -> `Screens.get("pokenav").show{ onClose }`), else
+  the Map, Phone, Condition and Ribbons apps do its jobs), else
   under BAG, where it would be (FireRed / LeafGreen, and before the PokéNav is got), only in a menu with
   SAVE (not a link room's or the Safari Zone's), the Desktop option and Settings' `watchRow` on
   (the old ids kept: an installation's settings). `onSelect` runs with the START menu still on the
@@ -451,8 +454,10 @@ Clean room: the idea of a 3D region map (TERRARIUM's for Gen 1) and none of its 
   - **Emerald:** a stand-in screen whose `open()` calls `Sh.openFull(app, session, onClose)`
     (the full-screen host with `opts.chrome`: a "< PokéNav" toolbar). Its `callback` returns 0 while
     the app is up, then a loopTask that runs the original's way out (fade, `slideHeader(false)`,
-    `hideLeftHeaders` for Match Call), then `MAIN_MENU_CURSOR_ON_MATCH_CALL` / `CONDITION_MENU`.
-    The tutorial's forced call (`shell.mode ~= NORMAL`) and the search's graph stay the game's.
+    `hideLeftHeaders` unless it's Condition's), then the original's menu id. Hoenn Map, Ribbons and
+    the search's results are stand-ins too (the search opens Condition with `ctx.resume` on that
+    condition). The tutorial's forced call (`shell.mode ~= NORMAL`) stays the game's. No Fly from the
+    Map while it's over the PokéNav (`flyCheck` with `ctx.mode == "pokenav"`).
   - **Ruby / Sapphire:** a feature object whose `frame` opens the app and returns `"exit"` when
     it closes; Trainer's Eyes only when the game's own list isn't empty.
   - Settings' `pokenavApps` off (or the Desktop option off): the game's screens.

@@ -35,11 +35,12 @@ opens a desktop in a sleek monitor instead of a text menu.
   their own.
 - 📱 **WoobPad:** the PC as a tablet you carry. Choose WOOBPAD in the START menu, anywhere you can
   open it, and a pad comes up over the game with a big touch screen. In Ruby, Sapphire and Emerald
-  it takes the POKéNAV row's place, and the PokéNav itself is an app on the pad (its Ribbons and
-  the rest; its Match Call and Condition open the Phone and Condition):
+  it takes the POKéNAV row's place, and the pad's own apps do the PokéNav's jobs (Map, Phone,
+  Condition and Ribbons):
   - **Like the PC:** the same home screen and dock (arranged the same way), the menu bar with your
     money and the time, your wallpaper, and the same apps in the same windows: Boxes, Items, Mail,
-    Map, Phone, Condition, PokéNav, GTS, Mart, R-Bay, Slots and Settings.
+    Map, Phone, Condition, Ribbons, GTS, Mart, R-Bay, Slots and Settings, plus Oak's PC and the
+    Hall of Fame once you've earned them.
   - **Made for touch:** tap, swipe between pages, drag in windows; the buttons work just as well.
   - **Notifications:** pull down from the top of the screen (or choose Notifications in the W
     menu) for the list, newest first; tap one to open its app.
@@ -106,7 +107,11 @@ opens a desktop in a sleek monitor instead of a text menu.
   your party and boxes by one condition. Compare lays a second Pokémon's outline over the
   first. Pokéblocks feeds one from your case, with the game's own rules (natures that like or
   dislike its flavour, a Pokémon that won't eat once its sheen is full), and the chart grows. In
-  the PokéNav, Condition's party view opens it.
+  the PokéNav, Condition and its search open it.
+- 🎀 **Ribbons** (Ruby, Sapphire and Emerald, once you have the PokéNav): a display case of every
+  Pokémon in your party and boxes that wears a Ribbon, most first, with its contest ranks at a
+  glance, each Ribbon lit in its colour, and the one you pick swinging in the spotlight with what
+  it's for in the game's own words. In the PokéNav, Ribbons opens it.
 - 🌐 **GTS:** trade with Trainers from around the world.
   - **Wonder Trade:** pick any Pokémon from your party or a box and send it off. The globe spins
     while it searches, a Trainer from somewhere (Yuki from Johto, Pierre from Kalos …) is found,
@@ -187,8 +192,11 @@ opens a desktop in a sleek monitor instead of a text menu.
     Pokémon in it moves together. They keep their shape in the new box.
 
   Holding a carried Pokémon over the box's arrows turns the box.
-- 📟 **Oak's PC:** your Pokédex rating, once you have the Pokédex (FireRed and LeafGreen).
-- 🏆 **Hall of Fame:** your champion teams, once you've beaten the Elite Four.
+- 📟 **Oak's PC:** your Kanto Pokédex as a dashboard, once you have the Pokédex (FireRed and
+  LeafGreen): a ring of how much you've caught, all 151 as a mosaic of caught, seen and missing, and
+  Professor Oak's rating in his own words with how many more you need for the next one.
+- 🏆 **Hall of Fame:** every champion team as a trophy case, newest first: L and R go through the
+  teams, and each Pokémon calls out as you pick it. Once you've beaten the Elite Four.
 - 🛋️ **Decorate:** your room's decorations, from the bedroom PC (Ruby, Sapphire and Emerald).
 - ⚙️ **Settings:** like a phone's or a Mac's.
   - 🌐 **Language:** WoobOS in English, Français, Deutsch, Español, Italiano, 日本語 or
@@ -199,15 +207,14 @@ opens a desktop in a sleek monitor instead of a text menu.
     off (notifications still wait in the list), and choose how long before an auction ends
     you're told: 5, 10, 15 or 30 minutes.
   - 🗺️ **Map:** the 3D Town Map on or off. Off, the Town Map and Fly open the game's own map.
-  - 📟 **PokéNav:** the Phone and Condition in the PokéNav, or its own screens.
+  - 📟 **PokéNav:** WoobOS's apps in the PokéNav, or its own screens.
 - ℹ️ **About:** which version you're running, in the W menu at the top left.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
 
-Boxes, Items, Map, Phone, Condition, GTS, Mart, R-Bay, Slots, Mail and Settings open in a window on the desktop, in the style of macOS and iOS:
+Boxes, Items, Map, Phone, Condition, Ribbons, GTS, Mart, R-Bay, Slots, Mail, Oak's PC, the Hall of Fame and Settings open in a window on the desktop, in the style of macOS and iOS:
 white cards on a soft grey, segmented switches, and a blue ring round whatever the controller is
-on. B or the red button closes it. Oak's PC,
-Hall of Fame and Decorate open the game's own screens, and closing them brings you back to the
-desktop.
+on. B or the red button closes it. Decorate opens the game's own screen, and closing it brings
+you back to the desktop.
 
 ## ⚙️ Options
 
@@ -262,7 +269,7 @@ turn it on for your Generation 3 games.
   save, like your R-Bay bids.
 - **Fly from the Map app:** the game's own rules: the badge that allows Fly, a Pokémon in your party
   that knows it, and the open air. The PC is always indoors, so fly from WoobPad.
-- **WoobPad's apps:** Oak's PC, the Hall of Fame and Decorate stay at the PC. When an app opens
+- **WoobPad's apps:** Decorate stays at the PC. When an app opens
   one of the game's screens (a Pokémon's Summary, an evolution), the pad comes back on that app
   when it closes. WoobPad isn't in the START menu in a link room or the Safari Zone.
 - **Notifications** wait while a script, a battle or a menu is running, and show once you're free

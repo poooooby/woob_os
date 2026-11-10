@@ -9,10 +9,14 @@ All notable changes to this mod are documented here, in
 - **Slots is a five-reel video slot:** a new look (a dark stage, wide reels, a pay ladder, a round
   SPIN button, a BALANCE / WIN / BET bar, full-window big wins), 1 / 5 / 10 / 20 lines, and three,
   four or five of a kind from the left. The return stays about 91%.
+- **The PokéNav's Hoenn Map, Ribbons and Condition search** open WoobOS's apps.
 - **WoobPad's START row** sits under BAG before you have the PokéNav (and on FireRed / LeafGreen),
   instead of at the bottom.
 
 ### Added
+- **Ribbons app** (Ruby / Sapphire / Emerald): every Pokémon with Ribbons, what each one is for.
+- **Hall of Fame app:** your champion teams as a trophy case, on the desktop and WoobPad.
+- **Oak's PC app** (FireRed / LeafGreen): the Kanto Pokédex's counts and Oak's rating, also on WoobPad.
 - **PC Games app:** with the PC Games mod installed, its games fill the screen of the desktop and
   WoobPad, at a whole-pixel size.
 - **Slots:** Ditto is wild; Bonus coins pay anywhere and give 10, 15 or 25 free spins with wins
@@ -20,6 +24,7 @@ All notable changes to this mod are documented here, in
 
 ### Removed
 - **Slots:** the lever, and Pikachu paying on the first reels alone.
+- **WoobPad's PokéNav app:** the Map, Phone, Condition and Ribbons apps do its jobs.
 
 ## [0.5.3] - 2026-11-07
 

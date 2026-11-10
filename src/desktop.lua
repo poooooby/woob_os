@@ -956,6 +956,17 @@ return function(deps)
     G.setLineWidth(lw)
     if type(kind) == "function" then
       pcall(kind, K, cx, cy, s, a)
+    elseif kind == "ribbon" then
+      -- (a rosette: two tails under a medal)
+      local r = s * 0.2
+      local my = cy - s * 0.09
+      G.polygon("fill", cx - r * 0.95, my + r * 0.3, cx - r * 0.05, my + r * 0.6, cx - r * 0.3, cy + s * 0.33, cx - r * 0.85, cy + s * 0.22,
+        cx - r * 1.35, cy + s * 0.3)
+      G.polygon("fill", cx + r * 0.95, my + r * 0.3, cx + r * 0.05, my + r * 0.6, cx + r * 0.3, cy + s * 0.33, cx + r * 0.85, cy + s * 0.22,
+        cx + r * 1.35, cy + s * 0.3)
+      G.circle("fill", cx, my, r * 1.25)
+      G.setColor(0.886, 0.298, 0.439, a)
+      G.circle("fill", cx, my, r * 0.62)
     elseif kind == "gamepad" then
       -- (a handheld held sideways: the D-pad and two buttons)
       local w, h = s * 0.68, s * 0.42
@@ -1120,13 +1131,6 @@ return function(deps)
         G.pop()
       end
       G.pop()
-    elseif kind == "pokenav" then
-      -- (a PokéNav: its round body, the screen, the button under it)
-      G.rectangle("fill", cx - s * 0.24, cy - s * 0.28, s * 0.48, s * 0.56, s * 0.14, s * 0.14)
-      G.setColor(1, 0.55, 0.16, a)
-      G.rectangle("fill", cx - s * 0.16, cy - s * 0.19, s * 0.32, s * 0.24, s * 0.04, s * 0.04)
-      G.circle("fill", cx, cy + s * 0.16, s * 0.055)
-      G.setColor(1, 1, 1, a)
     elseif kind == "radar" then
       -- (a pentagon chart: its outline and a filled shape inside)
       local rad = s * 0.3

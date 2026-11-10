@@ -25,6 +25,7 @@ local function body(game, log)
     return pred() and true or false
   end
   local function shot(name) log("shot", name, U.shot(game, dir .. "/" .. name .. ".png") and "ok" or "MISSING") end
+  local GAME_ID = os.getenv("POKEPORT_GAME") or "firered"
   local fails = 0
   local function check(ok, what) if not ok then fails = fails + 1 end; log((ok and "ok   " or "FAIL ") .. what) end
   if not waitFor(function() return game.phase == "boot" and game.boot end, 900) then log("FAIL boot"); return end
@@ -923,6 +924,60 @@ local function body(game, log)
   -- installation's settings file back as it was
   local XT = X._test
   local I18n, Set, Wall, Env = XT.i18n, XT.settings, XT.wall, XT.env
+  -- the Hall of Fame, from records lent for a moment; Oak's PC on FireRed / LeafGreen
+  do
+    local PokeW = require("src.core.game3.pokemon")
+    local teams0, stats0, dexFlag = s0.hallOfFameTeams, s0.gameStats
+    local function rec(nat, lv)
+      return { species = PokeW and PokeW.speciesFromNational(nat) or nat, level = lv, nickname = nat == 25 and PokeW.name(PokeW.speciesFromNational(nat)) or "M" .. nat, trainerId = 4242, personality = nat * 7 }
+    end
+    s0.hallOfFameTeams = {
+      { rec(1, 40), rec(4, 41), rec(7, 42) },
+      { rec(25, 70), rec(6, 71), rec(9, 72), rec(130, 73), rec(150, 74), rec(143, 75) },
+    }
+    s0.gameStats = { [10] = 2 }
+    check(D.openApp("hall"), "the Hall of Fame opens")
+    waitFor(function() return D.window() ~= nil end, 600)
+    U.wait(30)
+    shot("d16_hall")
+    U.tap(game, "right"); U.wait(10)
+    U.tap(game, "down"); U.wait(10)
+    shot("d16b_hall_pick")
+    U.tap(game, "l"); U.wait(10)
+    shot("d16c_hall_older")
+    D.closeWindow()
+    waitFor(function() return D.window() == nil and st.zoom == nil end, 600)
+    s0.hallOfFameTeams, s0.gameStats = teams0, stats0
+    -- Ribbons in the desktop's window (Ruby / Sapphire / Emerald): a throwaway team shown for the shot
+    if GAME_ID ~= "firered" and GAME_ID ~= "leafgreen" then
+      local RC, PartyR = require("src.core.game3.rse.ribbons"), require("src.core.game3.party")
+      local tmp = { party = {} }
+      for _, nat in ipairs({ 25, 6, 9 }) do PartyR.giveMon(tmp, PokeW.speciesFromNational(nat), 40) end
+      for _, k in ipairs({ "cool", "cute", "tough" }) do RC.set(tmp.party[1], k, 3) end
+      RC.set(tmp.party[1], "champion", 1)
+      RC.set(tmp.party[2], "beauty", 2)
+      RC.set(tmp.party[3], "winning", 1)
+      check(D.openApp("ribbons"), "Ribbons in a window")
+      waitFor(function() return D.window() ~= nil end, 600)
+      D.window().state.rows = X._test.ribbons.list(tmp)
+      U.wait(30)
+      shot("d18_ribbons")
+      D.closeWindow()
+      waitFor(function() return D.window() == nil and st.zoom == nil end, 600)
+    end
+    if X._test.oak and (GAME_ID == "firered" or GAME_ID == "leafgreen") then
+      check(D.openApp("oak"), "Oak's PC opens")
+      waitFor(function() return D.window() ~= nil end, 600)
+      -- (a third caught, a third seen: only what's shown; then its count-up, on the wall clock)
+      local rateMap = D.window().state.rating.map
+      for i = 1, 151 do rateMap[i] = (i % 3 == 0 and 2) or (i % 3 == 1 and 1) or 0 end
+      local until0 = love.timer.getTime() + 2.2
+      waitFor(function() return love.timer.getTime() > until0 end, 600)
+      shot("d17_oak")
+      D.closeWindow()
+      waitFor(function() return D.window() == nil and st.zoom == nil end, 600)
+    end
+  end
   -- PC Games (only when that mod is on): its screen in a window, crisp; closing pauses it
   do
     local PG = X._test.pcgames
@@ -1348,6 +1403,44 @@ local function body(game, log)
     check(waitFor(function() return not Tm2.isOpen() end, 120), "B: the PokéNav again")
     U.wait(60)
     shot("n3_pokenav_back")
+    for _ = 1, 6 do U.tap(game, "b"); U.wait(20) end
+    waitFor(function() return Sh.free(game) end, 600)
+    -- Ribbons: a lent team in a throwaway session, a Ribbon of each kind on the first
+    do
+      local RC = require("src.core.game3.rse.ribbons")
+      local PokeR = require("src.core.game3.pokemon")
+      local tmp = { party = {}, storage = { boxes = {} }, giftRibbons = {} }
+      local PartyR = require("src.core.game3.party")
+      for _, nat in ipairs({ 25, 6, 9, 130 }) do PartyR.giveMon(tmp, PokeR.speciesFromNational(nat), 40) end
+      local a, b, c = tmp.party[1], tmp.party[2], tmp.party[3]
+      for _, k in ipairs({ "cool", "beauty", "cute", "smart", "tough" }) do RC.set(a, k, 4) end
+      for _, k in ipairs({ "champion", "winning", "victory", "artist", "effort" }) do RC.set(a, k, 1) end
+      RC.set(a, "marine", 1)
+      RC.set(b, "cool", 2)
+      RC.set(c, "champion", 1)
+      local closed = false
+      check(Sh.openFull("ribbons", tmp, function() closed = true end), "Ribbons opens")
+      U.wait(30)
+      shot("n4_ribbons")
+      U.tap(game, "a"); U.wait(6)
+      U.tap(game, "right"); U.wait(6)
+      U.tap(game, "down"); U.wait(6)
+      shot("n5_ribbons_grid")
+      U.tap(game, "b"); U.wait(6)
+      U.tap(game, "b")
+      check(waitFor(function() return closed end, 300), "B: closed")
+      waitFor(function() return Sh.free(game) end, 600)
+    end
+    -- its Hoenn Map: ours, and back to it
+    require("src.ui.game3.screens").get("pokenav", s0).show({ session = s0, game = game })
+    U.wait(120)
+    U.tap(game, "a")
+    check(waitFor(function() return Tm2.isOpen() end, 300) and Tm2.state().ctx.app == "map", "the PokéNav's Map: ours")
+    U.wait(30)
+    shot("n6_pokenav_map")
+    U.tap(game, "b")
+    check(waitFor(function() return not Tm2.isOpen() end, 120), "B: the PokéNav again")
+    U.wait(60)
     for _ = 1, 6 do U.tap(game, "b"); U.wait(20) end
     waitFor(function() return Sh.free(game) end, 600)
     for _, f in ipairs(set) do pcall(Flags2.setFlag, Space2.store, nil, f[1], f[2] == true) end
