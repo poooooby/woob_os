@@ -16,6 +16,8 @@
 --   M.available(session, id) -> bool           (Sevii's pictures only once the game shows them)
 --   M.flyCheck(session) -> mon | nil, reason   (the party's Fly, the badge, outdoors)
 --   M.pickArgs(place) -> the arguments the game's own map hands its Fly callback
+--   M.storm(region, session) -> { kind = "rain" (Kyogre) | "sand" (Groudon), place } | nil   (Emerald: where
+--                              the Weather Institute's rumour is, read from the game's own variables)
 
 local floor, max, min, abs, sqrt = math.floor, math.max, math.min, math.abs, math.sqrt
 
@@ -424,6 +426,33 @@ return function(engine, deps)
       end
     end
     return places
+  end
+
+  -- ------- Emerald's abnormal weather: one rumour at a time (the Weather Institute's scientist starts
+  -- and moves it), locations 1..8 Groudon's routes, 9..16 Kyogre's. Over once it's caught (or knocked
+  -- out: the game has nothing left to find then)
+
+  local LOCATIONS, KYOGRE_FROM = 16, 9
+  function M.storm(region, s)
+    if not (region and region.id == "hoenn" and s) then return nil end
+    if deps.gameId and deps.gameId() ~= "emerald" then return nil end
+    local R = engine("src.core.game3.rse.init")
+    local RM = engine("src.ui.game3.rse.region_map")
+    if not (R and RM) then return nil end
+    local ok, at, ending, kyogre, groudon = pcall(function()
+      return R.var("VAR_ABNORMAL_WEATHER_LOCATION", s), R.var("VAR_SHOULD_END_ABNORMAL_WEATHER", s),
+        R.flag("FLAG_DEFEATED_KYOGRE", s), R.flag("FLAG_DEFEATED_GROUDON", s)
+    end)
+    if not ok or at < 1 or at > LOCATIONS or ending ~= 0 then return nil end
+    local rain = at >= KYOGRE_FROM
+    if (rain and kyogre) or (not rain and groudon) then return nil end
+    local okM, man = pcall(RM.manifest)
+    local list = okM and man and man.terraOrMarineCaveMapSecIds
+    local sec = list and list[at]
+    for _, p in ipairs(region.places) do
+      if p.id == sec then return { kind = rain and "rain" or "sand", place = p } end
+    end
+    return nil
   end
 
   -- ------- building a region (once per game and region)

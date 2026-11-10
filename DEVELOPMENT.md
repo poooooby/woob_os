@@ -379,6 +379,14 @@ Settings app's choice row), `b.soon` kept in the record; "won" / "lost" in `Au.s
 
 Clean room: the idea of a 3D region map (TERRARIUM's for Gen 1) and none of its code.
 
+- **The storms** (Emerald): `Mdl.storm` reads `VAR_ABNORMAL_WEATHER_LOCATION` (1..8 Groudon's routes,
+  9..16 Kyogre's, one rumour at a time; only the Weather Institute's scientist sets it, special 491),
+  `VAR_SHOULD_END_ABNORMAL_WEATHER` and `FLAG_DEFEATED_*`, and names the route through the Town Map's
+  `terraOrMarineCaveMapSecIds`. `render.lua` keeps two meshes per kind built around the origin (flags 5
+  rain, 6 puffs, 7 grains; `uStorm` places and animates them, `uStormAt` / `uStormTint` shade the ground
+  under them; separate uniforms per shader stage, for GLES's differing precisions). `scene.lua` reads it
+  once a second, drifts it from `env.map3d.lastStorm`, draws the lightning and the flat map's version.
+
 - **The model** (`src/map3d/model.lua`, made in `main.lua` with `pixels(img, x, y, w, h)`, a
   canvas read-back): one Town Map cell (8 px) a world unit, x right, z down the picture, y up.
   FireRed / LeafGreen: `region_map_extract`'s `LAYOUTS[0..3]` (22 x 15 per picture, `map` and

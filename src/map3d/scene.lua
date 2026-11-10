@@ -1,6 +1,7 @@
 -- The 3D map's window: the region (src/map3d/model.lua) drawn by src/map3d/render.lua, a camera
 -- that tilts, turns and zooms, and over it the places' pins, the player's beacon and the chosen
--- place's card (its name, visited or not, Center / Mart, the Gym and its badge, Fly). The same window
+-- place's card (its name, visited or not, Center / Mart, the Gym and its badge, Fly), and on Emerald
+-- the storm over wherever Kyogre or Groudon is rumoured to be. The same window
 -- in every host: the desktop's and WoobPad's Map app, and the game's own Town Map / Fly screen
 -- (src/townmap.lua).
 --   buttons  the D-pad moves a cursor freely over the land (the way the camera faces; let go near a
@@ -75,6 +76,7 @@ return function(ctx, env, opts)
     goal = { x = 0, y = 0, z = 0, yaw = 0.35, pitch = 0.95, dist = 14 },
     zoom = 2, turn = 0, lastT = nil, liveAt = -10, hour = 12, minute = 0, toast = nil,
     touch = {}, nTouch = 0, rect = { x = 0, y = 0, w = 1, h = 1 }, flyMon = nil, flyWhy = nil, three = false,
+    storm = { on = false, kind = nil, place = nil, x = 0, z = 0, tx = 0, tz = 0, grow = 0 },
   }
   W.state = st
 
@@ -143,9 +145,36 @@ return function(ctx, env, opts)
     end
   end
 
+  -- Kyogre's or Groudon's storm, from the game's own variables. It drifts across from where it was
+  -- last seen; gone, it shrinks away
+  local function readStorm(s)
+    local sm = st.storm
+    local ok, got = pcall(Mdl.storm, st.region, s)
+    got = ok and got or nil
+    if not got then
+      sm.on = false
+      return
+    end
+    local p = got.place
+    if sm.kind ~= got.kind or sm.grow == 0 then
+      local last = env.map3d.lastStorm
+      if last and last.kind == got.kind then
+        sm.x, sm.z, sm.grow = last.x, last.z, 1
+      else
+        sm.x, sm.z, sm.grow = p.x, p.z, 0
+      end
+      sm.kind = got.kind
+    end
+    sm.on, sm.place, sm.tx, sm.tz = true, p, p.x, p.z
+    local mem = env.map3d.lastStorm or {}
+    mem.kind, mem.x, mem.z = got.kind, p.x, p.z
+    env.map3d.lastStorm = mem
+  end
+
   local function refreshLive()
     local s = session()
     if st.region then pcall(Mdl.live, st.region, s) end
+    if st.region then readStorm(s) end
     local ok, h, m = pcall(env.map3d.clock)
     if ok and h then st.hour, st.minute = h, m or 0 end
     if mode == "app" and env.map3d.flyCheck then
@@ -508,6 +537,14 @@ return function(ctx, env, opts)
     c.yaw = c.yaw + (g.yaw - c.yaw) * min(1, k * 1.6)
   end
 
+  local STORM_DRIFT, STORM_GROW = 0.8, 1.4     -- its catch-up (per second), and how fast it grows or fades
+  local function stepStorm(dt)
+    local sm = st.storm
+    local k = 1 - exp(-STORM_DRIFT * dt)
+    sm.x, sm.z = sm.x + (sm.tx - sm.x) * k, sm.z + (sm.tz - sm.z) * k
+    sm.grow = max(0, min(1, sm.grow + (sm.on and STORM_GROW or -STORM_GROW) * dt))
+  end
+
   -- ------- the glass (every overlay: the map frosted under it, a dark tint, a gloss, a fine rim)
 
   local TINT, WHITE, SOFT = { 16, 18, 26 }, { 255, 255, 255 }, { 236, 239, 247, 0.72 }
@@ -600,6 +637,68 @@ return function(ctx, env, opts)
         K.col(BEAM)
         G.circle("fill", tx, ty, s * 0.42 * K.sc)
       end
+    end
+  end
+
+  -- the storm's overlays. In 3D: the bolt of lightning, drawn over the map. On the flat map (and with no
+  -- shader) the storm itself: a disc of its colour, rain falling through it or sand wheeling round
+  local RAIN_C, SAND_C, BOLT_C = { 40, 52, 96 }, { 196, 140, 70 }, { 214, 226, 255 }
+  local function drawBolt(sm, clock)
+    local flash, ox, oz, n = Rd.lightning(clock)
+    if flash <= 0.2 then return end
+    local G = K.graphics()
+    local bx, bz = sm.x + ox, sm.z + oz
+    local ax, ay = Rd.project(bx, 2.0, bz)
+    local gx, gy = Rd.project(bx, max(0, Mdl.heightAt(st.region, bx, bz)), bz)
+    if not (ax and gx) then return end
+    local jag = abs(gy - ay) * 0.1
+    local dx, dy = gx - ax, gy - ay
+    local x1 = ax + dx * 0.28 + (((n * 7 + 13) % 11) / 5 - 1) * jag
+    local x2 = ax + dx * 0.55 + (((n * 7 + 26) % 11) / 5 - 1) * jag
+    local x3 = ax + dx * 0.8 + (((n * 7 + 39) % 11) / 5 - 1) * jag
+    local y1, y2, y3 = ay + dy * 0.28, ay + dy * 0.55, ay + dy * 0.8
+    K.col(BOLT_C, 0.35 * flash * sm.grow)
+    G.setLineWidth(max(2, 1.6 * K.sc))
+    G.line(ax, ay, x1, y1, x2, y2, x3, y3, gx, gy)
+    K.col(WHITE, flash * sm.grow)
+    G.setLineWidth(max(1, 0.55 * K.sc))
+    G.line(ax, ay, x1, y1, x2, y2, x3, y3, gx, gy)
+  end
+  local function drawFlatStorm(sm, clock)
+    local G = K.graphics()
+    local cx, cy = Rd.project(sm.x, 0, sm.z)
+    local ex = Rd.project(sm.x + 2, 0, sm.z)
+    if not (cx and ex) then return end
+    local rad = abs(ex - cx) * sm.grow
+    if rad < 1 then return end
+    local rain = sm.kind == "rain"
+    K.col(rain and RAIN_C or SAND_C, 0.62)
+    G.circle("fill", cx, cy, rad)
+    K.col(WHITE, 0.8)
+    G.setLineWidth(max(1, 0.6 * K.sc))
+    G.circle("line", cx, cy, rad)
+    for i = 1, 14 do
+      local a = i * 2.399
+      local d = sqrt(((i * 37) % 14 + 1) / 15) * rad * 0.88
+      if rain then
+        local fall = ((clock * 1.4 + i * 0.37) % 1) * rad * 0.22
+        local px, py = cx + math.cos(a) * d, cy + math.sin(a) * d * 0.9 + fall - rad * 0.1
+        K.col(BOLT_C, 0.9)
+        G.line(px, py, px - rad * 0.03, py + rad * 0.14)
+      else
+        local turn = a + clock * (0.8 + 0.42 * rad / (d + rad * 0.3))
+        K.col(WHITE, 0.75)
+        G.circle("fill", cx + math.cos(turn) * d, cy + math.sin(turn) * d, max(1, 0.45 * K.sc))
+      end
+    end
+  end
+  local function drawStorm(clock)
+    local sm = st.storm
+    if sm.grow <= 0 then return end
+    if not st.three then
+      drawFlatStorm(sm, clock)
+    elseif sm.kind == "rain" then
+      drawBolt(sm, clock)
     end
   end
 
@@ -817,6 +916,7 @@ return function(ctx, env, opts)
     end
     stepCursor(dt)
     stepCamera(dt)
+    stepStorm(dt)
     local rect = st.rect
     rect.x, rect.y, rect.w, rect.h = K.X(body[1]), K.Y(body[2]), body[3] * K.sc, body[4] * K.sc
     local G = K.graphics()
@@ -829,8 +929,10 @@ return function(ctx, env, opts)
       if not Rd.drawPicture(G, st.region, rect) then Rd.drawLand(G, st.region, rect) end
     else
       Rd.camera(st.cam, rect)
-      st.three = Rd.draw(G, st.region, rect, clock, Rd.night(st.hour, st.minute), Rd.dusk(st.hour, st.minute))
+      st.three = Rd.draw(G, st.region, rect, clock, Rd.night(st.hour, st.minute), Rd.dusk(st.hour, st.minute),
+        st.storm.grow > 0 and st.storm or nil)
     end
+    drawStorm(clock)
     drawPins(clock)
     drawCursor(clock)
     drawLabel()

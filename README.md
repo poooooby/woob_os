@@ -49,6 +49,10 @@ opens a desktop in a sleek monitor instead of a text menu.
   little 3D model you can turn, tilt and zoom, made from your game's own Town Map: its hills and
   forests, the sea, the routes, the towns and mountains where the caves are. The sea waves, clouds drift over it and it follows your
   device's clock: dawn, day, a warm dusk, and a starry night with the windows lit.
+  - **Legendary storms (Emerald):** after the Weather Institute tells you about abnormal weather, a
+    rainstorm with lightning hangs over the route where Kyogre is rumoured, or a sandstorm over
+    Groudon's. Ask again and it moves with the report. It clears once that Pokémon is caught or
+    knocked out.
   - **Every town its own:** villages are a few houses on a sandy square, cities a crowd of taller
     blocks on paving. Roofs take the town's colour (Lavender's purple, Cerulean's blue, Vermilion's
     red, Lilycove's lilac …), and each town has what it's known for: Oak's lab in Pallet, Pewter's

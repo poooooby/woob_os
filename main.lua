@@ -683,6 +683,7 @@ return function(mod)
   mod.events:on("game.ready", function()
     if env.pcgames then env.pcgames.reset() end
     if env.decorate then env.decorate.reset() end
+    if env.map3d then env.map3d.lastStorm = nil end
     local ok, err = pcall(Sh.ready)
     if not ok then mod.log:warn("the PC keeps its own menu: %s", tostring(err)) end
   end)

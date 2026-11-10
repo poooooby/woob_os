@@ -1301,6 +1301,77 @@ local function body(game, log)
     U.wait(30)
   end
 
+  -- Kyogre's and Groudon's storms over the real 3D map (Emerald), the rumour set by hand
+  if GAME_ID == "emerald" then
+    local Rse = require("src.core.game3.rse.init")
+    local closedS = false
+    PcMenu.show({ session = s0, startMode = "player_pc", bedroom = true, closeOnExit = true,
+                  onClose = function() closedS = true end })
+    D.skipBoot()
+    Rse.setVar("VAR_ABNORMAL_WEATHER_LOCATION", 11, s0)
+    do
+      local untilM = love.timer.getTime() + 2.2
+      waitFor(function() return love.timer.getTime() > untilM end, 600)
+    end
+    check(D.openApp("map"), "the Map opens")
+    waitFor(function() return D.window() ~= nil end, 600)
+    local MW = D.window()
+    local ms = MW.state
+    check(waitFor(function() return ms.storm.on and ms.storm.grow == 1 end, 600), "Kyogre's rain over its route")
+    check(ms.storm.kind == "rain" and ms.storm.place.name == "Route 125", "(Route 125)")
+    MW.focus(ms.storm.place)
+    local function settle()
+      local untilS = love.timer.getTime() + 1.6
+      waitFor(function() return love.timer.getTime() > untilS end, 600)
+    end
+    settle()
+    shot("d20_rain")
+    local Rd3 = X._test.map3d.render
+    waitFor(function() return Rd3.lightning(love.timer.getTime()) > 0.5 end, 420)
+    shot("d20_rain_flash")
+    U.tap(game, "a"); U.wait(2)
+    U.tap(game, "a")
+    settle()
+    shot("d20_rain_wide")
+    U.tap(game, "select")
+    settle()
+    shot("d20_rain_flat")
+    U.tap(game, "select")
+    Rse.setVar("VAR_ABNORMAL_WEATHER_LOCATION", 3, s0)
+    check(waitFor(function() return ms.storm.kind == "sand" and ms.storm.grow == 1 end, 600), "Groudon's sand")
+    check(ms.storm.place.name == "Route 115", "(Route 115)")
+    MW.focus(ms.storm.place)
+    U.tap(game, "a"); U.wait(2)
+    settle()
+    shot("d20_sand")
+    U.tap(game, "a")
+    settle()
+    shot("d20_sand_close")
+    Rse.setVar("VAR_ABNORMAL_WEATHER_LOCATION", 0, s0)
+    check(waitFor(function() return not ms.storm.on and ms.storm.grow == 0 end, 600), "gone with the game's variable")
+    -- (the clouds by day and by night, whatever the device's clock says)
+    local clock0 = X._test.map3d.clock
+    X._test.map3d.clock = function() return 12, 0 end
+    ms.liveAt = -10
+    U.tap(game, "a"); U.wait(2)
+    settle()
+    shot("d21_clouds_day_wide")
+    U.tap(game, "a")
+    settle()
+    shot("d21_clouds_day")
+    X._test.map3d.clock = function() return 23, 0 end
+    ms.liveAt = -10
+    settle()
+    shot("d21_clouds_night")
+    X._test.map3d.clock = clock0
+    ms.liveAt = -10
+    D.closeWindow()
+    waitFor(function() return D.window() == nil and D.state().zoom == nil end, 600)
+    D.state().ctx.logoff()
+    check(closedS and not D.isOpen(), "logged off")
+    X._test.map3d.lastStorm = nil
+  end
+
   -- WoobPad: START, its row, the home screen, the apps (each one), the notifications, B: the
   -- START menu again
   local Wt, Nt = X._test.pad, X._test.notify

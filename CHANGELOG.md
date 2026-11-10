@@ -9,6 +9,8 @@ All notable changes to this mod are documented here, in
 - **Slots is a five-reel video slot:** a new look (a dark stage, wide reels, a pay ladder, a round
   SPIN button, a BALANCE / WIN / BET bar, full-window big wins), 1 / 5 / 10 / 20 lines, and three,
   four or five of a kind from the left. The return stays about 91%.
+- **The 3D map's clouds** are rounded and lit: bright tops, shaded flat bases, tinted by dusk and
+  night, and they grow in and fade out at the map's edges.
 - **The PokéNav's Hoenn Map, Ribbons and Condition search** open WoobOS's apps.
 - **WoobPad's START row** sits under BAG before you have the PokéNav (and on FireRed / LeafGreen),
   instead of at the bottom.
@@ -17,6 +19,9 @@ All notable changes to this mod are documented here, in
   back to the catalogue.
 
 ### Added
+- **Legendary storms on the 3D map** (Emerald): once the Weather Institute has told you where the
+  abnormal weather is, a rainstorm hangs over Kyogre's route or a sandstorm over Groudon's. It follows
+  each new report and clears when that Pokémon is caught or knocked out.
 - **Ribbons app** (Ruby / Sapphire / Emerald): every Pokémon with Ribbons, what each one is for.
 - **Hall of Fame app:** your champion teams as a trophy case, on the desktop and WoobPad.
 - **Oak's PC app** (FireRed / LeafGreen): the Kanto Pokédex's counts and Oak's rating, also on WoobPad.

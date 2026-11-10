@@ -5,6 +5,8 @@
 --   - the towns: little houses, a red-roofed Center, a blue-roofed Mart, a bigger Gym; their
 --     windows light up at night
 --   - the sea: a sheet that waves (in the shader), glints by day; the clouds drift over it all
+--   - a storm, when there's one to show: Kyogre's rain (dark clouds, falling streaks, lightning) or
+--     Groudon's sand (dust wheeling round), two kept meshes moved and animated in the shader
 --   - the sky: day, dusk, night (stars), from the device's clock
 -- With no shader or mesh (the headless tests, an old GPU) the same camera draws the land as flat
 -- polygons, so the overlays (src/map3d/scene.lua) work alike.
@@ -13,7 +15,9 @@
 --   R.camera(cam, rect)              cam = { x, y, z (the target), yaw, pitch, dist } ; rect = window
 --                                    pixels { x, y, w, h } -> the view-projection kept
 --   R.project(x, y, z) -> sx, sy, depth (window pixels; nil behind the eye)
---   R.draw(G, region, rect, t, night) -> true (3D) | false (the flat fallback drew it)
+--   R.draw(G, region, rect, t, night, dusk, storm) -> true (3D) | false (the flat fallback drew it)
+--                                    storm = { x, z, kind = "rain" | "sand", grow = 0..1 } | nil
+--   R.lightning(t) -> 0..1 (its flash; 0: none), its offset x, z from the storm's middle, its number
 --   R.night(hour, minute) -> 0 (day) .. 1 (night) ; R.dusk(hour, minute) -> 0..1
 --   R.frost(G, x, y, w, h, rad) -> true: frosted glass (the map blurred) in that rounded rect
 --   R.flatCamera(cx, cz, half, rect) ; R.drawPicture(G, region, rect) -> the flat map (the game's
@@ -34,19 +38,23 @@ local FORMAT = {
   { "VertexFlag", "float", 1 },
 }
 -- flags (VertexFlag): 0 lit, 1 the sea, 2 a window (lit at night), 3 a cloud (drifts; its normal is
--- its anchor), 4 unlit (the slab's sides keep their colour)
+-- its anchor), 4 unlit (the slab's sides keep their colour), 5 a rain streak, 6 a storm's puff of cloud or
+-- dust, 7 a grain of sand
 local F_SEA, F_WINDOW, F_CLOUD = 1, 2, 3
+local F_RAIN, F_PUFF, F_GRAIN = 5, 6, 7
 
 local SHADER = [[
 varying vec3 vNormal;
 varying float vFlag;
 varying float vWave;
 varying float vFade;
+varying vec2 vGround;
 #ifdef VERTEX
 uniform mat4 uViewProj;
 uniform float uTime;
 uniform vec2 uCloud;
 uniform vec3 uEye;
+uniform vec4 uStorm;     // x, z, how grown (0..1), how fast it turns
 attribute vec3 VertexNormal;
 attribute float VertexFlag;
 vec4 position(mat4 transform_projection, vec4 vertex_position) {
@@ -65,10 +73,37 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
   } else if (VertexFlag > 2.5 && VertexFlag < 3.5) {
     vec3 anchor = VertexNormal;
     anchor.x = mod(anchor.x + uTime * 0.22 - uCloud.x, uCloud.y) + uCloud.x;
-    p = anchor + p;
+    // (it grows in and shrinks away at the ends of its drift, where it wraps round)
+    float edge = min(anchor.x - uCloud.x, uCloud.x + uCloud.y - anchor.x);
+    p = anchor + p * smoothstep(0.0, 1.6, edge);
     vNormal = vec3(0.0, 1.0, 0.0);
     vFade = smoothstep(2.0, 7.0, distance(p, uEye));
+  } else if (VertexFlag > 4.5 && VertexFlag < 5.5) {
+    vec3 a = VertexNormal;
+    float f = fract(a.y + uTime * 1.25);
+    vec3 base = vec3(uStorm.x + a.x * uStorm.z, mix(2.2, 0.0, f) - p.y * 0.44, uStorm.y + a.z * uStorm.z);
+    vec3 side = normalize(cross(vec3(0.0, 1.0, 0.0), uEye - base));
+    p = base + side * p.x * 0.02;
+    vNormal = vec3(0.0, 1.0, 0.0);
+    vFade = uStorm.z * smoothstep(0.0, 0.05, f) * (1.0 - smoothstep(0.9, 1.0, f));
+  } else if (VertexFlag > 5.5 && VertexFlag < 6.5) {
+    float ca = cos(uTime * uStorm.w);
+    float sa = sin(uTime * uStorm.w);
+    vNormal = vec3(VertexNormal.x * ca - VertexNormal.z * sa, VertexNormal.y, VertexNormal.x * sa + VertexNormal.z * ca);
+    p = vec3(p.x * ca - p.z * sa, p.y, p.x * sa + p.z * ca) * uStorm.z;
+    p.x += uStorm.x;
+    p.z += uStorm.y;
+    vFade = uStorm.z * smoothstep(1.5, 5.0, distance(p, uEye));
+  } else if (VertexFlag > 6.5) {
+    vec3 a = VertexNormal;
+    float turn = a.y * 6.2832 + uTime * (0.7 + 1.2 / (a.x + 0.5));
+    vec3 c = vec3(uStorm.x + cos(turn) * a.x * uStorm.z, a.z + sin(uTime * 2.0 + a.y * 40.0) * 0.05,
+                  uStorm.y + sin(turn) * a.x * uStorm.z);
+    p = c + vec3(-sin(turn), 0.0, cos(turn)) * p.x * 0.06 + vec3(0.0, 1.0, 0.0) * p.y * 0.022;
+    vNormal = vec3(0.0, 1.0, 0.0);
+    vFade = uStorm.z;
   }
+  vGround = p.xz;
   return uViewProj * vec4(p, 1.0);
 }
 #endif
@@ -77,10 +112,22 @@ uniform vec3 uSun;
 uniform vec3 uSunColor;
 uniform vec3 uAmbient;
 uniform float uNight;
+uniform vec3 uStormAt;   // x, z, how grown
+uniform vec4 uStormTint; // what it does to the ground under it: a colour, how much
+uniform float uFlash;
+vec3 underStorm(vec3 c) {
+  float k = uStormAt.z * (1.0 - smoothstep(1.2, 2.6, distance(vGround, uStormAt.xy)));
+  return mix(c, c * uStormTint.rgb, k * uStormTint.a) + vec3(0.25, 0.28, 0.4) * uFlash * k;
+}
 vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
+  if (vFlag > 5.5 && vFlag < 6.5) {
+    float lightOn = max(dot(normalize(vNormal), uSun), 0.0);
+    return vec4(color.rgb * (uAmbient + uSunColor * lightOn) + vec3(0.5, 0.55, 0.75) * uFlash, color.a * vFade);
+  }
+  if (vFlag > 4.5) return vec4(color.rgb * mix(1.0, 0.6, uNight), color.a * vFade);
   if (vFlag > 2.5 && vFlag < 3.5) {
-    vec3 c = mix(vec3(1.0, 1.0, 1.0), vec3(0.42, 0.46, 0.62), uNight);
-    return vec4(c * (0.9 + 0.1 * color.r), color.a * vFade);
+    // (color.r: how much sun this side of the cloud gets, baked in; the sky's own light colours it)
+    return vec4(min(uAmbient * 1.15 + uSunColor * color.r * 0.8, vec3(1.0)), color.a * vFade);
   }
   if (vFlag > 3.5) return color;
   vec3 n = normalize(vNormal);
@@ -88,10 +135,10 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
   vec3 lit = color.rgb * (uAmbient + uSunColor * d);
   if (vFlag > 0.5 && vFlag < 1.5) {
     float glint = pow(max(vWave, 0.0), 8.0) * 0.22 * (1.0 - uNight);
-    return vec4(color.rgb * (uAmbient + uSunColor * (0.55 + 0.45 * d)) + vec3(glint), color.a);
+    return vec4(underStorm(color.rgb * (uAmbient + uSunColor * (0.55 + 0.45 * d)) + vec3(glint)), color.a);
   }
   if (vFlag > 1.5 && vFlag < 2.5) lit = mix(lit, vec3(1.0, 0.82, 0.42), uNight);
-  return vec4(lit, color.a);
+  return vec4(underStorm(lit), color.a);
 }
 #endif
 ]]
@@ -379,29 +426,134 @@ return function(deps)
   end
 
   -- the clouds: a few flat puffs high up, each with its anchor in the normal (the shader drifts it)
+  -- one rounded lobe of a cloud, around the cloud's own middle (its anchor goes in the normal, for the
+  -- drift), cut flat underneath. How much sun each part gets is baked into the colour
+  local CLOUD_BASE = -0.06
+  local CLOUD_SUN_X, CLOUD_SUN_Y, CLOUD_SUN_Z = 0.4344, 0.8068, 0.4758   -- (light()'s sun, as a unit vector)
+  local function cloudLobe(verts, ax, ay, az, ox, oy, oz, rx, ry, rz)
+    local ROWS, SEGS = 7, 10
+    local function corner(j, i)
+      local a, t = j / ROWS * pi, i / SEGS * 2 * pi
+      local nx, ny, nz = sin(a) * cos(t), cos(a), sin(a) * sin(t)
+      local y = oy + ny * ry
+      local bright = 0.32 + 0.68 * max(0, nx * CLOUD_SUN_X + ny * CLOUD_SUN_Y + nz * CLOUD_SUN_Z)
+      if y < CLOUD_BASE then y, bright = CLOUD_BASE, 0.12 end
+      verts[#verts + 1] = { ox + nx * rx, y, oz + nz * rz, ax, ay, az, bright, bright, bright, 1, F_CLOUD }
+    end
+    for j = 0, ROWS - 1 do
+      for i = 0, SEGS - 1 do
+        corner(j, i); corner(j + 1, i); corner(j + 1, i + 1)
+        corner(j, i); corner(j + 1, i + 1); corner(j, i + 1)
+      end
+    end
+  end
+
   local function cloudMesh(G, region)
     local verts = {}
     local n = max(4, floor(region.w * region.h / 70))
     for c = 1, n do
-      local ax = region.x0 + hash(c, 1, 21) * region.w
-      local az = region.z0 + hash(c, 2, 21) * region.h
-      local ay = 3.1 + hash(c, 3, 21) * 0.9
-      for puff = 1, 4 do
-        local ox, oz = (hash(c, puff, 22) - 0.5) * 1.6, (hash(c, puff, 23) - 0.5) * 0.7
-        local rad = 0.35 + hash(c, puff, 24) * 0.4
-        local segs = 10
-        for s = 0, segs - 1 do
-          local a1, a2 = s / segs * 2 * pi, (s + 1) / segs * 2 * pi
-          local function v(x, z)
-            verts[#verts + 1] = { x, puff * 0.012, z, ax, ay, az, 1, 1, 1, 0.82, F_CLOUD }
-          end
-          v(ox, oz)
-          v(ox + cos(a1) * rad, oz + sin(a1) * rad * 0.7)
-          v(ox + cos(a2) * rad, oz + sin(a2) * rad * 0.7)
-        end
+      -- (spread evenly over the map: two irrational steps)
+      local ax = region.x0 + ((c * 0.7548776662) % 1) * region.w
+      local az = region.z0 + ((c * 0.5698402910) % 1) * region.h
+      local ay = 3.1 + ((c * 0.6180339887) % 1) * 0.9
+      local lobes = 4 + c % 3
+      local reach = 0.5 + lobes * 0.13
+      local turn = (hash(c, 1, 22) - 0.5) * 0.9
+      for k = 1, lobes do
+        -- (biggest in the middle, smaller toward the ends, some set back for depth)
+        local t = (k - 0.5) / lobes * 2 - 1
+        local rad = (0.62 - 0.3 * abs(t)) * (0.85 + hash(c, k, 24) * 0.3)
+        local ox, oz = t * reach + (hash(c, k, 22) - 0.5) * 0.14, (hash(c, k, 23) - 0.5) * 0.5
+        local rx, rz = ox * cos(turn) - oz * sin(turn), ox * sin(turn) + oz * cos(turn)
+        cloudLobe(verts, ax, ay, az, rx, rad * 0.24, rz, rad, rad * 0.74, rad * 0.86)
       end
     end
     return newMesh(G, verts)
+  end
+
+  -- ------- the storms: built once, around the origin; the shader puts them where they are
+
+  -- one rounded puff (an ellipsoid), shaded darker underneath
+  local function puff(list, cx, cy, cz, rx, ry, rz, r, g, b, alpha)
+    local ROWS, SEGS = 8, 12
+    local function corner(j, i)
+      local a, t = j / ROWS * pi, i / SEGS * 2 * pi
+      local nx, ny, nz = sin(a) * cos(t), cos(a), sin(a) * sin(t)
+      local shade = 0.74 + 0.26 * (ny + 1) / 2
+      vert(list, cx + nx * rx, cy + ny * ry, cz + nz * rz, nx, ny, nz, r * shade, g * shade, b * shade, alpha, F_PUFF)
+    end
+    for j = 0, ROWS - 1 do
+      for i = 0, SEGS - 1 do
+        corner(j, i); corner(j + 1, i); corner(j + 1, i + 1)
+        corner(j, i); corner(j + 1, i + 1); corner(j, i + 1)
+      end
+    end
+  end
+
+  -- a little quad of the given flag: its corners at x = +-1, y0 and y1, its seed in the normal
+  local function fleck(list, y0, y1, a, b, c, r, g, bl, alpha, flag)
+    local function v(x, y) vert(list, x, y, 0, a, b, c, r, g, bl, alpha, flag) end
+    v(-1, y0); v(1, y0); v(1, y1)
+    v(-1, y0); v(1, y1); v(-1, y1)
+  end
+
+  local function rainMeshes(G)
+    local solid, fine = {}, {}
+    for i = 1, 14 do
+      local a, d = hash(i, 1, 51) * 2 * pi, sqrt(hash(i, 2, 51)) * 0.95
+      local s = 0.42 + hash(i, 3, 51) * 0.3
+      local tone = 0.92 + hash(i, 4, 51) * 0.2
+      puff(solid, cos(a) * d, 2.3 + hash(i, 5, 51) * 0.36, sin(a) * d, s, s * 0.55, s * 0.9,
+        0.4 * tone, 0.44 * tone, 0.54 * tone, 1)
+    end
+    for i = 1, 460 do
+      -- (spread evenly over the disc: a golden-angle spiral, their timing from another irrational)
+      local a, d = i * 2.39996, sqrt(i / 460) * 1.9
+      fleck(fine, 0, 1, cos(a) * d, (i * 0.7548776662) % 1, sin(a) * d, 0.8, 0.88, 1, 0.85, F_RAIN)
+    end
+    return { solid = newMesh(G, solid), fine = newMesh(G, fine) }
+  end
+
+  local function sandMeshes(G)
+    local solid, fine = {}, {}
+    for layer = 0, 2 do
+      local n, ring = 10 - layer * 2, 1.35 - layer * 0.36
+      for i = 1, n do
+        local a = (i + hash(i, layer, 61) * 0.6) / n * 2 * pi
+        local s = 0.54 - layer * 0.06 + hash(i, layer, 62) * 0.14
+        local tone = 0.92 + hash(i, layer, 63) * 0.16
+        puff(solid, cos(a) * ring, 0.34 + layer * 0.42, sin(a) * ring, s, s * 0.72, s,
+          0.97 * tone, 0.82 * tone, 0.58 * tone, 0.36)
+      end
+    end
+    for i = 1, 720 do
+      fleck(fine, -1, 1, 0.3 + ((i * 0.7548776662) % 1) * 2.0, (i * 0.6180339887) % 1, 0.08 + ((i * 0.5698402910) % 1) * 1.9,
+        0.98, 0.86, 0.62, 0.95, F_GRAIN)
+    end
+    return { solid = newMesh(G, solid), fine = newMesh(G, fine) }
+  end
+
+  local stormMeshes = {}
+  local function stormOf(G, kind)
+    local m = stormMeshes[kind]
+    if m == nil then
+      m = (kind == "rain" and rainMeshes or sandMeshes)(G)
+      if not (m.solid and m.fine) then m = false end
+      stormMeshes[kind] = m
+    end
+    return m or nil
+  end
+
+  -- how each one turns and what it does to the ground under it
+  local STORM_LOOK = { rain = { spin = 0.1, 0.42, 0.48, 0.64, 0.95 }, sand = { spin = 0.75, 1.05, 0.84, 0.54, 0.9 } }
+
+  local LIGHTNING_EVERY, LIGHTNING_LASTS = 3.4, 0.28
+  function R.lightning(t)
+    local n = floor(t / LIGHTNING_EVERY)
+    local age = t - n * LIGHTNING_EVERY - hash(n, 1, 41) * (LIGHTNING_EVERY - LIGHTNING_LASTS)
+    if age < 0 or age > LIGHTNING_LASTS then return 0 end
+    local a, d = hash(n, 2, 41) * 2 * pi, sqrt(hash(n, 3, 41)) * 1.1
+    return 1 - age / LIGHTNING_LASTS, cos(a) * d, sin(a) * d, n
   end
 
   -- ------- the shader, the canvas and the draw
@@ -483,6 +635,7 @@ return function(deps)
   end
 
   local SUN, SUN_COLOR, AMBIENT, CLOUD = { 0, 1, 0 }, { 1, 1, 1 }, { 0.4, 0.4, 0.4 }, { 0, 1 }
+  local STORM, STORM_AT, STORM_TINT = { 0, 0, 0, 0 }, { 0, 0, 0 }, { 1, 1, 1, 0 }
   -- the sky: a gradient behind the map, and stars at night
   local sky = nil
   local STARS = {}
@@ -564,7 +717,7 @@ return function(deps)
   end
 
   -- the region into rect (window pixels) at time t; night / dusk 0..1 -> true when drawn in 3D
-  function R.draw(G, region, rect, t, night, dusk)
+  function R.draw(G, region, rect, t, night, dusk, storm)
     night, dusk = night or 0, dusk or 0
     local sh = getShader(G)
     local m = sh and meshes(G, region)
@@ -594,6 +747,21 @@ return function(deps)
     pcall(sh.send, sh, "uSunColor", SUN_COLOR)
     pcall(sh.send, sh, "uAmbient", AMBIENT)
     pcall(sh.send, sh, "uNight", night)
+    local stormM = storm and stormOf(G, storm.kind)
+    local flash = 0
+    if stormM then
+      local look = STORM_LOOK[storm.kind]
+      STORM[1], STORM[2], STORM[3], STORM[4] = storm.x, storm.z, storm.grow, look.spin
+      STORM_AT[1], STORM_AT[2], STORM_AT[3] = storm.x, storm.z, storm.grow
+      STORM_TINT[1], STORM_TINT[2], STORM_TINT[3], STORM_TINT[4] = look[1], look[2], look[3], look[4]
+      if storm.kind == "rain" then flash = (R.lightning(t)) * storm.grow end
+    else
+      STORM_AT[3], STORM_TINT[4] = 0, 0
+    end
+    pcall(sh.send, sh, "uStorm", STORM)
+    pcall(sh.send, sh, "uStormAt", STORM_AT)
+    pcall(sh.send, sh, "uStormTint", STORM_TINT)
+    pcall(sh.send, sh, "uFlash", flash)
     G.setColor(1, 1, 1, 1)
     G.setDepthMode("lequal", true)
     G.setMeshCullMode("none")
@@ -601,7 +769,13 @@ return function(deps)
     if m.slab then G.draw(m.slab) end
     if m.towns then G.draw(m.towns) end
     if m.sea then G.draw(m.sea) end
+    -- (a rain cloud is solid; the dust is haze, seen through itself)
+    if stormM and storm.kind == "rain" then G.draw(stormM.solid) end
     G.setDepthMode("lequal", false)
+    if stormM and storm.kind ~= "rain" then G.draw(stormM.solid) end
+    if stormM then G.draw(stormM.fine) end
+    -- (solid, so they write depth: a cloud's far side stays hidden behind its near side)
+    G.setDepthMode("lequal", true)
     if m.clouds then G.draw(m.clouds) end
     G.setDepthMode("always", false)
     G.setShader()

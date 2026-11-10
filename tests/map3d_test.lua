@@ -405,6 +405,63 @@ draw(2)
 local kb = garbageOf(120, function() draw(1) end)
 T.check(kb < 0.5, string.format("the map's draw makes next to no garbage (%.3f KB/frame)", kb))
 
+-- ------- Kyogre's and Groudon's storms (Emerald): the game's variables, one rumour at a time
+if RSE then
+  local Rs = require("src.core.game3.rse.init")
+  local var0, flag0 = Rs.var, Rs.flag
+  local vars, flags = {}, {}
+  Rs.var = function(n) return vars[n] or 0 end
+  Rs.flag = function(n) return flags[n] == true end
+  local LOC, ENDING = "VAR_ABNORMAL_WEATHER_LOCATION", "VAR_SHOULD_END_ABNORMAL_WEATHER"
+  local hoenn = Mdl.region("hoenn")
+  if GAME == "emerald" then
+    T.eq(Mdl.storm(hoenn, s), nil, "no rumour yet: no storm")
+    local ROUTES = { 114, 114, 115, 115, 116, 116, 118, 118, 105, 105, 125, 125, 127, 127, 129, 129 }
+    for at, route in ipairs(ROUTES) do
+      vars[LOC] = at
+      local got = Mdl.storm(hoenn, s)
+      T.check(got ~= nil and got.place.name == "Route " .. route and got.kind == (at >= 9 and "rain" or "sand"),
+        "location " .. at .. ": " .. (got and got.kind .. " over " .. got.place.name or "nothing"))
+    end
+    vars[LOC] = 3
+    flags.FLAG_DEFEATED_KYOGRE = true
+    T.eq(Mdl.storm(hoenn, s).kind, "sand", "Kyogre caught: Groudon's still shows")
+    flags.FLAG_DEFEATED_GROUDON = true
+    T.eq(Mdl.storm(hoenn, s), nil, "and it clears once Groudon's caught")
+    flags = {}
+    vars[ENDING] = 1
+    T.eq(Mdl.storm(hoenn, s), nil, "the game ending the weather clears it")
+    vars[ENDING] = nil
+    -- the window: it appears, drifts to a new report, clears
+    local ms = W.state
+    vars[LOC] = 11
+    ms.liveAt = -10
+    draw(1)
+    T.check(ms.storm.on and ms.storm.kind == "rain" and ms.storm.place.name == "Route 125", "the map reads it")
+    draw(120)
+    T.eq(ms.storm.grow, 1, "and it grows in")
+    local fromX = ms.storm.x
+    vars[LOC] = 9      -- (Route 105: the far side of the map)
+    ms.liveAt = -10
+    draw(2)
+    T.check(ms.storm.tx ~= fromX and ms.storm.x ~= ms.storm.tx, "a new report: it drifts there")
+    local stormKb = garbageOf(120, function() draw(1) end)
+    T.check(stormKb < 0.5, string.format("the storm makes next to no garbage (%.3f KB/frame)", stormKb))
+    vars[LOC] = 3
+    ms.liveAt = -10
+    draw(1)
+    T.check(ms.storm.kind == "sand" and ms.storm.grow < 1, "the other one: it starts afresh, where it is")
+    flags.FLAG_DEFEATED_GROUDON = true
+    ms.liveAt = -10
+    draw(120)
+    T.check(not ms.storm.on and ms.storm.grow == 0, "caught: it clears")
+  else
+    vars[LOC] = 11
+    T.eq(Mdl.storm(hoenn, s), nil, "Ruby / Sapphire have no abnormal weather")
+  end
+  Rs.var, Rs.flag = var0, flag0
+end
+
 -- ------- the game's Town Map and Fly map: ours instead
 
 local RMname = RSE and "src.ui.game3.rse.region_map" or "src.ui.game3.region_map"
