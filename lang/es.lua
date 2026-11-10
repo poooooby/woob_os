@@ -306,6 +306,7 @@ return {
     ["slots.fiveKind"] = "5 en línea",
     ["slots.wildNote"] = "Comodín: sustituye a todo menos a Bonus",
     ["slots.bonusNote"] = "3 / 4 / 5 Bonus en cualquier lugar: %s / %s / %s giros gratis, premios ×%s",
+    ["slots.cheat"] = "¡%s giros gratis en la próxima tirada!",
     ["slots.rarity1"] = "Común",
     ["slots.rarity2"] = "Raro",
     ["slots.rarity3"] = "Épico",

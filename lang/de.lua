@@ -307,6 +307,7 @@ return {
     ["slots.fiveKind"] = "5 in Reihe",
     ["slots.wildNote"] = "Wild: ersetzt jedes Symbol außer Bonus",
     ["slots.bonusNote"] = "3 / 4 / 5 Bonus irgendwo: %s / %s / %s Freispiele, Gewinne ×%s",
+    ["slots.cheat"] = "%s Freispiele beim nächsten Dreh!",
     ["slots.rarity1"] = "Gewöhnlich",
     ["slots.rarity2"] = "Selten",
     ["slots.rarity3"] = "Episch",

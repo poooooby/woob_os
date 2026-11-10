@@ -5,6 +5,10 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Changed
+- **Slots:** more free spins: 12, 18 or 30 for three, four or five Bonus coins (was 10, 15 or 25). The
+  machine pays back about 96%, up from about 91%.
+
 ## [0.7.0] - 2026-11-09
 
 ### Added

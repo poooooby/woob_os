@@ -306,6 +306,7 @@ return {
     ["slots.fiveKind"] = "5 em linha",
     ["slots.wildNote"] = "Coringa: substitui tudo menos o Bônus",
     ["slots.bonusNote"] = "3 / 4 / 5 Bônus em qualquer lugar: %s / %s / %s giros grátis, prêmios ×%s",
+    ["slots.cheat"] = "%s giros grátis na próxima rodada!",
     ["slots.rarity1"] = "Comum",
     ["slots.rarity2"] = "Raro",
     ["slots.rarity3"] = "Épico",

@@ -318,6 +318,7 @@ return {
     ["slots.fiveKind"] = "5 in a row",
     ["slots.wildNote"] = "Wild: stands in for any symbol except Bonus",
     ["slots.bonusNote"] = "3 / 4 / 5 Bonus anywhere: %s / %s / %s free spins, wins ×%s",
+    ["slots.cheat"] = "%s free spins on your next spin!",
     ["slots.rarity1"] = "Common",
     ["slots.rarity2"] = "Rare",
     ["slots.rarity3"] = "Epic",

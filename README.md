@@ -165,8 +165,8 @@ opens a desktop in a sleek monitor instead of a text menu.
   ₽1,000 a line, on 1, 5, 10 or 20 lines (each line costs its own bet). Three, four or five of a kind
   from the left pay, from Poké Balls up to five Rocket R's (the 2,500× jackpot), and a pay ladder
   beside the reels shows what five of each are worth at your bet. Ditto is wild and stands in for
-  any symbol except Bonus. Three or more Bonus coins anywhere pay on your whole bet and give 10, 15
-  or 25 free spins that keep your bet, triple their wins, can give more, and carry on if you close
+  any symbol except Bonus. Three or more Bonus coins anywhere pay on your whole bet and give 12, 18
+  or 30 free spins that keep your bet, triple their wins, can give more, and carry on if you close
   the window. The rarer wins also drop Rocket Tickets, more for bigger bets. Press SPIN (or A) and
   the reels roll; A stops them one by one, or let them land. Two Bonus down hold the remaining reels
   back while the notes climb. Auto (SELECT) keeps spinning until you turn it off. A small win

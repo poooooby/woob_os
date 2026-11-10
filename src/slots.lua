@@ -22,6 +22,7 @@
 --       a row } x20, sym = { the line's symbol } x20, symbol (the best paid), scatters, free (a free
 --       spin), mult, freeAdded, pays, tickets, jackpot, freeTotal (the last free spin: what they won) }
 --   Sl.collect(s) -> pays, tickets (the held win, paid once; 0, 0 without one) ; Sl.result (the last)
+--   Sl.cheat() (the window's code: Sl.CHEAT_SPINS free spins on the next spin, for this run) ; Sl.cheatArmed()
 --   Sl.freeState() -> { left, level, lines, total } | nil
 --   Sl.speciesOf(symbol) -> the engine's species for a Pokémon symbol (kept)
 --   Sl.prizes() -> { { kind = "item" | "mon", id, cost, name, level } ... }   (made once)
@@ -49,10 +50,10 @@ local PAYS = {
 }
 -- n Bonus anywhere: × the whole bet, and free spins; a free spin's wins are tripled
 local BONUS_PAY = { [3] = 2, [4] = 10, [5] = 50 }
-local FREE = { [3] = 10, [4] = 15, [5] = 25 }
+local FREE = { [3] = 12, [4] = 18, [5] = 30 }
 local FREE_MULT = 3
 -- each reel: thirty stops in its own order. Over the rules' return (tests walk every combination):
--- 68.7% from the lines, 2.1% Bonus pays, 20.5% free spins = 91.3%
+-- 68.7% from the lines, 2.1% Bonus pays, 25.1% free spins = 95.9%
 local REELS = {
   { 2, 8, 1, 7, 4, 2, 3, 1, 4, 3, 5, 4, 5, 2, 1, 3, 10, 1, 6, 2, 1, 3, 1, 2, 3, 2, 1, 8, 2, 1 },
   { 1, 2, 1, 2, 4, 1, 5, 4, 6, 1, 10, 4, 3, 2, 3, 9, 1, 3, 2, 3, 7, 1, 3, 2, 8, 1, 2, 9, 1, 5 },
@@ -145,6 +146,10 @@ return function(engine, deps)
   local result = newResult()
   Sl.result = result
   local held = false
+  local cheat = false
+  Sl.CHEAT_SPINS = 12
+  function Sl.cheat() cheat = true end
+  function Sl.cheatArmed() return cheat end
 
   function Sl.freeState()
     local f = data().free
@@ -224,8 +229,12 @@ return function(engine, deps)
     -- (Bonus, on the whole bet)
     local scatters = Sl.bonusOn(st)
     local added = FREE[scatters] or 0
+    if added > 0 then pays = pays + BONUS_PAY[scatters] * bet * lines * mult end
+    if cheat then
+      cheat = false
+      added = added + Sl.CHEAT_SPINS
+    end
     if added > 0 then
-      pays = pays + BONUS_PAY[scatters] * bet * lines * mult
       if free then free.left = free.left + added
       else d.free = { left = added, level = level, lines = lines, total = 0 } end
     end

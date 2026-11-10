@@ -306,6 +306,7 @@ return {
     ["slots.fiveKind"] = "5 in fila",
     ["slots.wildNote"] = "Wild: sostituisce tutti i simboli tranne Bonus",
     ["slots.bonusNote"] = "3 / 4 / 5 Bonus ovunque: %s / %s / %s giri gratis, vincite ×%s",
+    ["slots.cheat"] = "%s giri gratis al prossimo giro!",
     ["slots.rarity1"] = "Comune",
     ["slots.rarity2"] = "Raro",
     ["slots.rarity3"] = "Epico",

@@ -306,6 +306,7 @@ return {
     ["slots.fiveKind"] = "5 alignés",
     ["slots.wildNote"] = "Joker : remplace tout symbole sauf Bonus",
     ["slots.bonusNote"] = "3 / 4 / 5 Bonus n'importe où : %s / %s / %s tours gratuits, gains ×%s",
+    ["slots.cheat"] = "%s tours gratuits au prochain tour !",
     ["slots.rarity1"] = "Commun",
     ["slots.rarity2"] = "Rare",
     ["slots.rarity3"] = "Épique",

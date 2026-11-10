@@ -398,6 +398,35 @@ return function(ctx, env)
 
   local cur
   local function pressed(k) return cur:wasPressed(k) end
+  -- (the code, on the machine: up up down down left right left right START. Its buttons change the
+  -- bet and the lines as they go, so those are put back at the end, and its START isn't the pay table's)
+  local CODE = { "up", "up", "down", "down", "left", "right", "left", "right", "start" }
+  local CODE_KEYS = { "up", "down", "left", "right", "start", "a", "b", "select", "l", "r" }
+  local codeAt, codeBet, codeLines = 0, 1, 1
+  local function enterCode()
+    local key
+    for i = 1, #CODE_KEYS do
+      if pressed(CODE_KEYS[i]) then
+        key = CODE_KEYS[i]
+        break
+      end
+    end
+    if not key then return false end
+    if key == CODE[codeAt + 1] then
+      codeAt = codeAt + 1
+    elseif key ~= CODE[1] then
+      codeAt = 0
+    elseif codeAt ~= 2 then     -- (a third up keeps the two before it)
+      codeAt = 1
+    end
+    if codeAt == 1 then codeBet, codeLines = st.bet, st.lines end
+    if codeAt < #CODE then return false end
+    codeAt = 0
+    st.bet, st.lines = codeBet, codeLines
+    Sl.cheat()
+    toast(T.f("slots.cheat", Sl.CHEAT_SPINS), false, "SE_SHINY")
+    return true
+  end
   function W.input(input, nav)
     cur = input
     if st.table then
@@ -407,6 +436,7 @@ return function(ctx, env)
       end
       return true
     end
+    if st.tab == "slots" and enterCode() then return true end
     if pressed("b") then
       if st.spinning then return true end
       return false

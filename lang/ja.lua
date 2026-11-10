@@ -307,6 +307,7 @@ return {
     ["slots.fiveKind"] = "5つそろい",
     ["slots.wildNote"] = "ワイルド: ボーナスいがいの ずがらの かわりになる",
     ["slots.bonusNote"] = "ボーナス 3 / 4 / 5こで %s / %s / %s かい フリースピン かくとく ×%s",
+    ["slots.cheat"] = "つぎの スピンで フリースピン %s かい!",
     ["slots.rarity1"] = "コモン",
     ["slots.rarity2"] = "レア",
     ["slots.rarity3"] = "エピック",

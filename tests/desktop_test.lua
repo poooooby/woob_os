@@ -1097,7 +1097,7 @@ do
   local each = spins / chance
   local free = chance * (each / (1 - chance * each)) * (line + pays) * Sl.FREE_MULT
   local rtp = line + pays + free
-  T.check(rtp > 0.88 and rtp < 0.95, ("the machine pays back %.1f%% of what's bet (lines %.1f, Bonus %.1f, free spins %.1f)"):format(
+  T.check(rtp > 0.9 and rtp < 0.97, ("the machine pays back %.1f%% of what's bet (lines %.1f, Bonus %.1f, free spins %.1f)"):format(
     rtp * 100, line * 100, pays * 100, free * 100))
   T.check(chance > 1 / 200 and chance < 1 / 60, "free spins about 1 spin in " .. math.floor(1 / chance))
   T.check(jack > 0 and jack < five, "the jackpot can come up, rarely (1 line in " .. math.floor(1 / jack) .. ")")
@@ -1178,22 +1178,22 @@ do
   ss.money = 10000
   stopsFor(B, B, B, 1, 2)
   ok, res = Sl.spin(ss, 2, 5)
-  T.check(ok and res.scatters == 3 and res.freeAdded == 10, "three Bonus: ten free spins")
+  T.check(ok and res.scatters == 3 and res.freeAdded == Sl.FREE[3], "three Bonus: free spins")
   local paid = Sl.collect(ss)
   T.eq(paid, Sl.BONUS_PAY[3] * 100 * 5, "and they pay on the whole bet")
   local f = Sl.freeState()
-  T.check(f and f.left == 10 and f.level == 2 and f.lines == 5, "kept with the bet that won them")
+  T.check(f and f.left == Sl.FREE[3] and f.level == 2 and f.lines == 5, "kept with the bet that won them")
   T.check(slotsSave.data.slots.free == f, "in the save")
   local m0 = ss.money
   stopsFor(5, 5, 5, 1, 2)
   ok, res = Sl.spin(ss, 4, 1)
   T.check(ok and res.free and res.mult == 3 and res.lines == 5 and res.level == 2 and ss.money == m0, "a free spin: no cost, the same bet")
-  T.check(Sl.freeState().left == 9, "one fewer")
+  T.check(Sl.freeState().left == Sl.FREE[3] - 1, "one fewer")
   local p3 = Sl.collect(ss)
   T.check(p3 >= 2000 * 3, "its wins tripled (" .. tostring(p3) .. ")")
   stopsFor(B, B, B, 1, 2)
   ok, res = Sl.spin(ss, 2, 5)
-  T.check(res.freeAdded == 10 and Sl.freeState().left == 18, "more Bonus: more free spins")
+  T.check(res.freeAdded == Sl.FREE[3] and Sl.freeState().left == Sl.FREE[3] * 2 - 2, "more Bonus: more free spins")
   Sl.collect(ss)
   Sl.freeState().left = 1
   local total0 = Sl.freeState().total
@@ -1328,7 +1328,7 @@ do
     if not sws.spinning then break end
     draw(1)
   end
-  T.check(Sl.freeState() and Sl.freeState().left == 10 and sws.intro and sws.intro.n == 10, "three Bonus: free spins, their card")
+  T.check(Sl.freeState() and Sl.freeState().left == Sl.FREE[3] and sws.intro and sws.intro.n == Sl.FREE[3], "three Bonus: free spins, their card")
   local betBefore = sws.bet
   press("right")
   T.eq(sws.bet, betBefore, "the bet can't change during free spins")
@@ -1365,6 +1365,43 @@ do
   end
   draw(400)
   T.check(not sws.spinning, "and it stops at that")
+  -- the code: 12 free spins on the next spin
+  local CODE = { "up", "up", "down", "down", "left", "right", "left", "right", "start" }
+  local function enter(list)
+    for _, k in ipairs(list) do
+      press(k)
+      draw(2)
+    end
+  end
+  T.check(not Sl.cheatArmed(), "(no code yet)")
+  enter({ "up", "up", "down", "left", "right", "left", "right", "start" })
+  T.check(not Sl.cheatArmed() and sws.table, "a wrong order: only what the buttons do, START's pay table")
+  press("b")
+  draw(2)
+  sws.bet, sws.lines = 2, 2
+  enter({ "up", "a" })
+  draw(400)
+  T.check(not Sl.cheatArmed(), "another button in the middle starts it over")
+  sws.bet, sws.lines = 2, 2
+  enter({ "up", "up", "up" })
+  sws.bet, sws.lines = 2, 2
+  enter({ "down", "down", "left", "right", "left", "right", "start" })
+  T.check(Sl.cheatArmed() and not sws.table, "the code: armed, and its START doesn't open the pay table")
+  T.check(sws.toast ~= nil and not sws.toast.bad, "it says so")
+  T.check(sws.bet == 2 and sws.lines == 2, "the bet and lines as they were")
+  local m1 = s.money
+  stopsFor(1, 2, 3, 4, 5)
+  press("a")
+  T.check(sws.spinning and s.money == m1 - Sl.BETS[2] * Sl.LINE_SETS[2], "the next spin costs what it costs")
+  T.check(Sl.result.freeAdded == 12 and Sl.freeState() and Sl.freeState().left == 12, "and gives 12 free spins")
+  T.check(not Sl.cheatArmed(), "once")
+  for _ = 1, 20000 do
+    if Sl.freeState() == nil and not sws.spinning then break end
+    queue = { 1, 2, 3, 4, 5 }
+    draw(1)
+  end
+  T.check(Sl.freeState() == nil and not sws.spinning, "they all run")
+  draw(600)
 end
 -- the garbage: idle, then spinning (warmed up)
 local FrlgFont3 = require("src.ui.game3.frlg_font")
