@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-09
+
 ### Changed
 - **Slots is a five-reel video slot:** a new look (a dark stage, wide reels, a pay ladder, a round
   SPIN button, a BALANCE / WIN / BET bar, full-window big wins), 1 / 5 / 10 / 20 lines, and three,
