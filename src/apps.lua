@@ -1,12 +1,11 @@
 -- The apps on the desktop: a registry other mods can add to (mod.exports.apps), and the built-in
 -- ones: Oak's PC and Hall of Fame open the game's own PC screens; Boxes, Items, Mail, Mart and
--- Settings are our own windows; Decorate (Ruby / Sapphire / Emerald, the bedroom) opens the game's
--- Decoration menu.
+-- Settings are our own windows, as is Decorate (Ruby / Sapphire / Emerald, the bedroom).
 --
 --   A = Apps(deps)   deps: boxes / items / mail / mart / gts / auction / slots / map / phone / condition / settings =
 --                    window(ctx, env) makers ; phoneAvailable(ctx) / conditionAvailable(ctx) ;
---                    auctionBadge(ctx) / gtsBadge(ctx) -> n ; decorate(ctx) (the
---                    game's menu). Built-ins name themselves with labelKey (a lang/*.lua key)
+--                    auctionBadge(ctx) / gtsBadge(ctx) -> n ; decorate = a window(ctx, env)
+--                    maker. Built-ins name themselves with labelKey (a lang/*.lua key)
 --   A.register(app) -> true | false, why    app = {
 --       id       unique string
 --       label    under its icon (short: about 10 letters) ; labelKey: a word of lang/*.lua instead
@@ -155,12 +154,12 @@ return function(deps)
                  glyph = "gamepad", color = { 104, 86, 214 }, order = 35,
                  available = deps.pcgamesAvailable, window = deps.pcgames })
   end
-  -- the bedroom's Decoration (Ruby / Sapphire / Emerald): the game's own menu
+  -- the bedroom's decorations (Ruby / Sapphire / Emerald): our catalogue, the game's cursor to place one
   if deps.decorate then
     A.register({ id = "decorate", labelKey = "app.decorate", label = "Decorate",
                  glyph = "home", color = { 156, 112, 220 }, order = 50,
                  available = function(ctx) return ctx.mode == "bedroom" and ctx.family == "rse" end,
-                 open = deps.decorate })
+                 window = deps.decorate })
   end
   A.register({ id = "oak", labelKey = "app.oak", label = "Oak's PC",
                glyph = "dex", color = { 232, 120, 64 }, order = 30,

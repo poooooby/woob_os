@@ -72,6 +72,7 @@ return function(mod)
   local makeRibbons, ribbonsWindow = loadSibling(mod, "src/ribbons.lua"), loadSibling(mod, "src/apps/ribbons.lua")
   local makeHall, hallWindow = loadSibling(mod, "src/hall.lua"), loadSibling(mod, "src/apps/hall.lua")
   local makeOak, oakWindow = loadSibling(mod, "src/oak.lua"), loadSibling(mod, "src/apps/oak.lua")
+  local makeDecorate, decorateWindow = loadSibling(mod, "src/decorate.lua"), loadSibling(mod, "src/apps/decorate.lua")
   local makePokenav = loadSibling(mod, "src/pokenav.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell) then return end
 
@@ -502,6 +503,7 @@ return function(mod)
   if makeCondition and env.bx then env.condition = makeCondition(engine, { bx = env.bx }) end
   if makeHall then env.hall = makeHall(engine) end
   if makeOak then env.oak = makeOak(engine) end
+  if makeDecorate then env.decorate = makeDecorate(engine) end
   if makeRibbons and env.condition and env.phone then
     env.ribbons = makeRibbons(engine, { family = env.phone.family, available = env.condition.available })
   end
@@ -548,15 +550,7 @@ return function(mod)
     gtsBadge = env.gts and function() return env.gts.waiting() end or nil,
     auctionBadge = env.auction and function() return env.auction.unread() end or nil,
     settings = T and Settings and settingsWindow or nil,
-    -- (Ruby / Sapphire / Emerald: the bedroom PC's Decoration, the game's own menu)
-    decorate = function(ctx)
-      ctx.over(function(onClose)
-        local Rse = engine("src.core.game3.rse.init")
-        local impl = Rse and Rse.system and Rse.system("decorationMenu", "DoPlayerRoomDecorationMenu")
-        if not (impl and impl.open) then error("the game has no Decoration menu") end
-        impl.open({ session = ctx.session or session(), onClose = onClose })
-      end)
-    end,
+    decorate = env.decorate and decorateWindow or nil,
   })
   local glyphOpts = setmetatable({}, { __mode = "k" })
   local NONE = { 0, 0, 0, 0 }
@@ -688,6 +682,7 @@ return function(mod)
   if not okI then mod.log:warn("the desktop's hooks failed: %s", tostring(errI)) end
   mod.events:on("game.ready", function()
     if env.pcgames then env.pcgames.reset() end
+    if env.decorate then env.decorate.reset() end
     local ok, err = pcall(Sh.ready)
     if not ok then mod.log:warn("the PC keeps its own menu: %s", tostring(err)) end
   end)
@@ -707,5 +702,5 @@ return function(mod)
                         mart = env.mart, auction = env.auction, slots = env.slots, pcgames = env.pcgames, gts = env.gts,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange,
                         watch = Watch, pad = Watch, notify = Nt, tick = tick, map3d = env.map3d, townmap = TownMap,
-                        phone = env.phone, condition = env.condition, ribbons = env.ribbons, hall = env.hall, oak = env.oak, pokenav = Pokenav, onCall = onCall }
+                        phone = env.phone, condition = env.condition, ribbons = env.ribbons, hall = env.hall, oak = env.oak, decorate = env.decorate, pokenav = Pokenav, onCall = onCall }
 end

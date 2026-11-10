@@ -59,8 +59,11 @@ stay.
 An app ends the desktop with the row the game's own list (`PcMenu._rootEntries`) has for it, so the
 script carries on as if that row was chosen and comes back to the PC menu, which is the desktop
 again (without the boot, the app's icon zooming back). Logging off hands back 127. Decorate (the
-Ruby / Sapphire / Emerald bedroom) opens the game's Decoration menu over a closed desktop through
-`ctx.over(open)` and reopens the desktop when it closes.
+Ruby / Sapphire / Emerald bedroom) is a window (`src/decorate.lua`, `src/apps/decorate.lua`). Toss and
+Put Away happen in it. Placing goes through `ctx.over`: `Dc.place` opens the game's Decoration menu,
+sets its list state on the chosen decoration and feeds it an A, then watches `handleInput` until the
+cursor mode ends and closes the menu on the black, before its list can show. Only dolls and cushions
+go in the bedroom, as in the game, so Put Away only has sprites to deal with.
 
 Items and Mail never go through the script: they are windows inside the desktop and change the
 session the way the game's own screens do (`Storage.withdrawItem` / `depositItem` / `tossItem`,

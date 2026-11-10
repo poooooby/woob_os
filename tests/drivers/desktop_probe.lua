@@ -1201,6 +1201,106 @@ local function body(game, log)
   D.state().ctx.logoff()
   check(closed and not D.isOpen(), "the bedroom PC logs off")
 
+  -- Decorate (Ruby / Sapphire / Emerald), in the real bedroom: the pictures, Put Away, and the game's cursor
+  if GAME_ID ~= "firered" and GAME_ID ~= "leafgreen" then
+    local Inv, Core = require("src.core.game3.rse.decoration_inventory"), require("src.core.game3.rse.decoration")
+    local SBm, UiD = require("src.core.game3.rse.secret_base"), require("src.ui.game3.rse.decoration")
+    local CollD = require("src.core.game3.collision")
+    local house = prefix .. "LITTLEROOT_TOWN_BRENDANS_HOUSE_2F"
+    Warp.request(nil, game, house, 3, 5, "up", {})
+    check(waitFor(function() return Map.current == house and not Warp.isBusy() end, 1200), "the bedroom")
+    U.wait(40)
+    local inv0, room0, pos0 = s0.decorationInventory, s0.playerRoomDecorations, s0.playerRoomDecorationPositions
+    s0.decorationInventory, s0.playerRoomDecorations, s0.playerRoomDecorationPositions = nil, nil, nil
+    for cat = 0, 7 do
+      local n = 0
+      for d = 1, Core.NUM_DECORATIONS do
+        if n < (cat == 6 and 14 or 6) and Inv.categoryOf(d) == cat then Inv.add(d, s0); n = n + 1 end
+      end
+    end
+    local grid = SBm.fieldGrid()
+    local gw, gh = grid.size()
+    local spots = {}
+    for y = 0, gh - 1 do
+      for x = 0, gw - 1 do
+        local b = CollD.behavior(x, y)
+        if Core.isBeh(b, "HOLDS_SMALL_DECORATION") or Core.isBeh(b, "HOLDS_LARGE_DECORATION") then spots[#spots + 1] = { x, y } end
+      end
+    end
+    log("spots for a doll in the room: " .. #spots)
+    check(#spots >= 2, "the room has places for dolls")
+    if #spots >= 2 then
+    local dollA = Inv.inventories(s0)[6][3]
+    local room = Core.context(s0, true)
+    room.items[1], room.pos[1] = dollA, Core.encodePos(spots[1][1], spots[1][2])
+    SBm.hideDecorationSprites(s0)
+    SBm.initDecorationSprites(0, s0)
+    U.wait(5)
+    check(grid.visibleDecorationFlagAt(spots[1][1], spots[1][2]) ~= nil, "(a doll set out in the room)")
+    local closedD = false
+    PcMenu.show({ session = s0, startMode = "player_pc", bedroom = true, closeOnExit = true,
+                  onClose = function() closedD = true end })
+    D.skipBoot()
+    waitFor(function() return not D.booting() end, 600)
+    U.wait(40)
+    check(D.openApp("decorate"), "Decorate opens")
+    waitFor(function() return D.window() ~= nil end, 600)
+    do
+      local untilD = love.timer.getTime() + 2.2      -- (the boot's reveal runs on the wall clock)
+      waitFor(function() return love.timer.getTime() > untilD end, 600)
+    end
+    local ds = D.window().state
+    shot("d19_desks")
+    while ds.cat ~= 7 do U.tap(game, "r"); U.wait(3) end
+    U.wait(20)
+    shot("d19_dolls")
+    do
+      local W1, H1, f1 = love.window.getMode()
+      love.window.setMode(430, 900, f1)
+      U.wait(20)
+      shot("d19_portrait")
+      love.window.setMode(W1, H1, f1)
+      U.wait(20)
+    end
+    local ctxD = D.state().ctx
+    while ds.list.cats[7].items[ds.pick].where ~= "room" do U.tap(game, "right"); U.wait(3) end
+    U.wait(6)
+    shot("d19_inroom")
+    U.tap(game, "a"); U.wait(4)
+    U.tap(game, "a"); U.wait(8)
+    check(room.items[1] == 0 and grid.visibleDecorationFlagAt(spots[1][1], spots[1][2]) == nil, "Put Away: it leaves the real room")
+    check(ds.list.cats[7].items[ds.pick].where == "pc", "and is in the PC")
+    shot("d19_putaway")
+    U.tap(game, "a"); U.wait(4)
+    U.tap(game, "a")
+    check(waitFor(function() return UiD.mode ~= nil and UiD.state == "place" end, 600), "Place: the game's cursor in the room")
+    check(not D.isOpen(), "(the desktop away)")
+    U.wait(20)
+    shot("d19_place")
+    UiD.mode.x, UiD.mode.y = spots[2][1], spots[2][2]
+    U.tap(game, "a")
+    check(waitFor(function() return UiD.state == "yesno" end, 600), "the game asks to place it")
+    shot("d19_ask")
+    U.tap(game, "a")
+    check(waitFor(function() return D.isOpen() and D.window() ~= nil end, 900), "placed: the catalogue again")
+    check(not UiD.isOpen(), "(the game's menu closed)")
+    U.wait(30)
+    local ds2 = D.window().state
+    check(ds2.cat == 7 and ds2.list.cats[7].items[ds2.pick].where == "room", "on the same doll, in the room")
+    check(room.items[1] == dollA and grid.visibleDecorationFlagAt(spots[2][1], spots[2][2]) ~= nil, "standing where it was put")
+    shot("d19_back")
+    D.closeWindow()
+    waitFor(function() return D.window() == nil and D.state().zoom == nil end, 600)
+    D.state().ctx.logoff()
+    check(closedD and not D.isOpen(), "logged off")
+    end
+    SBm.hideDecorationSprites(s0)
+    s0.decorationInventory, s0.playerRoomDecorations, s0.playerRoomDecorationPositions = inv0, room0, pos0
+    Warp.request(nil, game, center, 7, 8, "up", {})
+    check(waitFor(function() return Map.current == center and not Warp.isBusy() end, 1200), "back at the Center")
+    U.wait(30)
+  end
+
   -- WoobPad: START, its row, the home screen, the apps (each one), the notifications, B: the
   -- START menu again
   local Wt, Nt = X._test.pad, X._test.notify

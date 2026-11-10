@@ -273,19 +273,7 @@ T.eq(#st.grid + #st.dock, rse and 10 or 9, "with Items, Map, Mail, GTS, Mart, R-
 D.skipBoot()
 draw(40)
 if rse then
-  -- Decorate: the game's own menu over the desktop, the desktop back after it
-  local Rse = require("src.core.game3.rse.init")
-  local was = Rse._systems.decorationMenu
-  local opened
-  Rse._systems.decorationMenu = { open = function(o) opened = o end }
-  for i, app in ipairs(st.grid) do if app.id == "decorate" then st.focus, st.cursor = "grid", i end end
-  D.input(input({}, {}))
-  press("a")
-  draw(30)
-  T.check(opened ~= nil and not D.isOpen(), "Decorate opens the game's Decoration menu")
-  if opened then opened.onClose() end
-  T.check(D.isOpen() and Stack.has("woob_os") and not D.booting(), "and closing it comes back to the desktop")
-  Rse._systems.decorationMenu = was
+  T.check(Apps.byId("decorate").window ~= nil, "Decorate is a window (tested further down)")
   st = D.state()
   draw(30)
 end
@@ -2375,6 +2363,120 @@ draw(30)
 draw(120)
 local per = garbageOf(300)
 T.check(per < 0.2, ("the draw makes next to no garbage (%.3f KB a frame)"):format(per))
+
+-- ------- Decorate (Ruby / Sapphire / Emerald); a function: the main chunk is at Lua's 200 locals
+if rse then (function()
+  -- Decorate: our catalogue; placing is the game's cursor, the catalogue again after it
+  local Dc, Inv, Core = X._test.decorate, require("src.core.game3.rse.decoration_inventory"), require("src.core.game3.rse.decoration")
+  local UiD = require("src.ui.game3.rse.decoration")
+  local sess = s
+  local inv0, room0, pos0 = sess.decorationInventory, sess.playerRoomDecorations, sess.playerRoomDecorationPositions
+  sess.decorationInventory, sess.playerRoomDecorations, sess.playerRoomDecorationPositions = nil, nil, nil
+  local function firstOf(cat)
+    for d = 1, Core.NUM_DECORATIONS do if Inv.categoryOf(d) == cat then return d end end
+  end
+  local desk, doll = firstOf(Core.CAT.DESK), firstOf(Core.CAT.DOLL)
+  local doll2 = doll + 1
+  T.check(Inv.add(desk, sess) and Inv.add(doll2, sess) and Inv.add(doll, sess), "(three decorations)")
+  local list = Dc.list(sess)
+  T.eq(#list.cats, 8, "the game's eight categories")
+  T.check(list.cats[Core.CAT.DESK + 1].count == 1 and not list.cats[Core.CAT.DESK + 1].room, "the desk: not for the bedroom")
+  local dolls = list.cats[Core.CAT.DOLL + 1]
+  T.check(dolls.room and dolls.count == 2 and dolls.items[1].decor == doll and dolls.items[2].decor == doll2, "the dolls, in the game's order")
+  T.check(dolls.items[1].where == "pc" and dolls.countText == "2/40", "in the PC, the count as the game shows it")
+  T.check(not dolls.items[1].name:find("%u%u%u") and not dolls.items[1].desc:find("\n"), "words made to read: " .. dolls.items[1].name)
+  -- in use: the game's rules
+  local roomC = Core.context(sess, true)
+  roomC.items[1], roomC.pos[1] = doll, 0
+  list = Dc.list(sess)
+  T.check(list.used == 1 and list.size == 12, "the room's count")
+  T.eq(list.cats[Core.CAT.DOLL + 1].items[1].where, "room", "a doll in the room says so")
+  T.check(Dc.toss(sess, list.cats[Core.CAT.DOLL + 1].items[1]) == nil and Inv.has(doll, sess), "and can't be thrown away")
+  T.check(Dc.toss(sess, { decor = desk + 1, cat = Core.CAT.DESK, index = 1 }) == nil, "a stale row does nothing")
+  -- the window
+  local ctxD = D.state().ctx
+  local ctxSession0 = ctxD.session
+  ctxD.session = sess
+  T.check(D.openApp("decorate"), "Decorate opens")
+  draw(3)
+  local DW = D.window()
+  T.check(DW ~= nil and D.isOpen() and DW.state.list ~= nil, "Decorate is a window")
+  local ds = DW.state
+  local function goCat(cat) while ds.cat ~= cat + 1 do press("r") draw(1) end end
+  goCat(Core.CAT.DESK)
+  T.eq(#ds.acts, 1, "a desk in the PC: only Toss in the bedroom")
+  T.eq(ds.note, "decor.baseOnly", "and says why")
+  press("a")
+  T.eq(ds.focus, "acts", "A: its actions")
+  press("a")
+  T.check(ds.confirm ~= nil and ds.confirm.cursor == 2, "Toss asks, Cancel first")
+  draw(2)
+  press("a")
+  T.check(ds.confirm == nil and Inv.has(desk, sess), "Cancel keeps it")
+  press("a")
+  press("left")
+  T.check(ds.confirm.cursor == 1, "over to Toss")
+  draw(2)
+  press("a")
+  T.check(not Inv.has(desk, sess) and ds.focus == "grid", "Toss throws it away")
+  draw(2)
+  T.check(not D.state().winFailed, "an empty category draws")
+  goCat(Core.CAT.DOLL)
+  T.eq(ds.acts[1].id, "putAway", "the doll in the room: Put Away")
+  local SB = require("src.core.game3.rse.secret_base")
+  local hide0, init0 = SB.hideDecorationSprites, SB.initDecorationSprites
+  local refreshed = 0
+  SB.hideDecorationSprites, SB.initDecorationSprites = function() refreshed = refreshed + 1 end, function() refreshed = refreshed + 10 end
+  press("a")
+  press("a")
+  SB.hideDecorationSprites, SB.initDecorationSprites = hide0, init0
+  T.check(roomC.items[1] == 0 and roomC.pos[1] == 0 and refreshed == 11, "it leaves the room, the room set out again")
+  T.eq(ds.list.cats[Core.CAT.DOLL + 1].items[1].where, "pc", "and is in the PC")
+  T.check(ds.acts[1].id == "place" and ds.acts[2].id == "toss", "in the PC: Place in Room, Toss")
+  press("right")
+  T.eq(ds.pick, 2, "Right: the next one")
+  draw(2)
+  draw(120)
+  local perD = garbageOf(120)
+  T.check(perD < 0.5, ("the window draws next to no garbage (%.3f KB a frame)"):format(perD))
+  VP.width, VP.height = 320, 480
+  draw(3)
+  T.check(not D.state().winFailed, "draws in portrait")
+  VP.width, VP.height = 480, 320
+  draw(2)
+  -- placing: the game's cursor with this doll in hand, and back here after it
+  local Fade = require("src.ui.game3.fade")
+  local begin0 = Fade.begin
+  local fades = {}
+  Fade.begin = function(_, _, fn) fades[#fades + 1] = fn end
+  local hand0 = UiD.handleInput
+  press("a")
+  press("a")
+  T.check(not D.isOpen() and UiD.isOpen() and UiD.state == "fading" and UiD.category == Core.CAT.DOLL, "Place: the game's screen, past its lists")
+  T.eq(UiD.scroll + UiD.row + 1, 2, "on this decoration")
+  table.remove(fades, 1)()
+  T.check(UiD.mode ~= nil and UiD.mode.kind == "place" and UiD.mode.decor == doll2, "the cursor, holding it")
+  if #fades > 0 then table.remove(fades, 1)() end
+  T.eq(UiD.state, "place", "and the player moves it")
+  local idle = { wasPressed = function() return false end, isDown = function() return false end }
+  UiD.handleInput(idle)
+  UiD.mode, UiD.state = nil, "fading"   -- (the game's cancel, having faded to black)
+  UiD.view = "items"
+  UiD.handleInput(idle)
+  T.check(not UiD.isOpen() and D.isOpen() and UiD.handleInput == hand0, "over: the game's menu closes without showing its list, the wrap gone")
+  T.check(Stack.has("woob_os"), "and the desktop is back")
+  draw(3)
+  local back = D.window()
+  T.check(back ~= nil and back.state.cat == Core.CAT.DOLL + 1 and back.state.pick == 2, "on the same decoration")
+  Fade.begin = begin0
+  press("b")
+  draw(60)
+  T.check(D.window() == nil, "B closes it")
+  sess.decorationInventory, sess.playerRoomDecorations, sess.playerRoomDecorationPositions = inv0, room0, pos0
+  ctxD.session = ctxSession0
+  st = D.state()
+  draw(30)
+end)() end
 
 st.ctx.logoff()
 run.release()

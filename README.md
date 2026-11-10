@@ -197,7 +197,9 @@ opens a desktop in a sleek monitor instead of a text menu.
   Professor Oak's rating in his own words with how many more you need for the next one.
 - 🏆 **Hall of Fame:** every champion team as a trophy case, newest first: L and R go through the
   teams, and each Pokémon calls out as you pick it. Once you've beaten the Elite Four.
-- 🛋️ **Decorate:** your room's decorations, from the bedroom PC (Ruby, Sapphire and Emerald).
+- 🛋️ **Decorate:** every decoration you own, as a catalogue with a showroom, at the bedroom PC
+  (Ruby, Sapphire and Emerald). See where each one is, set dolls and cushions out in your room,
+  put them away, or throw out what you don't want.
 - ⚙️ **Settings:** like a phone's or a Mac's.
   - 🌐 **Language:** WoobOS in English, Français, Deutsch, Español, Italiano, 日本語 or
     Português (Brasil). The game's own text, such as item names and mail, stays as it is.
@@ -211,10 +213,9 @@ opens a desktop in a sleek monitor instead of a text menu.
 - ℹ️ **About:** which version you're running, in the W menu at the top left.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
 
-Boxes, Items, Map, Phone, Condition, Ribbons, GTS, Mart, R-Bay, Slots, Mail, Oak's PC, the Hall of Fame and Settings open in a window on the desktop, in the style of macOS and iOS:
+Boxes, Items, Map, Phone, Condition, Ribbons, GTS, Mart, R-Bay, Slots, Mail, Oak's PC, the Hall of Fame, Decorate and Settings open in a window on the desktop, in the style of macOS and iOS:
 white cards on a soft grey, segmented switches, and a blue ring round whatever the controller is
-on. B or the red button closes it. Decorate opens the game's own screen, and closing it brings
-you back to the desktop.
+on. B or the red button closes it.
 
 ## ⚙️ Options
 

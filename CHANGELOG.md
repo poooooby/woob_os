@@ -12,6 +12,9 @@ All notable changes to this mod are documented here, in
 - **The PokéNav's Hoenn Map, Ribbons and Condition search** open WoobOS's apps.
 - **WoobPad's START row** sits under BAG before you have the PokéNav (and on FireRed / LeafGreen),
   instead of at the bottom.
+- **Decorate** is a WoobOS window: a catalogue of your decorations by category, with Put Away and
+  Toss in it. Placing a doll or cushion still uses the game's cursor in your room, and brings you
+  back to the catalogue.
 
 ### Added
 - **Ribbons app** (Ruby / Sapphire / Emerald): every Pokémon with Ribbons, what each one is for.
