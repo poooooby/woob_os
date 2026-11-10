@@ -10,6 +10,7 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/ui_kit.lua` | The drawing kit: page layout on the window's safe area, rect / hit pools, memoised colours, cached gradient meshes, text, the metal plate, the W logo, hints, toast |
 | `src/apps.lua` | The app registry and the built-in apps |
 | `src/icons.lua` | The pictures an app's icon can use: other mods choose one by name |
+| `src/apps/appstore.lua` | The App Store window: the removable apps, GET / OPEN, an app's page |
 | `src/desktop.lua` | The desktop: monitor, boot, menu bar, home grid with pages, dock, W menu, sheets, buttons / touch / mouse |
 | `src/shell.lua` | The PC menu takeover, the UI stack layer, the `render.hud` / `input.pointer` / `input.wheel` / `script.command` hooks, the touch pad hide |
 | `src/inventory.lua` | The item model: PC and Bag rows, withdraw / deposit / toss / sort (the PC's list; a Bag pocket's slots, as the game's own Bag moves them, except the pockets the game keeps sorted) through the engine's `Storage` and `Bag` |
@@ -124,6 +125,15 @@ The built-in apps' own pictures work too (`ball`, `mail`, `cart`, `rocket`, `slo
 
 Other fields: `dock = true` starts it in the dock, `pad = false` keeps it off WoobPad, and
 `badge = function(ctx) return n end` puts a count on its corner (read once a second).
+
+**The App Store.** Every app another mod registers is listed there, under From Your Mods, and the
+player can remove it or get it back. `tagline` (the row's few words), `description` (its page) and
+`by` (your name or your mod's) fill in its listing. A removed app stays registered and is just left
+out of `apps.list`, so `available`, `badge` and a notification's tap are unaffected by it; don't
+count on the icon being there. In the registry, `removable = true` is what puts an app in the store:
+`exports.apps.register` sets it, and of the built-ins only the Mart, GTS, R-Bay, Slots and PC Games
+have it. The removed ids are Settings' `removedApps`, for the installation, like the arrangement. A
+window can call `ctx.refreshApps()` after changing them and `ctx.launchApp(id)` to open another app.
 
 `ctx`: `session`, `mode` (`"select"`: a Pokémon Center's PC, `"bedroom"`: the player's own PC, `"pad"`:
 WoobPad, anywhere), `family` (`"frlg"` / `"rse"`), `row(id)`, `finish(row)`, `done()`, `logoff()`,

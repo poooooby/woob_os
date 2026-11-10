@@ -1372,6 +1372,66 @@ local function body(game, log)
     X._test.map3d.lastStorm = nil
   end
 
+  -- the App Store: taking an app off the real home screen and getting it back
+  do
+    local closedA = false
+    local Xs = X._test.settings
+    local kept = Xs.get("removedApps", nil)
+    PcMenu.show({ session = s0, startMode = "player_pc", bedroom = true, closeOnExit = true,
+                  onClose = function() closedA = true end })
+    D.skipBoot()
+    local function settleA(secs)
+      local untilA = love.timer.getTime() + (secs or 1.2)
+      waitFor(function() return love.timer.getTime() > untilA end, 600)
+    end
+    settleA(2.2)
+    local function home(id)
+      for _, app in ipairs(D.state().grid) do if app.id == id then return true end end
+      return false
+    end
+    check(home("slots"), "App Store: Slots on the home screen")
+    check(D.openApp("store"), "App Store: opens")
+    check(waitFor(function() return D.window() ~= nil end, 600), "App Store: a window")
+    local SW = D.window()
+    local ss = SW.state
+    settleA()
+    shot("d22_store")
+    local iSlots
+    for i, row in ipairs(ss.rows) do if row.id == "slots" then iSlots = i end end
+    check(iSlots ~= nil, "App Store: Slots listed")
+    for _ = 1, iSlots do U.tap(game, "down"); U.wait(4) end
+    settleA(0.4)
+    shot("d22_store_row")
+    U.tap(game, "a")
+    settleA(0.4)
+    shot("d22_store_page")
+    U.tap(game, "right"); U.wait(4)
+    U.tap(game, "a")
+    settleA(0.4)
+    shot("d22_store_confirm")
+    U.tap(game, "left"); U.wait(4)
+    U.tap(game, "a")
+    check(waitFor(function() return not home("slots") end, 120), "App Store: Remove takes it off")
+    settleA(0.5)
+    shot("d22_store_removed")
+    U.tap(game, "a")
+    settleA(0.3)
+    shot("d22_store_installing")
+    check(waitFor(function() return home("slots") and ss.job == nil end, 240), "App Store: GET puts it back")
+    settleA(0.3)
+    shot("d22_store_got")
+    U.tap(game, "right"); U.wait(4)
+    U.tap(game, "left"); U.wait(4)
+    U.tap(game, "a")
+    check(waitFor(function() return D.window() ~= SW end, 240), "App Store: OPEN runs it")
+    settleA(0.6)
+    D.closeWindow()
+    waitFor(function() return D.window() == nil and D.state().zoom == nil end, 600)
+    Xs.set("removedApps", kept)
+    D.state().ctx.logoff()
+    check(closedA and not D.isOpen(), "App Store: logged off")
+  end
+
   -- WoobPad: START, its row, the home screen, the apps (each one), the notifications, B: the
   -- START menu again
   local Wt, Nt = X._test.pad, X._test.notify

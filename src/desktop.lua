@@ -173,8 +173,8 @@ return function(deps)
 
   -- ------- open / close
 
-  function D.open(ctx)
-    ctx = ctx or {}
+  -- the home screen's and the dock's apps, in the player's arrangement
+  local function placeApps(ctx)
     local apps = deps.apps.list(ctx)
     local grid, dock = {}, {}
     if Ar then
@@ -189,6 +189,12 @@ return function(deps)
         if app.dock then dock[#dock + 1] = app else grid[#grid + 1] = app end
       end
     end
+    return grid, dock
+  end
+
+  function D.open(ctx)
+    ctx = ctx or {}
+    local grid, dock = placeApps(ctx)
     local game = deps.gameId and deps.gameId() or ""
     r = { ctx = ctx, grid = grid, dock = dock, focus = grid[1] and "grid" or "dock", cursor = 1, dockCursor = 1,
           menuCursor = 1, page = 1, pageShown = 1, cols = 3, rows = 2, perPage = 6, t0 = now(), held = {},
@@ -283,6 +289,7 @@ return function(deps)
   local function openWindow(app)
     r.ctx.app = app.id
     r.ctx.closeWindow = D.closeWindow
+    r.ctx.refreshApps, r.ctx.launchApp = D.refreshApps, D.launchApp
     local ok, w = pcall(app.window, r.ctx, deps.env)
     if not (ok and type(w) == "table" and w.draw) then
       if deps.log then deps.log("the app %s failed to open: %s", app.id, tostring(w)) end
@@ -315,6 +322,29 @@ return function(deps)
     r.ctx.resume = nil
     se("SE_SELECT")
     return true
+  end
+  -- an app from a window (the App Store's OPEN): one with no window runs as its icon would
+  function D.launchApp(id)
+    if not r then return false end
+    local app = deps.apps.byId(id)
+    if not app then return false end
+    if app.window then return D.openApp(id) end
+    closeWindow()
+    r.zoom = nil
+    r.ctx.app = id
+    local ok, err = pcall(app.open, r.ctx)
+    if not ok and deps.log then deps.log("the app %s failed to open: %s", id, tostring(err)) end
+    return ok
+  end
+  -- the icons again after the App Store changes them; the cursors stay on the same apps
+  function D.refreshApps()
+    if not r then return end
+    local onGrid, onDock = r.grid[r.cursor], r.dock[r.dockCursor]
+    r.grid, r.dock = placeApps(r.ctx)
+    r.cursor, r.dockCursor = max(1, min(r.cursor, #r.grid)), max(1, min(r.dockCursor, #r.dock))
+    for i, app in ipairs(r.grid) do if app == onGrid then r.cursor = i end end
+    for i, app in ipairs(r.dock) do if app == onDock then r.dockCursor = i end end
+    setPage(r.page, false)
   end
   D.window = function() return r and r.win end
 
@@ -1174,6 +1204,8 @@ return function(deps)
       K.text(badgeText(min(n, 99)), bx - br, by - br * 0.62, br * 1.2, WHITE, "center", br * 2, a)
     end
   end
+
+  D.appIcon = appIcon
 
   -- the focus ring, centred on the icon as appIcon lifts it (`pad` units clear of it all round)
   local function focusRing(x, y, s, lift, pad, rad)

@@ -6,6 +6,9 @@ All notable changes to this mod are documented here, in
 ## [Unreleased]
 
 ### Added
+- **App Store:** add or remove R-Bay, Slots, the GTS, the Mart, PC Games and any app another mod adds.
+  A removed app leaves the home screen and WoobPad, keeps what it saved, and returns to its old
+  place when you get it back. The game's PC and PokéNav apps always stay.
 - **App icons for other mods:** 33 pictures to choose from (a controller, a flame, a Poké Ball, a
   Pokédollar sign and more), on a tile in any colour. `exports.apps.icons()` lists them; DEVELOPMENT.md
   shows how to add an app.

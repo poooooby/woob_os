@@ -16,6 +16,9 @@
 --       order    sorts the apps (lower first; built-ins 10..90)
 --       dock     true: in the dock, not the home grid
 --       pad      false: not on WoobPad (Log Off: the pad is put away, not logged off)
+--       removable true: the App Store can take it off the home screen (WoobOS's extras; every other
+--                mod's app, which main.lua's exports mark) ; fromMod true: another mod's
+--       tagline, description, by   the App Store's words (taglineKey / descKey: lang/*.lua keys instead)
 --       badge(ctx) -> n   a count on the icon's corner (read once a second; nil / 0: none)
 --       available(ctx) -> bool   (nil: always)
 --       open(ctx)                ctx below; an app ends with ctx.finish / ctx.done / its own screen
@@ -28,7 +31,10 @@
 --                (repeating); env = { K, session(), se(name), now(), itemIcon(id, x, y, size),
 --                monIcon(species, x, y, size), inv, mb, mart, amount(n, x, y, size, c, measure)
 --                (money with the game's sign -> its width) } }
---   A.list(ctx) -> the available apps, sorted ; A.byId(id)
+--   A.list(ctx) -> the available apps, sorted, without the removed ones ; A.byId(id)
+--   A.catalog(ctx) -> the removable apps available here, installed or not (the App Store's) ;
+--   A.isInstalled(id) ; A.setInstalled(id, on) -> true when it changed (deps.removed() -> the removed
+--   ids, comma-separated ; deps.saveRemoved(text))
 --
 --   ctx (handed by the desktop): session ; mode ("select": a Pokémon Center PC's menu, "bedroom":
 --   the player's own PC, "pad": WoobPad, anywhere) ; family ("frlg" | "rse") ; row(id) -> the PC menu's row index for one of
@@ -93,13 +99,52 @@ return function(deps)
   end
   function A.byId(id) return byId[id] end
 
+  -- ------- what the App Store has taken off the home screen (ids, kept with the arrangement)
+  local removedText, removedSet = nil, {}
+  local keptHere = ""   -- (no Settings: this run only)
+  local function removed()
+    local text = deps.removed and deps.removed() or keptHere
+    if text ~= removedText then
+      removedText, removedSet = text, {}
+      for id in tostring(text):gmatch("[^,]+") do removedSet[id] = true end
+    end
+    return removedSet
+  end
+  function A.isInstalled(id)
+    local app = byId[id]
+    return app ~= nil and not (app.removable and removed()[id])
+  end
+  function A.setInstalled(id, on)
+    local app = byId[id]
+    if not (app and app.removable) or A.isInstalled(id) == (on == true) then return false end
+    local ids = {}
+    for other in pairs(removed()) do
+      if other ~= id then ids[#ids + 1] = other end
+    end
+    if not on then ids[#ids + 1] = id end
+    table.sort(ids)
+    local text = table.concat(ids, ",")
+    if deps.saveRemoved then deps.saveRemoved(text) else keptHere = text end
+    return true
+  end
+
+  local function shownHere(app, ctx)
+    local ok, yes = true, not (ctx and ctx.mode == "pad" and app.pad == false)
+    if yes and app.available then ok, yes = pcall(app.available, ctx) end
+    return ok and yes
+  end
   -- the apps this PC shows (a list made per opening, not per frame; WoobPad leaves out pad = false)
   function A.list(ctx)
     local out = {}
     for _, app in ipairs(A.apps) do
-      local ok, yes = true, not (ctx and ctx.mode == "pad" and app.pad == false)
-      if yes and app.available then ok, yes = pcall(app.available, ctx) end
-      if ok and yes then out[#out + 1] = app end
+      if A.isInstalled(app.id) and shownHere(app, ctx) then out[#out + 1] = app end
+    end
+    return out
+  end
+  function A.catalog(ctx)
+    local out = {}
+    for _, app in ipairs(A.apps) do
+      if app.removable and shownHere(app, ctx) then out[#out + 1] = app end
     end
     return out
   end
@@ -133,26 +178,30 @@ return function(deps)
   -- the Mart: the Poké Mart's goods into the Bag (more with each Gym Badge), the Bag's items sold
   if deps.mart then
     A.register({ id = "mart", labelKey = "app.mart", label = "Mart",
-                 glyph = "cart", color = { 72, 190, 120 }, order = 27,
+                 glyph = "cart", color = { 72, 190, 120 }, order = 27, removable = true,
+                 taglineKey = "store.tag.mart", descKey = "store.desc.mart",
                  window = deps.mart })
   end
   -- GTS: the Global Trade Station and Wonder Trade, with trainers from around the world (a count on
   -- its icon: a deposit traded, waiting to be collected)
   if deps.gts then
     A.register({ id = "gts", labelKey = "app.gts", label = "GTS",
-                 glyph = "globe", color = { 30, 120, 220 }, order = 26,
+                 glyph = "globe", color = { 30, 120, 220 }, order = 26, removable = true,
+                 taglineKey = "store.tag.gts", descKey = "store.desc.gts",
                  window = deps.gts, badge = deps.gtsBadge })
   end
   -- R-Bay: Team Rocket's auctions for Pokémon (a count on its icon: ended auctions not looked at)
   if deps.auction then
     A.register({ id = "auction", labelKey = "app.auction", label = "R-Bay",
-                 glyph = "rocket", color = { 196, 30, 44 }, order = 28,
+                 glyph = "rocket", color = { 196, 30, 44 }, order = 28, removable = true,
+                 taglineKey = "store.tag.auction", descKey = "store.desc.auction",
                  window = deps.auction, badge = deps.auctionBadge })
   end
   -- Rocket Slots: a slot machine played with money, and a prize corner for its tickets
   if deps.slots then
     A.register({ id = "slots", labelKey = "app.slots", label = "Slots",
-                 glyph = "slots", color = { 232, 168, 32 }, order = 29,
+                 glyph = "slots", color = { 232, 168, 32 }, order = 29, removable = true,
+                 taglineKey = "store.tag.slots", descKey = "store.desc.slots",
                  window = deps.slots })
   end
   -- Map: the region in 3D, made from the game's own Town Map (Fly from it, outdoors)
@@ -184,7 +233,8 @@ return function(deps)
   -- the PC Games mod's games, in a window, when it's installed
   if deps.pcgames then
     A.register({ id = "pcgames", labelKey = "app.pcgames", label = "PC Games",
-                 glyph = "gamepad", color = { 104, 86, 214 }, order = 35,
+                 glyph = "gamepad", color = { 104, 86, 214 }, order = 35, removable = true, by = "PC Games",
+                 taglineKey = "store.tag.pcgames", descKey = "store.desc.pcgames",
                  available = deps.pcgamesAvailable, window = deps.pcgames })
   end
   -- the bedroom's decorations (Ruby / Sapphire / Emerald): our catalogue, the game's cursor to place one
@@ -206,6 +256,11 @@ return function(deps)
                  return hasRow("hall")(ctx) or (deps.hallTeams ~= nil and deps.hallTeams(ctx) > 0)
                end,
                window = deps.hall, open = not deps.hall and toRow("hall") or nil })
+  -- the App Store: the removable apps, to add to the home screen or take off it
+  if deps.store then
+    A.register({ id = "store", labelKey = "app.store", label = "App Store", glyph = "appstore",
+                 color = { 10, 132, 255 }, order = 69, window = deps.store })
+  end
   if deps.settings then
     A.register({ id = "settings", labelKey = "app.settings", label = "Settings", glyph = "gear",
                  color = { 132, 140, 158 }, order = 70, window = deps.settings })

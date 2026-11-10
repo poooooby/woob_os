@@ -113,15 +113,15 @@ local function ctxWith(mode, rows)
   ctx.row = function(id) for i, row in ipairs(ctx.rows) do if row.id == id then return i - 1 end end end
   return ctx
 end
-T.eq(ids(Apps.list(ctxWith("select", rowsAll))), "storage items map mail gts mart auction slots oak hall settings logoff",
+T.eq(ids(Apps.list(ctxWith("select", rowsAll))), "storage items map mail gts mart auction slots oak hall store settings logoff",
   "a cleared game's PC: every app")
 T.eq(ids(Apps.list(ctxWith("select", { { id = "storage" }, { id = "player" }, { id = "quit" } }))),
-  "storage items map mail gts mart auction slots settings logoff", "early on: no Oak's PC, no Hall of Fame")
-T.eq(ids(Apps.list(ctxWith("bedroom"))), "items map mail gts mart auction slots settings logoff", "the bedroom PC: Items, Map, Mail, GTS, Mart, R-Bay, Slots, Settings")
+  "storage items map mail gts mart auction slots store settings logoff", "early on: no Oak's PC, no Hall of Fame")
+T.eq(ids(Apps.list(ctxWith("bedroom"))), "items map mail gts mart auction slots store settings logoff", "the bedroom PC: Items, Map, Mail, GTS, Mart, R-Bay, Slots, Settings")
 do
   local c = ctxWith("bedroom")
   c.family = "rse"
-  T.eq(ids(Apps.list(c)), "items map mail gts mart auction slots decorate settings logoff", "Ruby / Sapphire / Emerald's bedroom: Decorate too")
+  T.eq(ids(Apps.list(c)), "items map mail gts mart auction slots decorate store settings logoff", "Ruby / Sapphire / Emerald's bedroom: Decorate too")
 end
 T.check(not Apps.register({ id = "storage", open = noop }), "an id can't be taken twice")
 T.check(not Apps.register({ id = "x" }), "an app needs open()")
@@ -269,7 +269,7 @@ openPc({ startMode = "player_pc", bedroom = true })
 st = D.state()
 T.check(D.isOpen() and st.ctx.mode == "bedroom", "the bedroom PC opens the desktop")
 local rse = st.ctx.family == "rse"
-T.eq(#st.grid + #st.dock, rse and 10 or 9, "with Items, Map, Mail, GTS, Mart, R-Bay, Slots, Settings and Log Off" .. (rse and ", Decorate" or ""))
+T.eq(#st.grid + #st.dock, rse and 11 or 10, "with Items, Map, Mail, GTS, Mart, R-Bay, Slots, the App Store, Settings and Log Off" .. (rse and ", Decorate" or ""))
 D.skipBoot()
 draw(40)
 if rse then
@@ -2532,6 +2532,113 @@ end)() end
     collectgarbage("restart")
   end
   T.check(best < 0.5, string.format("all 33 together make next to no garbage (%.3f KB/frame)", best))
+end)()
+
+-- ------- the App Store: what can be removed, the window, the home screen following it
+;(function()
+  local function onHome(id)
+    for i, app in ipairs(st.grid) do if app.id == id then return i end end
+    for i, app in ipairs(st.dock) do if app.id == id then return i end end
+  end
+  for _, id in ipairs({ "storage", "items", "mail", "map", "oak", "hall", "decorate", "phone", "condition", "ribbons",
+                        "settings", "store", "logoff" }) do
+    T.check(not Apps.setInstalled(id, false), id .. " can't be removed")
+    T.check(Apps.byId(id) == nil or Apps.isInstalled(id), "and stays")
+  end
+  T.check(Apps.byId("store") ~= nil and not Apps.byId("store").removable, "the App Store can't remove itself")
+  T.check(not Apps.setInstalled("test1", false), "an app the registry wasn't told is removable stays")
+  local X_S = X._test.settings
+  local kept0 = X_S.get("removedApps", nil)
+  local home0 = onHome("auction")
+  T.check(home0 ~= nil, "R-Bay starts on the home screen")
+
+  T.check(D.openApp("store"), "the App Store opens")
+  local W0 = D.window()
+  local ss = W0.state
+  draw(3)
+  local function rowOf(id)
+    for i, row in ipairs(ss.rows) do if row.id == id then return i, row end end
+  end
+  T.check(rowOf("gts") and rowOf("mart") and rowOf("auction") and rowOf("slots"), "WoobOS's extras are in it")
+  T.check(rowOf("storage") == nil and rowOf("map") == nil and rowOf("store") == nil, "the game's own apps aren't")
+  local iFlame, flame = rowOf("ext_flame")
+  T.check(flame ~= nil and flame.app.fromMod == true, "another mod's app is")
+  T.check(ss.rows[iFlame - 1].app.fromMod ~= true or iFlame > 1, "after WoobOS's own")
+  T.check(ss.hero ~= nil and ss.pick == 0, "a featured app, first in the list")
+  T.eq(#ss.cards, 2, "two groups: WoobOS's and the mods'")
+
+  -- by buttons: down to R-Bay, its page, Remove (Cancel first), Remove
+  local iAuc = rowOf("auction")
+  for _ = 1, iAuc do press("down") end
+  T.eq(ss.pick, iAuc, "the D-pad walks the list")
+  press("a")
+  T.check(ss.page ~= nil and ss.page.id == "auction", "A: its page")
+  draw(2)
+  press("right")
+  T.eq(ss.act, 2, "Remove is next to Open")
+  press("a")
+  T.check(ss.confirm ~= nil and ss.confirm.cursor == 2, "it asks, Cancel chosen")
+  press("a")
+  T.check(ss.confirm == nil and Apps.isInstalled("auction"), "Cancel keeps it")
+  press("a")
+  press("left")
+  press("a")
+  T.check(not Apps.isInstalled("auction"), "Remove: gone")
+  T.eq(X_S.get("removedApps", nil), "auction", "kept with the settings")
+  T.check(onHome("auction") == nil, "and off the home screen at once")
+  T.check(ss.page ~= nil and not ss.page.installed, "the page stays, ready to GET")
+  draw(2)
+  local listed = false
+  for _, app in ipairs(Apps.list({ mode = "pad", row = function() end })) do listed = listed or app.id == "auction" end
+  T.check(not listed, "and off WoobPad")
+  T.check(#ss.rows > 0 and rowOf("auction") ~= nil, "still in the store")
+
+  press("a")
+  T.check(Apps.isInstalled("auction") and onHome("auction") == home0, "GET: back in its old place")
+  T.check(ss.job ~= nil and ss.job.id == "auction", "the ring fills")
+  press("a")
+  T.check(W0 == D.window(), "and nothing opens until it's done")
+  draw(90)
+  T.check(ss.job == nil and ss.toast ~= nil, "installed, it says so")
+  press("b")
+  T.check(ss.page == nil and D.window() == W0, "B: back to the list")
+
+  -- by touch: a row's own GET
+  Apps.setInstalled("slots", false)
+  T.check(D.openApp("store"), "(opened again, as the player would find it)")
+  W0 = D.window()
+  ss = W0.state
+  draw(3)
+  T.check(not select(2, rowOf("slots")).installed, "a removed app shows GET")
+  W0.tap(2000 + rowOf("slots"))
+  T.check(Apps.isInstalled("slots"), "a tap on GET installs from the list")
+  draw(90)
+  local kb = garbageOf(120)
+  T.check(kb < 0.5, string.format("the list makes next to no garbage (%.3f KB/frame)", kb))
+  W0.tap(1000 + rowOf("slots"))
+  T.check(ss.page ~= nil and ss.page.id == "slots", "a tap on a row: its page")
+  draw(2)
+  kb = garbageOf(120)
+  T.check(kb < 0.5, string.format("its page makes next to no garbage (%.3f KB/frame)", kb))
+  local _, rSlots = rowOf("slots")
+  W0.tap(3000 + 1)
+  T.check(D.window() ~= W0 and D.state().winApp == rSlots.app, "OPEN: the app, in place of the store")
+  D.closeWindow()
+  draw(60)
+
+  -- a removed app's notification still opens it, and a new session keeps it removed
+  Apps.setInstalled("gts", false)
+  st.ctx.logoff()
+  openPc({ startMode = "select" })
+  st = D.state()
+  D.skipBoot()
+  draw(30)
+  T.check(onHome("gts") == nil, "removed stays removed the next time the PC is on")
+  T.check(D.openApp("gts"), "but a notification can still open it")
+  D.closeWindow()
+  draw(60)
+  Apps.setInstalled("gts", true)
+  X_S.set("removedApps", kept0)
 end)()
 
 st.ctx.logoff()

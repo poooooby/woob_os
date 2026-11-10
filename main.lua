@@ -65,6 +65,7 @@ return function(mod)
   local makeGts, gtsWindow = loadSibling(mod, "src/gts.lua"), loadSibling(mod, "src/apps/gts.lua")
   local makeNotify = loadSibling(mod, "src/notify.lua")
   local Icons = loadSibling(mod, "src/icons.lua")
+  local storeWindow = loadSibling(mod, "src/apps/appstore.lua")
   local makeMapModel, makeMapRender = loadSibling(mod, "src/map3d/model.lua"), loadSibling(mod, "src/map3d/render.lua")
   local mapScene, makeTownMap = loadSibling(mod, "src/map3d/scene.lua"), loadSibling(mod, "src/townmap.lua")
   local makeTowns = loadSibling(mod, "src/map3d/towns.lua")
@@ -527,6 +528,9 @@ return function(mod)
   end
   local Apps = makeApps({
     icons = Icons,
+    store = storeWindow,
+    removed = Settings and function() return Settings.get("removedApps", "") end or nil,
+    saveRemoved = Settings and function(text) Settings.set("removedApps", text) end or nil,
     boxes = env.bx and boxesWindow and boxesView
       and function(ctx, e) return boxesWindow(ctx, e, boxesView) end or nil,
     items = env.inv and itemsWindow or nil,
@@ -640,6 +644,9 @@ return function(mod)
   env.pad = { transfer = function(id, dir, kind)
     if Desktop.isOpen() then Desktop.padTransfer(id, dir, kind) end
   end }
+  -- (the App Store: the registry, and an app's icon in a window)
+  env.apps = Apps
+  env.appIcon = function(app, x, y, size) Desktop.appIcon(app, x, y, size) end
   -- (money in a window, with the game's sign: the Mart)
   env.amount = function(n, x, y, size, c, measure) return Desktop.amount(n, x, y, size, c, measure) end
   -- once a second, wherever the player is: R-Bay's auctions and the GTS settle (their
@@ -703,6 +710,8 @@ return function(mod)
   -- color, order, dock, available, open | window } ; exports.apps.icons() -> the pictures to choose from
   mod.exports.apps = {
     register = function(app)
+      -- (another mod's app is always the player's to keep or remove)
+      if type(app) == "table" then app.removable, app.fromMod = true, true end
       local ok, why = Apps.register(app)
       if not ok then mod.log:warn("an app wasn't added: %s", tostring(why)) end
       return ok, why

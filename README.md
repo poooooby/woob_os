@@ -39,7 +39,7 @@ opens a desktop in a sleek monitor instead of a text menu.
   Condition and Ribbons):
   - **Like the PC:** the same home screen and dock (arranged the same way), the menu bar with your
     money and the time, your wallpaper, and the same apps in the same windows: Boxes, Items, Mail,
-    Map, Phone, Condition, Ribbons, GTS, Mart, R-Bay, Slots and Settings, plus Oak's PC and the
+    Map, Phone, Condition, Ribbons, GTS, Mart, R-Bay, Slots, the App Store and Settings, plus Oak's PC and the
     Hall of Fame once you've earned them.
   - **Made for touch:** tap, swipe between pages, drag in windows; the buttons work just as well.
   - **Notifications:** pull down from the top of the screen (or choose Notifications in the W
@@ -79,6 +79,9 @@ opens a desktop in a sleek monitor instead of a text menu.
     switches to the Sevii Islands once your Town Map shows them.
   - **The classic map:** START opens the game's own map instead, and Settings can keep it for
     good.
+- 🛍️ **App Store:** choose what's on your home screen. R-Bay, Slots, the GTS, the Mart, PC Games and
+  any app another mod adds can be removed and got back whenever you like, on the PC and WoobPad alike,
+  and anything they've saved stays. The game's own PC and PokéNav apps can't be removed.
 - 🔔 **Notifications:** WoobOS tells you when you're outbid on R-Bay (your money is already back),
   when an auction you're in is about to end (10 minutes before, or 5, 15 or 30: your choice in
   Settings), when you win or lose one, and when your GTS
@@ -217,7 +220,7 @@ opens a desktop in a sleek monitor instead of a text menu.
 - ℹ️ **About:** which version you're running, in the W menu at the top left.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
 
-Boxes, Items, Map, Phone, Condition, Ribbons, GTS, Mart, R-Bay, Slots, Mail, Oak's PC, the Hall of Fame, Decorate and Settings open in a window on the desktop, in the style of macOS and iOS:
+Boxes, Items, Map, Phone, Condition, Ribbons, GTS, Mart, R-Bay, Slots, Mail, Oak's PC, the Hall of Fame, Decorate, the App Store and Settings open in a window on the desktop, in the style of macOS and iOS:
 white cards on a soft grey, segmented switches, and a blue ring round whatever the controller is
 on. B or the red button closes it.
 
@@ -242,7 +245,7 @@ turn it on for your Generation 3 games.
   and pays money as a Poké Mart does. The only things WoobOS keeps in your save are your R-Bay bids
   and results, your Rocket Tickets and a Pokémon you've put on the GTS, so you can turn the mod on and off whenever you like (bids still running wait for
   it to come back).
-- **Other mods:** other mods can add their own apps to the desktop.
+- **Other mods:** other mods can add their own apps to the desktop, and the App Store lets you keep or remove them.
 - **WoobleDex:** Boxes shows every box of its Bigger PC (40 instead of 14). R-Bay auctions its Pokémon too, its legendaries and mythicals in their tiers. The
   Boxes preview shows a Pokémon's Dynamax Level and G-Max Factor (from
   WoobleDex's Dynamax Candy and Max Soup, or Max Raids' dens), as the game's summary does.

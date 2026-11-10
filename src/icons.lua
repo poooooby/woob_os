@@ -366,6 +366,19 @@ function DRAW.pokedollar(G)
   G.line(-0.24, 0.205, 0.13, 0.205)
 end
 
+-- (the App Store's own: not one of the names offered to other mods)
+function DRAW.appstore(G)
+  G.setLineWidth(0.082)
+  G.line(-0.25, 0.25, 0.02, -0.27)
+  G.line(0.25, 0.25, -0.02, -0.27)
+  G.line(-0.32, 0.09, 0.32, 0.09)
+  G.circle("fill", -0.25, 0.25, 0.041)
+  G.circle("fill", 0.25, 0.25, 0.041)
+  G.circle("fill", -0.32, 0.09, 0.041)
+  G.circle("fill", 0.32, 0.09, 0.041)
+  G.circle("fill", 0, -0.27, 0.05)
+end
+
 local Ic = {
   NAMES = { "controller", "screen", "headphones", "speaker", "cube", "letters", "check", "eye", "glove", "hook",
     "reel", "flame", "flower", "weight", "medal", "chart", "pokeball", "fish", "mic", "building", "bag", "shoes",
