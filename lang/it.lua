@@ -465,6 +465,8 @@ return {
     ["settings.pokenavNote"] = "Rubino, Zaffiro e Smeraldo: il Match Call (Occhio Allenatore) e la Condizione del PokéNav aprono le app di WoobOS.",
     ["app.map"] = "Mappa",
     ["app.store"] = "App Store",
+    ["gear.back"] = "Gear",
+    ["gear.locked"] = "Prima finisci nel gioco",
     ["store.featured"] = "IN EVIDENZA",
     ["store.get"] = "OTTIENI",
     ["store.open"] = "APRI",

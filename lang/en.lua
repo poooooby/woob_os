@@ -477,6 +477,8 @@ return {
     ["settings.pokenavNote"] = "Ruby, Sapphire and Emerald: the PokéNav's Match Call (Trainer's Eyes) and Condition open WoobOS's Phone and Condition apps.",
     ["app.map"] = "Map",
     ["app.store"] = "App Store",
+    ["gear.back"] = "Gear",
+    ["gear.locked"] = "Finish up in the game first",
     ["store.featured"] = "FEATURED",
     ["store.get"] = "GET",
     ["store.open"] = "OPEN",

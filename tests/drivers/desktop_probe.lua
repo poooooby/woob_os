@@ -1432,6 +1432,43 @@ local function body(game, log)
     check(closedA and not D.isOpen(), "App Store: logged off")
   end
 
+  -- Kanto Gear's tiles, when that mod's on: registered with the real one, opened as a tile would
+  do
+    local Gear = X._test.gear
+    local specs = Gear and Gear.specs or {}
+    log("Kanto Gear apps registered: " .. #specs)
+    if #specs > 0 then
+      local function settleG(secs)
+        local untilG = love.timer.getTime() + (secs or 1)
+        waitFor(function() return love.timer.getTime() > untilG end, 600)
+      end
+      for _, spec in ipairs(specs) do
+        check(Gear.results[spec.id] == true, "Gear: " .. spec.id .. " accepted (" .. tostring(Gear.results[spec.id]) .. ")")
+      end
+      check(waitFor(function() return Sh.free(game) end, 600), "Gear: free in the field")
+      settleG()
+      shot("d23_gear_field")
+      U.tap(game, "start")
+      check(waitFor(function() return not Sh.free(game) end, 240), "Gear: the START menu up")
+      check(not specs[1].open() and not specs[1].shown(), "Gear: refused while it's up")
+      U.tap(game, "b")
+      check(waitFor(function() return Sh.free(game) end, 600), "Gear: free again")
+      settleG(0.5)
+      local Gp = X._test.gearPanel
+      for _, spec in ipairs(specs) do
+        check(spec.open() and spec.shown(), "Gear: " .. spec.id .. " opens")
+        check(Sh.free(game) and not Stack.has(Sh.MAP_ID), "Gear: the game runs on beside it")
+        settleG(1.5)
+        log("Gear: " .. spec.id .. " on the " .. tostring(Gp.mode()) .. " screen")
+        shot("d23_" .. spec.id)
+        Sh.closeGear()
+        check(not spec.shown() and not Gp.isOpen(), "Gear: " .. spec.id .. " closed")
+        settleG(0.4)
+      end
+      shot("d23_gear_back")
+    end
+  end
+
   -- WoobPad: START, its row, the home screen, the apps (each one), the notifications, B: the
   -- START menu again
   local Wt, Nt = X._test.pad, X._test.notify

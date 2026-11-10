@@ -549,5 +549,176 @@ T.check(notesKb < 0.5, ("the notifications: next to no garbage (%.3f KB a frame)
 FrlgFont.drawGlyph = realGlyph
 st.ctx.done()
 
+-- ------- the Kanto Gear apps: through its public hook, stood in
+;(function()
+  local Gear, Tm = X._test.gear, X._test.townmap
+  local registered = {}
+  local hook = { api = 1, register = function(spec) registered[#registered + 1] = spec; return true end }
+  local find0 = Gear.find
+  T.eq(#Gear.specs, 0, "no Kanto Gear: nothing registered")
+  Gear.find = function() return { exports = { modules = { api = 2, register = hook.register } } } end
+  Gear.bind()
+  T.eq(#registered, 0, "an api it doesn't know: nothing either")
+  Gear.find = function(id) return id == "kanto_gear" and { exports = { modules = hook } } or nil end
+  Gear.bind()
+  Gear.bind()
+  T.eq(#registered, 3, "three tiles, once however often the game's ready")
+  local ACCENT = { blue = true, amber = true, red = true, green = true, slate = true }
+  local byApp = {}
+  for _, spec in ipairs(registered) do
+    byApp[spec.id] = spec
+    T.check(spec.id:match("^[a-z0-9_]+$") ~= nil, spec.id .. ": a valid id")
+    T.check(#spec.label <= 20 and #spec.description >= 1 and #spec.description <= 3 and ACCENT[spec.accent] ~= nil,
+      spec.id .. ": within the hook's limits")
+    T.check(spec.available({ generation = 3 }) and not spec.available({ generation = 1 }), spec.id .. ": Gen 3 only")
+    for code, words in pairs(spec.translations) do
+      T.check(words[spec.description[1]] ~= nil and words[spec.description[2]] ~= nil, spec.id .. ": " .. code)
+    end
+    T.check(pcall(spec.icon, 0, 0, false) and pcall(spec.icon, 0, 0, true), spec.id .. ": its icon draws, and greyed")
+  end
+  T.check(byApp.woob_slots and byApp.woob_rbay and byApp.woob_gts, "Slots, R-Bay and the GTS")
+
+  local free0 = Sh.free
+  local gts, slots = byApp.woob_gts, byApp.woob_slots
+  local Gp, K = X._test.gearPanel, X._test.kit
+  local bridge0 = Gp.bridge
+  Gp.bridge = nil
+  local function full(c) return { x = 0, y = 0, width = c.width, height = c.height } end
+  local function frame(nxt)
+    local rect = Gp.viewport(nxt or full, { width = 480, height = 320 })
+    Gp.frame()
+    return rect
+  end
+  local function tap(x, y, id)
+    local a = Gp.pointer({ id = id or 1, phase = "pressed", x = x, y = y })
+    local b = Gp.pointer({ id = id or 1, phase = "released", x = x, y = y })
+    return a and b
+  end
+  -- (a hit over the whole of the app's body, last on top)
+  local tapped
+  local function spy()
+    local st = Gp.hostState()
+    local d = st.win.draw
+    st.win.draw = function(b, c, p) d(b, c, p); K.addHit(b, "win", 99) end
+    st.win.tap = function(arg) tapped = arg end
+    tapped = nil
+  end
+
+  Sh.free = function() return false end
+  T.check(not gts.open() and not gts.shown() and not Gp.isOpen(), "not free in the field: refused, nothing opened")
+  Sh.free = function() return true end
+  T.check(gts.open(), "free: it opens")
+  T.check(gts.shown() and not slots.shown(), "the Gear stands down for that one")
+  T.check(Gp.isOpen() and not Tm.isOpen() and not Stack.has(Sh.MAP_ID) and not Wt.isOpen(),
+    "on its own screen: nothing on the game's stack, the PC's and pad's hosts untouched")
+  T.check(not slots.open(), "and no second one over it")
+
+  -- no second display: under the game
+  local rect = frame()
+  T.eq(Gp.mode(), "stacked", "no second display: in the window")
+  T.check(rect.y == 0 and rect.width == 480 and rect.height == 160, "the game above it")
+  spy()
+  frame()
+  T.check(Gp.pointer({ id = 2, phase = "pressed", x = 240, y = 50 }) == false, "a press on the game's half is the game's")
+  T.check(tap(240, 240) and tapped == 99, "a tap on the panel is the app's")
+  K.frame(G, FVP, Tm.PAGE, 0)
+  tapped = nil
+  T.check(tap(240, 240) and tapped == 99, "and survives another host drawing in the same frame")
+  Gp.pointer({ id = 3, phase = "pressed", x = 240, y = 240 })
+  T.check(Gp.pointer({ id = 3, phase = "released", x = 240, y = 50 }) == true, "a press that began on the panel ends there")
+
+  -- the game busy above it
+  Sh.free = function() return false end
+  frame()
+  tapped = nil
+  tap(240, 240)
+  T.eq(tapped, nil, "the game busy: locked")
+  T.check(gts.shown(), "but still up")
+  Sh.free = function() return true end
+  frame()
+  tap(240, 240)
+  T.eq(tapped, 99, "free again: it works")
+
+  -- a traded Pokémon's evolution: on the game's screen, this one locked, then made again
+  local finished
+  Gp.hostState().ctx.over(function(onClose) finished = onClose end, { tab = "deposit" })
+  T.check(gts.shown() and Gp.isOpen() and not Stack.has(Sh.MAP_ID), "over: the game's screen, this one stays")
+  frame()
+  tapped = nil
+  tap(240, 240)
+  T.eq(tapped, nil, "and is locked meanwhile")
+  local oldWin = Gp.hostState().win
+  finished()
+  T.check(Gp.isOpen() and Gp.hostState().win ~= oldWin and gts.shown(), "the app again after")
+  frame()
+
+  -- the toolbar's way back
+  T.check(tap(50, 166) and not gts.shown() and not Gp.isOpen(), "< Gear closes it, the Gear comes back")
+
+  -- where the Gear's combined layout was
+  local function tall(c) return { x = 0, y = 0, width = c.width, height = 200 } end
+  T.eq(frame(tall).height, 200, "(the Gear's own layout, seen while it's up)")
+  T.check(gts.open(), "open again")
+  T.eq(frame().height, 200, "the game stays where the Gear had it")
+  T.check(Gp.pointer({ id = 4, phase = "pressed", x = 240, y = 190 }) == false, "and the panel starts under it")
+  Sh.closeGear()
+  T.check(not gts.shown(), "closed by a reset")
+
+  -- a separate display: the game keeps the window, frames and taps go through the bridge
+  frame()
+  local pushes, last, queue, freed = 0, nil, {}, 0
+  Gp.bridge = function()
+    return { available = function() return true end,
+             push = function(d, w, h, b, p) pushes = pushes + 1; last = { w = w, h = h, p = p } end,
+             pollTouch = function() return table.remove(queue, 1) end }
+  end
+  local newCanvas0, getCanvas0 = love.graphics.newCanvas, love.graphics.getCanvas
+  local getTime0, tick = love.timer.getTime, 100
+  love.timer.getTime = function() return tick end
+  local canvasFake = { newImageData = function() return { release = function() freed = freed + 1 end } end, release = function() end }
+  love.graphics.newCanvas = function() return canvasFake end
+  T.check(gts.open(), "with a second display")
+  rect = frame()
+  T.eq(Gp.mode(), "external", "it goes there")
+  T.check(rect.width == 480 and rect.height == 320, "the game keeps the whole window")
+  T.check(pushes == 1 and last.w == 720 and last.h == 480 and last.p == "secondary" and freed == 1, "a frame sent, its memory let go")
+  frame()
+  T.eq(pushes, 1, "(at most thirty a second)")
+  T.check(Gp.pointer({ id = 5, phase = "pressed", x = 240, y = 240 }) == false, "the window's own touches are the game's")
+  spy()
+  tick = tick + 1
+  frame()
+  queue[1], queue[2] = "down,360,240", "up,360,240"
+  tick = tick + 1
+  frame()
+  T.eq(tapped, 99, "its taps are the app's")
+  local scrolled
+  Gp.hostState().win.scroll = function(dy) scrolled = dy end
+  tapped = nil
+  queue[1], queue[2] = "down,360,200", "up,360,320"
+  tick = tick + 1
+  frame()
+  T.check(scrolled == 40 and tapped == nil, "a release elsewhere is a drag (" .. tostring(scrolled) .. ")")
+  queue[1], queue[2] = "down,20,20", "up,20,20"
+  tick = tick + 1
+  frame()
+  T.check(not gts.shown(), "< Gear from the second display")
+  love.graphics.newCanvas, love.graphics.getCanvas, love.timer.getTime = newCanvas0, getCanvas0, getTime0
+
+  Gp.bridge = nil
+  frame()
+  for _, id in ipairs({ "woob_slots", "woob_rbay" }) do
+    T.check(byApp[id].open() and byApp[id].shown(), id .. " opens")
+    FrlgFont.drawGlyph = function() return 7 end
+    frame()
+    local kb = garbageOf(60, nil, function() Gp.frame() end)
+    FrlgFont.drawGlyph = realGlyph
+    T.check(kb < 0.5, id .. (": next to no garbage (%.3f KB a frame)"):format(kb))
+    Gp.hostState().ctx.done()
+    T.check(not byApp[id].shown() and not Gp.isOpen(), id .. " closes")
+  end
+  Sh.free, Gear.find, Gp.bridge = free0, find0, bridge0
+end)()
+
 run.release()
 T.finish("woob_os pad (" .. GAME .. ")")

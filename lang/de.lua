@@ -466,6 +466,8 @@ return {
     ["settings.pokenavNote"] = "Rubin, Saphir und Smaragd: Match Call (Trainer-Auge) und Verfassung des PokéNav öffnen die Apps von WoobOS.",
     ["app.map"] = "Karte",
     ["app.store"] = "App Store",
+    ["gear.back"] = "Gear",
+    ["gear.locked"] = "Mach erst im Spiel weiter",
     ["store.featured"] = "EMPFOHLEN",
     ["store.get"] = "LADEN",
     ["store.open"] = "ÖFFNEN",

@@ -465,6 +465,8 @@ return {
     ["settings.pokenavNote"] = "Rubis, Saphir et Émeraude : le Match Call (Voir Dresseurs) et la Condition du PokéNav ouvrent les applis de WoobOS.",
     ["app.map"] = "Carte",
     ["app.store"] = "App Store",
+    ["gear.back"] = "Gear",
+    ["gear.locked"] = "Terminez d'abord dans le jeu",
     ["store.featured"] = "À LA UNE",
     ["store.get"] = "OBTENIR",
     ["store.open"] = "OUVRIR",

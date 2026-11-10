@@ -66,6 +66,7 @@ return function(mod)
   local makeNotify = loadSibling(mod, "src/notify.lua")
   local Icons = loadSibling(mod, "src/icons.lua")
   local storeWindow = loadSibling(mod, "src/apps/appstore.lua")
+  local makeGear, makeGearPanel = loadSibling(mod, "src/kanto_gear.lua"), loadSibling(mod, "src/gear_panel.lua")
   local makeMapModel, makeMapRender = loadSibling(mod, "src/map3d/model.lua"), loadSibling(mod, "src/map3d/render.lua")
   local mapScene, makeTownMap = loadSibling(mod, "src/map3d/scene.lua"), loadSibling(mod, "src/townmap.lua")
   local makeTowns = loadSibling(mod, "src/map3d/towns.lua")
@@ -380,7 +381,8 @@ return function(mod)
     local w = Desktop and Desktop.isOpen() and Desktop.state()
     if w and w.winApp and w.winApp.id == id then return true end
     local ws = Watch and Watch.isOpen() and Watch.state()
-    return ws and ws.winApp and ws.winApp.id == id or false
+    if ws and ws.winApp and ws.winApp.id == id then return true end
+    return Sh ~= nil and Sh.showing(id)
   end
   local function notify(kind, data, quiet)
     if not Nt then return end
@@ -679,7 +681,15 @@ return function(mod)
     if not (okN and name) then name = okT and info and info.name or "?" end
     env.phone.incoming(s, name, env.phone.textOf(msg) or "", okT and info and info.pic or nil)
   end
+  -- the Kanto Gear apps' own screen, apart from the PC's and WoobPad's
+  local GearPanel = makeTownMap and makeGearPanel and makeGearPanel({
+    host = makeTownMap({ kit = Kit, T = T, env = env, se = env.se, scene = mapScene, keepHits = true,
+                         log = function(fmt, ...) mod.log:warn(fmt, ...) end }),
+    bridge = function() return engine("src.render.SecondScreen") end,
+    log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+  }) or nil
   Sh = makeShell(mod, { require = require, log = mod.log, desktop = Desktop, apps = Apps, watch = Watch,
+                        gearPanel = GearPanel,
                         notify = Nt, tick = tick, session = session,
                         townmap = TownMap, map3d = env.map3d, pokenav = Pokenav,
                         onCall = env.phone and onCall or nil,
@@ -687,6 +697,16 @@ return function(mod)
                         watchRow = function() return not Settings or Settings.get("watchRow", true) ~= false end,
                         watchLabel = function() return T and T("watch.start") or "WATCH" end })
   Sh.enabled = function() return option("desktop", true) ~= false end
+
+  -- Slots, R-Bay and the GTS as Kanto Gear apps, when that mod's on (src/kanto_gear.lua)
+  local Gear = makeGear and makeGear({
+    find = mod.find,
+    open = function(id) return Sh.openFromGear(id) end,
+    shown = function(id) return Sh.gearOpen(id) end,
+    color = function(id) local app = Apps.byId(id); return app and app.color end,
+    glyph = Desktop.glyph,
+    log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+  }) or nil
 
   local okI, errI = pcall(Sh.install)
   if not okI then mod.log:warn("the desktop's hooks failed: %s", tostring(errI)) end
@@ -696,11 +716,14 @@ return function(mod)
     if env.map3d then env.map3d.lastStorm = nil end
     local ok, err = pcall(Sh.ready)
     if not ok then mod.log:warn("the PC keeps its own menu: %s", tostring(err)) end
+    Sh.closeGear()
+    if Gear then pcall(Gear.bind) end
   end)
   -- (a new map or a loaded save: the next PC boots again)
   mod.events:on("map.entered", function() Sh.forget() end)
   mod.events:on("save.loaded", function(ev)
     Sh.forget()
+    Sh.closeGear()
     -- (auctions that ended while the game was closed: settled with the save they belong to)
     if env.auction then pcall(env.auction.settle, ev and ev.save or session()) end
     if env.gts then pcall(env.gts.settle, ev and ev.save or session()) end
@@ -723,5 +746,5 @@ return function(mod)
                         mart = env.mart, auction = env.auction, slots = env.slots, pcgames = env.pcgames, gts = env.gts,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange,
                         watch = Watch, pad = Watch, notify = Nt, tick = tick, map3d = env.map3d, townmap = TownMap,
-                        phone = env.phone, condition = env.condition, ribbons = env.ribbons, hall = env.hall, oak = env.oak, decorate = env.decorate, pokenav = Pokenav, onCall = onCall }
+                        phone = env.phone, condition = env.condition, ribbons = env.ribbons, hall = env.hall, oak = env.oak, decorate = env.decorate, pokenav = Pokenav, onCall = onCall, gear = Gear, gearPanel = GearPanel }
 end

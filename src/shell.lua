@@ -37,6 +37,9 @@
 --                           pokenav (src/pokenav.lua) ; onCall(session, trainerId, msg) (a field call)
 --   Sh.install() (load: the hooks) ; Sh.ready() (game.ready: the PC menu wrap) ; Sh.layer ;
 --   Sh.openWatch(session, opts) (opts: { app, state } to open an app at once) ; Sh.free(game) ;
+--   Sh.openFromGear(appId, game) -> true (a Kanto Gear tile: the app on the Gear's screen, src/gear_panel.lua,
+--   only with the player free in the field) ; Sh.gearOpen(appId) ; Sh.closeGear() ; Sh.showing(id) -> that
+--   app is up in a full-screen host or on the Gear's screen ;
 --   Sh.openTownMap(opts, orig, family) (the wrapped show()'s)
 
 return function(mod, deps)
@@ -176,6 +179,7 @@ return function(mod, deps)
 
   -- (back from an app the script ran: the next PC menu skips the boot and zooms back into it)
   local warm = nil
+  local curGame = nil
   function Sh.forget() warm = nil end
 
   -- the desktop in place of the game's menu; false: let the game's menu open
@@ -396,6 +400,63 @@ return function(mod, deps)
     return true
   end
 
+  -- ------- the Kanto Gear apps: their own host on the Gear's screen (src/gear_panel.lua), no layer on
+  -- the game's stack; the PC's and WoobPad's windows are the other hosts', and don't change
+  local Gp = deps.gearPanel
+  local closeGear = nil
+  function Sh.gearOpen(appId)
+    if not (Gp and Gp.isOpen()) then return false end
+    return appId == nil or Gp.app() == appId
+  end
+  function Sh.closeGear() if closeGear then closeGear() end end
+  function Sh.showing(id)
+    local st = Tm and Tm.isOpen() and Tm.state()
+    return (st and st.ctx.app == id) or (Gp ~= nil and Gp.isOpen() and Gp.app() == id) or false
+  end
+
+  -- a Kanto Gear tile: R-Bay, Slots or the GTS. They change the party and the money, so they open only
+  -- with the player free in the field, and lock (opts.locked) while the game above them is busy
+  function Sh.openFromGear(appId, game)
+    if not Gp or Gp.isOpen() or not Sh.free(game or curGame) then return false end
+    local app = A.byId(appId)
+    local s = deps.session and deps.session()
+    if not (app and app.window and s) then return false end
+    local ctx = { session = s, mode = "gear", family = familyOf(gameId()), rows = {}, app = appId }
+    function ctx.row() return nil end
+    local closed, over = false, false
+    local so
+    local function close()
+      if closed then return end
+      closed = true
+      closeGear = nil
+      Gp.close()
+    end
+    ctx.finish, ctx.done, ctx.logoff = close, close, close
+    -- one of the game's screens (a traded Pokémon evolving) up on the game's own screen, this one
+    -- locked meanwhile and made again after it
+    function ctx.over(open, resume)
+      over = true
+      local function back()
+        if closed then return end
+        over = false
+        ctx.resume = { app = appId, state = resume }
+        Gp.reopen(ctx, so)
+      end
+      local ok, err = pcall(open, back)
+      if not ok then
+        if log then log:warn("the game's screen failed to open: %s", tostring(err)) end
+        back()
+      end
+    end
+    function ctx.original() end
+    function ctx.sheet() end
+    so = { maker = app.window, app = appId, chrome = true, backKey = "gear.back", cancel = close, noHints = true,
+           locked = function() return over or not Sh.free(curGame) end }
+    if not Gp.open(ctx, so) then return false end
+    closeGear = close
+    return true
+  end
+
   -- the region map modules' show(), wrapped once per process (each calls this instance's `impl`)
   local function wrapMap(name, family)
     local RM = engine(name)
@@ -580,6 +641,7 @@ return function(mod, deps)
   -- a press, a move, a release: the one open takes it; a tap on the field's banner opens the
   -- pad on that notification's app; nil: not ours
   function Sh.pointer(ev)
+    if Gp and Gp.pointer(ev) then return true end
     local h = host()
     if h then return h.pointer(ev) end
     if Nt and type(ev) == "table" and ev.phase == "pressed" then
@@ -624,16 +686,27 @@ return function(mod, deps)
       return nxt(ctx, op, row, ...)
     end)
     mod.hooks:wrap("render.hud", function(nxt, game, viewport)
+      curGame = game
       local res = nxt(game, viewport)
+      if Gp then
+        local okG, errG = pcall(Gp.frame)
+        if not okG and log then log:warn("the Gear's screen failed: %s", tostring(errG)) end
+      end
       Sh.frame(game, viewport)
       return res
     end)
+    -- (the Kanto Gear apps' screen: outside the Gear's own wraps, which stand down while it's up)
+    if Gp then
+      mod.hooks:wrap("render.viewport", function(nxt, ctx) return Gp.viewport(nxt, ctx) end, 1100)
+      mod.hooks:wrap("render.window", function(nxt, game, ctx) return Gp.window(nxt, game, ctx) end, 1100)
+    end
     mod.hooks:wrap("input.pointer", function(nxt, game, ev)
       local used = Sh.pointer(ev)
       if used ~= nil then return used end
       return nxt(game, ev)
     end)
     mod.hooks:wrap("input.wheel", function(nxt, game, dy)
+      if Gp and Gp.wheel(dy) then return end
       local h = host()
       if h then return h.wheel(dy) end
       return nxt(game, dy)

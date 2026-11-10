@@ -465,6 +465,8 @@ return {
     ["settings.pokenavNote"] = "Rubi, Safira e Esmeralda: o Match Call (Olho de Treinador) e a Condição do PokéNav abrem os apps do WoobOS.",
     ["app.map"] = "Mapa",
     ["app.store"] = "App Store",
+    ["gear.back"] = "Gear",
+    ["gear.locked"] = "Termine no jogo primeiro",
     ["store.featured"] = "EM DESTAQUE",
     ["store.get"] = "OBTER",
     ["store.open"] = "ABRIR",

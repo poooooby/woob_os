@@ -465,6 +465,8 @@ return {
     ["settings.pokenavNote"] = "Rubí, Zafiro y Esmeralda: el Match Call (Ojo Entrenador) y el Estado del PokéNav abren las apps de WoobOS.",
     ["app.map"] = "Mapa",
     ["app.store"] = "App Store",
+    ["gear.back"] = "Gear",
+    ["gear.locked"] = "Termina primero en el juego",
     ["store.featured"] = "DESTACADA",
     ["store.get"] = "OBTENER",
     ["store.open"] = "ABRIR",

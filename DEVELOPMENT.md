@@ -9,6 +9,7 @@ For people working on the mod. Players want [README.md](README.md).
 | `main.lua` | Wiring: loads the modules below, the engine reads they need (session, clock, the Pokédollar glyph), options, `mod.exports` |
 | `src/ui_kit.lua` | The drawing kit: page layout on the window's safe area, rect / hit pools, memoised colours, cached gradient meshes, text, the metal plate, the W logo, hints, toast |
 | `src/apps.lua` | The app registry and the built-in apps |
+| `src/kanto_gear.lua` | Slots, R-Bay and the GTS as Kanto Gear apps, through its public hook |
 | `src/icons.lua` | The pictures an app's icon can use: other mods choose one by name |
 | `src/apps/appstore.lua` | The App Store window: the removable apps, GET / OPEN, an app's page |
 | `src/desktop.lua` | The desktop: monitor, boot, menu bar, home grid with pages, dock, W menu, sheets, buttons / touch / mouse |
@@ -164,6 +165,27 @@ A window may also have:
 
 `ctx.over(open, state)` opens one of the game's screens. When it closes, the window comes back at
 once, handed `ctx.resume = { app, state }`. Boxes uses this for Summary and Rename.
+
+## Kanto Gear
+
+`src/kanto_gear.lua` registers Slots, R-Bay and the GTS with Kanto Gear's public hook
+(`exports.modules`, api 1) at `game.ready`, once, and only when that mod is on. No Kanto Gear file is
+involved and none of its code is used. The Silph Store and the App Store are independent.
+
+A tile opens the app on its own screen, separate from the PC's and WoobPad's windows: `src/gear_panel.lua`, a
+second `src/townmap.lua` host (`keepHits`, because it shares the kit with whichever other host drew that
+frame) with nothing on the game's stack, so the game runs on. Physical buttons stay with the game; the app
+takes touch and the mouse. While `shown` is true the Gear stands down and hands over the layout, so:
+
+- With a separate display (`SecondScreen.available()`, and the Gear not in a combined layout just before it
+  opened), a 720 x 480 canvas goes out at 30 frames a second and taps come back through `pollTouch`. The
+  desktop companion sends only presses and releases, so a release elsewhere is treated as a drag.
+- Otherwise it sits in the window through `render.viewport` / `render.window`, where the Gear's combined layout
+  was, or under the game in the bottom half.
+
+It opens only when `Sh.free(game)`, and locks (`opts.locked`: the toolbar's way back still works) whenever
+the game above stops being free, because these apps change the party and the money. A GTS evolution runs on
+the game's screen through `ctx.over`, locked, and the window is made again after.
 
 ## Arranging the desktop
 

@@ -6,6 +6,9 @@ All notable changes to this mod are documented here, in
 ## [Unreleased]
 
 ### Added
+- **Kanto Gear apps:** Slots, R-Bay and the GTS are in its Silph Store, each opening from its own tile
+  and staying on the Gear's second screen with the game still running. They wait while the game is in
+  a battle, a menu or a conversation.
 - **App Store:** add or remove R-Bay, Slots, the GTS, the Mart, PC Games and any app another mod adds.
   A removed app leaves the home screen and WoobPad, keeps what it saved, and returns to its old
   place when you get it back. The game's PC and PokéNav apps always stay.

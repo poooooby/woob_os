@@ -466,6 +466,8 @@ return {
     ["settings.pokenavNote"] = "ルビー・サファイア・エメラルド：ポケナビの マッチコール（トレーナーアイ）と コンディションが WoobOSの アプリで ひらきます。",
     ["app.map"] = "マップ",
     ["app.store"] = "アプリストア",
+    ["gear.back"] = "ギア",
+    ["gear.locked"] = "さきに ゲームを すすめてね",
     ["store.featured"] = "おすすめ",
     ["store.get"] = "いれる",
     ["store.open"] = "ひらく",

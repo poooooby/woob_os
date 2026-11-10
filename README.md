@@ -246,6 +246,7 @@ turn it on for your Generation 3 games.
   and results, your Rocket Tickets and a Pokémon you've put on the GTS, so you can turn the mod on and off whenever you like (bids still running wait for
   it to come back).
 - **Other mods:** other mods can add their own apps to the desktop, and the App Store lets you keep or remove them.
+- **Kanto Gear:** Slots, R-Bay and the GTS are apps in its Silph Store. Turn them on there and they open on the Gear's own screen, with the game still playing above or beside them. They wait while you're in a battle, a menu or a conversation.
 - **WoobleDex:** Boxes shows every box of its Bigger PC (40 instead of 14). R-Bay auctions its Pokémon too, its legendaries and mythicals in their tiers. The
   Boxes preview shows a Pokémon's Dynamax Level and G-Max Factor (from
   WoobleDex's Dynamax Candy and Max Soup, or Max Raids' dens), as the game's summary does.
