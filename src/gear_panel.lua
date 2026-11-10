@@ -7,7 +7,7 @@
 --   - otherwise, under the game in the window: where the Gear's own combined layout was just before it
 --     stood down, or the bottom half
 --
---   Gp = GearPanel(deps)   deps: host (src/townmap.lua's, with keepHits) ; bridge() -> SecondScreen | nil ; log
+--   Gp = GearPanel(deps)   deps: host (src/townmap.lua's, with keepHits) ; kit ; bridge() -> SecondScreen | nil ; log
 --   Gp.open(ctx, opts) -> true ; Gp.reopen(ctx, opts) ; Gp.close() ; Gp.isOpen() ; Gp.app() ; Gp.mode() ->
 --   "external" | "stacked" | nil ; Gp.bridge (a test swaps it)
 --   Gp.viewport(nxt, ctx) (render.viewport) ; Gp.frame() (render.hud) ; Gp.window(nxt, game, ctx)
@@ -28,7 +28,8 @@ return function(deps)
   local canvas, canvasW, canvasH
   local pushedAt = -1
   local held = {}
-  local VP = { width = 1, height = 1 }
+  local VP = { width = 1, height = 1, noSafeArea = true }
+  local EXACT = { dpiscale = 1 }
   local EV = { id = 1, phase = "pressed", x = 0, y = 0 }
   local extX, extY = 0, 0
 
@@ -119,7 +120,7 @@ return function(deps)
       local ok, event = pcall(ext.pollTouch)
       if not (ok and type(event) == "string") then return end
       local action, sx, sy = event:match("^(%a+),(-?%d+),(-?%d+)$")
-      local x, y = tonumber(sx), tonumber(sy)
+      local x, y = tonumber(sx) or 0, tonumber(sy) or 0
       if action == "down" then
         extX, extY = x, y
         feed("pressed", x, y)
@@ -136,11 +137,16 @@ return function(deps)
     end
   end
 
-  local function canvasOf(G, w, h)
-    if canvas and canvasW == w and canvasH == h then return canvas end
+  local canvasExact = false
+  local function canvasOf(G, w, h, exact)
+    if canvas and canvasW == w and canvasH == h and canvasExact == exact then return canvas end
     if canvas and canvas.release then canvas:release() end
-    canvas = G.newCanvas and G.newCanvas(w, h) or nil
-    canvasW, canvasH = w, h
+    if G.newCanvas then
+      if exact then canvas = G.newCanvas(w, h, EXACT) else canvas = G.newCanvas(w, h) end
+    else
+      canvas = nil
+    end
+    canvasW, canvasH, canvasExact = w, h, exact
     return canvas
   end
 
@@ -158,7 +164,10 @@ return function(deps)
       w, h = EXT_W, EXT_H
     end
     if w < 1 or h < 1 then return end
-    local c = canvasOf(G, w, h)
+    -- (a separate display reads rows of exact pixels, and Android is always high-DPI, where a plain
+    -- canvas holds more pixels than its size: so this one is one pixel a unit, with fonts to match)
+    local exact = ext ~= nil
+    local c = canvasOf(G, w, h, exact)
     local target = c and G.getCanvas()
     G.push("all")
     G.origin()
@@ -170,13 +179,17 @@ return function(deps)
       G.clear(0, 0, 0, 1)
     end
     VP.width, VP.height = w, h
+    if deps.kit then deps.kit.exactFonts(exact) end
     local ok, err = pcall(host.draw, G, VP)
+    if deps.kit then deps.kit.exactFonts(false) end
     if c then G.setCanvas(target) end
     G.pop()
     if not ok then log("the Gear's screen failed to draw: %s", tostring(err)) end
     if ext and c and c.newImageData then
       local data = c:newImageData()
-      local okP, errP = pcall(ext.push, data, w, h, 0, "secondary")
+      local pw, ph = w, h
+      if data and data.getDimensions then pw, ph = data:getDimensions() end
+      local okP, errP = pcall(ext.push, data, pw, ph, 0, "secondary")
       if not okP then log("the second screen failed: %s", tostring(errP)) end
       if data and data.release then data:release() end
     end

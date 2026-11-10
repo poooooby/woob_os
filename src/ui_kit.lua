@@ -110,14 +110,19 @@ return function(deps)
   K.R = R
 
   local fonts = {}
+  -- (a canvas of one pixel a unit, on a high-DPI device, wants fonts of its own: K.exactFonts)
+  local exactFonts, exact = {}, false
+  function K.exactFonts(on) exact = on end
   local function font(px)
     px = max(6, floor(px + 0.5))
-    local f = fonts[px]
+    local cache = exact and exactFonts or fonts
+    local f = cache[px]
     if not f then
-      local ok, made = pcall(G.newFont, px)
+      local ok, made
+      if exact then ok, made = pcall(G.newFont, px, "normal", 1) else ok, made = pcall(G.newFont, px) end
       f = ok and made or G.getFont()
-      if ok and made and deps.fallback then pcall(deps.fallback, made, px) end
-      fonts[px] = f
+      if ok and made and deps.fallback then pcall(deps.fallback, made, px, exact) end
+      cache[px] = f
     end
     return f
   end
@@ -339,7 +344,7 @@ return function(deps)
     local ww = tonumber(vp.width) or (tonumber(vp.gameX) or 0) * 2 + (tonumber(vp.gameWidth) or 240)
     local wh = tonumber(vp.height) or (tonumber(vp.gameY) or 0) * 2 + (tonumber(vp.gameHeight) or 160)
     local ax, ay, aw, ah = 0, 0, ww, wh
-    if deps.safeArea then
+    if deps.safeArea and not vp.noSafeArea then
       local ok, sx, sy, sw, sh = pcall(deps.safeArea)
       if ok and tonumber(sx) and tonumber(sy) and tonumber(sw) and tonumber(sh) then
         -- (inside the window the hud was handed)

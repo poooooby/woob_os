@@ -703,6 +703,35 @@ st.ctx.done()
   tick = tick + 1
   frame()
   T.check(not gts.shown(), "< Gear from the second display")
+  -- a high-DPI device (Android always is): a canvas of exactly the picture's pixels, fonts to match
+  local madeW, madeH, madeOpts
+  local newFont0, fontScale = love.graphics.newFont, nil
+  love.graphics.newFont = function(px, hinting, dpi) fontScale = dpi; return newFont0(px, hinting, dpi) end
+  love.graphics.newCanvas = function(w, h, o)
+    madeW, madeH, madeOpts = w, h, o
+    return { newImageData = function()
+      return { getDimensions = function() return w, h end, release = function() end }
+    end, release = function() end }
+  end
+  T.check(gts.open(), "on a high-DPI device")
+  tick = tick + 1
+  frame()
+  tick = tick + 1
+  frame()
+  T.check(madeW == 720 and madeH == 480 and madeOpts and madeOpts.dpiscale == 1, "the canvas is one pixel a unit")
+  T.check(last.w == 720 and last.h == 480, "and the picture says those pixels")
+  K.frame(G, FVP, Tm.PAGE, 0)
+  K.exactFonts(true)
+  K.width("a size no other test uses", 41.7)
+  K.exactFonts(false)
+  T.eq(fontScale, 1, "its fonts are made one pixel a unit too")
+  K.width("and the window's own", 43.1)
+  T.eq(fontScale, nil, "and the window's stay as they were")
+  love.graphics.newFont = newFont0
+  queue[1], queue[2] = "down,20,20", "up,20,20"
+  tick = tick + 1
+  frame()
+  T.check(not gts.shown(), "< Gear in the picture's own pixels")
   love.graphics.newCanvas, love.graphics.getCanvas, love.timer.getTime = newCanvas0, getCanvas0, getTime0
 
   Gp.bridge = nil

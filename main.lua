@@ -123,18 +123,25 @@ return function(mod)
     -- engine's own Plain Pixel face, as its launcher does it; Latin keeps its look. At the font's
     -- own size, not snapped to Plain Pixel's 15 px grid as the launcher does: snapped, kana came
     -- out half the size of the words around them at some sizes)
-    fallback = function(font, px)
+    fallback = function(font, px, exact)
       if fallbackMissing or not font.setFallbacks then return end
       local size = math.max(6, math.floor(px + 0.5))
-      local f = fallbackFonts[size]
+      -- (exact: for a canvas of one pixel a unit, see K.exactFonts)
+      local key = exact and -size or size
+      local f = fallbackFonts[key]
       if not f then
-        local ok, made = pcall(love.graphics.newFont, FALLBACK_FONT, size)
+        local ok, made
+        if exact then
+          ok, made = pcall(love.graphics.newFont, FALLBACK_FONT, size, "normal", 1)
+        else
+          ok, made = pcall(love.graphics.newFont, FALLBACK_FONT, size)
+        end
         if not (ok and made) then
           fallbackMissing = true
           return
         end
         f = made
-        fallbackFonts[size] = f
+        fallbackFonts[key] = f
       end
       pcall(font.setFallbacks, font, f)
     end,
@@ -685,6 +692,7 @@ return function(mod)
   local GearPanel = makeTownMap and makeGearPanel and makeGearPanel({
     host = makeTownMap({ kit = Kit, T = T, env = env, se = env.se, scene = mapScene, keepHits = true,
                          log = function(fmt, ...) mod.log:warn(fmt, ...) end }),
+    kit = Kit,
     bridge = function() return engine("src.render.SecondScreen") end,
     log = function(fmt, ...) mod.log:warn(fmt, ...) end,
   }) or nil
