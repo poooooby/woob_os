@@ -5,6 +5,15 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **App icons for other mods:** 33 pictures to choose from (a controller, a flame, a Poké Ball, a
+  Pokédollar sign and more), on a tile in any colour. `exports.apps.icons()` lists them; DEVELOPMENT.md
+  shows how to add an app.
+
+### Changed
+- **`exports.apps.register`** refuses an icon that isn't in the set or a colour that isn't 0..255,
+  and says why in its result and the log, instead of showing a blank tile.
+
 ## [0.6.0] - 2026-11-09
 
 ### Changed

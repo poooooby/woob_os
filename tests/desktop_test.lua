@@ -2478,6 +2478,62 @@ if rse then (function()
   draw(30)
 end)() end
 
+-- ------- other mods' apps: the icons they choose from, their colours, what's refused
+;(function()
+  local pub = X.apps
+  local names = pub.icons()
+  T.eq(#names, 33, "33 pictures to choose from")
+  names[1] = "changed"
+  T.check(pub.icons()[1] ~= "changed", "and the list handed out is a copy")
+  names = pub.icons()
+  local function refused(app, word, what)
+    local ok, why = pub.register(app)
+    T.check(ok == false and tostring(why):find(word, 1, true) ~= nil, what .. " (" .. tostring(why) .. ")")
+  end
+  refused({ id = "ext_nope", glyph = "nope", open = noop }, "nope", "a picture that isn't in the set is refused")
+  refused({ id = "ext_none", open = noop }, "no glyph", "so is none at all")
+  refused({ id = "ext_frac", glyph = "flame", color = { 0.2, 0.5, 0.9 }, open = noop }, "0..255", "a colour in love's 0..1")
+  refused({ id = "ext_big", glyph = "flame", color = { 300, 0, 0 }, open = noop }, "0..255", "a colour out of range")
+  refused({ id = "ext_txt", glyph = "flame", color = "red", open = noop }, "{ r, g, b }", "a colour that isn't one")
+  T.check(Apps.byId("ext_nope") == nil and Apps.byId("ext_frac") == nil, "and none of those was added")
+  local mine = { 255, 90, 10 }
+  T.check(pub.register({ id = "ext_flame", label = "Flame", glyph = "flame", color = mine, order = 5, open = noop }),
+    "an app with a picture and a colour")
+  mine[1] = 0
+  T.eq(Apps.byId("ext_flame").color[1], 255, "its colour kept as it was given")
+  T.check(pub.register({ id = "ext_black", glyph = "cube", color = { 0, 0, 0 }, open = noop }), "black is a colour")
+  T.check(pub.register({ id = "ext_gear", glyph = "gear", open = noop }), "a built-in app's picture still works")
+  T.check(pub.register({ id = "ext_fn", glyph = function() end, open = noop }), "and so does drawing its own")
+  T.eq(Apps.byId("ext_gear").color[1], 120, "no colour: grey")
+  for _, name in ipairs(names) do
+    local calls = 0
+    local counting = setmetatable({}, { __index = function() return function() calls = calls + 1 end end })
+    D.glyph(counting, name, 50, 50, 40, 1, mine)
+    T.check(calls > 7, name .. " draws something")
+  end
+  st.ctx.logoff()
+  openPc({ startMode = "select" })
+  st = D.state()
+  D.skipBoot()
+  draw(30)
+  local onGrid = false
+  for _, app in ipairs(st.grid) do onGrid = onGrid or app.id == "ext_flame" end
+  T.check(onGrid, "it's on the home screen")
+  local tile = { 200, 60, 90 }
+  local best = math.huge
+  for _ = 1, 2 do
+    collectgarbage("collect")
+    collectgarbage("stop")
+    local kb = collectgarbage("count")
+    for _ = 1, 60 do
+      for i = 1, #names do D.glyph(G, names[i], 50, 50, 40, 1, tile) end
+    end
+    best = math.min(best, (collectgarbage("count") - kb) / 60)
+    collectgarbage("restart")
+  end
+  T.check(best < 0.5, string.format("all 33 together make next to no garbage (%.3f KB/frame)", best))
+end)()
+
 st.ctx.logoff()
 run.release()
 T.finish("woob_os desktop (" .. GAME .. ")")

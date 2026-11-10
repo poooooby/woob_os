@@ -64,6 +64,7 @@ return function(mod)
   local makePcGames, pcGamesWindow = loadSibling(mod, "src/pcgames.lua"), loadSibling(mod, "src/apps/pcgames.lua")
   local makeGts, gtsWindow = loadSibling(mod, "src/gts.lua"), loadSibling(mod, "src/apps/gts.lua")
   local makeNotify = loadSibling(mod, "src/notify.lua")
+  local Icons = loadSibling(mod, "src/icons.lua")
   local makeMapModel, makeMapRender = loadSibling(mod, "src/map3d/model.lua"), loadSibling(mod, "src/map3d/render.lua")
   local mapScene, makeTownMap = loadSibling(mod, "src/map3d/scene.lua"), loadSibling(mod, "src/townmap.lua")
   local makeTowns = loadSibling(mod, "src/map3d/towns.lua")
@@ -525,6 +526,7 @@ return function(mod)
     })
   end
   local Apps = makeApps({
+    icons = Icons,
     boxes = env.bx and boxesWindow and boxesView
       and function(ctx, e) return boxesWindow(ctx, e, boxesView) end or nil,
     items = env.inv and itemsWindow or nil,
@@ -564,6 +566,7 @@ return function(mod)
   local deskDeps = ({
     kit = Kit,
     apps = Apps,
+    icons = Icons,
     version = version,
     se = env.se,
     now = env.now,
@@ -696,9 +699,17 @@ return function(mod)
     if env.gts then pcall(env.gts.settle, ev and ev.save or session()) end
   end)
 
-  -- other mods add apps: exports.apps.register{ id, label, glyph, color, order, dock, available,
-  -- open | window }
-  mod.exports.apps = { register = Apps.register, list = function() return Apps.apps end }
+  -- other mods add apps (DEVELOPMENT.md "Adding an app"): exports.apps.register{ id, label, glyph,
+  -- color, order, dock, available, open | window } ; exports.apps.icons() -> the pictures to choose from
+  mod.exports.apps = {
+    register = function(app)
+      local ok, why = Apps.register(app)
+      if not ok then mod.log:warn("an app wasn't added: %s", tostring(why)) end
+      return ok, why
+    end,
+    list = function() return Apps.apps end,
+    icons = Apps.icons,
+  }
   mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
                         mart = env.mart, auction = env.auction, slots = env.slots, pcgames = env.pcgames, gts = env.gts,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange,

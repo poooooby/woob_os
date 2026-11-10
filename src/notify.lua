@@ -130,7 +130,7 @@ return function(deps)
     if app then
       K.col(app.color, a)
       G.circle("fill", K.X(cx), K.Y(cy), s / 2 * K.sc)
-      if deps.glyph then pcall(deps.glyph, G, app.glyph, K.X(cx), K.Y(cy), s * K.sc, a) end
+      if deps.glyph then pcall(deps.glyph, G, app.glyph, K.X(cx), K.Y(cy), s * K.sc, a, app.color) end
     end
     local tx = b[1] + 8 + s
     local right = b[1] + b[3] - (rec.sp and (b[4] + 1) or 5)

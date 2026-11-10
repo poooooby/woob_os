@@ -949,8 +949,10 @@ return function(deps)
     local an = -math.pi / 2 + (i - 1) * 2 * math.pi / 5
     RADAR_X[i], RADAR_Y[i] = math.cos(an), math.sin(an)
   end
-  -- an app's picture, white, centred on cx, cy (window pixels), `s` the tile's size (pixels)
-  local function glyph(G, kind, cx, cy, s, a)
+  -- an app's picture, white, centred on cx, cy (window pixels), `s` the tile's size (pixels),
+  -- `tile` the tile's colour (what the holes in src/icons.lua's pictures show)
+  local function glyph(G, kind, cx, cy, s, a, tile)
+    if deps.icons and deps.icons.draw(G, kind, cx, cy, s, a, tile) then return end
     G.setColor(1, 1, 1, a)
     local lw = max(1, s * 0.075)
     G.setLineWidth(lw)
@@ -985,11 +987,6 @@ return function(deps)
       G.circle("line", cx, cy, rad * 0.36)
       G.setColor(1, 1, 1, 0.35 * a)
       G.arc("fill", cx, cy, rad - lw / 2, math.pi, math.pi * 2)
-    elseif kind == "bag" then
-      local w, h = s * 0.56, s * 0.38
-      G.rectangle("line", cx - w / 2, cy - h * 0.35, w, h, s * 0.08, s * 0.08)
-      G.arc("line", "open", cx, cy - h * 0.35, s * 0.13, math.pi, math.pi * 2)
-      G.rectangle("fill", cx - s * 0.06, cy - h * 0.12, s * 0.12, s * 0.1)
     elseif kind == "trophy" then
       local tw = s * 0.21
       G.polygon("fill", cx - tw, cy - s * 0.27, cx + tw, cy - s * 0.27, cx + tw * 0.62, cy + s * 0.04,
@@ -1166,7 +1163,7 @@ return function(deps)
     K.grad(b, rad, light(app.color, 0.2), dark(app.color, 0.12), a)
     K.grad(K.R(x + 0.8, y + 0.6, s - 1.6, s * 0.48), rad * 0.85, C.gloss, C.clear, a)
     K.ring(b, rad, WHITE, 0.22 * (a or 1), 0.5)
-    glyph(G, app.glyph, K.X(x + s / 2), K.Y(y + s / 2), s * K.sc, a or 1)
+    glyph(G, app.glyph, K.X(x + s / 2), K.Y(y + s / 2), s * K.sc, a or 1, app.color)
     -- (a count on the corner, as a phone shows one: R-Bay's ended auctions)
     local n = app.badgeN
     if n and n > 0 then
@@ -1708,7 +1705,7 @@ return function(deps)
     local b = K.R(x, y, w, h)
     local rad = from[3] * 0.24 * (1 - e) + 3 * e
     K.grad(b, rad, light(app.color, 0.2), dark(app.color, 0.12))
-    glyph(K.graphics(), app.glyph, K.X(x + w / 2), K.Y(y + h / 2), from[3] * K.sc * (1 + e * 1.4), 1 - e * 0.4)
+    glyph(K.graphics(), app.glyph, K.X(x + w / 2), K.Y(y + h / 2), from[3] * K.sc * (1 + e * 1.4), 1 - e * 0.4, app.color)
   end
 
   -- an icon on the home screen or in the dock: lifted under the cursor or the mouse; arranging,

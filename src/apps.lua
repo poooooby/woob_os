@@ -9,10 +9,10 @@
 --   A.register(app) -> true | false, why    app = {
 --       id       unique string
 --       label    under its icon (short: about 10 letters) ; labelKey: a word of lang/*.lua instead
---       glyph    the icon's picture: "ball" | "bag" | "mail" | "cart" | "rocket" | "slots" | "globe" | "map" | "phone" | "radar" | "home" | "trophy" | "dex" |
---                "power" | "logo" | "gear",
---                or a function(K, cx, cy, size, a) drawing it (window pixels, white on the tile)
---       color    { r, g, b } the tile's colour
+--       glyph    the icon's picture: a name from src/icons.lua's set (A.icons()), one of the built-in
+--                apps' own (BUILT_IN below), or a function(K, cx, cy, size, a) drawing it (window
+--                pixels, white on the tile)
+--       color    { r, g, b } 0..255: the tile's colour (nil: grey)
 --       order    sorts the apps (lower first; built-ins 10..90)
 --       dock     true: in the dock, not the home grid
 --       pad      false: not on WoobPad (Log Off: the pad is put away, not logged off)
@@ -42,14 +42,47 @@ return function(deps)
   deps = deps or {}
   local A = { apps = {} }
   local byId = {}
+  local Icons = deps.icons
+  -- (the pictures only the built-in apps draw, in src/desktop.lua)
+  local BUILT_IN = { ball = true, mail = true, cart = true, rocket = true, slots = true, globe = true, map = true,
+                     phone = true, radar = true, ribbon = true, gamepad = true, home = true, trophy = true,
+                     dex = true, power = true, logo = true, gear = true }
+
+  local function badGlyph(g)
+    if type(g) == "function" then return nil end
+    if type(g) ~= "string" then return "no glyph" end
+    if BUILT_IN[g] or not Icons or Icons.has(g) then return nil end
+    return "no icon called " .. g
+  end
+  -- the colour as the tile will use it, or nil and why
+  local function tileColor(c)
+    if c == nil then return { 120, 130, 150 } end
+    local isT = type(c) == "table"
+    local r, g, b = isT and tonumber(c[1]), isT and tonumber(c[2]), isT and tonumber(c[3])
+    if not (r and g and b) then return nil, "color must be { r, g, b }" end
+    local top = math.max(r, g, b)
+    if top > 255 or math.min(r, g, b) < 0 or (top > 0 and top <= 1) then return nil, "color must be 0..255" end
+    return { r, g, b }
+  end
+
+  -- the names an app can choose its picture from (a copy)
+  function A.icons()
+    local out = {}
+    for i, name in ipairs(Icons and Icons.NAMES or out) do out[i] = name end
+    return out
+  end
 
   function A.register(app)
     if type(app) ~= "table" or type(app.id) ~= "string" or app.id == "" then return false, "no id" end
     if type(app.open) ~= "function" and type(app.window) ~= "function" then return false, "no open()" end
     if byId[app.id] then return false, "an app " .. app.id .. " is already registered" end
+    local bad = badGlyph(app.glyph)
+    if bad then return false, app.id .. ": " .. bad end
+    local tile, why = tileColor(app.color)
+    if not tile then return false, app.id .. ": " .. why end
+    app.color = tile
     app.label = tostring(app.label or app.id)
     app.order = tonumber(app.order) or 50
-    app.color = type(app.color) == "table" and app.color or { 120, 130, 150 }
     byId[app.id] = app
     A.apps[#A.apps + 1] = app
     table.sort(A.apps, function(a, b)

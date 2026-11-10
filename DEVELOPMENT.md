@@ -9,6 +9,7 @@ For people working on the mod. Players want [README.md](README.md).
 | `main.lua` | Wiring: loads the modules below, the engine reads they need (session, clock, the Pokédollar glyph), options, `mod.exports` |
 | `src/ui_kit.lua` | The drawing kit: page layout on the window's safe area, rect / hit pools, memoised colours, cached gradient meshes, text, the metal plate, the W logo, hints, toast |
 | `src/apps.lua` | The app registry and the built-in apps |
+| `src/icons.lua` | The pictures an app's icon can use: other mods choose one by name |
 | `src/desktop.lua` | The desktop: monitor, boot, menu bar, home grid with pages, dock, W menu, sheets, buttons / touch / mouse |
 | `src/shell.lua` | The PC menu takeover, the UI stack layer, the `render.hud` / `input.pointer` / `input.wheel` / `script.command` hooks, the touch pad hide |
 | `src/inventory.lua` | The item model: PC and Bag rows, withdraw / deposit / toss / sort (the PC's list; a Bag pocket's slots, as the game's own Bag moves them, except the pockets the game keeps sorted) through the engine's `Storage` and `Bag` |
@@ -74,19 +75,60 @@ does); a Pokémon holding an item can't take mail.
 
 ## Adding an app (from another mod)
 
+Register your app when the game is ready, so it doesn't matter which mod loads first. WoobOS is
+optional for you: `mod.find` gives nil when it isn't installed.
+
 ```lua
-local wos = game.mods.exports.woob_os
-wos.apps.register({
-  id = "my_app", label = "My App", glyph = "gear", color = { 90, 160, 120 }, order = 60,
-  available = function(ctx) return ctx.mode == "select" end,
-  open = function(ctx) ... ctx.done() end,
-})
+return function(mod)
+  mod.events:on("game.ready", function()
+    local wos = mod.find("woob_os")
+    if not wos then return end
+    wos.exports.apps.register({
+      id = "my_app",                  -- unique; keep it the same, the player's arrangement is kept by id
+      label = "My App",               -- under the icon, about 10 letters
+      glyph = "flame",                -- one of the icons below
+      color = { 232, 96, 40 },        -- the tile, red / green / blue, each 0..255
+      order = 60,
+      available = function(ctx) return true end,
+      window = function(ctx, env)     -- or open = function(ctx) ... end
+        local K, title = env.K, "Hello from my mod"
+        return {
+          title = "My App",
+          draw = function(body) K.text(title, body[1] + 8, body[2] + 8, 7, K.UI.label) end,
+          hints = function() return { { "B", "Close" } } end,
+        }
+      end,
+    })
+  end)
+end
 ```
 
-`ctx`: `session`, `mode` (`"select"` / `"bedroom"`), `family` (`"frlg"` / `"rse"`), `row(id)`,
-`finish(row)`, `done()`, `logoff()`, `over(open)`, `original(opts)`, `sheet(kind)`. Glyphs: `ball`,
-`bag`, `mail`, `cart`, `rocket`, `slots`, `globe`, `home`, `trophy`, `dex`, `power`, `logo`, `gear`, or a function
-`(K, cx, cy, size, alpha)`.
+`register` returns `true`, or `false` and why: a repeated id, no `open` or `window`, an icon that
+isn't in the set, or a colour that isn't `{ r, g, b }` from 0 to 255 (love's 0..1 colours are refused,
+they'd come out black). The reason also goes to the log. `game.ready` can fire again in a session: a
+second `register` with the same id is refused and does no harm. The icon is white, so pick a tile
+colour it shows up on.
+
+**The icons** (`wos.exports.apps.icons()` lists them):
+
+![The icons](docs/app-icons.png)
+
+`controller` `screen` `headphones` `speaker` `cube` `letters` `check` `eye` `glove` `hook` `reel`
+`flame` `flower` `weight` `medal` `chart` `pokeball` `fish` `mic` `building` `bag` `shoes` `cloud` `at`
+`bell` `speech` `internet` `send` `network` `wifi` `database` `pencil` `pokedollar`
+
+The built-in apps' own pictures work too (`ball`, `mail`, `cart`, `rocket`, `slots`, `globe`, `map`,
+`phone`, `radar`, `ribbon`, `gamepad`, `home`, `trophy`, `dex`, `power`, `logo`, `gear`), though
+`ribbon` and `gamepad` have their own apps' colours painted in. Or draw your own:
+`glyph = function(K, cx, cy, size, alpha) ... end`.
+
+Other fields: `dock = true` starts it in the dock, `pad = false` keeps it off WoobPad, and
+`badge = function(ctx) return n end` puts a count on its corner (read once a second).
+
+`ctx`: `session`, `mode` (`"select"`: a Pokémon Center's PC, `"bedroom"`: the player's own PC, `"pad"`:
+WoobPad, anywhere), `family` (`"frlg"` / `"rse"`), `row(id)`, `finish(row)`, `done()`, `logoff()`,
+`over(open)`, `original(opts)`, `sheet(kind)`. A `window` is the simplest fit: it works on the PC and on
+WoobPad alike, where `finish` and `row` have no PC script to go back to.
 
 A window instead of `open`: `window = function(ctx, env) return win end`, where `win` has `title`,
 `draw(body, clock, portrait)` (body in units; hits as `K.addHit(rect, "win", arg)`),
