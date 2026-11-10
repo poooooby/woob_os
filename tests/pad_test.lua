@@ -681,7 +681,7 @@ st.ctx.done()
   rect = frame()
   T.eq(Gp.mode(), "external", "it goes there")
   T.check(rect.width == 480 and rect.height == 320, "the game keeps the whole window")
-  T.check(pushes == 1 and last.w == 720 and last.h == 480 and last.p == "secondary" and freed == 1, "a frame sent, its memory let go")
+  T.check(pushes == 1 and last.w == 744 and last.h == 648 and last.p == "secondary" and freed == 1, "a frame sent, its memory let go")
   frame()
   T.eq(pushes, 1, "(at most thirty a second)")
   T.check(Gp.pointer({ id = 5, phase = "pressed", x = 240, y = 240 }) == false, "the window's own touches are the game's")
@@ -698,7 +698,7 @@ st.ctx.done()
   queue[1], queue[2] = "down,360,200", "up,360,320"
   tick = tick + 1
   frame()
-  T.check(scrolled == 40 and tapped == nil, "a release elsewhere is a drag (" .. tostring(scrolled) .. ")")
+  T.check(scrolled ~= nil and math.abs(scrolled - 120 / 3.375) < 0.01 and tapped == nil, "a release elsewhere is a drag (" .. tostring(scrolled) .. ")")
   queue[1], queue[2] = "down,20,20", "up,20,20"
   tick = tick + 1
   frame()
@@ -718,8 +718,8 @@ st.ctx.done()
   frame()
   tick = tick + 1
   frame()
-  T.check(madeW == 720 and madeH == 480 and madeOpts and madeOpts.dpiscale == 1, "the canvas is one pixel a unit")
-  T.check(last.w == 720 and last.h == 480, "and the picture says those pixels")
+  T.check(madeW == 744 and madeH == 648 and madeOpts and madeOpts.dpiscale == 1, "the canvas is one pixel a unit")
+  T.check(last.w == 744 and last.h == 648, "and the picture says those pixels")
   K.frame(G, FVP, Tm.PAGE, 0)
   K.exactFonts(true)
   K.width("a size no other test uses", 41.7)

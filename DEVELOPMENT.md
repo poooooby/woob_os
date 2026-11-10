@@ -178,7 +178,7 @@ frame) with nothing on the game's stack, so the game runs on. Physical buttons s
 takes touch and the mouse. While `shown` is true the Gear stands down and hands over the layout, so:
 
 - With a separate display (`SecondScreen.available()`, and the Gear not in a combined layout just before it
-  opened), a 720 x 480 canvas goes out at 30 frames a second and taps come back through `pollTouch`. The
+  opened), a 744 x 648 canvas (the shape of the Ayn Thor's lower screen; the engine can't ask a display its size) goes out at 30 frames a second and taps come back through `pollTouch`. The
   desktop companion sends only presses and releases, so a release elsewhere is treated as a drag.
 - Otherwise it sits in the window through `render.viewport` / `render.window`, where the Gear's combined layout
   was, or under the game in the bottom half.

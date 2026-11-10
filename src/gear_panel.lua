@@ -18,8 +18,13 @@ local floor, abs = math.floor, math.abs
 return function(deps)
   local host = deps.host
   local Gp = { bridge = deps.bridge }
-  -- (a separate display's picture: a 240 x 160 page at three pixels a unit)
-  local EXT_W, EXT_H, EXT_EVERY = 720, 480, 1 / 30
+  -- (a separate display's picture. The engine can't ask a display its size, and a picture is fitted
+  -- whole, so bars fill whatever shape differs: this is the shape of the dual-screen handhelds' lower
+  -- screen, the Ayn Thor's 1240 x 1080, with a page laid out for it)
+  local EXT_W, EXT_H, EXT_EVERY = 744, 648, 1 / 30
+  local EXT_PAGE = { height = 192, minWidth = 220, maxWidth = 400, portraitWidth = 160, portraitHeight = 260,
+                     portraitAspect = 0.9 }
+  local WINDOW_PAGE = host.PAGE
 
   local seen = nil                 -- the Gear's own layout, as fractions of the window, while it was up
   local ext = nil                  -- the bridge, while it has a display
@@ -179,6 +184,7 @@ return function(deps)
       G.clear(0, 0, 0, 1)
     end
     VP.width, VP.height = w, h
+    host.PAGE = exact and EXT_PAGE or WINDOW_PAGE
     if deps.kit then deps.kit.exactFonts(exact) end
     local ok, err = pcall(host.draw, G, VP)
     if deps.kit then deps.kit.exactFonts(false) end

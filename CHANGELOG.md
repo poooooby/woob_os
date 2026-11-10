@@ -6,7 +6,8 @@ All notable changes to this mod are documented here, in
 ## [Unreleased]
 
 ### Fixed
-- **Kanto Gear apps on Android's second screen** (Ayn Thor and the like) no longer come out smeared.
+- **Kanto Gear apps on Android's second screen** (Ayn Thor and the like) no longer come out smeared,
+  and fill the screen from top to bottom.
 
 ## [0.7.1] - 2026-11-09
 
