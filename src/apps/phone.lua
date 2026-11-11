@@ -2,7 +2,10 @@
 -- (the calls made and the field's calls, newest first) and Contacts (a Rematch filter: who's ready
 -- for a rematch). A contact's card: their picture, class and place, a "wants a rematch" or "nearby"
 -- pill, Call and ★; the check page's lines (Emerald) or Trainer's Eyes' profile (Ruby / Sapphire,
--- no calls). A call: the calling screen, then the game's own words in a bubble, a page at a time.
+-- no calls). A call: it rings (the picture large, pulsing), then a header (the picture, the name, a
+-- running timer, a waveform while they talk) over the game's own words as chat bubbles: a "..."
+-- bubble, then the words typed out; A shows the rest at once, then the next bubble; the older ones
+-- glide up and fade under the header. End: the round red button (B).
 --   buttons  L / R the tab, Up / Down the row, A open (a card: Left / Right Call or ★, A press),
 --            SELECT the Rematch filter (Contacts), B back
 --   touch    the tabs, a row, the card's buttons, End; drag (or the wheel) scrolls
@@ -14,11 +17,15 @@ local floor, max, min, abs, sin, pi = math.floor, math.max, math.min, math.abs, 
 local ROW_H, M = 15, 3
 local TAB_FAV, TAB_REC, TAB_CON, FILTER, CALL, FAV, END, NEXT = 2001, 2002, 2003, 2004, 2010, 2011, 2012, 2013
 local DIAL = 0.9    -- seconds of "Calling ..."
+local TYPING = 0.45 -- seconds of the "..." bubble before each one
+local CPS = 46      -- letters a second, typed out
+local SHRINK = 0.35 -- seconds of the picture moving up into the header
 local HINTS = {
   list = { { "L R", "phone.hint.tab" }, { "A", "hint.choose" }, { "B", "hint.back" } },
   contacts = { { "L R", "phone.hint.tab" }, { "A", "hint.choose" }, { "SELECT", "phone.rematch" }, { "B", "hint.back" } },
   card = { { "< >", "phone.hint.button" }, { "A", "hint.choose" }, { "B", "hint.back" } },
   call = { { "A", "phone.hint.next" }, { "B", "phone.end" } },
+  typing = { { "A", "hint.skip" }, { "B", "phone.end" } },
 }
 local NO_T = setmetatable({ list = function(l) return l end, f = string.format }, { __call = function(_, k) return k end })
 
@@ -32,7 +39,7 @@ return function(ctx, env)
 
   local st = {
     tab = 3, view = "list", cursor = 1, top = 0, visible = 6, rematchOnly = false, contacts = {}, rows = {},
-    button = 1, call = nil, pages = nil, page = 1, pagesW = 0, toast = nil, agoAt = -10,
+    button = 1, call = nil, bubbles = nil, bubW = 0, bubL = 0, toast = nil, agoAt = -10,
   }
   W.state = st
 
@@ -91,6 +98,27 @@ return function(ctx, env)
     st.toast = { text = T(key), bad = bad ~= false, t = now() }
   end
 
+  -- a call under way: cl.idx the bubble showing, cl.at when it began ("..." first), cl.full once A
+  -- has shown all of it; cl.lift / stackH / last the bubbles' glide
+  -- (the game's words open with the caller's name, which the header already shows)
+  local function withoutName(text, name)
+    if not (text and name and name ~= "") then return text end
+    if text:sub(1, #name + 1):upper() == (name .. ":"):upper() then
+      return (text:sub(#name + 2):gsub("^%s+", ""))
+    end
+    return text
+  end
+  local function startCall(cl)
+    cl.text = withoutName(cl.text, cl.name)
+    cl.idx, cl.at, cl.full, cl.lift, cl.stackH, cl.last = 1, max(cl.t0 + DIAL, now()), false, 0, nil, nil
+    st.call, st.bubbles, st.view = cl, nil, "call"
+  end
+  local function typingNow(cl, t) return not cl.full and t - cl.at < TYPING end
+  local function shownOf(cl, b, t)
+    if cl.full then return b.n end
+    return max(0, min(b.n, floor((t - cl.at - TYPING) * CPS)))
+  end
+
   local function openRow()
     local r = row()
     if not r then return end
@@ -98,10 +126,9 @@ return function(ctx, env)
     if r.contact then
       st.view = "card"
     elseif r.recent then
-      -- (a field call from someone no longer listed: its words again)
-      st.call = { contact = nil, recent = r.recent, text = r.recent.text, t0 = now() - DIAL, name = r.recent.name,
-                  pic = r.recent.pic }
-      st.pages, st.page, st.view = nil, 1, "call"
+      -- (a field call from someone no longer listed: its words again, answered already)
+      startCall({ contact = nil, recent = r.recent, text = r.recent.text, t0 = now() - DIAL - SHRINK, name = r.recent.name,
+                  pic = r.recent.pic })
     end
     se("SE_SELECT")
   end
@@ -120,8 +147,7 @@ return function(ctx, env)
       return toast("phone.failed")
     end
     se("SE_POKENAV_CALL")
-    st.call = { contact = c, text = text, t0 = now(), name = c.name, pic = c.pic }
-    st.pages, st.page, st.view = nil, 1, "call"
+    startCall({ contact = c, text = text, t0 = now(), name = c.name, pic = c.pic })
     refresh()
   end
   local function fav()
@@ -137,13 +163,21 @@ return function(ctx, env)
     if not st.call then return end
     se("SE_POKENAV_HANG_UP")
     st.view = st.call.contact and "card" or "list"
-    st.call, st.pages = nil, nil
+    st.call, st.bubbles = nil, nil
   end
+  -- A / a tap: the rest of the bubble at once, then the next one, then the call ends
   local function nextPage()
-    if not st.call then return end
-    if now() - st.call.t0 < DIAL then return end
-    if st.pages and st.page < #st.pages then
-      st.page = st.page + 1
+    local cl = st.call
+    if not cl or not st.bubbles then return end
+    local t = now()
+    if t - cl.t0 < DIAL then return end
+    local b = st.bubbles[cl.idx]
+    if b and shownOf(cl, b, t) < b.n then
+      cl.full = true
+      return
+    end
+    if cl.idx < #st.bubbles then
+      cl.idx, cl.at, cl.full = cl.idx + 1, t, false
       se("SE_SELECT")
     else
       endCall()
@@ -212,7 +246,11 @@ return function(ctx, env)
   end
 
   function W.hints()
-    if st.view == "call" then return T.list(HINTS.call) end
+    if st.view == "call" then
+      local cl, b = st.call, st.bubbles and st.call and st.bubbles[st.call.idx]
+      if b and now() - cl.t0 >= DIAL and shownOf(cl, b, now()) < b.n then return T.list(HINTS.typing) end
+      return T.list(HINTS.call)
+    end
     if st.view == "card" then return T.list(HINTS.card) end
     return T.list(st.tab == 3 and HINTS.contacts or HINTS.list)
   end
@@ -386,85 +424,236 @@ return function(ctx, env)
     end
   end
 
-  -- the call's words in pages of whole lines (made when the width changes, not every frame)
-  local function paginate(text, w, size, lines)
-    local pages, page, n, line = {}, {}, 0, ""
-    local function push()
-      n = n + 1
-      page[#page + 1] = line
-      line = ""
-      if n >= lines then
-        pages[#pages + 1] = table.concat(page, "\n")
-        page, n = {}, 0
+  -- ------- the call
+
+  local BG_TOP, BG_FOOT, BUBBLE = { 24, 32, 48 }, { 6, 8, 14 }, { 50, 58, 76 }
+  local GREEN_TEXT = { 120, 230, 150 }
+  local SIZE, LINE, PADX, PADY = 4.6, 6.1, 3.6, 2.4
+  local UTF8 = "[%z\1-\127\194-\244][\128-\191]*"
+
+  -- a bubble: its lines, each line's typed-out beginnings (made here, so the draw makes no strings)
+  local function bubbleOf(lines)
+    local b = { lines = lines, pre = {}, count = {}, n = 0, tw = 0 }
+    for j, line in ipairs(lines) do
+      local pre, k, acc = {}, 0, ""
+      for ch in line:gmatch(UTF8) do
+        k = k + 1
+        acc = acc .. ch
+        pre[k] = acc
       end
+      b.pre[j], b.count[j], b.n = pre, k, b.n + k
+      b.tw = max(b.tw, K.width(line, SIZE))
     end
-    for para in (text .. "\n"):gmatch("([^\n]*)\n") do
-      for word in para:gmatch("%S+") do
+    b.h = #lines * LINE + PADY * 2 - 0.6
+    return b
+  end
+  -- the game's pages (a blank line apart) as bubbles of at most `most` lines, `w` units wide (made
+  -- when the size changes, not every frame)
+  local function buildBubbles(text, w, most)
+    local out = {}
+    text = (text or ""):gsub("\r", "")
+    for page in (text .. "\n\n"):gmatch("(.-)\n\n") do
+      local lines, line = {}, ""
+      for word in page:gmatch("%S+") do
         local try = line == "" and word or (line .. " " .. word)
-        if K.width(try, size) > w and line ~= "" then
-          push()
+        if line ~= "" and K.width(try, SIZE) > w then
+          lines[#lines + 1] = line
           line = word
+          if #lines >= most then
+            out[#out + 1] = bubbleOf(lines)
+            lines = {}
+          end
         else
           line = try
         end
       end
-      if line ~= "" then push() end
+      if line ~= "" then lines[#lines + 1] = line end
+      if #lines > 0 then out[#out + 1] = bubbleOf(lines) end
     end
-    if #page > 0 then pages[#pages + 1] = table.concat(page, "\n") end
-    if #pages == 0 then pages[1] = "" end
-    return pages
+    if #out == 0 then out[1] = bubbleOf({ "..." }) end
+    return out
+  end
+  -- a bubble's height: the newest grows a line at a time as it's typed ("..." before it)
+  local function heightOf(cl, b, i, t)
+    if i ~= cl.idx or cl.full then return b.h end
+    if typingNow(cl, t) then return 9.2 end
+    local left, n = shownOf(cl, b, t), 0
+    for j = 1, #b.lines do
+      if left <= 0 then break end
+      n, left = j, left - b.count[j]
+    end
+    return max(1, n) * LINE + PADY * 2 - 0.6
+  end
+  local timeText = K.textCache(function(s) return string.format("%d:%02d", floor(s / 60), s % 60) end)
+
+  -- the "..." bubble's dots, rising one after another
+  local function typingDots(bx, by, a, clock)
+    local G = K.graphics()
+    for d = 0, 2 do
+      local s = abs(sin(clock * 6 - d * 0.7))
+      K.col(WHITE, (0.4 + 0.6 * s) * a)
+      G.circle("fill", K.X(bx + 4.6 + d * 3.9), K.Y(by + 4.6 - s * 1.2), 1.05 * K.sc)
+    end
+  end
+
+  -- a hang-up button: red, round, a handset lying across it
+  local function endButton(cx, cy, r, glow, clock)
+    local G = K.graphics()
+    if glow then
+      local p = (clock * 0.9) % 1
+      K.col(UI.red, 0.55 * (1 - p))
+      G.setLineWidth(max(1, 0.6 * K.sc))
+      G.circle("line", K.X(cx), K.Y(cy), (r + p * 4) * K.sc)
+    end
+    K.col(UI.red)
+    G.circle("fill", K.X(cx), K.Y(cy), r * K.sc)
+    if env.glyph then
+      G.push()
+      G.translate(K.X(cx), K.Y(cy))
+      G.rotate(pi * 0.75)
+      pcall(env.glyph, G, "phone", 0, 0, r * 1.45 * K.sc, 1)
+      G.pop()
+    end
+    K.addHit(K.R(cx - r - 1, cy - r - 1, r * 2 + 2, r * 2 + 2), "win", END)
+  end
+
+  -- the bubbles, newest at the foot, between ay0 and ay1
+  local function drawBubbles(cl, x, ay0, ay1, w, a, t, clock)
+    local G = K.graphics()
+    local tw = floor(min(w - 28, 170) - PADX * 2)
+    local most = max(2, min(4, floor((ay1 - ay0 - PADY * 2) / LINE)))
+    if not st.bubbles or st.bubW ~= tw or st.bubL ~= most then
+      st.bubbles, st.bubW, st.bubL = buildBubbles(cl.text, tw, most), tw, most
+      cl.idx = min(cl.idx, #st.bubbles)
+    end
+    local bubbles = st.bubbles
+    local typing = typingNow(cl, t)
+    -- (the stack's height: when it grows, everything is lifted back down and glides up)
+    local H = 0
+    for i = 1, cl.idx do H = H + heightOf(cl, bubbles[i], i, t) + 2.2 end
+    local dt = cl.last and min(0.1, max(0, t - cl.last)) or 0
+    cl.last = t
+    if cl.stackH and H > cl.stackH then cl.lift = cl.lift + (H - cl.stackH) end
+    cl.stackH = H
+    cl.lift = cl.lift * math.exp(-dt * 11)
+    if cl.lift < 0.05 then cl.lift = 0 end
+    local area = K.R(x, ay0, w, ay1 - ay0)
+    K.scissor(area)
+    local clip = st.clip
+    st.clip = area
+    local bub = K.mix(BUBBLE, INITIAL[(#(cl.name or "") % #INITIAL) + 1], 0.2)
+    local bx = x + 14
+    local by = ay1 + cl.lift
+    for i = cl.idx, 1, -1 do
+      local b = bubbles[i]
+      local now_ = i == cl.idx
+      local dots = now_ and typing
+      local bh, bw = heightOf(cl, b, i, t), dots and 17 or (b.tw + PADX * 2)
+      by = by - bh
+      if by + bh < ay0 then break end
+      -- (fading in as it comes; the older ones fading out as they reach the header)
+      local ba = a * min(1, max(0, (by - ay0 + 3) / 9))
+      if now_ and not cl.full then
+        ba = ba * min(1, dots and (t - cl.at) / 0.15 or (0.35 + (t - cl.at - TYPING) / 0.12))
+      end
+      K.col(bub, ba)
+      K.box("fill", K.R(bx, by, bw, bh), 4.4)
+      if now_ then
+        -- (the newest: a tail toward the picture beside it)
+        G.polygon("fill", K.X(bx + 0.6), K.Y(by + bh - 4.4), K.X(bx + 4.2), K.Y(by + bh), K.X(bx - 1.8), K.Y(by + bh + 0.5))
+        picture(cl.pic, x + 4.5, by + bh - 7.6, 7.6, nil, cl.name)
+      end
+      if dots then
+        typingDots(bx, by, ba, clock)
+      else
+        local left = now_ and shownOf(cl, b, t) or b.n
+        local ly = by + PADY
+        for j, line in ipairs(b.lines) do
+          local n = b.count[j]
+          if left >= n then
+            K.text(line, bx + PADX, ly, SIZE, WHITE, nil, nil, ba)
+            left = left - n
+          else
+            if left > 0 then K.text(b.pre[j][left], bx + PADX, ly, SIZE, WHITE, nil, nil, ba) end
+            break
+          end
+          ly = ly + LINE
+        end
+        if now_ and cl.idx < #bubbles and shownOf(cl, b, t) >= b.n then
+          K.chevron(bx + bw + 3.2, by + bh - 3, 1.8, WHITE, 2, K.pulse() * ba)
+        end
+      end
+      by = by - 2.2
+    end
+    st.clip = clip
+    K.scissor(clip)
+    K.addHit(area, "win", NEXT)
   end
 
   local function drawCall(x, y, w, h, clock)
     local cl = st.call
     if not cl then return end
     local G = K.graphics()
-    K.grad(K.R(x, y, w, h), 0, CALL_TOP, CALL_FOOT)
-    local ps = min(30, h * 0.26)
+    local t = now()
+    local since = t - cl.t0
+    local tint = INITIAL[(#(cl.name or "") % #INITIAL) + 1]
+    K.grad(K.R(x, y, w, h), 0, BG_TOP, BG_FOOT)
+    K.glow(x + w * (0.25 + 0.06 * sin(clock * 0.4)), y + h * 0.16, w * 0.55, h * 0.45, tint, 0.2)
+    K.glow(x + w * 0.85, y + h * (0.9 + 0.05 * sin(clock * 0.33)), w * 0.5, h * 0.4, GREEN, 0.08)
+    -- (e: 0 while it rings, 1 once the picture is up in the header)
+    local e = min(1, max(0, (since - DIAL) / SHRINK))
+    e = e * e * (3 - 2 * e)
     local cx = x + w / 2
-    -- (the picture in a ring, pulsing while it rings)
-    local dialing = now() - cl.t0 < DIAL
-    if dialing then
-      local p = (clock * 1.6) % 1
-      K.col(GREEN, 0.5 * (1 - p))
-      G.circle("line", K.X(cx), K.Y(y + 6 + ps / 2), (ps / 2 + 2 + p * 6) * K.sc)
+    local big = min(30, h * 0.26)
+    local px0, py0 = cx - big / 2, y + max(6, h * 0.3 - big / 2)
+    local ps = big + (12 - big) * e
+    local px, py = px0 + (x + 5 - px0) * e, py0 + (y + 4 - py0) * e
+    if since < DIAL then
+      -- (two rings spreading out of the picture while it rings)
+      for k = 0, 1 do
+        local p = (clock * 1.2 + k * 0.5) % 1
+        K.col(GREEN, 0.55 * (1 - p))
+        G.setLineWidth(max(1, 0.5 * K.sc))
+        G.circle("line", K.X(cx), K.Y(py0 + big / 2), (big / 2 + 1.5 + p * 9) * K.sc)
+      end
     end
-    picture(cl.pic, cx - ps / 2, y + 6, ps, WHITE, cl.name)
-    K.bold(cl.name, x, y + 9 + ps, 6, WHITE, "center", w)
-    if dialing then
-      local dots = floor((now() - cl.t0) * 4) % 4
-      K.text(T("phone.calling"), x, y + 17 + ps, 4.4, SOFT, "center", w)
+    picture(cl.pic, px, py, ps, WHITE, cl.name)
+    if e < 1 then
+      local a = 1 - e
+      K.bold(cl.name, x, py0 + big + 4, 6, WHITE, "center", w, a)
+      local word = T("phone.calling")
+      local ww = K.width(word, 4.4)
+      K.text(word, x, py0 + big + 12, 4.4, SOFT, "center", w, a)
+      local dots = floor(since * 4) % 4
       for i = 1, dots do
-        K.col(SOFT)
-        G.circle("fill", K.X(cx + K.width(T("phone.calling"), 4.4) / 2 + i * 2), K.Y(y + 21 + ps), 0.5 * K.sc)
+        K.col(SOFT, a)
+        G.circle("fill", K.X(cx + ww / 2 + i * 2), K.Y(py0 + big + 16), 0.5 * K.sc)
       end
-    else
-      -- (the words in a bubble, a page at a time)
-      local by = y + 18 + ps
-      local bh = y + h - 16 - by
-      local bw = w - 12
-      local size = 4.6
-      local lines = max(1, floor((bh - 6) / (size * 1.3)))
-      if not st.pages or st.pagesW ~= floor(bw) or st.pagesL ~= lines then
-        st.pages, st.pagesW, st.pagesL = paginate(cl.text or "", bw - 8, size, lines), floor(bw), lines
-        st.page = min(st.page, #st.pages)
+    end
+    if since >= DIAL then
+      -- (the header: the name, a green dot and the time on the call, a waveform while they talk)
+      local nx = x + 20
+      K.bold(cl.name, nx, y + 4.2, K.fit(cl.name, 5.2, w - 26), WHITE, nil, nil, e)
+      K.col(GREEN, e)
+      G.circle("fill", K.X(nx + 1), K.Y(y + 12.9), 0.95 * K.sc)
+      local clockText = timeText(floor(max(0, since - DIAL)))
+      K.text(clockText, nx + 3, y + 10.8, 3.8, GREEN_TEXT, nil, nil, e)
+      local b = st.bubbles and st.bubbles[cl.idx]
+      local talking = b and not typingNow(cl, t) and shownOf(cl, b, t) < b.n
+      local wx = nx + 3 + K.width(clockText, 3.8) + 3
+      for i = 0, 4 do
+        local amp = talking and (0.35 + 0.65 * abs(sin(clock * 9 + i * 1.7))) or 0.12
+        local bh = 0.7 + 2.8 * amp
+        K.col(WHITE, 0.75 * e)
+        K.box("fill", K.R(wx + i * 1.5, y + 12.9 - bh / 2, 0.8, bh), 0.4)
       end
-      local bb = K.R(x + 6, by, bw, bh)
-      K.col(WHITE, 0.94)
-      K.box("fill", bb, 5)
-      G.polygon("fill", K.X(cx - 3), K.Y(by), K.X(cx + 3), K.Y(by), K.X(cx), K.Y(by - 2.5))
-      K.text(st.pages[st.page], bb[1] + 4, bb[2] + 3, size, UI.label, "left", bw - 8)
-      if st.page < #st.pages then
-        K.chevron(bb[1] + bb[3] - 4, bb[2] + bb[4] - 4, 3, UI.accent, 2, K.pulse())
-      end
-      K.addHit(bb, "win", NEXT)
+      K.hairline(x, y + 18, w, WHITE, 0.08 * e)
+      drawBubbles(cl, x, y + 19, y + h - 18, w, e, t, clock)
     end
     -- (End)
-    local eb = K.R(cx - 12, y + h - 13, 24, 10)
-    K.col(UI.red)
-    K.box("fill", eb, 5)
-    K.bold(T("phone.end"), eb[1], eb[2] + 2.4, 4.6, WHITE, "center", eb[3])
-    K.addHit(eb, "win", END)
+    local last = st.bubbles and cl.idx >= #st.bubbles and e >= 1
+    local done = last and st.bubbles[cl.idx] and shownOf(cl, st.bubbles[cl.idx], t) >= st.bubbles[cl.idx].n
+    endButton(cx, y + h - 9, 6, done, clock)
   end
 
   local function drawTabs(x, y, w)

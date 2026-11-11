@@ -268,6 +268,79 @@ for _, id in ipairs({ "phone", "condition", "ribbons" }) do
   end
 end
 
+-- a call: it rings, then the words as chat bubbles, each typed out after a "..." bubble
+if EMERALD then
+  local tnow = 1000
+  local envT = setmetatable({ now = function() return tnow end }, { __index = X._test.env })
+  local W = Apps.byId("phone").window({ session = s, mode = "pad", app = "phone", rows = {} }, envT)
+  local st = W.state
+  for i, r in ipairs(st.rows) do
+    if r.contact and r.contact.name:upper():find("ROXANNE") then st.cursor = i end
+  end
+  drawWin(W, false)
+  W.input(input({ "a" }), NONE)
+  W.input(input({ "a" }), NONE)
+  T.eq(st.view, "call", "A on Call: the call")
+  drawWin(W, false)
+  W.input(input({ "a" }), NONE)
+  T.check(st.view == "call" and st.bubbles == nil, "while it rings: no words yet, A waits")
+  W.input(input({ "b" }), NONE)
+  T.check(st.view == "card" and st.call == nil, "B: hung up, the card again")
+  -- (a long call, from Recents: a field call logged with the game's words, two pages of them)
+  Ph.incoming(s, "WALLY'S DAD", "WALLY'S DAD: Hi there! It's me. I've been training my POKéMON every day at the GYM, "
+    .. "and I think we're ready for a real battle now.\n\nCome and see us in PETALBURG whenever you like!", -1)
+  Nt.reset()
+  W.tap(2002)
+  st.cursor = 1
+  W.input(input({ "a" }), NONE)
+  T.check(st.view == "call", "a recent call: its words again")
+  drawWin(W, false)
+  local cl = st.call
+  T.check(st.bubbles and #st.bubbles >= 2 and cl.idx == 1, "the words in bubbles, a page or more each (" ..
+    tostring(st.bubbles and #st.bubbles) .. ")")
+  T.check(st.bubbles and st.bubbles[1].lines[1]:sub(1, 3) == "Hi ", "without the caller's name before the words (" ..
+    tostring(st.bubbles and st.bubbles[1].lines[1]) .. ")")
+  local whole = true
+  for _, b in ipairs(st.bubbles or {}) do
+    for j, line in ipairs(b.lines) do
+      if b.pre[j][b.count[j]] ~= line then whole = false end
+    end
+  end
+  T.check(whole, "each line typed out ends as the line itself (letters, not bytes)")
+  T.eq(W.hints()[1][2], envT.T("hint.skip"), "first a \"...\" bubble: A skips")
+  tnow = tnow + 0.5
+  drawWin(W, false)
+  -- (once through first: LuaJIT's traces for each new stretch of typing land on the heap)
+  local from = tnow
+  local function typeOn()
+    tnow = tnow + 0.002
+    drawWin(W, false)
+  end
+  garbageOf(60, typeOn)
+  tnow = from
+  local kb = garbageOf(60, typeOn)
+  T.check(kb < 0.5, string.format("typing out: next to no garbage (%.3f KB/frame)", kb))
+  T.check(not cl.full, "the words being typed")
+  W.input(input({ "a" }), NONE)
+  T.check(cl.full and cl.idx == 1 and st.view == "call", "A: the rest of the bubble at once")
+  T.eq(W.hints()[1][2], envT.T("phone.hint.next"), "then A is Next")
+  local n = #st.bubbles
+  do
+    W.input(input({ "a" }), NONE)
+    T.check(cl.idx == 2 and not cl.full, "A again: the next bubble")
+    drawWin(W, false)
+    T.check(cl.lift > 0, "the older ones lifted, gliding up")
+  end
+  for _ = 1, n * 2 + 2 do
+    if st.view ~= "call" then break end
+    W.input(input({ "a" }), NONE)
+    tnow = tnow + 0.05
+    drawWin(W, false)
+  end
+  T.check(st.view ~= "call" and st.call == nil, "after the last bubble, A ends the call")
+  T.check(pcall(drawWin, W, true), "the card again, upright")
+end
+
 do
   local W = Apps.byId("ribbons").window({ session = s, mode = "pad", app = "ribbons", rows = {} }, X._test.env)
   local st = W.state

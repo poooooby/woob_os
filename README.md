@@ -103,7 +103,10 @@ opens a desktop in a sleek monitor instead of a text menu.
   a phone. Favourites, Recents and Contacts tabs; each contact's card shows their picture, class
   and where they are, a green dot when they want a rematch, and their profile.
   - **Emerald:** Call rings them up and they answer in the game's own words, just as a PokéNav
-    call does (a Trainer can ask for a rematch). The calls you get out in the field ring as a
+    call does (a Trainer can ask for a rematch). The call reads like a chat: their picture, name
+    and a running call timer up top, and what they say in message bubbles that type themselves out
+    after a "…" bubble, with a little waveform moving while they talk. A shows the rest of a bubble
+    at once, then the next one; the round red button (or B) hangs up. The calls you get out in the field ring as a
     notification and land in Recents. ★ pins a contact to Favourites.
   - **Ruby and Sapphire:** Trainer's Eyes' Trainers and Gym Leaders, their profiles and who's
     ready for a rematch (those games have no calls).

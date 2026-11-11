@@ -5,6 +5,11 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Changed
+- **Phone calls (Emerald)** read like a chat: the caller's picture, name and a running timer in a
+  header, their words in message bubbles that type themselves out after a "…" bubble (A shows the
+  rest at once), a waveform while they talk, and a round red button to hang up.
+
 ## [0.7.3] - 2026-11-10
 
 ### Fixed
