@@ -224,15 +224,23 @@ opens a desktop in a sleek monitor instead of a text menu.
   that bursts into confetti, and the week's bonus is a treasure chest that opens when it's ready.
 - 📰 **News:** the day's stories, read live by the WoobOS News anchor in a TV close-up: she talks
   as each story's words type out, with the LIVE light on, the title on a lower third and a camera
-  cut between stories, and the headlines crawl along the ticker. World stories: today's swarm (a species appearing all
-  over one route, for real: go there and you'll find it, at that route's levels), Ruby, Sapphire and
-  Emerald's own TV outbreaks, Emerald's great storms, and R-Bay's hottest auction. Your stories: your
-  week so far, and what's happened since you last watched (new Pokédex entries, a shiny, an Egg
-  hatching, an evolution, a trainer beaten, a new badge, a GTS trade), your teams on errands and
+  cut between stories, and the headlines crawl along the ticker. The News covers you the way sports
+  news covers a rookie taking the region by storm, newest first:
+  - **your latest Gym:** the score, the turns and a play-by-play: the leads, each knockout and the
+    turn it came on, the setbacks, and the blow that won it;
+  - **your last two trainers beaten:** the score ("Red 3, Youngster Joey 0"), where, both teams and
+    the finisher, critical hits and super-effective blows included;
+  - **your latest catch:** a signing, with where, the level and the Ball it took;
+  - **your week:** trainers beaten, Pokémon caught and steps walked.
+
+  Then the world: today's swarm (a species appearing all over one route, for real: go there and
+  you'll find it, at that route's levels), Ruby, Sapphire and Emerald's own TV outbreaks, Emerald's
+  great storms, and R-Bay's hottest auction. Then what else happened since you last watched (new
+  Pokédex entries, a shiny, an Egg hatching, an evolution, a GTS trade), your teams on errands and
   your challenges. Each story slides in on a dark broadcast panel with its picture in a spotlight,
   the words typing out behind a caret; the swarm, outbreaks and storms come with a red BREAKING NEWS
-  banner. A shows the rest of a story, then the next. A new swarm each day sends a
-  notification that opens the News on it.
+  banner. A shows the rest of a story, then the next; a story longer than its panel scrolls with
+  Up / Down, a drag or the wheel. A new swarm each day sends a notification that opens the News on it.
 - 🕹️ **PC Games:** with the PC Games mod installed, its games (Solitaire, Snake, Tetris, Blackjack,
   Collapse, Minesweeper and PokePet) get an icon on the desktop and on WoobPad and fill the screen, sharp
   at a whole-pixel size, with your buttons. Move the mouse or touch the screen for a close button;

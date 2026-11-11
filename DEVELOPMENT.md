@@ -36,7 +36,7 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/notify.lua` | The notifications: a list, the banners' queue, the card, the field's banner |
 | `src/notes.lua` | The notifications drawer (both devices): the pull, the cards, swiping one away, Clear |
 | `src/bank.lua`, `src/apps/bank.lua` | The Bank: the balance and its log in `mod.save` "bank", deposits, withdrawals, the wallet's overflow, daily interest; its window |
-| `src/journal.lua` | What the player does, from the engine's events: this week's counts and a log of notable moments, in `mod.save` "journal" |
+| `src/journal.lua` | What the player does, from the engine's events: this week's counts, a log of notable moments, and the News's box scores (the last two trainers beaten, the latest Gym, the latest catch), in `mod.save` "journal" |
 | `src/challenges.lua`, `src/apps/challenges.lua` | The week's five goals from the journal's counts, their rewards and the bonus; its window |
 | `src/errands.lua`, `src/apps/errands.lua` | Errands: the board, teams held in `mod.save` "errands" while out, the grade, collecting (EXP through the Day Care's); its window |
 | `src/swarm.lua` | The daily swarm: a route and a species from the game's own wild tables, and the `encounter.species` hook's turn |
@@ -606,11 +606,23 @@ Clean room: the idea of a 3D region map (TERRARIUM's for Gen 1) and none of its 
   (`Prize.MAX_MONEY`, 999,999) turned away goes to `Bk.overflow` and counts as gained. Interest is
   paid on opening the window: a tenth of a percent per whole day since the last payment, a week at
   most, `DAILY` a day at most.
-- **The journal** (`src/journal.lua`): subscribed once at load (`mod.events:on`: `battle.ended`,
+- **The journal** (`src/journal.lua`): subscribed once at load (`mod.events:on`: `battle.started`,
+  `battle.damage_dealt`, `battle.battler_switched`, `battle.fainted`, `battle.ended`,
   `pokemon.caught`, `egg.hatched`, `pokemon.evolved`, `pokemon.level_up`, `map.entered`,
-  `world.stepped`; `mod.hooks:wrap("item.use")` counts an `ok` answer). A trainer win is
-  `result == "win" and not battle.wild and not battle.link` (the battle state rides on the payload);
-  a badge is the count higher than the last battle left it. Weeks start on Monday at local midnight
+  `world.stepped`, `flag.changed`; `mod.hooks:wrap("item.use")` counts an `ok` answer). A trainer win
+  is `result == "win" and not battle.wild and not battle.link` (the battle state rides on the
+  payload). A trainer battle is followed in memory from `battle.started` (`battle.player` /
+  `.enemy` the leads, `.foeParty` their team): the last `damage_dealt` on each battler id (the
+  user's side and species, `move.num`, `typeMult` > 10 super effective, `crit`); a `fainted` is a
+  beat (`k` "ko" for theirs, "down" for ours, `t` = `battle.turn`, 1 on the first turn), credited to
+  that hit only when it came this turn from the other side (recoil, poison and the like stay
+  uncredited). Won, it's a box score (`s.map` at the start, both teams, knockouts each way, the turns,
+  `fin` = the last of theirs to fall): a Gym Leader (`TRAINER_CLASS_LEADER` from the game's
+  constants, main.lua `leader`) keeps its beats as `d.gym`; others go to `d.wins` (two kept). The
+  Badge is `flag.changed` on `FLAG_BADGE0n_GET` turning on (the Gym's script sets it after the
+  battle; other flags return before the save is touched); within 15 minutes it marks the Gym's box
+  score `badge` with the count. The latest catch is `d.catch` (`s.map`, `mon.level`, `ballId`).
+  Weeks start on Monday at local midnight
   (`Jr.localTime`, worked out once a minute: `os.date` makes tables and steps come often). A step
   only adds to a count, never calling `store:set`. A Pokémon without a personality isn't called
   shiny (the engine reads a bare species as shiny).
@@ -631,14 +643,23 @@ Clean room: the idea of a 3D region map (TERRARIUM's for Gen 1) and none of its 
   game's RNG untouched). On the route (`MapCatalog.groupNumFor(ctx.mapId)`), on land, `CHANCE` of
   the time it becomes the swarm at the route's levels.
 - **The News** (`src/news.lua`): `Nw.build` at opening makes every story's words (`T.f`), the ticker,
-  and marks the time watched (`mod.save` "news"); the journal's moments after it are told once.
+  and marks the time watched (`mod.save` "news"); the journal's moments after it are told once. The
+  rookie's stories lead, newest first: `gym` (a lede, then `beats` = `{ mark, text }`, the leads with
+  mark "" and each knockout with its turn, the last of theirs told as the finish), `match1` /
+  `match2`, `signing`; then `week`. Move names are the game's (`Pokemon.moveName`), Balls the game's
+  item names; teams join with `news.list.sep` / `news.list.last`. The latest catch isn't told again
+  as a moment, and trainers and Badges are only box scores.
   Place names come from `SaveMenu.locationName` with a session that's only that map (its map name and
   region section blanked); species names lose the ♀ / ♂ the fonts lack ("Nidoran F"). The
   anchor is `assets/newscaster.png`: square frames side by side (twelve of 32 x 32; 0 at rest, the
   rest her talking), cut into quads once by main.lua's `env.anchor()` (nearest filtering). The
   window's close-up draws her at whole pixels as tall as the shot, the frames in turn at `TALK_FPS`
   while the words type (frame 0 otherwise), a white flash for the cut to a new story. The window
-  types the words out from beginnings made with the story.
+  types the words out from beginnings made with the story (`linesOf(story, w)`: the body, then each
+  beat on lines of its own, `mark` on its first line drawn as a pill (a dot for ""), `indent`; a word
+  wider than the line, as Japanese is, broken between letters). Taller than the card, the typing
+  line is kept in view (`st.top`), all there it shows the last lines once (`st.settled`), then
+  Up / Down and `W.scroll` move it.
 - **Words:** type names are `type.<id>` (the game keeps them six letters long: "PSYCHC").
 
 ## The PokéNav's apps

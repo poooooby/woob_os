@@ -1,14 +1,22 @@
--- The News's model: the broadcast, built when it's opened. World stories first (today's swarm, Ruby /
--- Sapphire / Emerald's own TV outbreak, Emerald's storms, R-Bay's hottest auction), then the
--- player's (the week so far, and what the journal saw since they last watched: catches, a shiny,
--- hatches, evolutions, trainers beaten, a badge; a GTS trade; a team out on an errand or back; the
--- week's challenges). Nothing made up beyond the swarm, which is real (src/swarm.lua). The last
--- time they watched is kept in the save (mod.save "news"), and the swarm's notification once a day.
+-- The News's model: the broadcast, built when it's opened. It follows the player as a rookie the
+-- region can't stop talking about, the way sports news follows a breakout star: first their latest
+-- Gym (the score, then the play-by-play: the leads, each knockout and the turn it came, the
+-- finishing blow), their last two trainers beaten (the score, where, both teams, the finisher), their
+-- latest catch (a signing: where, the level, the Ball), newest first, and their week. Then the world
+-- (today's swarm, Ruby / Sapphire / Emerald's own TV outbreak, Emerald's storms, R-Bay's hottest
+-- auction), then what else the journal saw since they last watched (a shiny, a first for the
+-- Pokédex, hatches, evolutions), a GTS trade, a team out on an errand or back, the week's challenges.
+-- Nothing made up: the battles are the journal's box scores (src/journal.lua), the swarm is real
+-- (src/swarm.lua). The last time they watched is kept in the save (mod.save "news"), and the swarm's
+-- notification once a day.
 --
 --   Nw = News(engine, deps)  deps: save ; now() ; journal ; swarm ; auction ; gts ; errands ;
---       challenges ; storm(s) -> { kind, place } | nil ; place(mapId) -> its name ; monName(sp) ; T ;
---       notify(kind, data)
---   Nw.build(s) -> { stories = { { tag = "world" | "you", head, body, sp, glyph, color, key } }, ticker }
+--       challenges ; storm(s) -> { kind, place } | nil ; place(mapId) -> its name ; monName(sp) ;
+--       moveName(num) ; itemName(id) ; T ; notify(kind, data)
+--   Nw.build(s) -> { stories = { { tag = "world" | "you", head, body, beats = { { mark, text } } | nil,
+--       sp, glyph, color, key } }, ticker }
+--     keys: gym, match1, match2, signing, week, swarm, outbreak, storm, rbay, shiny, catch, hatch,
+--       evolve, gts, errand, errandBack, challenges, quiet
 --   Nw.tick(s) (once a second: a new day's swarm -> a "swarm" notification, once a day)
 
 local floor, max, min = math.floor, math.max, math.min
@@ -61,6 +69,102 @@ return function(engine, deps)
   local function titled(text)
     return (tostring(text):lower():gsub("(%a)([%w']*)", function(a, b) return a:upper() .. b end))
   end
+  local function moveName(num)
+    if not (num and deps.moveName) then return nil end
+    local ok, n = pcall(deps.moveName, num)
+    return ok and n or nil
+  end
+  local function itemName(id)
+    if not (id and deps.itemName) then return nil end
+    local ok, n = pcall(deps.itemName, id)
+    if ok and type(n) == "string" and n ~= "" then return titled(n) end
+    return nil
+  end
+  -- (a team: "Pidgey, Rattata and Spearow")
+  local function listOf(sps)
+    local n = type(sps) == "table" and #sps or 0
+    if n == 0 then return "?" end
+    local out = name(sps[1])
+    for i = 2, n do out = out .. T(i == n and "news.list.last" or "news.list.sep") .. name(sps[i]) end
+    return out
+  end
+  local function whoOf(rec)
+    local cls, nm = tostring(rec.cls or ""), tostring(rec.name or "?")
+    return titled(cls ~= "" and (cls .. " " .. nm) or nm)
+  end
+  local function turns(n)
+    n = tonumber(n) or 0
+    return n == 1 and T("news.turn1") or T.f("news.turns", n)
+  end
+  local function num(v) return tonumber(v) or 0 end
+  -- (how a blow landed: a critical hit, super effective)
+  local function flair(b)
+    if b.crit then return T("news.flair.crit") .. " " end
+    if b.sup then return T("news.flair.super") .. " " end
+    return ""
+  end
+  -- one knockout, told: who fell, to whom and what (when the journal saw it), the last of theirs the
+  -- end of the match
+  local function beatText(b, final)
+    local mv = b.by and moveName(b.mv)
+    if b.k == "ko" then
+      if final then
+        return mv and (flair(b) .. T.f("news.pbp.final", name(b.by), mv, name(b.v))) or T.f("news.pbp.finalNone", name(b.v))
+      end
+      return mv and (flair(b) .. T.f("news.pbp.ko", name(b.by), mv, name(b.v))) or T.f("news.pbp.koNone", name(b.v))
+    end
+    return mv and T.f("news.pbp.down", name(b.by), mv, name(b.v)) or T.f("news.pbp.downNone", name(b.v))
+  end
+
+  -- the rookie's coverage: the latest Gym, the last two trainers beaten, the latest catch
+  local function rookie(Jr, me)
+    local out = {}
+    local g = Jr.gym and Jr.gym()
+    if type(g) == "table" then
+      local who = whoOf(g)
+      local head = (g.badge and num(g.n) > 0) and T.f("news.gym.head", me, who, num(g.n)) or T.f("news.gym.headWin", me, who)
+      local body = T.f("news.gym.lede", place(g.map), me, who, num(g.me), num(g.them), turns(g.turns))
+      local beats = {}
+      if g.lead and g.foeLead then
+        beats[1] = { mark = "", text = T.f("news.pbp.lead", titled(tostring(g.name or "?")), name(g.foeLead), me, name(g.lead)) }
+      end
+      local last
+      for i, b in ipairs(g.beats or {}) do if b.k == "ko" then last = i end end
+      for i, b in ipairs(g.beats or {}) do
+        beats[#beats + 1] = { mark = T.f("news.pbp.turn", num(b.t)), text = beatText(b, i == last) }
+      end
+      local f = g.fin
+      out[#out + 1] = { tag = "you", key = "gym", head = head, body = body, beats = beats, at = num(g.at),
+                        sp = f and f.by or g.lead, glyph = "medal", color = { 255, 189, 46 } }
+    end
+    for i, w in ipairs(Jr.wins and Jr.wins() or {}) do
+      if i > 2 then break end
+      local who = whoOf(w)
+      local body = T.f("news.match.body", place(w.map), me, listOf(w.mine), who, listOf(w.theirs), turns(w.turns))
+      local f = w.fin
+      local mv = f and f.by and moveName(f.mv)
+      if mv then body = body .. " " .. flair(f) .. T.f("news.match.final", name(f.by), mv, name(f.v)) end
+      if num(w.them) == 0 then body = body .. " " .. T("news.match.clean") end
+      out[#out + 1] = { tag = "you", key = "match" .. i, head = T.f("news.match.head", me, num(w.me), who, num(w.them)),
+                        body = body, at = num(w.at), sp = f and f.by or (w.mine and w.mine[1]),
+                        glyph = "glove", color = { 255, 69, 58 } }
+    end
+    local c = Jr.catch and Jr.catch()
+    if type(c) == "table" and c.sp then
+      local body = T.f("news.sign.body", place(c.map), tostring(c.lv or "?"), name(c.sp))
+      local ball = itemName(c.ball)
+      if ball then body = body .. " " .. T.f("news.sign.ball", ball) end
+      if c.shiny then body = body .. " " .. T("news.sign.shiny") elseif c.new then body = body .. " " .. T("news.sign.new") end
+      out[#out + 1] = { tag = "you", key = "signing", head = T.f("news.sign.head", me, name(c.sp)), body = body,
+                        at = num(c.at), sp = c.sp }
+    end
+    -- (newest first, the way the day's sports lead)
+    table.sort(out, function(a, b)
+      if a.at ~= b.at then return a.at > b.at end
+      return a.key < b.key
+    end)
+    return out
+  end
 
   function Nw.build(s)
     local list = {}
@@ -71,6 +175,15 @@ return function(engine, deps)
     end
     local now = Nw.now()
     local me = playerOf(s)
+    local Jr = deps.journal
+    -- (the rookie: the latest Gym, the last two wins, the latest catch, newest first; then their week)
+    if Jr then
+      for _, st in ipairs(rookie(Jr, me)) do list[#list + 1] = st end
+      local tr, ca, steps = Jr.count("trainer"), Jr.count("caught"), Jr.count("steps")
+      if tr + ca + steps > 0 then
+        add("you", "week", T("news.week.head"), T.f("news.week.body", tr, ca, steps), { glyph = "chart", color = { 255, 55, 95 } })
+      end
+    end
     -- (the world)
     local sw = deps.swarm and deps.swarm.today(s)
     if sw then
@@ -108,21 +221,19 @@ return function(engine, deps)
           { sp = best.sp, glyph = "rocket", color = { 196, 30, 44 } })
       end
     end
-    -- (the player: the week so far)
-    local Jr = deps.journal
+    -- (the rest since they last watched, the newest few: the latest catch is the signing already;
+    -- trainers and Badges are the box scores)
     if Jr then
-      local tr, ca, steps = Jr.count("trainer"), Jr.count("caught"), Jr.count("steps")
-      if tr + ca + steps > 0 then
-        add("you", "week", T("news.week.head"), T.f("news.week.body", tr, ca, steps), { glyph = "chart", color = { 255, 55, 95 } })
-      end
-      -- (the moments since they last watched; the newest, a few)
       local d = data()
       local since = tonumber(d.watched) or 0
       local told = 0
+      local signed = Jr.catch and Jr.catch()
       for _, m in ipairs(Jr.log()) do
         if told >= MOMENTS or (m.at or 0) <= since then break end
         local ok = true
-        if m.k == "catch" and m.shiny then
+        if m.k == "catch" and type(signed) == "table" and signed.at == m.at and signed.sp == m.sp then
+          ok = false
+        elseif m.k == "catch" and m.shiny then
           add("you", "shiny", T.f("news.shiny.head", name(m.sp)), T.f("news.shiny.body", me, name(m.sp)), { sp = m.sp })
         elseif m.k == "catch" and m.new then
           add("you", "catch", T.f("news.catch.head", name(m.sp)), T.f("news.catch.body", me, name(m.sp)), { sp = m.sp })
@@ -131,13 +242,6 @@ return function(engine, deps)
         elseif m.k == "evolve" then
           add("you", "evolve", T.f("news.evolve.head", name(m.from), name(m.sp)),
             T.f("news.evolve.body", me, name(m.from), name(m.sp)), { sp = m.sp })
-        elseif m.k == "trainer" and m.name then
-          local who = titled(tostring(m.cls or "") ~= "" and (tostring(m.cls) .. " " .. tostring(m.name)) or tostring(m.name))
-          add("you", "trainer", T.f("news.trainer.head", me, who), T.f("news.trainer.body", me, who),
-            { glyph = "glove", color = { 255, 69, 58 } })
-        elseif m.k == "badge" then
-          add("you", "badge", T.f("news.badge.head", me), T.f("news.badge.body", me, tonumber(m.n) or 0),
-            { glyph = "medal", color = { 255, 189, 46 } })
         else
           ok = false
         end
@@ -179,7 +283,10 @@ return function(engine, deps)
     if #list == 0 then add("you", "quiet", T("news.quiet.head"), T("news.quiet.body"), { glyph = "mic", color = { 88, 86, 214 } }) end
     -- (the ticker: every headline, one after another)
     local heads = {}
-    for i, st in ipairs(list) do heads[i] = st.head end
+    for i, st in ipairs(list) do
+      heads[i] = st.head
+      st.at = nil
+    end
     local d = data()
     d.watched = now
     save(d)

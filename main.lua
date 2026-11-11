@@ -484,10 +484,25 @@ return function(mod)
     })
   end
   if makeJournal then
+    -- (a Gym Leader: the game's own class, its number asked once per game)
+    local leaderCls, leaderFor = nil, nil
     env.journal = makeJournal(engine, {
       save = mod.save, now = os.time, session = session,
       badges = function(s) return env.mart and env.mart.badges(s) or 0 end,
       swarm = function() return env.swarm and env.swarm.species() or nil end,
+      leader = function(cls)
+        local g = gameId()
+        if leaderFor ~= g then
+          leaderFor, leaderCls = g, false
+          local Constants = engine("src.core.game3.constants")
+          local okC, C = pcall(Constants and Constants.of or error, g)
+          if okC and C then
+            local okI, id = pcall(C.id, C, "trainer_classes", "TRAINER_CLASS_LEADER")
+            if okI and tonumber(id) then leaderCls = tonumber(id) end
+          end
+        end
+        return leaderCls ~= false and cls ~= nil and cls == leaderCls
+      end,
     })
   end
   -- (a type's name in WoobOS's words, "type.<id>"; else the game's own, shortened as it keeps them)
@@ -593,7 +608,13 @@ return function(mod)
     env.news = makeNews(engine, {
       save = mod.save, now = os.time, T = T, notify = notify,
       journal = env.journal, swarm = env.swarm, auction = env.auction, gts = env.gts, errands = env.errands,
-      challenges = env.challenges, place = placeName,
+      challenges = env.challenges, place = placeName, itemName = env.itemName,
+      moveName = function(num)
+        local Pk = engine("src.core.game3.pokemon")
+        local ok, n = pcall(Pk and Pk.moveName or error, num)
+        if not (ok and type(n) == "string" and n ~= "" and n ~= "-------") then return nil end
+        return titled(n)
+      end,
       monName = function(sp)
         local Pk = engine("src.core.game3.pokemon")
         local ok, n = pcall(Pk and Pk.name or error, sp)
@@ -937,8 +958,9 @@ return function(mod)
   -- the journal's events (observed only), and an item used from the Bag or the field (the hook's
   -- answer passed on as it came)
   if env.journal then
-    for _, name in ipairs({ "battle.ended", "pokemon.caught", "egg.hatched", "pokemon.evolved", "pokemon.level_up",
-                            "map.entered", "world.stepped" }) do
+    for _, name in ipairs({ "battle.started", "battle.damage_dealt", "battle.battler_switched", "battle.fainted",
+                            "battle.ended", "pokemon.caught", "egg.hatched", "pokemon.evolved", "pokemon.level_up",
+                            "map.entered", "world.stepped", "flag.changed" }) do
       mod.events:on(name, function(ev) env.journal.on(name, ev) end)
     end
     -- (the daily swarm: on its route, some of the encounters become it)

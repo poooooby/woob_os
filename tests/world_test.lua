@@ -207,16 +207,99 @@ if Jr and Ch then
   Ch.store, Ch.now = fakeSave, function() return tnow end
   local Runtime = require("src.mods.Runtime")
   -- (through the engine's own event bus, as the game raises them)
-  run.loader.events:emit("battle.ended", { result = "win", battle = { wild = false, trainerName = "BROCK", trainerClassName = "LEADER" } })
-  run.loader.events:emit("battle.ended", { result = "win", battle = { wild = true } })
-  run.loader.events:emit("battle.ended", { result = "lose", battle = { wild = false } })
-  run.loader.events:emit("battle.ended", { result = "win", battle = { link = true } })
-  T.check(Jr.count("trainer") == 1 and Jr.count("wild") == 1, "battles won: a trainer, a wild one (not lost, not a link)")
+  local ev = run.loader.events
+  local okC, Cs = pcall(require("src.core.game3.constants").of, GAME)
+  local LEADER = okC and Cs and tonumber(Cs:id("trainer_classes", "TRAINER_CLASS_LEADER")) or -1
+  local squirtle, geodude, onix, pidgey = spOf(7), spOf(74), spOf(95), spOf(16)
+  local function battler(side, id, sp) return { side = side, id = id, species = sp, mon = { species = sp } } end
+  -- a Gym battle, as the engine raises it: Squirtle's super-effective Bubble takes Geodude (turn 1),
+  -- Onix's Rock Throw drops Pidgey (turn 2), Squirtle's critical Water Gun finishes Onix (turn 3)
+  s.map = "FR_PEWTER_CITY_GYM"
+  local gb = { wild = false, trainerName = "BROCK", trainerClassName = "LEADER", trainerClass = LEADER, turn = 0,
+               foeParty = { { species = geodude }, { species = onix } } }
+  local mine, theirs = battler("player", 0, squirtle), battler("enemy", 1, geodude)
+  gb.player, gb.enemy = mine, theirs
+  ev:emit("battle.started", { kind = "trainer", battle = gb })
+  gb.turn = 1
+  ev:emit("battle.damage_dealt", { battle = gb, user = mine, target = theirs, targetId = 1, move = { num = 145 }, typeMult = 20 })
+  ev:emit("battle.fainted", { battle = gb, battler = theirs, sideName = "enemy", battlerId = 1 })
+  theirs = battler("enemy", 1, onix)
+  gb.enemy = theirs
+  ev:emit("battle.battler_switched", { battle = gb, sideName = "enemy", battler = theirs, speciesId = onix })
+  gb.turn = 2
+  local bird = battler("player", 0, pidgey)
+  gb.player = bird
+  ev:emit("battle.battler_switched", { battle = gb, sideName = "player", battler = bird, speciesId = pidgey })
+  ev:emit("battle.damage_dealt", { battle = gb, user = theirs, target = bird, targetId = 0, move = { num = 88 }, typeMult = 10 })
+  ev:emit("battle.fainted", { battle = gb, battler = bird, sideName = "player", battlerId = 0 })
+  gb.turn = 3
+  gb.player = mine
+  ev:emit("battle.battler_switched", { battle = gb, sideName = "player", battler = mine, speciesId = squirtle })
+  -- (their own recoil on the attacker doesn't count as a hit by the other side)
+  ev:emit("battle.damage_dealt", { battle = gb, user = mine, target = mine, targetId = 0, move = { num = 36 }, typeMult = 10 })
+  ev:emit("battle.damage_dealt", { battle = gb, user = mine, target = theirs, targetId = 1, move = { num = 55 }, typeMult = 10, crit = true })
+  ev:emit("battle.fainted", { battle = gb, battler = theirs, sideName = "enemy", battlerId = 1 })
+  ev:emit("battle.ended", { result = "win", battle = gb })
+  local g = Jr.gym()
+  T.check(g ~= nil and g.me == 2 and g.them == 1 and g.turns == 3, "a Gym won: its box score, 2-1 in 3 turns")
+  T.check(g ~= nil and #g.beats == 3 and g.beats[1].k == "ko" and g.beats[1].sup and g.beats[1].mv == 145
+    and g.beats[1].by == squirtle and g.beats[1].v == geodude and g.beats[1].t == 1,
+    "a knockout: who, the move, super effective, the turn")
+  T.check(g ~= nil and g.beats[2].k == "down" and g.beats[2].by == onix and g.beats[2].mv == 88 and g.beats[2].v == pidgey,
+    "a setback: their Onix's Rock Throw")
+  T.check(g ~= nil and g.fin == g.beats[3] and g.fin.crit and g.fin.mv == 55 and g.fin.by == squirtle and g.fin.v == onix,
+    "the finishing blow: a critical Water Gun")
+  T.check(g ~= nil and g.map == "FR_PEWTER_CITY_GYM" and g.lead == squirtle and g.foeLead == geodude and g.name == "BROCK",
+    "where, the Leader, the leads")
+  T.check(g ~= nil and #g.mine == 2 and #g.theirs == 2, "both teams (" .. (g and #g.mine or 0) .. ", " .. (g and #g.theirs or 0) .. ")")
+  T.eq(#Jr.wins(), 0, "a Gym Leader: the Gym's box score, not one of the trainers'")
   T.check(Jr.log()[1] and Jr.log()[1].k == "trainer" and Jr.log()[1].name == "BROCK", "the trainer beaten, logged")
-  local squirtle = spOf(7)
-  run.loader.events:emit("pokemon.caught", { speciesId = squirtle, isNew = true, mon = { species = squirtle } })
-  run.loader.events:emit("pokemon.caught", { speciesId = spOf(16), isNew = false, mon = { species = spOf(16) } })
+  -- (the Badge: its flag, set after the battle; other flags, or one cleared, nothing)
+  ev:emit("flag.changed", { name = "FLAG_SYS_POKEDEX_GET", value = true })
+  ev:emit("flag.changed", { name = "FLAG_BADGE01_GET", value = false })
+  T.check(Jr.log()[1].k == "trainer" and not Jr.gym().badge, "other flags: nothing")
+  ev:emit("flag.changed", { name = "FLAG_BADGE01_GET", value = true })
+  T.check(Jr.gym().badge == true and Jr.log()[1].k == "badge", "a Badge's flag: the Gym's Badge, logged")
+  -- (two trainers after it, and a third: the last two kept, newest first; a clean sweep, a 1-1)
+  local function quick(nm, cls, mySp, foeSp, turnsN, map, lost)
+    s.map = map
+    tnow = tnow + 10
+    local q = { wild = false, trainerName = nm, trainerClassName = cls, trainerClass = 1, turn = 0, foeParty = { { species = foeSp } } }
+    local a, b = battler("player", 0, mySp), battler("enemy", 1, foeSp)
+    q.player, q.enemy = a, b
+    ev:emit("battle.started", { kind = "trainer", battle = q })
+    q.turn = turnsN
+    if lost then
+      ev:emit("battle.damage_dealt", { battle = q, user = b, target = a, targetId = 0, move = { num = 33 }, typeMult = 10 })
+      ev:emit("battle.fainted", { battle = q, battler = a, sideName = "player", battlerId = 0 })
+    end
+    ev:emit("battle.damage_dealt", { battle = q, user = a, target = b, targetId = 1, move = { num = 33 }, typeMult = 10 })
+    ev:emit("battle.fainted", { battle = q, battler = b, sideName = "enemy", battlerId = 1 })
+    ev:emit("battle.ended", { result = "win", battle = q })
+  end
+  quick("JOEY", "YOUNGSTER", pidgey, spOf(19), 2, "FR_ROUTE22")
+  quick("RICK", "BUG CATCHER", squirtle, spOf(10), 4, "FR_VIRIDIAN_FOREST", true)
+  quick("BEN", "HIKER", squirtle, geodude, 1, "FR_ROUTE3")
+  local wins = Jr.wins()
+  T.check(#wins == 2 and wins[1].name == "BEN" and wins[2].name == "RICK", "the last two trainers beaten, newest first")
+  T.check(wins[2].me == 1 and wins[2].them == 1 and wins[2].fin and wins[2].fin.mv == 33 and #wins[2].mine == 1,
+    "a win with a loss in it: 1-1, the finisher")
+  T.check(Jr.gym().name == "BROCK", "the Gym kept through them")
+  -- (a wild battle isn't followed; a lost one, a link battle: no box score)
+  ev:emit("battle.started", { kind = "wild", battle = { wild = true, turn = 0 } })
+  ev:emit("battle.ended", { result = "win", battle = { wild = true } })
+  ev:emit("battle.ended", { result = "lose", battle = { wild = false } })
+  ev:emit("battle.ended", { result = "win", battle = { link = true } })
+  T.check(Jr.count("trainer") == 4 and Jr.count("wild") == 1 and #Jr.wins() == 2 and Jr.wins()[1].name == "BEN",
+    "battles won: four trainers, a wild one (not lost, not a link)")
+  s.map = "FR_ROUTE1"
+  tnow = tnow + 10
+  ev:emit("pokemon.caught", { speciesId = squirtle, isNew = true, mon = { species = squirtle } })
+  ev:emit("pokemon.caught", { speciesId = spOf(16), isNew = false, ballId = 3, mon = { species = spOf(16), level = 7 } })
   T.check(Jr.count("caught") == 2 and Jr.count("new") == 1, "catches: two, one new to the Pokédex")
+  local c = Jr.catch()
+  T.check(c ~= nil and c.sp == spOf(16) and c.map == "FR_ROUTE1" and c.lv == 7 and c.ball == 3 and not c.new,
+    "the latest catch: where, the level, the Ball")
   T.eq(Jr.count("t11"), 1, "by type: one Water")
   T.check(Jr.count("t0") == 1 and Jr.count("t2") == 1, "Pidgey: Normal and Flying, once each")
   run.loader.events:emit("egg.hatched", { mon = { species = spOf(172) } })
@@ -233,11 +316,13 @@ if Jr and Ch then
   Runtime.call("item.use", function() return false end, {}, nil, 13, 1, s.bag)
   T.check(used == true and Jr.count("items") == 1, "an item used (the hook's answer passed on; a refused one not counted)")
   T.check(Jr.log()[1].k == "evolve" and Jr.log()[2].k == "hatch", "the log, newest first")
-  -- (a new week: the counts from nothing, the log kept)
+  -- (a new week: the counts from nothing, the log and the box scores kept)
   local w0 = Jr.week(tnow)
+  local logN = #Jr.log()
   tnow = tnow + 7 * 86400
   T.check(Jr.week(tnow) == w0 + 1 and Jr.count("trainer") == 0, "a new week: counted from nothing")
-  T.check(#Jr.log() == 5, "the log kept (the trainer, two catches, the hatch, the evolution)")
+  T.check(#Jr.log() == logN and logN == 9 and #Jr.wins() == 2 and Jr.gym() and Jr.catch(),
+    "the log kept (" .. logN .. ": four trainers, the Badge, two catches, the hatch, the evolution), the box scores too")
   -- (a week starts on a Monday, local time)
   local okD, d = pcall(os.date, "*t", (Jr.week(tnow) * 7 - 3) * 86400 + 43200 - (Jr.localTime(tnow) - tnow))
   T.check(okD and d.wday == 2, "weeks start on Mondays (" .. tostring(okD and d.wday) .. ")")
@@ -507,7 +592,8 @@ if Sw and Nw then
   Settings.set("swarms", true)
   -- (a swarm catch counts for its challenge)
   local before = Jr.count("swarm")
-  run.loader.events:emit("pokemon.caught", { speciesId = sw.species, isNew = true, mon = { species = sw.species } })
+  run.loader.events:emit("pokemon.caught", { speciesId = sw.species, isNew = true, ballId = 4,
+    mon = { species = sw.species, level = sw.min } })
   T.eq(Jr.count("swarm"), before + 1, "caught from the swarm: counted")
 
   -- ------- the News
@@ -518,12 +604,38 @@ if Sw and Nw then
   local keys = {}
   for _, st in ipairs(cast.stories) do keys[#keys + 1] = st.key end
   local joined = " " .. table.concat(keys, " ") .. " "
-  T.eq(cast.stories[1].key, "swarm", "the swarm leads (" .. joined .. ")")
+  local byKey = {}
+  for _, st in ipairs(cast.stories) do byKey[st.key] = st end
+  -- (the rookie leads, newest first: the swarm catch, the last two trainers, the Gym; then their week)
+  T.eq(table.concat(keys, " ", 1, 5), "signing match1 match2 gym week", "the rookie's coverage leads, newest first (" .. joined .. ")")
+  local swarmSt = byKey.swarm
   local swName = PokeG.name(sw.species)
-  T.check(cast.stories[1].head:lower():find(swName:lower(), 1, true) and cast.stories[1].body:find(tostring(sw.min), 1, true),
-    "its words: the species, the levels (" .. cast.stories[1].body .. ")")
-  T.check(joined:find(" rbay ", 1, true) and joined:find(" week ", 1, true) and joined:find(" catch ", 1, true),
-    "R-Bay, the week, a new catch (" .. joined .. ")")
+  T.check(swarmSt and swarmSt.head:lower():find(swName:lower(), 1, true) and swarmSt.body:find(tostring(sw.min), 1, true),
+    "the swarm's words: the species, the levels (" .. tostring(swarmSt and swarmSt.body) .. ")")
+  T.check(joined:find(" rbay ", 1, true) and joined:find(" catch ", 1, true) and not joined:find(" trainer ", 1, true)
+    and not joined:find(" badge ", 1, true), "R-Bay, an earlier new catch; trainers and Badges as box scores only (" .. joined .. ")")
+  local function has(text, part) return tostring(text):lower():find(tostring(part):lower(), 1, true) ~= nil end
+  local squirtle, geodude = spOf(7), spOf(74)
+  local gym = byKey.gym
+  T.check(gym and has(gym.head, "Leader Brock") and has(gym.body, "2-1") and has(gym.body, "3 turns"),
+    "the Gym: the Leader, the score, the turns (" .. tostring(gym and (gym.head .. " / " .. gym.body)) .. ")")
+  T.check(gym and gym.beats and #gym.beats == 4 and gym.beats[1].mark == "" and has(gym.beats[1].text, "Brock")
+    and has(gym.beats[1].text, PokeG.name(geodude)) and gym.beats[2].mark == "T1" and gym.beats[4].mark == "T3",
+    "its play-by-play: the leads, then each knockout by its turn")
+  local wg, rt = PokeG.moveName(55), PokeG.moveName(88)
+  T.check(gym and has(gym.beats[2].text, "Super effective") and has(gym.beats[3].text, rt) and has(gym.beats[3].text, "setback")
+    and has(gym.beats[4].text, "critical") and has(gym.beats[4].text, wg) and has(gym.beats[4].text, "That's the match"),
+    "the beats: super effective, the setback, the critical finish (" .. tostring(gym and gym.beats[4].text) .. ")")
+  local m1, m2 = byKey.match1, byKey.match2
+  T.check(m1 and m1.head == "WOS 1, Hiker Ben 0" and has(m1.body, "clean sweep") and has(m1.body, "1 turn.")
+    and m1.sp == squirtle, "the last win: the score, a clean sweep, one turn, the finisher's picture (" .. tostring(m1 and m1.body) .. ")")
+  T.check(m2 and m2.head == "WOS 1, Bug Catcher Rick 1" and not has(m2.body, "clean sweep") and has(m2.body, "The finisher")
+    and has(m2.body, PokeG.name(spOf(10))), "the one before: 1-1, both teams, the finisher (" .. tostring(m2 and m2.body) .. ")")
+  local sg = byKey.signing
+  T.check(sg and has(sg.head, "signs") and has(sg.head, swName) and sg.sp == sw.species
+    and has(sg.body, ": the rookie's newest teammate is a level " .. sw.min .. " " .. swName .. ".")
+    and sg.body:find(":", 1, true) > 1 and has(sg.body, "sealed the deal") and has(sg.body, "first for the rookie"),
+    "the latest catch: a signing (" .. tostring(sg and (sg.head .. " / " .. sg.body)) .. ")")
   T.check(joined:find(" challenges ", 1, true), "the week's challenges")
   T.check(type(cast.ticker) == "string" and cast.ticker:find(cast.stories[1].head, 1, true), "the ticker: the headlines")
   local again = Nw.build(s)
@@ -558,6 +670,43 @@ if Sw and Nw then
   local kb
   for _ = 1, 2 do kb = garbageOf(60, function() drawWin(W, false) end) end
   T.check(kb < 0.5, ("the News: next to no garbage (%.3f KB a frame)"):format(kb))
+  -- (the Gym's play-by-play: its beats on lines of their own, marked; taller than the card, it
+  -- follows the typing, then scrolls)
+  local GW = Apps.byId("news").window({ session = s, mode = "pad", app = "news", rows = {},
+    resume = { app = "news", state = { story = "gym" } } }, X._test.env)
+  local gst = GW.state
+  T.eq(gst.cast.stories[gst.i].key, "gym", "opened on the Gym's story")
+  drawWin(GW, true)
+  local marks = 0
+  for j = 1, #gst.lines.lines do if gst.lines.mark[j] then marks = marks + 1 end end
+  T.eq(marks, 4, "four beats, each marked on its first line")
+  T.check(#gst.lines.lines > gst.cap, "upright, the Gym's story is taller than the card (" .. #gst.lines.lines .. " lines, "
+    .. gst.cap .. " fit)")
+  clock = clock + 60
+  tnow = tnow + 60
+  for _ = 1, 2 do drawWin(GW, true) end
+  T.check(gst.top > 0, "typed to the end: the last lines in view (" .. gst.top .. ")")
+  local top0 = gst.top
+  GW.input(input({}), nav("up"))
+  T.eq(gst.top, top0 - 1, "Up: a line back")
+  GW.scroll(5.4)
+  T.eq(gst.top, top0 - 2, "the wheel too")
+  local okG = pcall(function() for _ = 1, 3 do drawWin(GW, false) drawWin(GW, true) end end)
+  T.check(okG, "the play-by-play draws wide and upright")
+  local kbG
+  for _ = 1, 2 do kbG = garbageOf(60, function() drawWin(GW, true) end) end
+  T.check(kbG < 0.5, ("the play-by-play: next to no garbage (%.3f KB a frame)"):format(kbG))
+  -- (Japanese has no spaces: its lines still fit)
+  X._test.env.setLanguage("ja")
+  local JW = Apps.byId("news").window({ session = s, mode = "pad", app = "news", rows = {},
+    resume = { app = "news", state = { story = "gym" } } }, X._test.env)
+  drawWin(JW, true)
+  local jst, fits = JW.state, true
+  for j, line in ipairs(jst.lines.lines) do
+    if K.width(line, 4.1) > jst.linesW - jst.lines.indent[j] + 0.01 then fits = false end
+  end
+  T.check(fits and #jst.lines.lines > 4, "Japanese: " .. #jst.lines.lines .. " lines, each fitting")
+  X._test.env.setLanguage("en")
 end
 
 T.finish("woob_os world (" .. GAME .. ")")

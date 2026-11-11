@@ -5,6 +5,17 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **News:** Rookie Watch, sports-style coverage of you as a rookie on the rise, newest first: your
+  latest Gym (the score, the turns and a play-by-play of every knockout, turn by turn, to the
+  finishing blow), your last two trainers beaten (the score, where, both teams and the finisher), your
+  latest catch as a signing (where, the level, the Ball) and your week. A story longer than its panel
+  follows the words as they type, then scrolls with Up / Down, a drag or the wheel.
+
+### Changed
+- **News:** trainers beaten and new Badges are told in the Gym's and the matches' stories rather
+  than as one-line moments.
+
 ## [0.9.1] - 2026-11-11
 
 ### Added
