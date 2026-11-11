@@ -262,6 +262,7 @@ local function drawWin(W, portrait)
   K.frame(G, VP, PAGE, clock)
   W.draw(portrait and { 0, 0, 115, 138 } or { 0, 0, 260, 130 }, clock, portrait)
 end
+local scrolled = 0
 for _, id in ipairs({ "phone", "condition", "ribbons" }) do
   local app = Apps.byId(id)
   local ctx = { session = s, mode = "watch", app = id, rows = {} }
@@ -274,11 +275,46 @@ for _, id in ipairs({ "phone", "condition", "ribbons" }) do
       for _ = 1, 3 do drawWin(W, false) drawWin(W, true) end
     end)
     T.check(okD, id .. ": draws wide and on the watch (" .. tostring(err) .. ")")
+    -- (the wheel or a drag stops between rows: the list still draws, from the row it's in, each row
+    -- that shows tappable; drawn short, so even a short list scrolls)
+    local st = W.state
+    if st and st.rows then
+      for _ = 1, 2 do W.input(input({ "b" }), NONE) end
+      local function short()
+        K.frame(G, VP, PAGE, clock)
+        W.draw({ 0, 0, 260, 36 }, clock, false)
+      end
+      short()
+      print(("  %s: drawn short, %d rows, %d fit"):format(id, #st.rows, st.visible))
+    end
+    if st and st.rows and #st.rows > st.visible then
+      local function short()
+        K.frame(G, VP, PAGE, clock)
+        W.draw({ 0, 0, 260, 36 }, clock, false)
+      end
+      scrolled = scrolled + 1
+      W.scroll(-4)
+      local frac = st.top
+      local okS, errS = pcall(short)
+      local rowsHit = 0
+      for _, hrec in ipairs(K.hits) do
+        if hrec.kind == "win" and type(hrec.arg) == "number" and hrec.arg >= 1 and hrec.arg <= #st.rows then rowsHit = rowsHit + 1 end
+      end
+      T.check(okS and frac > 0 and frac ~= math.floor(frac) and rowsHit > 0,
+        ("%s: scrolled to between rows (%.2f), the list still draws (%d rows tappable; %s)"):format(id, frac, rowsHit,
+          tostring(errS)))
+      W.scroll(-1000)
+      T.check(pcall(short) and pcall(drawWin, W, false) and pcall(drawWin, W, true), id .. ": scrolled to the end, wide and upright")
+      W.scroll(1000)
+      short()
+      T.eq(st.top, 0, id .. ": and back to the top")
+    end
     W.input(input({ "b" }), NONE)
     local kb = garbageOf(120, function() drawWin(W, false) end)
     T.check(kb < 0.5, string.format("%s: next to no garbage (%.3f KB/frame)", id, kb))
   end
 end
+if EMERALD then T.check(scrolled == 3, "the Phone, Condition and Ribbons each scrolled between rows (" .. scrolled .. ")") end
 
 -- a call: it rings, then the words as chat bubbles, each typed out after a "..." bubble
 if EMERALD then

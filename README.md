@@ -75,9 +75,10 @@ opens a desktop in a sleek monitor instead of a text menu.
     and its Gym with that Gym's badge (ticked once you have it).
   - **Fly:** from the party menu, pick a town you've visited and press A (or tap Fly): you fly
     there as the game flies you.
-  - **The camera:** L and R (or the right stick) turn it, the right stick tilts it, A zooms (or the
-    mouse wheel). On a touch screen, drag to turn and tilt, pinch to zoom and tap a place to send
-    the cursor there.
+  - **The camera:** L and R (or the right stick) turn it, the right stick tilts it, A steps through
+    its zooms (or the mouse wheel): the whole region, nearer, near, and a close-up of the town or
+    place under the cursor, framed above its card. On a touch screen, drag to turn and tilt, pinch to
+    zoom and tap a place to send the cursor there; tap it again to zoom in on it.
   - **Flat or 3D:** SELECT (or the 2D / 3D button) swaps to the flat map, the game's own Town Map
     picture seen from above, north up, with the same cursor, places and cards; L and R change
     the region there. The compass shows north; tap it to turn

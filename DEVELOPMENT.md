@@ -152,7 +152,11 @@ WoobPad alike, where `finish` and `row` have no PC script to go back to.
 A window instead of `open`: `window = function(ctx, env) return win end`, where `win` has `title`,
 `draw(body, clock, portrait)` (body in units; hits as `K.addHit(rect, "win", arg)`),
 `input(input, nav)` (true when handled; a B it leaves closes the window), `tap(arg, x, y)`,
-`scroll(dy, x, y)`, `hints()` and `close()`. `env` has `K`, `session()`, `se(name)`, `now()`,
+`scroll(dy, x, y)`, `hints()` and `close()`. A list the wheel or a drag scrolls keeps its top as a
+fraction of a row (it stays where it was left): draw from `floor(top) + 1`, each row at
+`(i - 1 - top) * ROW_H`, under a scissor of the list with its hits clipped to it (`K.addHit(rb,
+"win", i, area)`); a loop from `top + 1` misses every row once the top is a fraction (the Phone,
+Condition and Ribbons emptied that way; the PokéNav test scrolls each between rows). `env` has `K`, `session()`, `se(name)`, `now()`,
 `itemIcon(id, x, y, size, alpha)`, `monIcon(species, x, y, size)`, `monIconOf(mon, x, y, size, frame,
 alpha)`, `boxWall(id, x, y, w, h)`, `itemName(id)`, `monPic(species, x, y, size)` (its front picture -> true when drawn),
 `amount(n, x, y, size, c, measure)` (money with the game's sign -> its width) and
@@ -588,6 +592,13 @@ Clean room: the idea of a 3D region map (TERRARIUM's for Gen 1) and none of its 
   distance) under an overlay; the scene's `glass(b, rad, a, tint)` adds a dark tint, a gloss and a
   rim (`win.glass`, also the Town Map's hint capsule). No 3D frame (headless): the tint alone,
   darker.
+- **The zooms:** A steps through `ZOOMS` (4): the whole region, 0.55 and 0.3 of its size, then the
+  close-up, a fixed `CLOSE_DIST` (2.4 units: a town is one cell) at `CLOSE_PITCH`. At the close-up
+  `follow()` aims that much nearer the camera (along its yaw, so it turns with it) that the place
+  sits in the middle of the view above its card: `st.cardLift` is the card's share of half the view
+  (set as the card draws, the last frame's), solved through `Rd.FOV` for the goal's pitch and
+  distance. A tap on the chosen place steps in (to near, the close-up, then back to 0.55). The
+  wheel and two fingers stop at `MIN_DIST` (2).
 - **The cursor and the flat map:** the scene keeps a world cursor (`st.cx`, `st.cz`); the held
   D-pad (`dirX` / `dirY`, read with `isDown`) moves it in screen directions from the camera's yaw
   (north up when flat), slower over a town; let go, it glides (`GLIDE`) onto the nearest nav place

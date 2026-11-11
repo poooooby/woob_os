@@ -198,23 +198,24 @@ return function(ctx, env)
       K.glow(cx + math.cos(ea) * r, cy + sin(ea) * r, width * 2.5, width * 2.5, GOLD, 0.5)
     end
   end
-  -- a reward: money, or an item and how many -> its width
-  local function reward(r, x, y, right)
-    if r.money then return money(r.money, x, y + 1, 4, GOLD, right) end
+  -- a reward, centred on cy: money, or an item and how many -> its width
+  local function reward(r, x, cy, right)
+    if r.money then return money(r.money, x, cy - 4 * 0.6, 4, GOLD, right) end
     local tw = K.width(timesText(r.n), 3.6)
     local w = 10 + tw
     local x0 = right and x - w or x
     K.col(WHITE, 0.1)
-    K.graphics().circle("fill", K.X(x0 + 4.5), K.Y(y + 2.5), 4.6 * K.sc)
-    if env.itemIcon then pcall(env.itemIcon, r.item, x0 + 0.5, y - 1.5, 8) end
-    K.text(timesText(r.n), x0 + 10, y + 1.2, 3.6, SOFT)
+    K.graphics().circle("fill", K.X(x0 + 4.5), K.Y(cy), 4.6 * K.sc)
+    if env.itemIcon then pcall(env.itemIcon, r.item, x0 + 0.5, cy - 4, 8) end
+    K.text(timesText(r.n), x0 + 10, cy - 3.6 * 0.6, 3.6, SOFT)
     return w
   end
-  -- the bonus: a chest; open and glowing once it's ready, the lid lifting
+  -- the bonus: a chest, centred on (cx, cy) closed; open and glowing once it's ready, the lid lifting
   local function chest(cx, cy, s, ready, opened, clock)
     local G = K.graphics()
     if ready then K.glow(cx, cy, s * 1.6, s * 1.2, GOLD, 0.3 + 0.15 * sin(clock * 3)) end
     local w, h = s * 1.6, s
+    cy = cy - h * 0.09
     local lift = (ready or opened) and (opened and s * 0.35 or s * 0.12 * (1 + sin(clock * 4))) or 0
     K.grad(K.R(cx - w / 2, cy - h * 0.1, w, h * 0.7), s * 0.12, CHEST, CHEST_DARK)
     K.col(GOLD)
@@ -259,7 +260,9 @@ return function(ctx, env)
     local dt = st.lastT and min(0.1, max(0, now() - st.lastT)) or 0
     local want = p / max(1, e.goal)
     barK[i] = barK[i] + (want - barK[i]) * min(1, dt * 5)
-    local bw = tw - 16
+    local count = countText(p * 100000 + e.goal)
+    local cw = K.width(count, 3.2)
+    local bw = tw - max(16, cw + 3)
     local by = y + h * 0.64
     K.col(WHITE, 0.1 * a)
     K.box("fill", K.R(tx, by, bw, 1.8), 0.9)
@@ -273,7 +276,7 @@ return function(ctx, env)
         K.box("fill", K.R(tx + fw * sh, by, min(4, fw * (1 - sh)), 1.8), 0.9)
       end
     end
-    K.text(countText(p * 100000 + e.goal), tx + tw - 15, by - 1.3, 3.2, SOFT, "right", 15, a)
+    K.text(count, tx + tw - cw, by + 0.9 - 3.2 * 0.6, 3.2, SOFT, nil, nil, a)
     -- (the reward, Claim, or the tick)
     if e.claimed then
       local f = st.flash[i] and max(0, 1 - (now() - st.flash[i]) / 0.4) or 0
@@ -289,7 +292,7 @@ return function(ctx, env)
       if st.keys and st.cursor == i then K.focusRing(cb, 4.5) end
       K.addHit(cb, "win", CLAIM + i)
     else
-      reward(e.reward, right, cy - 2.6, true)
+      reward(e.reward, right, cy, true)
     end
     if st.keys and st.cursor == i and not claimable then K.focusRing(b, 4.5) end
   end
@@ -313,7 +316,7 @@ return function(ctx, env)
     local cx, cy = x + w / 2, y + 24 + rr
     if rr > 4 then
       ring(cx, cy, rr, ringK, 2.4, clock)
-      K.bold(doneText(claimed), cx - rr, cy - 3.6, 7, WHITE, "center", rr * 2)
+      K.bold(doneText(claimed), cx - rr, cy - 7 * 0.6, 7, WHITE, "center", rr * 2)
       -- (all five: sparks circling)
       if claimed >= #list then
         local G = K.graphics()
@@ -331,21 +334,26 @@ return function(ctx, env)
     K.col(GOLD, ready and (0.18 + 0.08 * sin(clock * 3)) or 0.08)
     K.box("fill", bb, 5)
     K.ring(bb, 5, GOLD, ready and 0.8 or 0.3, 0.45)
-    chest(bb[1] + 9, bb[2] + 11, 7, ready, bonus.claimed, clock)
-    K.bold(T("challenges.bonus"), bb[1] + 18, bb[2] + 3, 4, WHITE)
-    K.text(T("challenges.bonusNote"), bb[1] + 18, bb[2] + 9, 3.2, SOFT)
+    -- (the chest, the two lines of words, and the reward, Claim or the tick, all on its middle line)
+    local mid = bb[2] + bb[4] / 2
+    chest(bb[1] + 9, mid, 7, ready, bonus.claimed, clock)
+    local words = bb[3] - 18 - 26
+    local top = mid - (4 * 1.2 + 1 + 3.2 * 1.2) / 2
+    K.bold(T("challenges.bonus"), bb[1] + 18, top, K.fit(T("challenges.bonus"), 4, words), WHITE)
+    K.text(T("challenges.bonusNote"), bb[1] + 18, top + 4 * 1.2 + 1, K.fit(T("challenges.bonusNote"), 3.2, words), SOFT)
     local i = #list + 1
     rowX[i], rowY[i], rowW[i] = bb[1], bb[2], bb[3]
     if bonus.claimed then
-      check(bb[1] + bb[3] - 6, bb[2] + 10, 3.4, GREEN)
+      check(bb[1] + bb[3] - 6, mid, 3.4, GREEN)
     elseif ready then
-      local cb = K.R(bb[1] + bb[3] - 23, bb[2] + 5.5, 21, 9)
+      local cb = K.R(bb[1] + bb[3] - 23, mid - 4.5, 21, 9)
       K.grad(cb, 4.5, GOLD, GOLD_DEEP)
-      K.bold(T("challenges.claim"), cb[1], cb[2] + (9 - 4 * 1.2) / 2, K.fit(T("challenges.claim"), 4, 18), BG_FOOT, "center", cb[3])
+      local cs = K.fit(T("challenges.claim"), 4, 18)
+      K.bold(T("challenges.claim"), cb[1], cb[2] + (9 - cs * 1.2) / 2, cs, BG_FOOT, "center", cb[3])
       if st.keys and st.cursor == i then K.focusRing(cb, 4.5) end
       K.addHit(cb, "win", BONUS)
     else
-      reward(bonus, bb[1] + bb[3] - 3, bb[2] + 14, true)
+      reward(bonus, bb[1] + bb[3] - 3, mid, true)
     end
     if st.keys and st.cursor == i and not ready then K.focusRing(bb, 5) end
   end
@@ -406,23 +414,25 @@ return function(ctx, env)
       local dt = st.lastT and min(0.1, max(0, now() - st.lastT)) or 0
       ringK = ringK + (claimed / max(1, #list) - ringK) * min(1, dt * 4)
       ring(hb[1] + hb[3] - 10, hb[2] + 9, 6, ringK, 1.6, clock)
-      K.text(doneText(claimed), hb[1] + hb[3] - 16, hb[2] + 7.4, 3.2, WHITE, "center", 12)
+      K.text(doneText(claimed), hb[1] + hb[3] - 16, hb[2] + 9 - 3.2 * 0.6, 3.2, WHITE, "center", 12)
       local bonus = Ch.bonus(s)
       local ready = Ch.bonusReady(s)
-      chest(hb[1] + 9, hb[2] + 26, 5, ready, bonus.claimed, clock)
-      K.text(T("challenges.bonus"), hb[1] + 17, hb[2] + 22, 3.6, WHITE)
+      local mid = hb[2] + 26
+      chest(hb[1] + 9, mid, 5, ready, bonus.claimed, clock)
+      K.text(T("challenges.bonus"), hb[1] + 17, mid - 3.6 * 0.6, K.fit(T("challenges.bonus"), 3.6, hb[3] - 17 - 26), WHITE)
       local i = #list + 1
       rowX[i], rowY[i], rowW[i] = hb[1], hb[2] + 18, hb[3]
       if bonus.claimed then
-        check(hb[1] + hb[3] - 8, hb[2] + 26, 3, GREEN)
+        check(hb[1] + hb[3] - 8, mid, 3, GREEN)
       elseif ready then
-        local cb = K.R(hb[1] + hb[3] - 23, hb[2] + 22, 20, 9)
+        local cb = K.R(hb[1] + hb[3] - 23, mid - 4.5, 20, 9)
+        local cs = K.fit(T("challenges.claim"), 4, 17)
         K.grad(cb, 4.5, GOLD, GOLD_DEEP)
-        K.bold(T("challenges.claim"), cb[1], cb[2] + 2.3, K.fit(T("challenges.claim"), 4, 17), BG_FOOT, "center", cb[3])
+        K.bold(T("challenges.claim"), cb[1], cb[2] + (9 - cs * 1.2) / 2, cs, BG_FOOT, "center", cb[3])
         if st.keys and st.cursor == i then K.focusRing(cb, 4.5) end
         K.addHit(cb, "win", BONUS)
       else
-        reward(bonus, hb[1] + hb[3] - 4, hb[2] + 24, true)
+        reward(bonus, hb[1] + hb[3] - 4, mid, true)
       end
       local top = y + M + hh + 3
       local rh = 20

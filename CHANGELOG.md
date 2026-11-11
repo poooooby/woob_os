@@ -5,6 +5,17 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **3D map:** a close-up zoom. A steps on past the nearest zoom to a low, close shot of the town or
+  place under the cursor, framed in the open view above its card; a tap on the chosen place zooms in
+  to it too.
+
+### Fixed
+- **Phone, Condition and Ribbons:** a list scrolled with the wheel or a drag no longer empties; it
+  scrolls smoothly, the rows at its edges cut cleanly.
+- **Challenges:** the week's bonus card lines its chest, words, reward and Claim button up across its
+  middle, and a goal's count (such as 1500 / 1500) stays on one line.
+
 ## [0.9.2] - 2026-11-11
 
 ### Added

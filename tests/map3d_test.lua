@@ -344,7 +344,25 @@ end
 -- (A zooms; the card's Fly refused without the badge)
 local z0 = st.zoom
 W.input(input({ "a" }), NONE)
-T.check(st.zoom == z0 % 3 + 1, "A zooms")
+T.check(st.zoom == z0 % 4 + 1, "A zooms")
+-- (four set zooms: the region, nearer, near, then a close-up of the place, at a fixed distance and a
+-- lower angle; A again, the region)
+do
+  for _ = 1, 4 do
+    if st.zoom ~= 3 then W.input(input({ "a" }), NONE) end
+  end
+  T.eq(st.zoom, 3, "A steps through to near")
+  local near = st.goal.dist
+  W.input(input({ "a" }), NONE)
+  T.check(st.zoom == 4 and math.abs(st.goal.dist - 2.4) < 1e-6 and st.goal.dist < near and st.goal.pitch < 0.78,
+    ("A again: the close-up (%.2f units, near was %.2f; pitch %.2f)"):format(st.goal.dist, near, st.goal.pitch))
+  W.scroll(-40)
+  T.check(st.goal.dist > 2.4, "the wheel out from the close-up")
+  W.scroll(400)
+  T.check(st.goal.dist >= 2 - 1e-6 and st.goal.dist < 2.4, "the wheel in: to just past the close-up (" .. st.goal.dist .. ")")
+  W.input(input({ "a" }), NONE)
+  T.eq(st.zoom, 1, "A after the close-up: the whole region again")
+end
 W.focus(firstTown)
 draw(70)
 T.eq(st.flyWhy, "badge", "no badge that allows Fly: refused for that")

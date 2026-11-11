@@ -320,9 +320,16 @@ return function(ctx, env)
       return
     end
     K.card(K.R(x, y, w, min(h, (#st.rows - st.top) * ROW_H)), 4)
-    for i = st.top + 1, min(#st.rows, st.top + st.visible) do
+    -- (scrolled by hand, the top falls between rows: from the row it's in, clipped to the list; the
+    -- pictures put the clip back to st.clip)
+    local area = K.R(x, y, w, h)
+    local clip = st.clip
+    st.clip = area
+    K.scissor(area)
+    local first = floor(st.top) + 1
+    for i = first, min(#st.rows, first + st.visible) do
       local r = st.rows[i]
-      local ry = y + (i - st.top - 1) * ROW_H
+      local ry = y + (i - 1 - st.top) * ROW_H
       local rb = K.R(x, ry, w, ROW_H)
       local on = i == st.cursor
       if on then K.selection(K.R(x + 1, ry + 0.5, w - 2, ROW_H - 1), focused, 3) end
@@ -355,9 +362,11 @@ return function(ctx, env)
         K.box("fill", K.R(x + w - 8, ry + ROW_H / 2 - 1.6, 3.2, 3.2), 1.6)
       end
       if c and Ph.isFav(s, c.key) then star(x + w - 12.5, ry + ROW_H / 2, 1.8, STAR) end
-      if i > st.top + 1 and not on and i - 1 ~= st.cursor then K.hairline(tx, ry, w - 16) end
-      K.addHit(rb, "win", i)
+      if i > first and not on and i - 1 ~= st.cursor then K.hairline(tx, ry, w - 16) end
+      K.addHit(rb, "win", i, area)
     end
+    st.clip = clip
+    K.scissor(clip)
     K.scrollbar(x + w, y, h, st.top, st.visible, #st.rows)
   end
 

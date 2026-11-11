@@ -249,6 +249,7 @@ return function(deps)
   local EYE = { 0, 0, 0 }
   R.vp = VP
 
+  R.FOV = FOV
   function R.camera(cam, rect)
     local cp, sp = cos(cam.pitch), sin(cam.pitch)
     local ex = cam.x + cam.dist * cp * sin(cam.yaw)

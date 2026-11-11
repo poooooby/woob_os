@@ -7,7 +7,8 @@
 -- (src/townmap.lua).
 --   buttons  the D-pad moves a cursor freely over the land (the way the camera faces; let go near a
 --            town or a landmark and it glides onto it, as the game's own map's), L / R (or the right
---            stick) turn, the right stick tilts, A zooms, SELECT the flat map (the game's own picture,
+--            stick) turn, the right stick tilts, A zooms (the region, nearer, near, a close-up of the
+--            place), SELECT the flat map (the game's own picture,
 --            north up; there L / R change the region)
 --            (Fly mode: A flies to a visited town), the region's chip the next region (Sevii's), START Fly
 --            (the app) or the classic map (the Town Map), B back
@@ -29,6 +30,11 @@ local STICK_TURN, STICK_TILT = 2.2, 1.1   -- radians a second at full tilt
 local TURN = 1.7        -- radians a second, L / R held
 local EASE = 7          -- the camera's catch-up (per second)
 local PITCH_MIN, PITCH_MAX = 0.42, 1.38
+-- the set zooms A steps through: the whole region, nearer, near (shares of the region's size), then
+-- a close-up of the place itself (a town is one Town Map cell: a fixed distance, a lower angle)
+local ZOOMS = 4
+local CLOSE_DIST, CLOSE_PITCH = 2.4, 0.62
+local MIN_DIST = 2                   -- the wheel and two fingers stop here
 local SNAP = 1.1        -- let go this near a town or a landmark (units): the cursor glides onto it
 local GLIDE = 11        -- how fast it glides (per second)
 local M = 3
@@ -75,7 +81,7 @@ return function(ctx, env, opts)
     stickX = 0, stickY = 0,
     cam = { x = 0, y = 0, z = 0, yaw = 0.35, pitch = 0.95, dist = 14 },
     goal = { x = 0, y = 0, z = 0, yaw = 0.35, pitch = 0.95, dist = 14 },
-    zoom = 2, turn = 0, lastT = nil, liveAt = -10, hour = 12, minute = 0, toast = nil,
+    zoom = 2, cardLift = 0, turn = 0, lastT = nil, liveAt = -10, hour = 12, minute = 0, toast = nil,
     touch = {}, nTouch = 0, rect = { x = 0, y = 0, w = 1, h = 1 }, flyMon = nil, flyWhy = nil, three = false,
     storm = { on = false, kind = nil, place = nil, x = 0, z = 0, tx = 0, tz = 0, grow = 0 },
     wx = {}, wxBy = {}, wxRegion = nil,
@@ -89,9 +95,10 @@ return function(ctx, env, opts)
     local size = r and max(r.w, r.h) or 24
     if z == 1 then return size * 1.25 end
     if z == 2 then return size * 0.55 end
-    return size * 0.3
+    if z == 3 then return size * 0.3 end
+    return CLOSE_DIST
   end
-  local function zoomPitch(z) return z == 1 and 1.05 or (z == 2 and 0.92 or 0.78) end
+  local function zoomPitch(z) return z == 1 and 1.05 or (z == 2 and 0.92 or (z == 3 and 0.78 or CLOSE_PITCH)) end
 
   -- the place under the cursor (a town over its landmarks; nothing over the sea)
   local function place() return st.here end
@@ -104,6 +111,15 @@ return function(ctx, env, opts)
       g.x, g.z = g.x + (st.cx - g.x) * 0.25, g.z + (st.cz - g.z) * 0.25
     else
       g.x, g.z, g.y = st.cx, st.cz, Mdl.heightAt(r, st.cx, st.cz)
+      -- (the close-up: aimed that much nearer the camera that the place sits in the middle of the view
+      -- above its card, not behind it; the card's share of the view is the last frame's)
+      local lift = st.zoom == ZOOMS and not st.flat and st.cardLift or 0
+      if lift > 0 then
+        local t, sp, cp = math.tan((Rd.FOV or 0.72) / 2), math.sin(g.pitch), math.cos(g.pitch)
+        local d = lift * g.dist * t / max(0.1, sp - lift * cp * t)
+        local yaw = st.cam.yaw
+        g.x, g.z = g.x + math.sin(yaw) * d, g.z + math.cos(yaw) * d
+      end
     end
   end
   local function aim(snap)
@@ -315,7 +331,7 @@ return function(ctx, env, opts)
   end
 
   local function setZoom(z)
-    st.zoom = (z - 1) % 3 + 1
+    st.zoom = (z - 1) % ZOOMS + 1
     aim()
     se("SE_SELECT")
   end
@@ -425,7 +441,8 @@ return function(ctx, env, opts)
       local i = arg - A_PLACE
       if st.nav[i] and st.nav[i] == st.here then
         if mode == "fly" then return fly() end
-        return setZoom(st.zoom == 3 and 2 or 3)
+        -- (the chosen place tapped again: in closer, to the close-up, then back out)
+        return setZoom(st.zoom >= ZOOMS and 2 or max(3, st.zoom + 1))
       end
       return choose(i)
     end
@@ -434,7 +451,7 @@ return function(ctx, env, opts)
   -- the wheel (and the hosts' scroll): zoom
   function W.scroll(dy)
     local g = st.goal
-    g.dist = max(3.5, min(zoomDist(1) * 1.2, g.dist * exp(-dy * 0.012)))
+    g.dist = max(MIN_DIST, min(zoomDist(1) * 1.2, g.dist * exp(-dy * 0.012)))
   end
 
   -- drags turn and tilt; two fingers pinch to zoom
@@ -463,7 +480,7 @@ return function(ctx, env, opts)
           local d = sqrt((a.x - b.x) ^ 2 + (a.y - b.y) ^ 2)
           if st.pinch and d > 1 then
             local g = st.goal
-            g.dist = max(3.5, min(zoomDist(1) * 1.2, g.dist * st.pinch / d))
+            g.dist = max(MIN_DIST, min(zoomDist(1) * 1.2, g.dist * st.pinch / d))
             st.cam.dist = g.dist
           end
           st.pinch = d
@@ -872,6 +889,8 @@ return function(ctx, env, opts)
     local cw = (w > 190 and not compact) and min(190, w * 0.6) or w - M * 2
     local facts = p.kind == "town" and (p.center or p.mart or p.hasGym or (p.extras and p.extras[1]))
     local ch = facts and 31 or 23
+    -- (how far up the middle of the view above the card is, as a share of half the view)
+    st.cardLift = ((opts.footer or 0) + M + ch) / max(1, body[4])
     local b = K.R(x + M, y + h - M - ch, cw, ch)
     glass(b, 6)
     local tx = b[1] + 5
@@ -1030,6 +1049,7 @@ return function(ctx, env, opts)
     drawLabel()
     local compact = body[3] < 150 or body[4] < 110
     drawChips(body)
+    st.cardLift = 0
     drawCard(body, compact)
     if st.toast and not K.toast(st.toast, clock, K.R(body[1], body[2], body[3], body[4] - 34 - (opts.footer or 0)),
         UI.red, UI.green, UI.hud) then

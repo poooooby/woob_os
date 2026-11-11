@@ -338,9 +338,16 @@ return function(ctx, env)
     clamp()
     if #st.rows == 0 then return end
     K.card(K.R(x, y, w, min(h, (#st.rows - st.top) * ROW_H)), 4)
-    for i = st.top + 1, min(#st.rows, st.top + st.visible) do
+    -- (scrolled by hand, the top falls between rows: from the row it's in, clipped to the list)
+    local G = K.graphics()
+    local psx, psy, psw, psh
+    if G.getScissor then psx, psy, psw, psh = G.getScissor() end
+    local area = K.R(x, y, w, h)
+    K.scissor(area)
+    local first = floor(st.top) + 1
+    for i = first, min(#st.rows, first + st.visible) do
       local r = st.rows[i]
-      local ry = y + (i - st.top - 1) * ROW_H
+      local ry = y + (i - 1 - st.top) * ROW_H
       local on = i == st.cursor
       if on then K.selection(K.R(x + 1, ry + 0.5, w - 2, ROW_H - 1), focused, 3) end
       local ink = (on and focused) and WHITE or UI.label
@@ -356,9 +363,10 @@ return function(ctx, env)
       K.col(st.mode == "search" and COLOR[st.cat] or UI.accent)
       K.box("fill", K.R(bx, ry + 4.4, 13 * v / 255, 2.4), 1.2)
       if st.compare == r then K.ring(K.R(x + 1, ry + 0.5, w - 2, ROW_H - 1), 3, UI.yellow, 0.9, 0.6) end
-      if i > st.top + 1 and not on and i - 1 ~= st.cursor then K.hairline(x + 13, ry, w - 13) end
-      K.addHit(K.R(x, ry, w, ROW_H), "win", i)
+      if i > first and not on and i - 1 ~= st.cursor then K.hairline(x + 13, ry, w - 13) end
+      K.addHit(K.R(x, ry, w, ROW_H), "win", i, area)
     end
+    if psx then G.setScissor(psx, psy, psw, psh) else G.setScissor() end
     K.scrollbar(x + w, y, h, st.top, st.visible, #st.rows)
   end
 

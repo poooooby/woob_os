@@ -205,9 +205,16 @@ return function(ctx, env)
     clamp()
     panel(K.R(x, y, w, h), 4)
     local focused = st.focus == "list"
-    for i = st.top + 1, min(#st.rows, st.top + st.visible) do
+    -- (scrolled by hand, the top falls between rows: from the row it's in, clipped to the list)
+    local G = K.graphics()
+    local psx, psy, psw, psh
+    if G.getScissor then psx, psy, psw, psh = G.getScissor() end
+    local area = K.R(x, y + 1, w, h - 2)
+    K.scissor(area)
+    local first = floor(st.top) + 1
+    for i = first, min(#st.rows, first + st.visible) do
       local r = fill(st.rows[i])
-      local ry = y + 1 + (i - st.top - 1) * ROW_H
+      local ry = y + 1 + (i - 1 - st.top) * ROW_H
       local on = i == st.cursor
       local rb = K.R(x + 1.2, ry + 0.4, w - 2.4, ROW_H - 0.8)
       if on then
@@ -222,8 +229,9 @@ return function(ctx, env)
       local pill = K.R(x + w - pw - 3, ry + 2.3, pw, 6.4)
       K.grad(pill, 3.2, C.goldTop, C.goldDark)
       K.bold(count, pill[1], pill[2] + 0.9, 4, C.ink, "center", pw)
-      K.addHit(K.R(x, ry, w, ROW_H), "win", i)
+      K.addHit(K.R(x, ry, w, ROW_H), "win", i, area)
     end
+    if psx then G.setScissor(psx, psy, psw, psh) else G.setScissor() end
     K.scrollbar(x + w, y + 1, h - 2, st.top, st.visible, #st.rows)
   end
 
