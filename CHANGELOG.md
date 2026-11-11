@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-11
+
 ### Added
 - **Weather on the 3D map (Ruby, Sapphire, Emerald):** each place's everyday weather where the game
   puts it, quieter than the legendary storms: rain clouds and rain, a thunderstorm, falling ash, a
