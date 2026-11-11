@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-11
+
 ### Added
 - **Settings > Notifications:** a switch for each app that sends notifications (R-Bay, the GTS, the
   Phone on Emerald, the Bank, Errands, Challenges and the News), with the banners switch and R-Bay's
