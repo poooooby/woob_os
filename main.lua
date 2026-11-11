@@ -371,7 +371,7 @@ return function(mod)
     K = Kit, session = session, now = function() return love and love.timer and love.timer.getTime() or 0 end,
     se = function(name) if Sh then Sh.se(name) end end, itemIcon = itemIcon, monIcon = monIcon,
     inv = makeInv and makeInv(engine), mb = makeMb and makeMb(engine), bx = makeBx and makeBx(engine),
-    mart = makeMart and makeMart(engine),
+    mart = makeMart and makeMart(engine, { save = mod.save }),
     monIconOf = monIconOf, monPic = monPic, boxWall = boxWall, boxWallCount = boxWallCount, itemName = itemName,
     T = T, wall = Wall, gameId = gameId, wallpaper = wallpaper,
     language = function() return T and T.code() or "en" end,
@@ -516,7 +516,7 @@ return function(mod)
       badges = function(s) return env.mart and env.mart.badges(s) or 0 end,
     })
   end
-  -- the News: the day's stories, the game's own reporter reading them
+  -- the News: the day's stories, the WoobOS News anchor reading them
   local function titled(text)
     return (tostring(text):lower():gsub("(%a)([%w']*)", function(a, b) return a:upper() .. b end))
   end
@@ -530,19 +530,64 @@ return function(mod)
     if ok and type(n) == "string" and n ~= "" and n ~= "PALLET TOWN" then return titled(n) end
     return titled((tostring(mapId or "?"):gsub("^%u%u_", ""):gsub("_", " ")))
   end
-  local reporterPic
-  env.reporter = function()
-    if reporterPic == nil then
-      reporterPic = false
-      local Constants, TrainerPic = engine("src.core.game3.constants"), engine("src.core.game3.trainer_pic")
-      local ok, img = pcall(function()
-        local id = Constants.of(gameId()):id("trainer_classes", "TRAINER_PIC_INTERVIEWER")
-        local p = TrainerPic.front(id)
-        return p and p.image
-      end)
-      if ok and img then reporterPic = img end
+  -- the Mart's clerk: the game's own overworld sprite (FireRed / LeafGreen's clerk, Ruby / Sapphire /
+  -- Emerald's Mart employee), asked for until it comes (once a second at most); kept per game
+  local clerkSpr, clerkFor, clerkTry = nil, nil, -10
+  env.clerk = function()
+    local g = gameId()
+    if clerkSpr and clerkFor == g then return clerkSpr end
+    local t = env.now()
+    if t - clerkTry < 1 then return nil end
+    clerkTry, clerkSpr = t, nil
+    local Constants, Ow = engine("src.core.game3.constants"), engine("src.core.game3.ow_sprites")
+    if not (Constants and Ow and Ow.getDraw) then return nil end
+    local okC, C = pcall(Constants.of, g)
+    if not (okC and C) then return nil end
+    local okI, id = pcall(C.id, C, "event_objects", "OBJ_EVENT_GFX_CLERK")
+    if not (okI and id) then okI, id = pcall(C.id, C, "event_objects", "OBJ_EVENT_GFX_MART_EMPLOYEE") end
+    if not (okI and id) then return nil end
+    local okS, spr = pcall(Ow.getDraw, id)
+    if okS and type(spr) == "table" and spr.image and spr.quads then clerkSpr, clerkFor = spr, g end
+    return clerkSpr
+  end
+  -- the News's anchor: assets/newscaster.png, square frames side by side (0 at rest, the rest her
+  -- talking), loaded once for whole-pixel scaling, its frames cut with it; `foot` = the empty rows
+  -- under every frame (the bust is drawn that much lower, to meet the shot's edge)
+  local ANCHOR = "assets/newscaster.png"
+  local anchorArt
+  env.anchor = function()
+    if anchorArt == nil then
+      anchorArt = false
+      local LG, LI = love and love.graphics, love and love.image
+      local ok, img = pcall(mod.assets.image, mod.assets, ANCHOR)
+      if ok and img and LG and LG.newQuad then
+        pcall(img.setFilter, img, "nearest", "nearest")
+        local iw, ih = img:getDimensions()
+        local n, quads = math.max(1, math.floor(iw / ih)), {}
+        for i = 0, n - 1 do quads[i] = LG.newQuad(i * ih, 0, ih, ih, iw, ih) end
+        local foot = 0
+        local okP, full = pcall(mod.assets.path, mod.assets, ANCHOR)
+        local okD, data = false, nil
+        if okP and LI and LI.newImageData then okD, data = pcall(LI.newImageData, full) end
+        if okD and data then
+          for y = ih - 1, 0, -1 do
+            local empty = true
+            for x = 0, iw - 1 do
+              local _, _, _, a = data:getPixel(x, y)
+              if a > 0 then
+                empty = false
+                break
+              end
+            end
+            if not empty then break end
+            foot = foot + 1
+          end
+          pcall(data.release, data)
+        end
+        anchorArt = { image = img, quads = quads, n = n, size = ih, foot = foot }
+      end
     end
-    return reporterPic or nil
+    return anchorArt or nil
   end
   if makeNews then
     env.news = makeNews(engine, {

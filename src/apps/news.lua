@@ -1,13 +1,14 @@
--- The News (the model is src/news.lua, env.news): a studio. The game's own reporter at a desk with
--- the WoobOS News mark and a LIVE light; one story at a time on a card beside them (World or Your
--- Story, the headline, a picture, the words typed out); every headline crawling along a ticker at
--- the foot. The broadcast is made when it opens (a notification's swarm opens on that story).
+-- The News (the model is src/news.lua, env.news): a studio. The anchor in a TV close-up (the WoobOS
+-- News mark behind her, a LIVE light, the title on a lower third; she talks while the words type, a
+-- camera cut between stories); one story at a time on a card beside her (World or Your Story, the
+-- headline, a picture, the words typed out); every headline crawling along a ticker at the foot. The
+-- broadcast is made when it opens (a notification's swarm opens on that story).
 --   buttons  A the rest of the words, then the next story; Left the one before; B close
 --   touch    the card: the same as A
 --
 --   window(ctx, env) -> win (src/apps.lua)
 
-local floor, max, min, sin, abs = math.floor, math.max, math.min, math.sin, math.abs
+local floor, max, min, sin, abs, pi = math.floor, math.max, math.min, math.sin, math.abs, math.pi
 
 local M = 3
 local CARD = 2001
@@ -94,25 +95,16 @@ return function(ctx, env)
   -- ------- drawing (no tables made here)
 
   local BG_TOP, BG_FOOT = { 20, 38, 88 }, { 5, 8, 24 }
-  local DESK_TOP, DESK_FOOT = { 214, 226, 244 }, { 110, 128, 164 }
   local RED, RED_DEEP, WHITE = { 236, 44, 56 }, { 150, 16, 28 }, { 255, 255, 255 }
-  local SOFT, FAINT = { 196, 210, 236 }, { 120, 138, 176 }
+  local SOFT = { 196, 210, 236 }
   local PANEL, PANEL_EDGE = { 12, 20, 46, 0.88 }, { 255, 255, 255, 0.14 }
   local TAG_WORLD, TAG_YOU = { 40, 150, 255 }, { 255, 156, 40 }
   local SCREEN_TOP, SCREEN_FOOT = { 30, 80, 170 }, { 10, 26, 70 }
   local TICKER = { 168, 20, 32 }
   local BREAKING = { swarm = true, outbreak = true, storm = true }
 
+  local TALK_FPS = 9
   local function ease(k) k = min(1, max(0, k)) return 1 - (1 - k) * (1 - k) * (1 - k) end
-  local function reporter(x, y, size)
-    local img = env.reporter and env.reporter()
-    if not img then return end
-    local G = K.graphics()
-    local iw, ih = img:getDimensions()
-    local s = size * K.sc / max(iw, ih)
-    G.setColor(1, 1, 1, 1)
-    G.draw(img, K.X(x), K.Y(y), 0, s, s)
-  end
   local function live(x, y, clock)
     local w = K.width(T("news.live"), 3.6) + 7
     K.col(RED, 0.3 + 0.25 * abs(sin(clock * 3)))
@@ -140,34 +132,66 @@ return function(ctx, env)
       G.circle("fill", K.X(x + w * (i + 0.5) / 8), K.Y(y + h - 10), 0.6 * K.sc)
     end
   end
-  local function screen(x, y, w, h, clock)
-    local b = K.R(x, y, w, h)
-    K.grad(b, 3, SCREEN_TOP, SCREEN_FOOT)
-    K.ring(b, 3, PANEL_EDGE, 1, 0.5)
-    -- (the W mark, a light going round it)
-    if K.drawLogo then
-      K.drawLogo(K.X(x + w / 2), K.Y(y + h / 2), min(w, h) * 0.55 * K.sc, TAG_WORLD, 0.35 + 0.15 * sin(clock * 1.5))
-    end
+  -- the anchor's close-up: a camera shot of the studio (the mark large behind her, lights out of
+  -- focus drifting, scan lines), her bust at whole pixels as tall as the shot, the sheet's frames in
+  -- turn while the words type (frame 0 at rest), a flash for the cut to a new story, the title on a
+  -- lower third, the LIVE light
+  local function closeUp(x, y, w, h, clock)
     local G = K.graphics()
-    for i = 0, 5 do
-      local yy = y + ((clock * 6 + i * h / 6) % h)
-      K.col(WHITE, 0.04)
-      G.rectangle("fill", K.X(x + 1), K.Y(yy), (w - 2) * K.sc, 0.4 * K.sc)
+    local b = K.R(x, y, w, h)
+    K.shadow(b, 4, 1.5, 0.5)
+    K.grad(b, 4, SCREEN_TOP, SCREEN_FOOT)
+    K.scissor(b)
+    if K.drawLogo then
+      K.drawLogo(K.X(x + w / 2), K.Y(y + h * 0.4), min(w, h * 1.3) * 0.85 * K.sc, TAG_WORLD, 0.2 + 0.05 * sin(clock * 1.2))
     end
-  end
-  -- the anchor: the reporter in front of the screen, behind the desk
-  local function anchor(x, y, w, h, clock)
-    screen(x + w * 0.12, y + 4, w * 0.76, h * 0.42, clock)
-    local ps = min(h * 0.72, w * 0.9)
-    reporter(x + (w - ps) / 2, y + h - ps - 8, ps)
-    local db = K.R(x + 2, y + h - 12, w - 4, 12)
-    K.shadow(db, 2.5, 1.2, 0.4)
-    K.grad(db, 2.5, DESK_TOP, DESK_FOOT)
-    K.col(WHITE, 0.6)
-    K.box("fill", K.R(db[1] + 2, db[2] + 0.6, db[3] - 4, 0.5))
-    K.col(RED)
-    K.box("fill", K.R(db[1], db[2] + db[4] - 2, db[3], 1.2))
-    K.bold(T("news.title"), db[1], db[2] + 3.4, K.fit(T("news.title"), 4.4, db[3] - 6), BG_TOP, "center", db[3])
+    for i = 0, 5 do
+      local px = x + w * ((i * 0.37 + clock * 0.012 * (1 + i % 3)) % 1)
+      local py = y + h * (0.12 + (i * 0.23) % 0.55)
+      local r = 4 + (i % 3) * 2.5
+      K.glow(px, py, r, r, i % 2 == 0 and TAG_WORLD or TAG_YOU, 0.16 + 0.06 * sin(clock * 0.9 + i))
+    end
+    local art = env.anchor and env.anchor()
+    if art then
+      local foot = art.foot or 0
+      local px = max(1, floor(h * 0.94 * K.sc / (art.size - foot)))
+      local frame = 0
+      if st.lines and shown() < st.lines.n and shown() > 0 then
+        frame = floor((now() - st.at) * TALK_FPS) % art.n
+      end
+      local size = art.size * px
+      G.setColor(1, 1, 1, 1)
+      G.draw(art.image, art.quads[frame] or art.quads[0], floor(K.X(x + w / 2) - size / 2 + 0.5),
+        floor(K.Y(y + h) - size + 0.5) + foot * px, 0, px, px)
+    end
+    for i = 0, 7 do
+      K.col(WHITE, 0.035)
+      G.rectangle("fill", K.X(x), K.Y(y + ((clock * 5 + i * h / 8) % h)), w * K.sc, 0.35 * K.sc)
+    end
+    local cut = now() - st.at
+    if cut < 0.2 then
+      K.col(WHITE, 0.55 * (1 - cut / 0.2))
+      K.box("fill", b)
+    end
+    -- (the lower third: the title on red, a light sweeping it now and then)
+    local title = T("news.title")
+    local fs = K.fit(title, 4.2, w - 12)
+    local tw = min(w - 4, K.width(title, fs) + 9)
+    local lb = K.R(x + 2, y + h - 10, tw, 6.6)
+    K.shadow(lb, 1, 0.8, 0.45)
+    K.grad(lb, 1, RED, RED_DEEP)
+    K.col(WHITE)
+    K.box("fill", K.R(lb[1], lb[2] + lb[4], tw * 0.6, 0.5))
+    local p = (clock * 0.3) % 2
+    if p < 1 then
+      local sx = lb[1] - 6 + p * (tw + 12)
+      K.col(WHITE, 0.3 * sin(p * pi))
+      G.polygon("fill", K.X(sx), K.Y(lb[2]), K.X(sx + 3), K.Y(lb[2]), K.X(sx + 1), K.Y(lb[2] + lb[4]), K.X(sx - 2), K.Y(lb[2] + lb[4]))
+    end
+    K.bold(title, lb[1] + 4, lb[2] + (lb[4] - fs * 1.2) / 2, fs, WHITE)
+    K.scissor(st.clip)
+    K.ring(b, 4, PANEL_EDGE, 1, 0.5)
+    live(x + 3, y + 3, clock)
   end
 
   local function drawCard(x, y, w, h, clock)
@@ -296,14 +320,12 @@ return function(ctx, env)
     local ah = h - th
     if not portrait and w >= 200 then
       local lw = floor(w * 0.36)
-      anchor(x + M, y + 10, lw, ah - 12, clock)
-      live(x + M + 1, y + 3, clock)
+      closeUp(x + M, y + M + 2, lw, ah - M * 2 - 2, clock)
       drawCard(x + lw + M * 2, y + M + 2, w - lw - M * 3, ah - M * 2 - 2, clock)
     else
-      local aw = min(w * 0.5, 46)
-      anchor(x + M, y + 8, aw, 40, clock)
-      live(x + M + 1, y + 2, clock)
-      drawCard(x + M, y + 50, w - M * 2, ah - 52, clock)
+      local chH = min(56, floor(ah * 0.4))
+      closeUp(x + M, y + M, w - M * 2, chH, clock)
+      drawCard(x + M, y + M * 2 + chH, w - M * 2, ah - M * 3 - chH, clock)
     end
     ticker(x, y + h - th, w, th, clock)
     K.scissor(body)

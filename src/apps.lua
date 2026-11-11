@@ -219,7 +219,7 @@ return function(deps)
                  taglineKey = "store.tag.errands", descKey = "store.desc.errands",
                  window = deps.errands, badge = deps.errandsBadge })
   end
-  -- News: the day's stories, read by the game's own reporter (today's swarm, the region, you)
+  -- News: the day's stories, read by the WoobOS News anchor (today's swarm, the region, you)
   if deps.news then
     A.register({ id = "news", labelKey = "app.news", label = "News",
                  glyph = "mic", color = { 230, 40, 50 }, order = 29.6, removable = true,

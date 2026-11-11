@@ -27,7 +27,7 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/pcgames.lua`, `src/apps/pcgames.lua` | The PC Games mod's screen kept in a window: catching its layer, the picture |
 | `src/apps/slots.lua` | The Slots window: the stage, the reels' roll, the pay ladder and table, free spins, Auto, Prizes |
 | `src/mart.lua` | The shop model: the badge-gated stock, buy / sell on the session's money and the engine's `Bag` |
-| `src/apps/mart.lua` | The Mart window: Buy \| Sell, a tabbed list, the chosen item with its stepper |
+| `src/apps/mart.lua` | The Mart window: the shopfront (the game's clerk talking in a speech bubble), Buy \| Sell, a tabbed list, the chosen item on its stand with its stepper |
 | `src/boxes.lua` | The Pokémon model: party and boxes through the engine's `Storage` (take / fits / place / putBack, release, items, the preview's words, the send-to box) |
 | `src/apps/boxes.lua`, `src/apps/boxes_view.lua` | The Boxes window: state, buttons, pointer, modes (`boxes.lua`); its drawing (`boxes_view.lua`) |
 | `src/i18n.lua`, `lang/*.lua` | The words, by language (`lang/en.lua` the master) |
@@ -274,7 +274,40 @@ they're each game's own. Badges: `Flags.countBadges` on the live script store
 
 Headless the cart's font isn't there and the engine's glyph draw tries loading it again on every
 call (about 0.26 KB each), so the test stands in for it while measuring the Mart's garbage; the
-probe measures the real one (about 0.06 KB a frame).
+probe measures the real one (0.02-0.05 KB a frame, FireRed and Emerald).
+
+The window is a shopfront (`src/apps/mart.lua`):
+
+- **Layout:** a band across the top (`BAND` 34 units, the awning `AW` 7 drawn after the clerk, so
+  he stands under it): the counter with the clerk and the till at the left, the speech bubble, and
+  Buy | Sell over the money at the right from 200 units wide (under the band when narrower). The list
+  (tab chips, hit args `TAB_AT + i`) and the item's card below; portrait stacks them.
+- **The clerk:** the game's own overworld sprite. `env.clerk()` (main.lua) looks up
+  `OBJ_EVENT_GFX_CLERK` (FireRed / LeafGreen) or `OBJ_EVENT_GFX_MART_EMPLOYEE` (Ruby / Sapphire /
+  Emerald) with `Constants.of(game):id("event_objects", ...)`, then `OwSprites.getDraw(id)`. That's a
+  16 x 32 sheet of nine frames (0 down, 1 up, 2 left; right is 2 flipped), its size in `width` /
+  `height`. It's asked for once a second until it comes, then kept per game. Drawn at whole pixels
+  from the chest up behind the counter. `st.mood` / `st.moodT`: "hop" (a purchase or sale), "shake"
+  (left and right: a no), "turn" (Buy / Sell); a glance along the shelves every nine seconds; a
+  one-pixel nod while the words type.
+- **The words:** `say(key, mood, bad, arg)`, called from actions only, sets `st.say`. The bubble
+  builds the lines when the words or its width change (`linesOf`, the News's typewriter: each line's
+  typed-out beginnings made then, so the draw makes no strings; a word wider than the line breaks
+  between letters, for Japanese), once more a size smaller if they'd overflow. Keys `mart.say.*`:
+  - the greeting (`greet`): what a Badge added, else ₽500,000 or more, else under ₽200, else the hour;
+  - a purchase: the Premier Ball, ten or more, the tab's line every other time, else thanks naming
+    the item;
+  - a sale: ₽1,000 or more each is a find, ₽10,000 or more in all a haul, else thanks;
+  - a no (`refuse(why)`, the model's reason codes): short of money names the Bank when it's
+    installed and holds the rest;
+  - Buy / Sell; a tip after 16 quiet seconds (`idle()`, from `W.input`, which runs every frame);
+    the clerk tapped.
+- **What a Badge added:** `mod.save` "mart" `{ seen }` (`Mt.seen()` / `Mt.see(n)`), written when the
+  window opens. Items needing more than `seen` and no more than the Badges now wear NEW
+  (`st.newFrom`) for that visit.
+- **Coins and the item:** `st.coins` / `st.fly`, set in `act()`, drawn from their start time between
+  points the draw keeps (`st.moneyX`, `st.tillX`, `st.standX`, `st.counterX`). The till's drawer
+  slides out as the coins land; its display shows the last total (`st.lastTotal`).
 
 ## R-Bay
 
@@ -572,8 +605,11 @@ Clean room: the idea of a 3D region map (TERRARIUM's for Gen 1) and none of its 
   and marks the time watched (`mod.save` "news"); the journal's moments after it are told once.
   Place names come from `SaveMenu.locationName` with a session that's only that map (its map name and
   region section blanked); species names lose the ♀ / ♂ the fonts lack ("Nidoran F"). The
-  reporter is `TRAINER_PIC_INTERVIEWER` by name from the game's constants (FireRed and LeafGreen
-  carry the same picture). The window types the words out from beginnings made with the story.
+  anchor is `assets/newscaster.png`: square frames side by side (twelve of 32 x 32; 0 at rest, the
+  rest her talking), cut into quads once by main.lua's `env.anchor()` (nearest filtering). The
+  window's close-up draws her at whole pixels as tall as the shot, the frames in turn at `TALK_FPS`
+  while the words type (frame 0 otherwise), a white flash for the cut to a new story. The window
+  types the words out from beginnings made with the story.
 - **Words:** type names are `type.<id>` (the game keeps them six letters long: "PSYCHC").
 
 ## The PokéNav's apps

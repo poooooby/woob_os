@@ -144,14 +144,19 @@ opens a desktop in a sleek monitor instead of a text menu.
     (Kadabra, Machoke …) evolve as they arrive. The game's rules hold: you keep a Pokémon that can
     battle, Eggs and mail holders stay, and without the National Pokédex FireRed and LeafGreen
     trade only Kanto's 151.
-- 🛒 **Mart:** a Poké Mart in your PC. Buy Poké Balls, medicine, battle items and Repels straight
-  into your Bag, and watch each purchase appear on the pad. The shelves fill up as you earn Gym
-  Badges, as in the later games: Poké Balls, Potions and the status heals from the start, Great
-  Balls and Super Potions after your first badge, all the way to Max Potions and Full Restores.
-  Locked items show how many badges they need. Pick how many (Left and Right one at a time, Up
-  and Down ten at a time, SELECT as many as your money buys). Ten Poké Balls at once come with a
-  free Premier Ball. Switch to Sell (START, or the switch at the top) to sell what's in your Bag
-  for half its price. Prices and item names are your game's own.
+- 🛒 **Mart:** a Poké Mart in your PC: a shopfront under a striped awning, with your game's own
+  Mart clerk behind the counter. The clerk talks to you in a speech bubble: a greeting for the time
+  of day, a word on everything you buy or sell, why not when you can't have something (and a nudge
+  to the Bank when it holds the money you're short of), what your latest Badge put on the shelves,
+  and a tip now and then. Tap the clerk to say hello. Buy Poké Balls, medicine, battle items and
+  Repels straight into your Bag: the coins fly into the till, the item hops onto its stand, and it
+  appears on the pad. The shelves fill up as you earn Gym Badges, as in the later games: Poké
+  Balls, Potions and the status heals from the start, Great Balls and Super Potions after your
+  first badge, all the way to Max Potions and Full Restores. Locked items show how many badges they
+  need, and what your latest Badge added wears a NEW tag. Pick how many (Left and Right one at a
+  time, Up and Down ten at a time, SELECT as many as your money buys). Ten Poké Balls at once come
+  with a free Premier Ball. Switch to Sell (START, or the switch at the top) to sell what's in your
+  Bag for half its price. Prices and item names are your game's own.
 - 🚀 **R-Bay:** Team Rocket's auction house for Pokémon. Twelve auctions run at once, each for
   three hours, and a new one opens every fifteen minutes, on your device's clock, so the market
   keeps moving while the game is off. Pokémon come in six tiers: Common (first stages), Uncommon,
@@ -211,8 +216,9 @@ opens a desktop in a sleek monitor instead of a text menu.
   a count on the icon tell you when one's done. They sit under a twinkling night sky: a gold ring
   fills as you claim them, the bars ease up and shimmer, a finished goal glows with a Claim button
   that bursts into confetti, and the week's bonus is a treasure chest that opens when it's ready.
-- 📰 **News:** the day's stories, read live by the game's own reporter in the WoobOS News studio,
-  with the headlines crawling along the ticker. World stories: today's swarm (a species appearing all
+- 📰 **News:** the day's stories, read live by the WoobOS News anchor in a TV close-up: she talks
+  as each story's words type out, with the LIVE light on, the title on a lower third and a camera
+  cut between stories, and the headlines crawl along the ticker. World stories: today's swarm (a species appearing all
   over one route, for real: go there and you'll find it, at that route's levels), Ruby, Sapphire and
   Emerald's own TV outbreaks, Emerald's great storms, and R-Bay's hottest auction. Your stories: your
   week so far, and what's happened since you last watched (new Pokédex entries, a shiny, an Egg
@@ -287,9 +293,11 @@ turn it on for your Generation 3 games.
 ## 🔗 Works With
 
 - **Any save:** items and mail move exactly as the game's own PC moves them, and the Mart spends
-  and pays money as a Poké Mart does. The only things WoobOS keeps in your save are your R-Bay bids
-  and results, your Rocket Tickets and a Pokémon you've put on the GTS, so you can turn the mod on and off whenever you like (bids still running wait for
-  it to come back).
+  and pays money as a Poké Mart does. The only things WoobOS keeps in your save are its own: your R-Bay
+  bids and results, your Rocket Tickets, a Pokémon you've put on the GTS or sent on an errand, the
+  Bank's balance, this week's challenges and what you've done for them, and the Badges the Mart's
+  clerk last saw. So you can turn the mod on and off whenever you like (bids still running, errands
+  and the Bank's money wait for it to come back).
 - **Other mods:** other mods can add their own apps to the desktop, and the App Store lets you keep or remove them.
 - **Kanto Gear:** Slots, R-Bay and the GTS are apps in its Silph Store. Turn them on there and they open on the Gear's own screen, with the game still playing above or beside them. They wait while you're in a battle, a menu or a conversation.
 - **WoobleDex:** Boxes shows every box of its Bigger PC (40 instead of 14). R-Bay auctions its Pokémon too, its legendaries and mythicals in their tiers. The

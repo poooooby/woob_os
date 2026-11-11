@@ -13,12 +13,17 @@ All notable changes to this mod are documented here, in
   come back with money, an item and EXP; a team whose types and levels suit the job earns more.
 - **Challenges:** five goals a week from real play (battles, catches, Eggs, evolutions, steps,
   places and more), each paying money or items, with a bonus for all five.
-- **News:** the day's stories read by the game's own reporter: a real daily swarm (one species all
+- **News:** the day's stories read by the WoobOS News anchor in a TV close-up, talking as the words
+  type out: a real daily swarm (one species all
   over one route), the region's events, R-Bay's hottest auction, and what you've done since you last
   watched.
 - **Settings > Gameplay:** daily swarms on or off.
 
 ### Changed
+- **The Mart** is a shopfront: your game's own Mart clerk behind the counter under a striped awning,
+  talking in a speech bubble (a greeting, a word on each purchase and sale, why not when you can't,
+  what your latest Badge brought, a tip now and then). Tabs along the list, the chosen item on a lit
+  stand, coins flying into and out of the till, and a NEW tag on what a Badge added.
 - **The notifications drawer** (PC and WoobPad) follows your finger down from the top of the screen
   over frosted glass, the screen blurred behind it, with the time at its top. Swipe a notification
   left or right to clear it, or Clear to clear them all; push it back up by its handle. Pulling it

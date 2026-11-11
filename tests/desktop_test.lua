@@ -727,11 +727,14 @@ draw(30)
 local MartW = D.window()
 T.check(MartW and MartW.title == "Mart", "the Mart opens")
 local ms2 = MartW.state
+T.check(ms2.say and ms2.say.text ~= "" and not ms2.say.bad, "the clerk greets you (" .. tostring(ms2.say and ms2.say.key) .. ")")
+T.eq(Mt.seen(), ms2.badges, "the clerk remembers the Badges seen")
 ms2.badges = 0
 T.eq(ms2.rows[1].id, 4, "Poké Balls first")
 press("down")
 press("a")
-T.check(ms2.focus == "list" and ms2.toast and ms2.toast.bad, "a Great Ball with no badges: why not, not how many")
+T.check(ms2.focus == "list" and ms2.say and ms2.say.bad and ms2.say.key == "mart.say.badgesOne",
+  "a Great Ball with no badges: the clerk says why not, not how many")
 ms2.badges = 8
 press("a")
 T.eq(ms2.focus, "step", "with the badges: how many")
@@ -743,6 +746,9 @@ T.eq(ms2.qty, 3, "Right twice: three (Up ten, Down ten)")
 local before = Bag.get(s.bag, 3)
 press("a")
 T.check(Bag.get(s.bag, 3) == before + 3 and s.money == 10000 - 3 * great, "A: three Great Balls bought")
+T.check(ms2.say and not ms2.say.bad and ms2.mood == "hop" and ms2.coins and ms2.fly and ms2.fly.id == 3 and ms2.fly.n == 3,
+  "the clerk has a word for it, coins and three Great Balls fly (" .. tostring(ms2.say and ms2.say.key) .. ")")
+T.eq(ms2.lastTotal, 3 * great, "the till shows what it came to")
 do
   local n, dir, id = D.padState()
   T.check(n >= 1 and dir == "in" and id == 3, "they appear on the pad (" .. tostring(dir) .. ")")
@@ -750,6 +756,7 @@ end
 T.eq(ms2.focus, "list", "back in the list")
 press("start")
 T.eq(ms2.mode, "sell", "START: Sell")
+T.eq(ms2.say.key, "mart.say.toSell", "the clerk asks what you've got")
 for i, p in ipairs(ms2.pockets) do if p.id == "POKE_BALLS" then ms2.sellTab = i end end
 MartW.refresh()
 for i, r in ipairs(ms2.rows) do if r.id == 3 then ms2.cursor = i end end
@@ -758,6 +765,8 @@ press("a")
 press("a")
 T.eq(Bag.get(s.bag, 3), before + 2, "a Great Ball sold")
 T.eq(s.money, 10000 - 3 * great + math.floor(great / 2), "for half its price")
+T.check(ms2.say.key == "mart.say.sell1" or ms2.say.key == "mart.say.sell2", "the clerk thanks you (" .. ms2.say.key .. ")")
+T.check(ms2.coins and ms2.coins.out and ms2.fly and ms2.fly.sell, "the coins come back out of the till, the Great Ball goes over")
 draw(90)
 do
   local n, dir = D.padState()
@@ -765,6 +774,49 @@ do
 end
 press("start")
 draw(30)
+-- (short of money: the clerk says so, naming the Bank when it holds the rest)
+do
+  local Bk = X._test.bank
+  local keep = s.money
+  s.money = 5000
+  T.check(Bk.deposit(s, 5000), "money in the Bank")
+  ms2.cursor, ms2.badges = 1, 8
+  MartW.refresh()
+  press("a")
+  press("a")
+  T.check(ms2.say.bad and ms2.say.key == "mart.say.shortBank" and ms2.focus == "step",
+    "no money on you, some in the Bank: the clerk says to withdraw (" .. ms2.say.key .. ")")
+  Bk.withdraw(s, 5000)
+  s.money = 0
+  local realBal = Bk.balance
+  Bk.balance = function() return 0 end
+  press("a")
+  Bk.balance = realBal
+  T.eq(ms2.say.key, "mart.say.short", "and nothing in the Bank: just short")
+  press("b")
+  s.money = keep
+  -- (quiet a while: a tip)
+  draw(2)
+  ms2.full, ms2.idleAt = true, ms2.idleAt - 100
+  D.input(input({}, {}))
+  T.check(ms2.say.key:match("^mart%.say%.tip%d$") ~= nil, "quiet a while: the clerk has a tip (" .. ms2.say.key .. ")")
+  -- (the clerk, tapped)
+  MartW.tap(2013)
+  T.check(ms2.say.key:match("^mart%.say%.poke%d$") ~= nil and ms2.mood == "hop", "tapping the clerk")
+  -- (Japanese has no spaces between its words: the bubble's lines still fit)
+  local I = X._test.i18n
+  I.set("ja")
+  ms2.say = { key = "mart.say.shortBank", text = I("mart.say.shortBank"), bad = false, t = 0 }
+  ms2.lines = nil
+  draw(2)
+  local fits = ms2.lines and #ms2.lines.lines >= 2
+  for _, l in ipairs(ms2.lines and ms2.lines.lines or {}) do
+    fits = fits and X._test.kit.width(l, ms2.lines.size) <= ms2.linesW + 0.01
+  end
+  T.check(fits, "Japanese in the bubble: " .. (ms2.lines and #ms2.lines.lines or 0) .. " lines, each fitting")
+  I.set("en")
+  draw(2)
+end
 -- (headless the cart's font isn't there, and the engine's glyph draw tries loading it again on
 -- every call: a stand-in for the Pokédollar sign while measuring; the probe measures the real one)
 local FrlgFont = require("src.ui.game3.frlg_font")
@@ -782,6 +834,23 @@ VP.width, VP.height = 480, 320
 press("b")
 T.check(D.window() == nil, "B closes the Mart")
 draw(30)
+-- (a Badge since the last visit: the clerk says what came in, marked new)
+do
+  local realB = Mt.badges
+  Mt.see(0)
+  Mt.badges = function() return 1 end
+  local at
+  for i, app in ipairs(st.grid) do if app.id == "mart" then at = i end end
+  D.launch("grid", at)
+  draw(30)
+  local w2 = D.window()
+  Mt.badges = realB
+  local st2 = w2 and w2.state
+  T.check(st2 and st2.say and st2.say.key == "mart.say.newStock" and st2.newFrom == 0 and Mt.seen() == 1,
+    "a new Badge: the clerk says what came in (" .. tostring(st2 and st2.say and st2.say.key) .. ")")
+  press("b")
+  draw(30)
+end
 
 -- ------- R-Bay: the market from a seed and the clock, bids, settling (src/auction.lua), its window
 local Au = X._test.auction

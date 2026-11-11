@@ -3,13 +3,15 @@
 -- price. Prices and names are the game's own (src.core.game3.items_data); money is the session's,
 -- the Bag the engine's own (src.core.game3.bag). Rows are made here when something changes.
 --
---   Mt = mart(engine)        engine(name) -> an engine module or nil (kept by the caller)
+--   Mt = mart(engine, deps)  engine(name) -> an engine module or nil (kept by the caller); deps.save
+--                            (mod.save: "mart" keeps how many Badges the clerk last saw)
 --   Mt.TABS                  { { key = "mart.balls", rows = { { id, badges, price, name } ... } } ... }
 --   Mt.badges(s) -> 0..8     Mt.money(s) -> n     Mt.inBag(s, id) -> n
 --   Mt.price(id) -> n | nil  Mt.sellPrice(id) -> n | nil (nil: can't be sold)
 --   Mt.buy(s, id, qty, badges) -> true, bonus | false, reason   (bonus: a Premier Ball came with it)
 --   Mt.sell(s, id, qty) -> true, earned | false, reason
 --   Mt.sellRows(s, pocket) -> rows { id, qty, name, desc, price (nil: can't be sold) }
+--   Mt.seen() -> the Badges at the last visit (nil: never visited) ; Mt.see(n)
 --   reasons: "badges" | "money" | "bag_full" | "cant_sell" | "gone" (lang/*.lua "reason.mart.<reason>")
 
 local floor, max = math.floor, math.max
@@ -34,8 +36,9 @@ local STOCK = {
   } },
 }
 
-return function(engine)
-  local Mt = { MAX_QTY = MAX_QTY, PREMIER = PREMIER }
+return function(engine, deps)
+  deps = deps or {}
+  local Mt = { MAX_QTY = MAX_QTY, PREMIER = PREMIER, store = deps.save }
 
   local function mods()
     return engine("src.core.game3.bag"), engine("src.core.game3.items_data")
@@ -176,6 +179,17 @@ return function(engine)
                         desc = descOf(info), price = Mt.sellPrice(row.id) }
     end
     return out
+  end
+
+  -- the Badges the clerk saw last time (in the save: it rewinds with it), for what's new on the shelves
+  local loose
+  function Mt.seen()
+    local d = Mt.store and Mt.store:get("mart") or loose
+    return type(d) == "table" and tonumber(d.seen) or nil
+  end
+  function Mt.see(n)
+    local d = { seen = floor(tonumber(n) or 0) }
+    if Mt.store then Mt.store:set("mart", d) else loose = d end
   end
 
   return Mt
