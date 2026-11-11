@@ -1326,6 +1326,14 @@ end
 -- the window: a spin by buttons, the reels stopping in order, the win paid once; the bet; a prize
 s.money = 50000
 slotsSave.data = {}
+-- (every sound it plays queued to be made as it opens: a first play is the engine making it, which
+-- stuttered the reels the first time two Bonus came down; the spin's and the tease's first)
+local queued, prewarm0 = {}, X._test.env.prewarm
+X._test.env.prewarm = function(names, priority)
+  for _, n in ipairs(names) do
+    if not queued[n] or priority < queued[n] then queued[n] = priority end
+  end
+end
 do
   local at
   for i, app in ipairs(st.grid) do if app.id == "slots" then at = i end end
@@ -1333,8 +1341,27 @@ do
   D.launch("grid", at)
 end
 draw(30)
+X._test.env.prewarm = prewarm0
 local SW = D.window()
 T.check(SW and SW.title == "Slots", "Slots opens")
+do
+  local f = io.open("mods/woob_os/src/apps/slots.lua", "rb")
+  local src = f and f:read("*a") or ""
+  if f then f:close() end
+  local missing, named = {}, 0
+  for n in src:gmatch('"(SE_[%u_]+)"') do
+    named = named + 1
+    if not queued[n] then missing[#missing + 1] = n end
+  end
+  T.check(named >= 20 and #missing == 0, "Slots: every sound it plays queued as it opens (" .. named .. " named; missing: "
+    .. table.concat(missing, ", ") .. ")")
+  local first = true
+  for n, pr in pairs(queued) do
+    local tease = n:find("^SE_NOTE_") or n == "SE_PIN" or n == "SE_BALL_TRAY_ENTER" or n == "SE_BALL_TRAY_BALL"
+    if (tease and pr ~= 2) or (not tease and pr <= 2) then first = false end
+  end
+  T.check(first and queued.SE_NOTE_C_HIGH == 2, "the spin's and the tease's sounds first")
+end
 local sws = SW.state
 press("left")
 T.eq(sws.bet, 1, "Left: no smaller than the smallest")

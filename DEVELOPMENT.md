@@ -389,6 +389,17 @@ loss whatever the bet, which prices the prize corner (Rare Candy 15 ≈ ₽4.4k,
   `st.intro` / `st.outro` cards. `glow` is one kept additive mesh, nothing without meshes (headless).
   Sounds queue with `seLater` (the engine plays one at a time). Coins, confetti and flying tickets come
   from a fixed pool of `PARTICLES` records.
+- **Its sounds, made ahead:** the engine makes a sound from the game's music data the first time
+  it's played (`Audio.playSe` -> `bake_se`: 8 to 45 ms in FireRed, `SE_APPLAUSE` the longest), then
+  keeps it (`Audio._seRaw`, least recently used dropped past `SE_RAW_MAX_FRAMES`, about 34 s of sound).
+  The tease's eight `SE_NOTE_*`, one every 0.17 s, each dropped a frame or two of the rolling reel the
+  first time (a second tease: 0.0 ms each). The window queues every sound it plays as it opens
+  (`SOUNDS`, through `env.prewarm` -> `Sh.prewarm` -> the engine's `Audio.prewarmSe`, made a little
+  each frame by `Warm.step`'s 2 ms; a lower number first): the spin's and the tease's (2), the wins'
+  (3), the rest (4). Half a second after opening, 15 of its 21 are made and the first tease plays
+  every note in under 0.1 ms. Not at load: they come to about 31 s of sound, nearly all of the
+  engine's store, and would push the field's sounds out. The desktop test checks every `"SE_..."` the
+  window names is queued.
 
 ## PC Games
 

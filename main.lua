@@ -370,6 +370,7 @@ return function(mod)
   local env = {
     K = Kit, session = session, now = function() return love and love.timer and love.timer.getTime() or 0 end,
     se = function(name) if Sh then Sh.se(name) end end, itemIcon = itemIcon, monIcon = monIcon,
+    prewarm = function(names, priority) if Sh then Sh.prewarm(names, priority) end end,
     inv = makeInv and makeInv(engine), mb = makeMb and makeMb(engine), bx = makeBx and makeBx(engine),
     mart = makeMart and makeMart(engine, { save = mod.save }),
     monIconOf = monIconOf, monPic = monPic, boxWall = boxWall, boxWallCount = boxWallCount, itemName = itemName,

@@ -16,6 +16,10 @@ All notable changes to this mod are documented here, in
 - **News:** trainers beaten and new Badges are told in the Gym's and the matches' stories rather
   than as one-line moments.
 
+### Fixed
+- **Slots:** the reels no longer stutter the first time two Bonus land and the notes climb, nor the
+  first time a win's fanfare plays: the machine's sounds are ready as it opens.
+
 ## [0.9.1] - 2026-11-11
 
 ### Added

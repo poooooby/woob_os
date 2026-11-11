@@ -67,6 +67,16 @@ return function(mod, deps)
     if id and Audio and Audio.playSe then pcall(Audio.playSe, id) end
   end
   Sh.se = se
+  -- (a sound's first play is the engine making it from the game's music data, 8 to 45 ms; queued
+  -- here it's made in the background, a little each frame, lower priority numbers first)
+  function Sh.prewarm(names, priority)
+    local Ids, Audio = engine("src.core.game3.se_ids"), engine("src.core.game3.audio")
+    if not (Ids and Audio and Audio.prewarmSe) then return end
+    for _, name in ipairs(names) do
+      local id = Ids[name]
+      if id then pcall(Audio.prewarmSe, id, priority) end
+    end
+  end
 
   -- FireRed / LeafGreen's help (L or R in the field opens it, and the game's update stops under
   -- it): off while the desktop is up (L / R are the desktop's pages and the boxes), back after

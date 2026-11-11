@@ -14,8 +14,21 @@
 --            a prize, Redeem
 --
 --   window(ctx, env) -> win (src/apps.lua)
+--
+-- Every sound it plays is queued to be made when it opens (env.prewarm): the engine makes a sound
+-- the first time it's played (8 to 45 ms), which stuttered the reels the first time two Bonus came
+-- down and the notes climbed. The spin's and the tease's first, then the wins', the rest last.
 
 local floor, max, min, sin, cos, abs, pi = math.floor, math.max, math.min, math.sin, math.cos, math.abs, math.pi
+
+-- the notes climbing while a reel is held back, and every sound the window plays, by when it's needed
+local NOTES = { "SE_NOTE_C", "SE_NOTE_D", "SE_NOTE_E", "SE_NOTE_F", "SE_NOTE_G", "SE_NOTE_A", "SE_NOTE_B", "SE_NOTE_C_HIGH" }
+local SOUNDS = {
+  { 2, { "SE_BALL_TRAY_ENTER", "SE_BALL_TRAY_BALL", "SE_PIN", NOTES[1], NOTES[2], NOTES[3], NOTES[4], NOTES[5],
+         NOTES[6], NOTES[7], NOTES[8] } },
+  { 3, { "SE_CONTEST_HEART", "SE_M_PAY_DAY", "SE_SHINY", "SE_M_STAT_INCREASE", "SE_EXP_MAX", "SE_APPLAUSE" } },
+  { 4, { "SE_SELECT", "SE_FAILURE", "SE_VEND", "SE_BAG_CURSOR" } },
+}
 
 local ROW_H, HEAD_H, M = 12, 10, 3
 local NREELS = 5
@@ -87,6 +100,9 @@ return function(ctx, env)
   local function session() return ctx.session or (env.session and env.session()) end
   local function se(name) if env.se then pcall(env.se, name) end end
   local function now() return env.now and env.now() or 0 end
+  if env.prewarm then
+    for _, group in ipairs(SOUNDS) do pcall(env.prewarm, group[2], group[1]) end
+  end
 
   local st = {
     tab = "slots", bet = 1, lines = 2, spinning = false, t0 = 0, stopAt = { 0, 0, 0, 0, 0 }, stopped = { true, true, true, true, true },
@@ -208,7 +224,6 @@ return function(ctx, env)
   end
 
   -- the win, as it lands: its tier, its banner, coins from the line, the tickets flying
-  local NOTES = { "SE_NOTE_C", "SE_NOTE_D", "SE_NOTE_E", "SE_NOTE_F", "SE_NOTE_G", "SE_NOTE_A", "SE_NOTE_B", "SE_NOTE_C_HIGH" }
   local lineAt = { x = 0, y = 0, w = 0 }
   local lineY = { 0, 0, 0, 0, 0 }   -- each line's height at the middle reel (drawMachine)
   -- the n-th winning line of the last spin (round and round)
