@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-11-10
+
 ### Fixed
 - **Scrolling lists by finger, mouse drag or wheel** stays where you put it, instead of snapping back to
   the chosen row: R-Bay, the Mart, Items, Mail, Slots' prizes, the Phone, Condition and Ribbons.
