@@ -739,5 +739,13 @@ return {
     ["mart.say.poke1"] = "Hé, ça chatouille !",
     ["mart.say.poke2"] = "Besoin d'aide pour trouver quelque chose ?",
     ["mart.say.poke3"] = "Je suis là si vous avez besoin !",
+    ["map.weather.rain"] = "Pluie",
+    ["map.weather.thunder"] = "Orage",
+    ["map.weather.snow"] = "Neige",
+    ["map.weather.fog"] = "Brouillard",
+    ["map.weather.ash"] = "Cendres",
+    ["map.weather.sand"] = "Tempête de sable",
+    ["map.weather.shade"] = "Ombragé",
+    ["map.weather.clouds"] = "Nuageux",
   },
 }

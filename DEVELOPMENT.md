@@ -511,6 +511,26 @@ Clean room: the idea of a 3D region map (TERRARIUM's for Gen 1) and none of its 
   rain, 6 puffs, 7 grains; `uStorm` places and animates them, `uStormAt` / `uStormTint` shade the ground
   under them; separate uniforms per shader stage, for GLES's differing precisions). `scene.lua` reads it
   once a second, drifts it from `env.map3d.lastStorm`, draws the lightning and the flat map's version.
+- **The everyday weather** (Ruby / Sapphire / Emerald): `Mdl.weatherSpots` reads, once per region,
+  every outdoor map's (`Dataset.isOutdoorMapType`) own `weather` (Mt. Chimney's ash, Mt. Pyre summit's
+  fog, Petalburg Woods' shade) and its coordinate events from `Space.bundle.events`: a weather event's
+  trigger (`coord_weather.BY_TRIGGER`), or a script trigger's first `setweather` (Route 111's desert is
+  scripts, not weather events). A route's weather spans its triggers' box on the map (`WX_PAD` past
+  it), mapped onto the place's box; one cell across, all of it. A section that isn't on the grid comes
+  in through the region map's `specialPlaces` (Petalburg Woods -> Route 104, Mt. Pyre -> Route 122).
+  `Mdl.weather` resolves Route 119's and 123's cycles with the engine's `Weather.translate` (the
+  session's `weatherCycleStage`) and gives each its ground (`y` highest, `y0` mean). The maps come from
+  main.lua's `deps.maps` (the live game's `data.maps`); `Mdl.weatherData` is the seam the tests stand
+  in for. `render.lua`: flags 8 (bits: rain, flakes, blown sand) and 9 (cloud lobes, clustered, flat
+  based), one mesh each per kind (`WX_LOOK`: deliberately quieter than the storms), placed by
+  `uWxArea` / `uWxMove` / `uWxLook` per draw with a draw range for its size; the ground's tint
+  through `uWxBox[12]` / `uWxTint[12]`; a thunderstorm only flashes its clouds (no bolts). `scene.lua`
+  reads it once a second (`st.wx`, eased in and out; `st.wxBy` for the card), and the flat map draws
+  a tinted patch with a few marks. No Hoenn map uses snow, though the kind is there.
+- **No two faces at one height** (`towns.lua`): two overlapping faces level with each other fight in
+  the depth buffer and flicker. Walls under a hip roof stop `UNDER_ROOF` (0.01) short of its eaves (the
+  overhang hides it); the Gym's walls stop at its badge band, and the band's top is the Gym's roof.
+  Pieces stacked on a flat roof only cross it (their walls run down into the box), never lie on it.
 
 - **The model** (`src/map3d/model.lua`, made in `main.lua` with `pixels(img, x, y, w, h)`, a
   canvas read-back): one Town Map cell (8 px) a world unit, x right, z down the picture, y up.

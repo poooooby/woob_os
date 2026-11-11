@@ -462,6 +462,98 @@ if RSE then
   Rs.var, Rs.flag = var0, flag0
 end
 
+-- ------- the everyday weather (Ruby / Sapphire / Emerald): where the game's maps put it, quiet
+if RSE then
+  local hoenn = Mdl.region("hoenn")
+  local function placeNamed(n)
+    for _, p in ipairs(hoenn.places) do if p.name == n then return p end end
+  end
+  local r111, r113, r119, chimney = placeNamed("Route 111"), placeNamed("Route 113"), placeNamed("Route 119"),
+    placeNamed("Mt. Chimney")
+  T.check(r111 and r113 and r119 and chimney, "the places the weather goes on")
+  -- (the game's shapes: a map's own weather, weather tiles, a script's setweather; an indoor map's never shows)
+  local maps = {
+    R111 = { regionMapSectionId = r111.id, mapType = 3, width = 40, height = 140, weather = 2 },
+    R113 = { regionMapSectionId = r113.id, mapType = 3, width = 100, height = 20, weather = 2 },
+    R119 = { regionMapSectionId = r119.id, mapType = 3, width = 40, height = 140, weather = 2 },
+    CHIMNEY = { regionMapSectionId = chimney.id, mapType = 3, width = 40, height = 40, weather = 7 },
+    HOUSE = { regionMapSectionId = r113.id, mapType = 8, width = 10, height = 9, weather = 8 },
+  }
+  local events = {
+    R111 = { coordEvents = { { x = 10, y = 38, var = 0, scriptPtr = 1, scriptKey = "sand" },
+                             { x = 17, y = 62, var = 0, scriptPtr = 1, scriptKey = "sand" },
+                             { x = 7, y = 31, var = 0, scriptPtr = 1, scriptKey = "sun" } } },
+    R113 = { coordEvents = { { x = 19, y = 6, var = 8, scriptPtr = 0 }, { x = 87, y = 14, var = 8, scriptPtr = 0 },
+                             { x = 14, y = 8, var = 2, scriptPtr = 0 } } },
+    R119 = { coordEvents = { { x = 15, y = 13, var = 20, scriptPtr = 0 }, { x = 34, y = 133, var = 20, scriptPtr = 0 } } },
+    HOUSE = { coordEvents = { { x = 1, y = 1, var = 9, scriptPtr = 0 } } },
+  }
+  local scripts = { sand = { { op = "setweather", 8 }, { op = "doweather" } }, sun = { { op = "setweather", 2 } } }
+  local data0 = Mdl.weatherData
+  Mdl.weatherData = function() return maps, events, scripts end
+  hoenn.wxSpots = nil
+  local function byPlace(list)
+    local by = {}
+    for _, w in ipairs(list) do by[w.place.name] = by[w.place.name] or w end
+    return by
+  end
+  local stage0 = s.weatherCycleStage
+  s.weatherCycleStage = 0
+  local by = byPlace(Mdl.weather(hoenn, s))
+  T.check(by["Route 111"] and by["Route 111"].kind == "sand", "Route 111: the desert's sandstorm (a script's setweather)")
+  T.check(by["Route 113"] and by["Route 113"].kind == "ash", "Route 113: falling ash (its weather tiles; not the house's)")
+  T.check(by["Mt. Chimney"] and by["Mt. Chimney"].kind == "ash", "Mt. Chimney: ash (the map's own weather)")
+  local sand = by["Route 111"]
+  if sand and r111.z1 - r111.z0 > 1 then
+    T.check(sand.rz < (r111.z1 - r111.z0) / 2 and sand.z < (r111.z0 + r111.z1) / 2,
+      "the sandstorm only over the desert's part of Route 111 (its north)")
+  end
+  local okCycles = pcall(require("src.core.game3.weather").cycles)
+  if okCycles then
+    T.eq(by["Route 119"], nil, "Route 119: sunny on its cycle's first day")
+    s.weatherCycleStage = 2
+    local w119 = byPlace(Mdl.weather(hoenn, s))["Route 119"]
+    T.check(w119 and w119.kind == "thunder", "and a thunderstorm on its third")
+  end
+  T.eq(#Mdl.weather({ id = "kanto", places = r111 and { r111 } or {} }, s), 0, "FireRed and LeafGreen's regions: none")
+  T.check(sand and sand.y and sand.y0 and sand.y >= sand.y0, "each knows the ground under it (its clouds go over it)")
+  -- (a section the Town Map shows inside another -- Mt. Pyre on Route 122 -- brings its weather there)
+  local okM, man = pcall(require("src.ui.game3.rse.region_map").manifest)
+  local byId, from, onto = {}, nil, nil
+  for _, p in ipairs(hoenn.places) do byId[p.id] = p end
+  for _, sp in ipairs(okM and man.specialPlaces or {}) do
+    local p = byId[sp[2]]
+    if not from and p and not byId[sp[1]] and p.kind == "route" and not by[p.name] then from, onto = sp[1], p end
+  end
+  if from then
+    maps.INSIDE = { regionMapSectionId = from, mapType = 3, width = 30, height = 30, weather = 6 }
+    hoenn.wxSpots = nil
+    local w = byPlace(Mdl.weather(hoenn, s))[onto.name]
+    T.check(w and w.kind == "fog", "a section inside " .. onto.name .. ": its fog there")
+    maps.INSIDE = nil
+    hoenn.wxSpots = nil
+  end
+  -- the window: it eases in, the card knows, next to no garbage
+  local ms = W.state
+  ms.liveAt = -10
+  draw(1)
+  T.check(#ms.wx >= 3 and ms.wxBy[r111] == "sand" and ms.wxBy[r113] == "ash", "the map reads it (" .. #ms.wx .. ")")
+  draw(120)
+  local grown = true
+  for _, a in ipairs(ms.wx) do grown = grown and a.grow == 1 end
+  T.check(grown, "and it eases in")
+  local wxKb = garbageOf(120, function() draw(1) end)
+  T.check(wxKb < 0.5, string.format("the weather makes next to no garbage (%.3f KB/frame)", wxKb))
+  maps.R113 = nil
+  hoenn.wxSpots = nil
+  ms.liveAt = -10
+  draw(120)
+  T.eq(ms.wxBy[r113], nil, "a weather that's gone eases out")
+  s.weatherCycleStage = stage0
+  Mdl.weatherData = data0
+  hoenn.wxSpots = nil
+end
+
 -- ------- the game's Town Map and Fly map: ours instead
 
 local RMname = RSE and "src.ui.game3.rse.region_map" or "src.ui.game3.region_map"

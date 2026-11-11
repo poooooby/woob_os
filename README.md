@@ -56,6 +56,11 @@ opens a desktop in a sleek monitor instead of a text menu.
     rainstorm with lightning hangs over the route where Kyogre is rumoured, or a sandstorm over
     Groudon's. Ask again and it moves with the report. It clears once that Pokémon is caught or
     knocked out.
+  - **Everyday weather (Ruby, Sapphire, Emerald):** the weather your game has, where it has it, gentler
+    than the legendary storms. Rain clouds over Route 120's north, a thunderstorm or rain over Route 119
+    and Route 123 on the days the game gives them, ash falling on Route 113 and above Mt. Chimney, a dust
+    haze blowing across Route 111's desert, fog around Mt. Pyre and a few white clouds south of Route
+    120. Petalburg Woods and Southern Island sit in shade. A place's card names its weather.
   - **Every town its own:** villages are a few houses on a sandy square, cities a crowd of taller
     blocks on paving. Roofs take the town's colour (Lavender's purple, Cerulean's blue, Vermilion's
     red, Lilycove's lilac …), and each town has what it's known for: Oak's lab in Pallet, Pewter's

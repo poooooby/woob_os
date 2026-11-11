@@ -642,7 +642,12 @@ return function(mod)
     end
   end
   if makeMapModel and makeMapRender and mapScene then
-    local Model = makeMapModel(engine, { pixels = pixels, gameId = gameId })
+    -- (the maps' definitions, for the weather: the live game's)
+    local function mapDefs()
+      local g = mod.game
+      return g and g.data and g.data.maps or nil
+    end
+    local Model = makeMapModel(engine, { pixels = pixels, gameId = gameId, maps = mapDefs })
     local Towns = makeTowns and makeTowns() or nil
     env.map3d = {
       model = Model,

@@ -143,7 +143,9 @@ return function()
     end
   end
 
-  -- a hip roof over a box's top (a little over its walls, to a ridge)
+  -- a hip roof over a box's top (a little over its walls, to a ridge). The walls under one stop
+  -- UNDER_ROOF short of it: level with the eaves they'd fight the roof for the same pixels and flicker
+  local UNDER_ROOF = 0.01
   local function hipRoof(L, x, top, z, w, d, rh, c, rot)
     local cw, sw = cos(rot), sin(rot)
     local function at(lx, lz) return x + lx * cw - lz * sw, z + lx * sw + lz * cw end
@@ -165,7 +167,7 @@ return function()
 
   -- a house: walls, a window each side, a hip roof
   local function house(L, x, y, z, w, d, h, roof, rh, rot)
-    box(L, x, y, z, w, d, h, WALL, nil, rot, false)
+    box(L, x, y, z, w, d, h - UNDER_ROOF, WALL, nil, rot, false)
     local cw, sw = cos(rot), sin(rot)
     for _, side in ipairs({ -1, 1 }) do
       local lz = side * (d / 2 + 0.004)
@@ -260,7 +262,7 @@ return function()
     dome(L, x, y + 0.16 * s, z, 0.13 * s, { 0.55, 0.72, 0.68 })
   end
   function BUILD.school(L, x, y, z, s, rot)
-    box(L, x, y, z, 0.4 * s, 0.24 * s, 0.15 * s, { 0.94, 0.9, 0.8 }, nil, rot, true)
+    box(L, x, y, z, 0.4 * s, 0.24 * s, 0.15 * s - UNDER_ROOF, { 0.94, 0.9, 0.8 }, nil, rot, true)
     hipRoof(L, x, y + 0.15 * s, z, 0.4 * s, 0.24 * s, 0.07 * s, { 0.3, 0.55, 0.36 }, rot)
   end
   function BUILD.deptstore(L, x, y, z, s, rot)
@@ -291,7 +293,7 @@ return function()
     end
   end
   function BUILD.mansion(L, x, y, z, s, rot)
-    box(L, x, y, z, 0.38 * s, 0.32 * s, 0.24 * s, { 0.55, 0.52, 0.5 }, nil, rot, true)
+    box(L, x, y, z, 0.38 * s, 0.32 * s, 0.24 * s - UNDER_ROOF, { 0.55, 0.52, 0.5 }, nil, rot, true)
     hipRoof(L, x, y + 0.24 * s, z, 0.38 * s, 0.32 * s, 0.1 * s, { 0.3, 0.26, 0.26 }, rot)
   end
   function BUILD.corner(L, x, y, z, s, rot)
@@ -325,7 +327,7 @@ return function()
     prism(L, x, y, z, 6, 0.06 * s, 0.05 * s, 0.4 * s, { 0.78, 0.76, 0.72 }, 0, true)
   end
   function BUILD.villa(L, x, y, z, s, rot)
-    box(L, x, y, z, 0.36 * s, 0.26 * s, 0.16 * s, { 0.98, 0.96, 0.92 }, nil, rot, true)
+    box(L, x, y, z, 0.36 * s, 0.26 * s, 0.16 * s - UNDER_ROOF, { 0.98, 0.96, 0.92 }, nil, rot, true)
     hipRoof(L, x, y + 0.16 * s, z, 0.36 * s, 0.26 * s, 0.07 * s, { 0.9, 0.55, 0.35 }, rot)
   end
   function BUILD.ruins(L, x, y, z, s)
@@ -476,7 +478,7 @@ return function()
     if p.center then
       local hx, hz, rot = spot(0.2, 11)
       if hx then
-        box(L, hx, y, hz, 0.2, 0.16, 0.13, WALL, nil, rot, false)
+        box(L, hx, y, hz, 0.2, 0.16, 0.13 - UNDER_ROOF, WALL, nil, rot, false)
         hipRoof(L, hx, y + 0.13, hz, 0.2, 0.16, 0.06, CENTER_ROOF, rot)
         prism(L, hx, y + 0.19, hz, 8, 0.016, 0.016, 0.025, { 1, 1, 1 }, 0, true)
       end
@@ -484,16 +486,18 @@ return function()
     if p.mart then
       local hx, hz, rot = spot(0.18, 21)
       if hx then
-        box(L, hx, y, hz, 0.18, 0.15, 0.12, WALL, nil, rot, false)
+        box(L, hx, y, hz, 0.18, 0.15, 0.12 - UNDER_ROOF, WALL, nil, rot, false)
         hipRoof(L, hx, y + 0.12, hz, 0.18, 0.15, 0.055, MART_ROOF, rot)
       end
     end
     if p.hasGym then
       local hx, hz, rot = spot(0.27, 31)
       if hx then
-        box(L, hx, y, hz, 0.28, 0.22, 0.17, GYM_WALL, { 0.5, 0.52, 0.5 }, rot, false)
+        -- (its walls up to the badge's band, the band round its top carrying the roof: one top, not two
+        -- at the same height)
+        box(L, hx, y, hz, 0.28, 0.22, 0.13, GYM_WALL, nil, rot, false)
         local band = BADGE[p.badge or 1] or BADGE[1]
-        box(L, hx, y + 0.13, hz, 0.3, 0.24, 0.04, band, band, rot, false)
+        box(L, hx, y + 0.13, hz, 0.3, 0.24, 0.04, band, { 0.5, 0.52, 0.5 }, rot, false)
       end
     end
     -- (the houses: a city's taller blocks among them; Fortree's up in the trees)

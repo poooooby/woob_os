@@ -18,6 +18,13 @@
 --   M.pickArgs(place) -> the arguments the game's own map hands its Fly callback
 --   M.storm(region, session) -> { kind = "rain" (Kyogre) | "sand" (Groudon), place } | nil   (Emerald: where
 --                              the Weather Institute's rumour is, read from the game's own variables)
+--   M.weather(region, session) -> { { key, kind, place, x, z, rx, rz, y, y0 } }  (Ruby / Sapphire / Emerald:
+--                              the everyday weather where the game's maps put it: kind = "rain" | "thunder" |
+--                              "snow" | "fog" | "ash" | "sand" | "shade" | "clouds"; x, z its middle, rx, rz
+--                              half its size, y the highest ground under it, y0 the ground's mean, world
+--                              units; Route 119's and 123's cycles as they are today)
+--   M.weatherData() -> maps, events, scripts   (what it's read from: the maps' definitions, the script
+--                              bundle's events and scripts; the tests stand in for it)
 
 local floor, max, min, abs, sqrt = math.floor, math.max, math.min, math.abs, math.sqrt
 
@@ -453,6 +460,143 @@ return function(engine, deps)
       if p.id == sec then return { kind = rain and "rain" or "sand", place = p } end
     end
     return nil
+  end
+
+  -- ------- the everyday weather (Ruby / Sapphire / Emerald). A map's own weather covers all of it (Mt.
+  -- Chimney's ash, Mt. Pyre's fog, Petalburg Woods' shade); a route's comes from tiles on it that change
+  -- the weather when stepped on (a weather event, or a script's setweather: Route 111's desert), over
+  -- the part of the route those tiles span. A section the Town Map shows as part of another (the game's
+  -- own list: Petalburg Woods on Route 104, Mt. Pyre on Route 122) brings its own weather to that one.
+  -- Read once (the data doesn't change), the cycles each time.
+
+  -- the game's weather numbers (pokeemerald include/constants/weather.h; Ruby / Sapphire's alike)
+  local WX = { [1] = "clouds", [3] = "rain", [4] = "snow", [5] = "thunder", [6] = "fog", [7] = "ash",
+               [8] = "sand", [9] = "fog", [11] = "shade", [13] = "thunder" }
+  local CYCLE = { [20] = true, [21] = true }     -- Route 119's and Route 123's, a stage a day
+  local WX_PAD = 0.12                            -- a route's weather a little past its outermost tiles
+  local function shown(w) return w ~= nil and (WX[w] ~= nil or CYCLE[w] == true) end
+  local function setweatherOf(script)
+    local rows = type(script) == "table" and (script.ops or script) or nil
+    if type(rows) ~= "table" then return nil end
+    for i = 1, 6 do
+      local row = rows[i]
+      if type(row) ~= "table" then return nil end
+      if row.op == "setweather" then return tonumber(row[1]) end
+    end
+    return nil
+  end
+
+  function M.weatherData()
+    local Space = engine("src.core.game3.scripting.space")
+    local b = Space and Space.bundle
+    return deps.maps and deps.maps() or nil, b and b.events, b and b.scripts
+  end
+
+  -- where each weather is: { key, raw (its number, maybe a cycle), place, fx0, fx1, fz0, fz1 (the part of
+  -- the place's box, 0..1) }, kept with the region once the maps are in
+  function M.weatherSpots(region)
+    if region.wxSpots then return region.wxSpots end
+    local maps, events, scripts = M.weatherData()
+    if type(maps) ~= "table" then return {} end
+    local Dataset, CW = engine("src.core.game3.dataset"), engine("src.core.game3.coord_weather")
+    local byId, found, spots = {}, {}, {}
+    for _, p in ipairs(region.places) do byId[p.id] = p end
+    local inside = {}
+    local RM = engine("src.ui.game3.rse.region_map")
+    local okM, man = pcall(RM and RM.manifest or error)
+    for _, sp in ipairs(okM and type(man) == "table" and type(man.specialPlaces) == "table" and man.specialPlaces or {}) do
+      if type(sp) == "table" and byId[sp[2]] and not byId[sp[1]] then inside[sp[1]] = byId[sp[2]] end
+    end
+    local function add(p, w, x0, x1, z0, z1)
+      -- (a place one cell across: all of it that way)
+      if p.x1 - p.x0 <= 1 then x0, x1 = 0, 1 end
+      if p.z1 - p.z0 <= 1 then z0, z1 = 0, 1 end
+      local key = tostring(p.id) .. ":" .. w
+      local sp = found[key]
+      if sp then
+        sp.fx0, sp.fx1, sp.fz0, sp.fz1 = min(sp.fx0, x0), max(sp.fx1, x1), min(sp.fz0, z0), max(sp.fz1, z1)
+      else
+        sp = { key = key, raw = w, place = p, fx0 = x0, fx1 = x1, fz0 = z0, fz1 = z1 }
+        found[key] = sp
+        spots[#spots + 1] = sp
+      end
+    end
+    for id, def in pairs(maps) do
+      local sec = type(def) == "table" and tonumber(def.regionMapSectionId)
+      local p, within = sec and byId[sec], sec and inside[sec]
+      local okO, outdoor = pcall(Dataset and Dataset.isOutdoorMapType or error, (p or within) and def.mapType)
+      if within and okO and outdoor and shown(tonumber(def.weather)) then
+        add(within, tonumber(def.weather), 0, 1, 0, 1)
+      end
+      if p and okO and outdoor then
+        local own = tonumber(def.weather)
+        if shown(own) then add(p, own, 0, 1, 0, 1) end
+        local ev = type(events) == "table" and events[id] or nil
+        local mw, mh = max(1, tonumber(def.width) or 1), max(1, tonumber(def.height) or 1)
+        local boxes = {}
+        for _, e in ipairs(type(ev) == "table" and type(ev.coordEvents) == "table" and ev.coordEvents or {}) do
+          local w
+          if CW and CW.isWeatherEvent and CW.isWeatherEvent(e) then
+            w = CW.BY_TRIGGER and CW.BY_TRIGGER[tonumber(e.var) or -1]
+          elseif e.scriptKey and type(scripts) == "table" then
+            w = setweatherOf(scripts[e.scriptKey])
+          end
+          local x, y = tonumber(e.x), tonumber(e.y)
+          if shown(w) and x and y then
+            local b = boxes[w]
+            if b then
+              b[1], b[2], b[3], b[4] = min(b[1], x), max(b[2], x), min(b[3], y), max(b[4], y)
+            else
+              boxes[w] = { x, x, y, y }
+            end
+          end
+        end
+        for w, b in pairs(boxes) do
+          add(p, w, max(0, b[1] / mw - WX_PAD), min(1, (b[2] + 1) / mw + WX_PAD),
+            max(0, b[3] / mh - WX_PAD), min(1, (b[4] + 1) / mh + WX_PAD))
+        end
+      end
+    end
+    table.sort(spots, function(a, b) return a.key < b.key end)
+    region.wxSpots = spots
+    return spots
+  end
+
+  -- the ground under a weather: its highest point and its mean (the sea counts as 0)
+  local function groundUnder(region, x, z, rx, rz)
+    local hi, sum = 0, 0
+    for i = 0, 4 do
+      for j = 0, 4 do
+        local ok, h = pcall(M.heightAt, region, x + (i / 2 - 1) * rx, z + (j / 2 - 1) * rz)
+        h = ok and tonumber(h) and max(0, h) or 0
+        hi, sum = max(hi, h), sum + h
+      end
+    end
+    return hi, sum / 25
+  end
+
+  function M.weather(region, s)
+    local out = {}
+    if not (region and region.id == "hoenn") then return out end
+    local W = engine("src.core.game3.weather")
+    for _, sp in ipairs(M.weatherSpots(region)) do
+      local w = sp.raw
+      if CYCLE[w] then
+        local ok, today = pcall(W and W.translate or error, w, s)
+        w = ok and tonumber(today) or nil
+      end
+      local kind = w and WX[w]
+      if kind then
+        local p = sp.place
+        local x0, x1 = p.x0 + (p.x1 - p.x0) * sp.fx0, p.x0 + (p.x1 - p.x0) * sp.fx1
+        local z0, z1 = p.z0 + (p.z1 - p.z0) * sp.fz0, p.z0 + (p.z1 - p.z0) * sp.fz1
+        local w2 = { key = sp.key, kind = kind, place = p, x = (x0 + x1) / 2, z = (z0 + z1) / 2,
+                     rx = max(0.55, (x1 - x0) / 2), rz = max(0.55, (z1 - z0) / 2) }
+        w2.y, w2.y0 = groundUnder(region, w2.x, w2.z, w2.rx, w2.rz)
+        out[#out + 1] = w2
+      end
+    end
+    return out
   end
 
   -- ------- building a region (once per game and region)

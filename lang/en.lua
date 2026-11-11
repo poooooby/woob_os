@@ -751,5 +751,13 @@ return {
     ["mart.say.poke1"] = "Hey, that tickles!",
     ["mart.say.poke2"] = "Need a hand finding something?",
     ["mart.say.poke3"] = "I'm right here if you need me!",
+    ["map.weather.rain"] = "Rain",
+    ["map.weather.thunder"] = "Thunderstorm",
+    ["map.weather.snow"] = "Snow",
+    ["map.weather.fog"] = "Fog",
+    ["map.weather.ash"] = "Ash",
+    ["map.weather.sand"] = "Sandstorm",
+    ["map.weather.shade"] = "Shade",
+    ["map.weather.clouds"] = "Cloudy",
   },
 }

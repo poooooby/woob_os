@@ -739,5 +739,13 @@ return {
     ["mart.say.poke1"] = "Ehi, mi fai il solletico!",
     ["mart.say.poke2"] = "Ti serve una mano a trovare qualcosa?",
     ["mart.say.poke3"] = "Sono qui se hai bisogno!",
+    ["map.weather.rain"] = "Pioggia",
+    ["map.weather.thunder"] = "Temporale",
+    ["map.weather.snow"] = "Neve",
+    ["map.weather.fog"] = "Nebbia",
+    ["map.weather.ash"] = "Cenere",
+    ["map.weather.sand"] = "Tempesta di sabbia",
+    ["map.weather.shade"] = "Ombroso",
+    ["map.weather.clouds"] = "Nuvoloso",
   },
 }

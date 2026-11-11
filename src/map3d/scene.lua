@@ -1,7 +1,8 @@
 -- The 3D map's window: the region (src/map3d/model.lua) drawn by src/map3d/render.lua, a camera
 -- that tilts, turns and zooms, and over it the places' pins, the player's beacon and the chosen
--- place's card (its name, visited or not, Center / Mart, the Gym and its badge, Fly), and on Emerald
--- the storm over wherever Kyogre or Groudon is rumoured to be. The same window
+-- place's card (its name, visited or not, its weather, Center / Mart, the Gym and its badge, Fly), on
+-- Ruby / Sapphire / Emerald the everyday weather where the game puts it (quiet: rain, ash, sand, fog,
+-- an overcast), and on Emerald the storm over wherever Kyogre or Groudon is rumoured to be. The same window
 -- in every host: the desktop's and WoobPad's Map app, and the game's own Town Map / Fly screen
 -- (src/townmap.lua).
 --   buttons  the D-pad moves a cursor freely over the land (the way the camera faces; let go near a
@@ -77,6 +78,7 @@ return function(ctx, env, opts)
     zoom = 2, turn = 0, lastT = nil, liveAt = -10, hour = 12, minute = 0, toast = nil,
     touch = {}, nTouch = 0, rect = { x = 0, y = 0, w = 1, h = 1 }, flyMon = nil, flyWhy = nil, three = false,
     storm = { on = false, kind = nil, place = nil, x = 0, z = 0, tx = 0, tz = 0, grow = 0 },
+    wx = {}, wxBy = {}, wxRegion = nil,
   }
   W.state = st
 
@@ -171,10 +173,38 @@ return function(ctx, env, opts)
     env.map3d.lastStorm = mem
   end
 
+  -- the everyday weather: each place's, as the game has it today; a weather that comes eases in, one
+  -- that goes eases out. st.wxBy: a place's weather for its card (the strongest when it has two)
+  local WX_RANK = { thunder = 8, sand = 7, ash = 6, snow = 5, rain = 4, fog = 3, shade = 2, clouds = 1 }
+  local function readWeather(s)
+    if st.wxRegion ~= st.region then
+      for i = #st.wx, 1, -1 do st.wx[i] = nil end
+      st.wxRegion = st.region
+    end
+    for p in pairs(st.wxBy) do st.wxBy[p] = nil end
+    for _, a in ipairs(st.wx) do a.on = false end
+    local ok, list = pcall(Mdl.weather, st.region, s)
+    if not (ok and type(list) == "table") then return end
+    for _, w in ipairs(list) do
+      local a
+      for _, b in ipairs(st.wx) do
+        if b.key == w.key then a = b end
+      end
+      if not a then
+        a = { key = w.key, grow = 0 }
+        st.wx[#st.wx + 1] = a
+      end
+      a.on, a.kind, a.place, a.x, a.z, a.rx, a.rz, a.y, a.y0 = true, w.kind, w.place, w.x, w.z, w.rx, w.rz, w.y, w.y0
+      local had = st.wxBy[w.place]
+      if not had or (WX_RANK[w.kind] or 0) > (WX_RANK[had] or 0) then st.wxBy[w.place] = w.kind end
+    end
+  end
+
   local function refreshLive()
     local s = session()
     if st.region then pcall(Mdl.live, st.region, s) end
     if st.region then readStorm(s) end
+    if st.region then readWeather(s) end
     local ok, h, m = pcall(env.map3d.clock)
     if ok and h then st.hour, st.minute = h, m or 0 end
     if mode == "app" and env.map3d.flyCheck then
@@ -544,6 +574,14 @@ return function(ctx, env, opts)
     sm.x, sm.z = sm.x + (sm.tx - sm.x) * k, sm.z + (sm.tz - sm.z) * k
     sm.grow = max(0, min(1, sm.grow + (sm.on and STORM_GROW or -STORM_GROW) * dt))
   end
+  local WX_GROW = 1.1
+  local function stepWeather(dt)
+    for i = #st.wx, 1, -1 do
+      local a = st.wx[i]
+      a.grow = max(0, min(1, a.grow + (a.on and WX_GROW or -WX_GROW) * dt))
+      if not a.on and a.grow <= 0 then table.remove(st.wx, i) end
+    end
+  end
 
   -- ------- the glass (every overlay: the map frosted under it, a dark tint, a gloss, a fine rim)
 
@@ -692,7 +730,46 @@ return function(ctx, env, opts)
       end
     end
   end
+  -- the everyday weather on the flat map (and with no shader): a soft patch of its colour over its part
+  -- of the place, a few drops, flakes or grains moving in it
+  local WX_FLAT = { rain = { 70, 110, 190 }, thunder = { 50, 70, 130 }, snow = { 236, 242, 255 },
+                    fog = { 220, 228, 240 }, ash = { 110, 106, 104 }, sand = { 220, 176, 104 },
+                    shade = { 60, 70, 96 }, clouds = { 240, 244, 255 } }
+  local WX_MARK = { rain = BOLT_C, thunder = BOLT_C, snow = WHITE, ash = { 70, 66, 64 }, sand = { 255, 236, 190 } }
+  local function drawFlatWeather(clock)
+    local G = K.graphics()
+    for _, a in ipairs(st.wx) do
+      local c = WX_FLAT[a.kind]
+      local ax, ay = Rd.project(a.x - a.rx, 0, a.z - a.rz)
+      local bx, by = Rd.project(a.x + a.rx, 0, a.z - a.rz)
+      local cx, cy = Rd.project(a.x + a.rx, 0, a.z + a.rz)
+      local dx, dy = Rd.project(a.x - a.rx, 0, a.z + a.rz)
+      if c and a.grow > 0 and ax and bx and cx and dx then
+        K.col(c, 0.26 * a.grow)
+        G.polygon("fill", ax, ay, bx, by, cx, cy, dx, dy)
+        local mark = WX_MARK[a.kind]
+        if mark then
+          K.col(mark, 0.7 * a.grow)
+          G.setLineWidth(max(1, 0.4 * K.sc))
+          for i = 1, 8 do
+            local u, v = (i * 0.618) % 1, (i * 0.382 + clock * (a.kind == "sand" and 0 or 0.3)) % 1
+            if a.kind == "sand" then u = (u + clock * 0.15) % 1 end
+            local px = ax + (bx - ax) * u + (dx - ax) * v
+            local py = ay + (by - ay) * u + (dy - ay) * v
+            if a.kind == "rain" or a.kind == "thunder" then
+              G.line(px, py, px - 0.4 * K.sc, py + 1.6 * K.sc)
+            elseif a.kind == "sand" then
+              G.line(px, py, px + 1.4 * K.sc, py)
+            else
+              G.circle("fill", px, py, max(1, 0.35 * K.sc))
+            end
+          end
+        end
+      end
+    end
+  end
   local function drawStorm(clock)
+    if not st.three and #st.wx > 0 then drawFlatWeather(clock) end
     local sm = st.storm
     if sm.grow <= 0 then return end
     if not st.three then
@@ -782,6 +859,12 @@ return function(ctx, env, opts)
   -- ("Gym · Boulder Badge": made once per badge)
   local badgeWords = K.textCache(function(name) return T.f("map.gymBadge", name) end)
 
+  local WX_WORD = { rain = "map.weather.rain", thunder = "map.weather.thunder", snow = "map.weather.snow",
+                    fog = "map.weather.fog", ash = "map.weather.ash", sand = "map.weather.sand",
+                    shade = "map.weather.shade", clouds = "map.weather.clouds" }
+  local WX_DOT = { rain = { 120, 170, 255 }, thunder = { 160, 150, 255 }, snow = { 236, 242, 255 },
+                   fog = { 200, 210, 226 }, ash = { 150, 146, 144 }, sand = { 236, 190, 110 },
+                   shade = { 130, 140, 166 }, clouds = { 236, 242, 255 } }
   local function drawCard(body, compact)
     local p = place()
     if not p then return end
@@ -799,15 +882,23 @@ return function(ctx, env, opts)
     K.bold(p.name, tx, b[2] + 3, fs, WHITE)
     -- (visited or not; a landmark says what it is)
     local sy = b[2] + 3.6 + fs * 1.22
+    local nx
     if p.kind == "route" then
-      pill(tx, sy, nil, T("map.route"), 3.8, PILL, SOFT)
+      nx = pill(tx, sy, nil, T("map.route"), 3.8, PILL, SOFT)
     elseif p.kind ~= "town" then
-      pill(tx, sy, nil, T("map.landmark"), 3.8, LAND_FILL, LAND_INK)
+      nx = pill(tx, sy, nil, T("map.landmark"), 3.8, LAND_FILL, LAND_INK)
     elseif p.visited then
-      local nx = pill(tx, sy, nil, T("map.visited"), 3.8, GOOD_FILL, GOOD)
+      nx = pill(tx, sy, nil, T("map.visited"), 3.8, GOOD_FILL, GOOD)
       tick(nx + 1.5, sy + 3.3, 1.2)
+      nx = nx + 5
     else
-      pill(tx, sy, nil, T("map.notVisited"), 3.8, PILL, SOFT)
+      nx = pill(tx, sy, nil, T("map.notVisited"), 3.8, PILL, SOFT)
+    end
+    -- (its weather today, when it has any)
+    local wk = st.wxBy[p]
+    if wk and WX_WORD[wk] then
+      local words = T(WX_WORD[wk])
+      if nx + K.width(words, 3.8) + 8.4 < b[1] + b[3] - 4 - fw then pill(nx, sy, WX_DOT[wk], words, 3.8, PILL, SOFT) end
     end
     -- (the facts as capsules: Center, Mart, the Gym and its badge; a town's own landmark)
     if facts then
@@ -917,6 +1008,7 @@ return function(ctx, env, opts)
     stepCursor(dt)
     stepCamera(dt)
     stepStorm(dt)
+    stepWeather(dt)
     local rect = st.rect
     rect.x, rect.y, rect.w, rect.h = K.X(body[1]), K.Y(body[2]), body[3] * K.sc, body[4] * K.sc
     local G = K.graphics()
@@ -930,7 +1022,7 @@ return function(ctx, env, opts)
     else
       Rd.camera(st.cam, rect)
       st.three = Rd.draw(G, st.region, rect, clock, Rd.night(st.hour, st.minute), Rd.dusk(st.hour, st.minute),
-        st.storm.grow > 0 and st.storm or nil)
+        st.storm.grow > 0 and st.storm or nil, st.wx)
     end
     drawStorm(clock)
     drawPins(clock)

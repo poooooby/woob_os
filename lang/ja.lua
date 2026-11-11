@@ -740,5 +740,13 @@ return {
     ["mart.say.poke1"] = "わっ くすぐったい です！",
     ["mart.say.poke2"] = "なにか おさがし ですか？",
     ["mart.say.poke3"] = "ごようが あれば いつでも どうぞ！",
+    ["map.weather.rain"] = "あめ",
+    ["map.weather.thunder"] = "かみなり",
+    ["map.weather.snow"] = "ゆき",
+    ["map.weather.fog"] = "きり",
+    ["map.weather.ash"] = "かざんばい",
+    ["map.weather.sand"] = "すなあらし",
+    ["map.weather.shade"] = "こかげ",
+    ["map.weather.clouds"] = "うすぐもり",
   },
 }

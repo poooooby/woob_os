@@ -7,6 +7,9 @@
 --   - the sea: a sheet that waves (in the shader), glints by day; the clouds drift over it all
 --   - a storm, when there's one to show: Kyogre's rain (dark clouds, falling streaks, lightning) or
 --     Groudon's sand (dust wheeling round), two kept meshes moved and animated in the shader
+--   - the everyday weather (Ruby / Sapphire / Emerald), far quieter than the storms: a few thin
+--     raindrops under pale clouds, ash or sand drifting, a low fog, an overcast; the ground under it
+--     softly tinted; each kind's bits and clouds one kept mesh, stretched over each place in the shader
 --   - the sky: day, dusk, night (stars), from the device's clock
 -- With no shader or mesh (the headless tests, an old GPU) the same camera draws the land as flat
 -- polygons, so the overlays (src/map3d/scene.lua) work alike.
@@ -15,8 +18,11 @@
 --   R.camera(cam, rect)              cam = { x, y, z (the target), yaw, pitch, dist } ; rect = window
 --                                    pixels { x, y, w, h } -> the view-projection kept
 --   R.project(x, y, z) -> sx, sy, depth (window pixels; nil behind the eye)
---   R.draw(G, region, rect, t, night, dusk, storm) -> true (3D) | false (the flat fallback drew it)
+--   R.draw(G, region, rect, t, night, dusk, storm, weather) -> true (3D) | false (the flat fallback drew it)
 --                                    storm = { x, z, kind = "rain" | "sand", grow = 0..1 } | nil
+--                                    weather = { { kind, x, z, rx, rz, y, y0, grow } } | nil (src/map3d/
+--                                    model.lua's M.weather, each with how grown)
+--   R.weatherFlash(t, i) -> 0..1: the i-th weather's thunderstorm flash (dim, now and then)
 --   R.lightning(t) -> 0..1 (its flash; 0: none), its offset x, z from the storm's middle, its number
 --   R.night(hour, minute) -> 0 (day) .. 1 (night) ; R.dusk(hour, minute) -> 0..1
 --   R.frost(G, x, y, w, h, rad) -> true: frosted glass (the map blurred) in that rounded rect
@@ -39,9 +45,12 @@ local FORMAT = {
 }
 -- flags (VertexFlag): 0 lit, 1 the sea, 2 a window (lit at night), 3 a cloud (drifts; its normal is
 -- its anchor), 4 unlit (the slab's sides keep their colour), 5 a rain streak, 6 a storm's puff of cloud or
--- dust, 7 a grain of sand
+-- dust, 7 a grain of sand, 8 a bit of everyday weather (its seed in the normal), 9 a lobe of its cloud or
+-- haze (its anchor in the normal)
 local F_SEA, F_WINDOW, F_CLOUD = 1, 2, 3
 local F_RAIN, F_PUFF, F_GRAIN = 5, 6, 7
+local F_WX, F_WXPUFF = 8, 9
+local WX_MAX = 12          -- the most weathers shown at once (the shader's arrays)
 
 local SHADER = [[
 varying vec3 vNormal;
@@ -55,6 +64,11 @@ uniform float uTime;
 uniform vec2 uCloud;
 uniform vec3 uEye;
 uniform vec4 uStorm;     // x, z, how grown (0..1), how fast it turns
+uniform vec4 uWxArea;    // a weather's middle x, z and half its size x, z
+uniform vec4 uWxMove;    // its fall (a fraction a second), its drift (a fraction a second), its top (the clouds'
+                         // base; sand's band), how grown
+uniform vec4 uWxLook;    // its bits' width and length, the ground (bits) or a flash (clouds), how its bits move
+                         // (0 rain, 1 flakes, 2 sand)
 attribute vec3 VertexNormal;
 attribute float VertexFlag;
 vec4 position(mat4 transform_projection, vec4 vertex_position) {
@@ -94,7 +108,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     p.x += uStorm.x;
     p.z += uStorm.y;
     vFade = uStorm.z * smoothstep(1.5, 5.0, distance(p, uEye));
-  } else if (VertexFlag > 6.5) {
+  } else if (VertexFlag > 6.5 && VertexFlag < 7.5) {
     vec3 a = VertexNormal;
     float turn = a.y * 6.2832 + uTime * (0.7 + 1.2 / (a.x + 0.5));
     vec3 c = vec3(uStorm.x + cos(turn) * a.x * uStorm.z, a.z + sin(uTime * 2.0 + a.y * 40.0) * 0.05,
@@ -102,6 +116,44 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     p = c + vec3(-sin(turn), 0.0, cos(turn)) * p.x * 0.06 + vec3(0.0, 1.0, 0.0) * p.y * 0.022;
     vNormal = vec3(0.0, 1.0, 0.0);
     vFade = uStorm.z;
+  } else if (VertexFlag > 7.5 && VertexFlag < 8.5) {
+    // (a raindrop falls straight, a flake sways down, a grain of sand blows across low)
+    vec3 s = VertexNormal;
+    float f = fract(s.y + uTime * uWxMove.x);
+    vec2 u = s.xz;
+    float y = mix(uWxMove.z, uWxLook.z, f);
+    if (uWxLook.w > 1.5) {
+      u.x = fract(s.x + uTime * uWxMove.y);
+      y = uWxLook.z + 0.03 + s.y * uWxMove.z + sin(uTime * 2.1 + s.z * 37.0) * 0.03;
+      f = 0.5;
+    } else if (uWxLook.w > 0.5) {
+      u.x = clamp(u.x + sin(uTime * 1.3 + s.y * 31.0) * 0.03, 0.0, 1.0);
+    }
+    vec2 at = uWxArea.xy + (u * 2.0 - 1.0) * uWxArea.zw;
+    vec3 base = vec3(at.x, y, at.y);
+    vec3 side = normalize(cross(vec3(0.0, 1.0, 0.0), uEye - base));
+    if (uWxLook.w > 1.5) {
+      p = base + vec3(1.0, 0.0, 0.0) * (p.y - 0.5) * uWxLook.y + vec3(0.0, 1.0, 0.0) * p.x * uWxLook.x;
+    } else if (uWxLook.w > 0.5) {
+      p = base + side * p.x * uWxLook.x + vec3(0.0, 1.0, 0.0) * (p.y - 0.5) * uWxLook.x * 2.0;
+    } else {
+      p = base + side * p.x * uWxLook.x + vec3(0.0, 1.0, 0.0) * p.y * uWxLook.y;
+    }
+    float edge = min(min(u.x, 1.0 - u.x), min(u.y, 1.0 - u.y));
+    vNormal = vec3(0.0, 1.0, 0.0);
+    vFade = uWxMove.w * smoothstep(0.0, 0.18, edge) * smoothstep(0.0, 0.08, f) * (1.0 - smoothstep(0.92, 1.0, f))
+      * smoothstep(0.4, 1.4, distance(base, uEye));
+  } else if (VertexFlag > 8.5) {
+    // (a lobe of cloud or haze drifting slowly along, growing in where it wraps round)
+    vec3 a = VertexNormal;
+    vec2 u = vec2(fract(a.x + uTime * uWxMove.y), a.z);
+    float edge = min(min(u.x, 1.0 - u.x), min(u.y, 1.0 - u.y));
+    vec2 at = uWxArea.xy + (u * 2.0 - 1.0) * uWxArea.zw;
+    float k = uWxMove.w * smoothstep(0.0, 0.2, edge) * (1.0 + sin(uTime * 0.6 + a.x * 23.0) * 0.05);
+    p = vec3(at.x, uWxMove.z + a.y, at.y) + p * k;
+    vNormal = vec3(0.0, 1.0, 0.0);
+    vWave = uWxLook.z;
+    vFade = k * smoothstep(1.0, 3.2, distance(p, uEye));
   }
   vGround = p.xz;
   return uViewProj * vec4(p, 1.0);
@@ -115,6 +167,19 @@ uniform float uNight;
 uniform vec3 uStormAt;   // x, z, how grown
 uniform vec4 uStormTint; // what it does to the ground under it: a colour, how much
 uniform float uFlash;
+uniform vec4 uWxBox[12];  // each everyday weather's x, z and half its size x, z (0: none)
+uniform vec4 uWxTint[12]; // what it does to the ground under it: a colour, how much
+vec3 underWeather(vec3 c) {
+  for (int i = 0; i < 12; i++) {
+    vec4 b = uWxBox[i];
+    if (b.z > 0.0) {
+      vec2 d = abs(vGround - b.xy) / b.zw;
+      float r = sqrt(sqrt(d.x * d.x * d.x * d.x + d.y * d.y * d.y * d.y));
+      c = mix(c, c * uWxTint[i].rgb, (1.0 - smoothstep(0.7, 1.1, r)) * uWxTint[i].a);
+    }
+  }
+  return c;
+}
 vec3 underStorm(vec3 c) {
   float k = uStormAt.z * (1.0 - smoothstep(1.2, 2.6, distance(vGround, uStormAt.xy)));
   return mix(c, c * uStormTint.rgb, k * uStormTint.a) + vec3(0.25, 0.28, 0.4) * uFlash * k;
@@ -123,6 +188,11 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
   if (vFlag > 5.5 && vFlag < 6.5) {
     float lightOn = max(dot(normalize(vNormal), uSun), 0.0);
     return vec4(color.rgb * (uAmbient + uSunColor * lightOn) + vec3(0.5, 0.55, 0.75) * uFlash, color.a * vFade);
+  }
+  if (vFlag > 8.5) {
+    // (a weather's cloud: its shading baked in, the sky's light on it, a dim flash in a thunderstorm's)
+    return vec4(color.rgb * min(uAmbient + uSunColor * 0.75, vec3(1.15)) + vec3(0.42, 0.46, 0.6) * vWave,
+                color.a * vFade);
   }
   if (vFlag > 4.5) return vec4(color.rgb * mix(1.0, 0.6, uNight), color.a * vFade);
   if (vFlag > 2.5 && vFlag < 3.5) {
@@ -135,10 +205,10 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
   vec3 lit = color.rgb * (uAmbient + uSunColor * d);
   if (vFlag > 0.5 && vFlag < 1.5) {
     float glint = pow(max(vWave, 0.0), 8.0) * 0.22 * (1.0 - uNight);
-    return vec4(underStorm(color.rgb * (uAmbient + uSunColor * (0.55 + 0.45 * d)) + vec3(glint)), color.a);
+    return vec4(underStorm(underWeather(color.rgb * (uAmbient + uSunColor * (0.55 + 0.45 * d)) + vec3(glint))), color.a);
   }
   if (vFlag > 1.5 && vFlag < 2.5) lit = mix(lit, vec3(1.0, 0.82, 0.42), uNight);
-  return vec4(underStorm(lit), color.a);
+  return vec4(underStorm(underWeather(lit)), color.a);
 }
 #endif
 ]]
@@ -556,6 +626,164 @@ return function(deps)
     return 1 - age / LIGHTNING_LASTS, cos(a) * d, sin(a) * d, n
   end
 
+  -- ------- the everyday weather: far quieter than the storms (pale clouds, thin rain, a low haze); per
+  -- kind one mesh of its bits and one of its clouds, over a unit square: the shader puts them over a place
+
+  local WX_BITS = 900        -- the most bits one weather draws
+  -- per kind: its bits (colour, how many a cell, width, length, fall, drift, sand's band, how they move),
+  -- its clouds (how many at most, size, colour, alpha; solid, or a haze seen through; high over the
+  -- ground, or `low` this far over it; `spread`: a haze past the place's edges), what it does to the ground
+  -- (colour, how much)
+  local RAIN_BITS = { 0.8, 0.87, 1, 0.6 }
+  local WX_LOOK = {
+    rain = { bits = RAIN_BITS, perCell = 40, width = 0.01, length = 0.15, fall = 1.1, drift = 0, way = 0,
+             clouds = { 12, 0.38, 0.74, 0.77, 0.84 }, solid = true, tint = { 0.84, 0.88, 0.96, 0.35 } },
+    thunder = { bits = RAIN_BITS, perCell = 52, width = 0.01, length = 0.16, fall = 1.2, drift = 0, way = 0,
+                clouds = { 14, 0.42, 0.56, 0.59, 0.68 }, solid = true, tint = { 0.8, 0.84, 0.92, 0.4 }, flash = true },
+    snow = { bits = { 1, 1, 1, 0.85 }, perCell = 45, width = 0.018, length = 0, fall = 0.14, drift = 0, way = 1,
+             clouds = { 12, 0.38, 0.88, 0.9, 0.95 }, solid = true, tint = { 1.25, 1.25, 1.3, 0.4 } },
+    ash = { bits = { 0.4, 0.38, 0.38, 0.75 }, perCell = 45, width = 0.017, length = 0, fall = 0.1, drift = 0, way = 1,
+            clouds = { 10, 0.42, 0.52, 0.5, 0.5, 0.55 }, tint = { 0.74, 0.74, 0.76, 0.5 } },
+    sand = { bits = { 0.93, 0.78, 0.5, 0.85 }, perCell = 130, width = 0.016, length = 0.15, fall = 0, drift = 0.22,
+             band = 0.5, way = 2, clouds = { 18, 0.58, 0.98, 0.86, 0.62, 0.46 }, low = 0.04, spread = 1.4,
+             tint = { 1.12, 0.92, 0.64, 0.55 } },
+    fog = { clouds = { 14, 0.5, 0.94, 0.95, 0.98, 0.4 }, low = 0.16, tint = { 1.08, 1.1, 1.14, 0.25 } },
+    shade = { tint = { 0.8, 0.82, 0.88, 0.32 } },
+    clouds = { clouds = { 8, 0.36, 0.98, 0.99, 1 }, solid = true, tint = { 0.97, 0.98, 1, 0.1 } },
+  }
+  local CLOUD_DRIFT = 0.004  -- a fraction of its place a second
+  local CLOUD_OVER = 0.8     -- a high cloud's base over the highest ground under it
+  local CLOUD_MIN = 1.1      -- and never lower than this
+
+  -- one cloud: a few rounded lobes around its anchor (in the normal: 0..1 over the place, a little
+  -- height), a flat base, its sunny side baked lighter
+  local CLUSTER = { { 0, 0, 0, 1 }, { 0.62, -0.08, 0.12, 0.72 }, { -0.58, -0.1, -0.06, 0.7 },
+                    { 0.12, 0.05, -0.5, 0.62 }, { -0.16, -0.06, 0.5, 0.6 } }
+  local LOBE_ROWS, LOBE_SEGS = 5, 8
+  local SUN_X, SUN_Y, SUN_Z = 0.4344, 0.8068, 0.4758   -- (light()'s sun, as a unit vector)
+  local function wxCloud(list, ax, ay, az, size, r, g, b, alpha)
+    local base = -0.24 * size
+    for _, l in ipairs(CLUSTER) do
+      local ox, oy, oz, k = l[1] * size, l[2] * size, l[3] * size, l[4] * size
+      local function corner(j, i)
+        local a, t = j / LOBE_ROWS * pi, i / LOBE_SEGS * 2 * pi
+        local nx, ny, nz = sin(a) * cos(t), cos(a), sin(a) * sin(t)
+        local y = oy + ny * k * 0.62
+        local bright = 0.64 + 0.36 * max(0, nx * SUN_X + ny * SUN_Y + nz * SUN_Z)
+        if y < base then y, bright = base, 0.56 end
+        vert(list, ox + nx * k, y, oz + nz * k * 0.86, ax, ay, az, r * bright, g * bright, b * bright, alpha, F_WXPUFF)
+      end
+      for j = 0, LOBE_ROWS - 1 do
+        for i = 0, LOBE_SEGS - 1 do
+          corner(j, i); corner(j + 1, i); corner(j + 1, i + 1)
+          corner(j, i); corner(j + 1, i + 1); corner(j, i + 1)
+        end
+      end
+    end
+  end
+  local CLOUD_VERTS = #CLUSTER * LOBE_ROWS * LOBE_SEGS * 6
+
+  local wxMeshes = {}
+  local function wxMeshOf(G, kind)
+    local m = wxMeshes[kind]
+    if m ~= nil then return m or nil end
+    local look = WX_LOOK[kind]
+    m = false
+    if look then
+      m = {}
+      if look.bits then
+        local list, c = {}, look.bits
+        for i = 1, WX_BITS do
+          -- (spread evenly: two irrationals for where, a hash for when)
+          fleck(list, 0, 1, (i * 0.7548776662) % 1, hash(i, 1, 71), (i * 0.5698402910) % 1, c[1], c[2], c[3], c[4], F_WX)
+        end
+        m.bits = newMesh(G, list)
+      end
+      if look.clouds then
+        local list, c = {}, look.clouds
+        for i = 1, c[1] do
+          wxCloud(list, (i * 0.7548776662) % 1, hash(i, 3, 73) * 0.14, (i * 0.5698402910 + 0.31) % 1,
+            c[2] * (0.8 + hash(i, 2, 73) * 0.4), c[3], c[4], c[5], c[6] or 1)
+        end
+        m.clouds = newMesh(G, list)
+      end
+      if (look.bits and not m.bits) or (look.clouds and not m.clouds) then m = false end
+    end
+    wxMeshes[kind] = m
+    return m or nil
+  end
+
+  -- a thunderstorm's flash: dim, now and then, each one on its own beat
+  function R.weatherFlash(t, i)
+    return (R.lightning(t * 0.5 + (i or 0) * 2.3)) * 0.4
+  end
+
+  local WX_AREA, WX_MOVE, WX_LOOK_U = { 0, 0, 1, 1 }, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }
+  local WX_BOX, WX_TINT = {}, {}
+  for i = 1, WX_MAX do WX_BOX[i], WX_TINT[i] = { 0, 0, 0, 0 }, { 1, 1, 1, 0 } end
+  local unpack = unpack or table.unpack
+
+  -- the ground under each weather: its box and its tint (a thunderstorm's flash lightening it a moment)
+  local function sendWeatherGround(sh, weather, t)
+    local n = 0
+    if weather then
+      for i = 1, #weather do
+        local a = weather[i]
+        local look = WX_LOOK[a.kind]
+        if look and a.grow > 0 and n < WX_MAX then
+          n = n + 1
+          local b, c, tint = WX_BOX[n], WX_TINT[n], look.tint
+          b[1], b[2], b[3], b[4] = a.x, a.z, a.rx, a.rz
+          local f = look.flash and R.weatherFlash(t, i) or 0
+          c[1], c[2], c[3], c[4] = tint[1] + f * 0.3, tint[2] + f * 0.3, tint[3] + f * 0.36, tint[4] * a.grow
+        end
+      end
+    end
+    for i = n + 1, WX_MAX do WX_BOX[i][3] = 0 end
+    pcall(sh.send, sh, "uWxBox", unpack(WX_BOX, 1, WX_MAX))
+    pcall(sh.send, sh, "uWxTint", unpack(WX_TINT, 1, WX_MAX))
+  end
+
+  -- each weather's clouds (solid: they hide what's behind them; or a haze, seen through), then its bits
+  local function drawWeather(G, sh, weather, t, solid, bits)
+    if not weather then return end
+    for i = 1, #weather do
+      local a = weather[i]
+      local look = WX_LOOK[a.kind]
+      local m = look and a.grow > 0 and wxMeshOf(G, a.kind)
+      if m then
+        local cells = 4 * a.rx * a.rz
+        local ground = a.y0 or 0
+        local high = max(CLOUD_MIN, (a.y or 0) + CLOUD_OVER)
+        WX_AREA[1], WX_AREA[2], WX_AREA[3], WX_AREA[4] = a.x, a.z, a.rx, a.rz
+        pcall(sh.send, sh, "uWxArea", WX_AREA)
+        if bits and m.bits then
+          -- (rain and flakes from the clouds' base to the ground; sand in a band over it)
+          local sand = look.way == 2
+          WX_MOVE[1], WX_MOVE[2], WX_MOVE[3], WX_MOVE[4] = look.fall, look.drift, sand and look.band or high, a.grow
+          WX_LOOK_U[1], WX_LOOK_U[2], WX_LOOK_U[3], WX_LOOK_U[4] = look.width, look.length,
+            sand and ground or ground - 0.1, look.way
+          pcall(sh.send, sh, "uWxMove", WX_MOVE)
+          pcall(sh.send, sh, "uWxLook", WX_LOOK_U)
+          m.bits:setDrawRange(1, max(24, min(WX_BITS, floor(cells * look.perCell))) * 6)
+          G.draw(m.bits)
+        elseif not bits and m.clouds and (look.solid == true) == solid then
+          local sp = look.spread or 1
+          WX_AREA[3], WX_AREA[4] = a.rx * sp, a.rz * sp
+          pcall(sh.send, sh, "uWxArea", WX_AREA)
+          cells = cells * sp * sp
+          WX_MOVE[1], WX_MOVE[2], WX_MOVE[3], WX_MOVE[4] = 0, CLOUD_DRIFT / max(0.6, a.rx),
+            look.low and ground + look.low or high, a.grow
+          WX_LOOK_U[1], WX_LOOK_U[2], WX_LOOK_U[3], WX_LOOK_U[4] = 0, 0, look.flash and R.weatherFlash(t, i) or 0, 0
+          pcall(sh.send, sh, "uWxMove", WX_MOVE)
+          pcall(sh.send, sh, "uWxLook", WX_LOOK_U)
+          m.clouds:setDrawRange(1, max(2, min(look.clouds[1], floor(cells * 0.9 + 1.5))) * CLOUD_VERTS)
+          G.draw(m.clouds)
+        end
+      end
+    end
+  end
+
   -- ------- the shader, the canvas and the draw
 
   local shader, shaderTried = nil, false
@@ -717,7 +945,7 @@ return function(deps)
   end
 
   -- the region into rect (window pixels) at time t; night / dusk 0..1 -> true when drawn in 3D
-  function R.draw(G, region, rect, t, night, dusk, storm)
+  function R.draw(G, region, rect, t, night, dusk, storm, weather)
     night, dusk = night or 0, dusk or 0
     local sh = getShader(G)
     local m = sh and meshes(G, region)
@@ -762,6 +990,7 @@ return function(deps)
     pcall(sh.send, sh, "uStormAt", STORM_AT)
     pcall(sh.send, sh, "uStormTint", STORM_TINT)
     pcall(sh.send, sh, "uFlash", flash)
+    sendWeatherGround(sh, weather, t)
     G.setColor(1, 1, 1, 1)
     G.setDepthMode("lequal", true)
     G.setMeshCullMode("none")
@@ -771,9 +1000,12 @@ return function(deps)
     if m.sea then G.draw(m.sea) end
     -- (a rain cloud is solid; the dust is haze, seen through itself)
     if stormM and storm.kind == "rain" then G.draw(stormM.solid) end
+    drawWeather(G, sh, weather, t, true, false)
     G.setDepthMode("lequal", false)
     if stormM and storm.kind ~= "rain" then G.draw(stormM.solid) end
     if stormM then G.draw(stormM.fine) end
+    drawWeather(G, sh, weather, t, false, false)
+    drawWeather(G, sh, weather, t, false, true)
     -- (solid, so they write depth: a cloud's far side stays hidden behind its near side)
     G.setDepthMode("lequal", true)
     if m.clouds then G.draw(m.clouds) end

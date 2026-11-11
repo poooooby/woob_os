@@ -5,6 +5,16 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **Weather on the 3D map (Ruby, Sapphire, Emerald):** each place's everyday weather where the game
+  puts it, quieter than the legendary storms: rain clouds and rain, a thunderstorm, falling ash, a
+  dust haze over the desert, fog, shade and a few clouds. Route 119's and Route 123's change with the
+  game's daily weather. A place's card names its weather.
+
+### Fixed
+- **The 3D map's roofs** no longer flicker against their buildings: the Gym's top and the houses',
+  Centers' and Marts' eaves.
+
 ## [0.8.0] - 2026-11-11
 
 ### Added
