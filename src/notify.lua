@@ -11,10 +11,10 @@
 --   Nt.push(kind, data, quiet) kind "outbid" | "won" | "lost" | "soon" | "gts" | "call"; data { name, sp, key,
 --       where }; quiet: into the list only (the app the player is looking at said so itself)
 --   Nt.list() -> the records, newest first: { kind, app, title, text, sp, at, state }
---   Nt.unread() / Nt.seen()
+--   Nt.unread() / Nt.seen() ; Nt.remove(rec) (swiped away: gone from the list) ; Nt.clear() (all of them)
 --   Nt.step(clock, canShow) -> the banner showing and how far in (0..1) or nil: banners wait their
 --       turn (three at most) until a place can show one
---   Nt.drawCard(rec, b, a) (units, the kit's frame) ; Nt.drawField(G, vp, free, clock) ;
+--   Nt.drawCard(rec, b, a, when, glass) (units, the kit's frame; glass: lighter, for the drawer's frost) ; Nt.drawField(G, vp, free, clock) ;
 --   Nt.hitField(x, y) -> the record under a tap on the field's banner (it goes) or nil
 --   Nt.dismiss() (the banner showing: gone)
 
@@ -82,6 +82,27 @@ return function(deps)
   function Nt.dismiss()
     if showing then showing = nil end
   end
+  local function unqueue(rec)
+    for i = nQueue, 1, -1 do
+      if rec == nil or queue[i] == rec then
+        for j = i, nQueue - 1 do queue[j] = queue[j + 1] end
+        queue[nQueue] = nil
+        nQueue = nQueue - 1
+      end
+    end
+  end
+  function Nt.remove(rec)
+    for i = #recs, 1, -1 do
+      if recs[i] == rec then table.remove(recs, i) end
+    end
+    unqueue(rec)
+    if showing == rec then showing = nil end
+  end
+  function Nt.clear()
+    for i = #recs, 1, -1 do recs[i] = nil end
+    unqueue(nil)
+    nUnread, showing = 0, nil
+  end
   -- (tests: everything forgotten)
   function Nt.reset()
     for i = #recs, 1, -1 do recs[i] = nil end
@@ -116,14 +137,21 @@ return function(deps)
   -- a notification's card (units, in the frame the kit has): the app's round icon, its name and
   -- "now", the line, the Pokémon's icon at the right
   local INK, SOFT, CARD, EDGE = { 255, 255, 255 }, { 170, 172, 184 }, { 30, 31, 38 }, { 255, 255, 255, 0.1 }
-  function Nt.drawCard(rec, b, a, when)
+  local GLASS, GLASS_EDGE, GLASS_SOFT = { 255, 255, 255, 0.16 }, { 255, 255, 255, 0.14 }, { 225, 228, 238 }
+  function Nt.drawCard(rec, b, a, when, glass)
     a = a or 1
     local G = K.graphics()
     local rad = min(b[4] / 2, 6)
-    K.shadow(b, rad, 1.2, 0.35 * a)
-    K.col(CARD, 0.96 * a)
-    K.box("fill", b, rad)
-    K.ring(b, rad, EDGE, a, 0.4)
+    if glass then
+      K.col(GLASS, a)
+      K.box("fill", b, rad)
+      K.ring(b, rad, GLASS_EDGE, a, 0.4)
+    else
+      K.shadow(b, rad, 1.2, 0.35 * a)
+      K.col(CARD, 0.96 * a)
+      K.box("fill", b, rad)
+      K.ring(b, rad, EDGE, a, 0.4)
+    end
     local app = deps.apps and deps.apps.byId(rec.app)
     local s = b[4] - 8
     local cx, cy = b[1] + 4 + s / 2, b[2] + b[4] / 2
@@ -135,8 +163,9 @@ return function(deps)
     local tx = b[1] + 8 + s
     local right = b[1] + b[3] - (rec.sp and (b[4] + 1) or 5)
     local ts = min(4.2, b[4] * 0.2)
-    K.bold(T(rec.title), tx, b[2] + 3, ts, SOFT, nil, nil, a)
-    K.text(when or T("notify.now"), tx, b[2] + 3, ts, SOFT, "right", right - tx, a)
+    local soft = glass and GLASS_SOFT or SOFT
+    K.bold(T(rec.title), tx, b[2] + 3, ts, soft, nil, nil, a)
+    K.text(when or T("notify.now"), tx, b[2] + 3, ts, soft, "right", right - tx, a)
     local fs = K.fit(rec.text, min(5, b[4] * 0.24), right - tx)
     K.text(rec.text, tx, b[2] + b[4] - fs * 1.25 - 3, fs, INK, nil, nil, a)
     if rec.sp and deps.monIcon then deps.monIcon(rec.sp, b[1] + b[3] - b[4] + 1, b[2] + 1, b[4] - 2) end

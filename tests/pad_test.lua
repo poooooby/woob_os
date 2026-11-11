@@ -280,6 +280,70 @@ do
   draw(20)
 end
 
+-- the drawer: it follows the finger down, springs back from a short pull; a card swiped off goes,
+-- a short swipe springs back; Clear sends them all; the buttons do the same; pushed back up it shuts
+do
+  local Nd = Wt.drawer
+  local L = st.layout
+  local u = K.sc
+  local x, y = K.X(L.screen[1] + L.screen[3] / 2), K.Y(L.screen[2] + 3)
+  draw(30)
+  Wt.pointer({ id = 4, phase = "pressed", x = x, y = y })
+  Wt.pointer({ id = 4, phase = "moved", x = x, y = y + 40 * u })
+  draw(1)
+  T.check(st.sheet == "notes" and Nd.k() > 0.2 and Nd.k() < 0.6, ("it follows the finger (%.2f of the way)"):format(Nd.k()))
+  Wt.pointer({ id = 4, phase = "moved", x = x, y = y + 10 * u })
+  Wt.pointer({ id = 4, phase = "released", x = x, y = y + 10 * u })
+  draw(40)
+  T.check(st.sheet == nil and not Nd.visible(), "let go after a short pull: back up")
+  Nt.reset()
+  for i = 1, 4 do Nt.push("gts", { name = "PIDGEY", sp = spOf(16), who = "Yuki" .. i }, true) end
+  Wt.sheet("notes")
+  draw(40)
+  T.check(Nd.k() > 0.99, "from the W menu: it slides all the way down")
+  local first, second = Nt.list()[1], Nt.list()[2]
+  local h = hitOf("noteRow", 1)
+  local cx, cy = h[1] + h[3] / 2, h[2] + h[4] / 2
+  Wt.pointer({ id = 5, phase = "pressed", x = cx, y = cy })
+  Wt.pointer({ id = 5, phase = "moved", x = cx + 12 * u, y = cy })
+  draw(1)
+  T.check((first.uiX or 0) > 10, "a card follows a sideways drag")
+  Wt.pointer({ id = 5, phase = "released", x = cx + 12 * u, y = cy })
+  draw(40)
+  T.check(Nt.list()[1] == first and math.abs(first.uiX or 0) < 0.5, "a short swipe: it springs back")
+  Wt.pointer({ id = 6, phase = "pressed", x = cx, y = cy })
+  Wt.pointer({ id = 6, phase = "moved", x = cx - 90 * u, y = cy })
+  Wt.pointer({ id = 6, phase = "released", x = cx - 90 * u, y = cy })
+  draw(40)
+  T.check(#Nt.list() == 3 and Nt.list()[1] == second, "swiped off: that one's gone, the rest move up")
+  T.eq(st.sheet, "notes", "and the drawer stays")
+  Wt.input(input({}, {}))
+  press("right")
+  draw(5)
+  T.eq(#Nt.list(), 3, "the first press of the D-pad only rings the chosen card")
+  press("right")
+  draw(40)
+  T.eq(#Nt.list(), 2, "Right: the chosen card goes")
+  tapHit(hitOf("noteClear"))
+  draw(60)
+  T.eq(#Nt.list(), 0, "Clear: all of them")
+  T.check(hitOf("noteClear") == nil, "and Clear goes with them")
+  Nt.push("gts", { name = "PIDGEY", sp = spOf(16), who = "Yuki" }, true)
+  draw(5)
+  press("select")
+  draw(60)
+  T.eq(#Nt.list(), 0, "SELECT: all of them")
+  -- (pushed up by the handle: shut)
+  local hx, hy = K.X(L.screen[1] + L.screen[3] / 2), K.Y(L.screen[2] + L.screen[4] - 4)
+  Wt.pointer({ id = 7, phase = "pressed", x = hx, y = hy })
+  Wt.pointer({ id = 7, phase = "moved", x = hx, y = hy - 30 * u })
+  draw(1)
+  T.check(Nd.k() < 0.85, "the handle pushes it up")
+  Wt.pointer({ id = 7, phase = "released", x = hx, y = hy - 30 * u })
+  draw(40)
+  T.check(st.sheet == nil and not Nd.visible(), "let go: shut")
+end
+
 -- B on the home screen: put away, the START menu again
 press("b")
 T.check(not Wt.isOpen() and not Stack.has(PAD_ID), "B on the home screen: put away")
@@ -544,6 +608,7 @@ FrlgFont.drawGlyph = function() return 7 end
 local homeKb = garbageOf(60, nil, function() Wt.draw(G, VP) end)
 T.check(homeKb < 0.5, ("the home screen: next to no garbage (%.3f KB a frame)"):format(homeKb))
 Wt.sheet("notes")
+draw(40)   -- (slid all the way down first)
 local notesKb = garbageOf(60, nil, function() Wt.draw(G, VP) end)
 T.check(notesKb < 0.5, ("the notifications: next to no garbage (%.3f KB a frame)"):format(notesKb))
 FrlgFont.drawGlyph = realGlyph

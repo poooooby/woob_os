@@ -64,6 +64,7 @@ return function(mod)
   local makePcGames, pcGamesWindow = loadSibling(mod, "src/pcgames.lua"), loadSibling(mod, "src/apps/pcgames.lua")
   local makeGts, gtsWindow = loadSibling(mod, "src/gts.lua"), loadSibling(mod, "src/apps/gts.lua")
   local makeNotify = loadSibling(mod, "src/notify.lua")
+  local makeNotes, makeFrost = loadSibling(mod, "src/notes.lua"), loadSibling(mod, "src/frost.lua")
   local Icons = loadSibling(mod, "src/icons.lua")
   local storeWindow = loadSibling(mod, "src/apps/appstore.lua")
   local makeGear, makeGearPanel = loadSibling(mod, "src/kanto_gear.lua"), loadSibling(mod, "src/gear_panel.lua")
@@ -638,6 +639,9 @@ return function(mod)
     end,
     log = function(fmt, ...) mod.log:warn(fmt, ...) end,
     notify = Nt,
+    -- (the notifications drawer and its frosted glass: each desktop makes its own)
+    notes = makeNotes,
+    frost = makeFrost,
   })
   Desktop = makeDesktop(deskDeps)
   -- WoobPad: the same desktop as a tablet, from the START menu anywhere (the same apps, arrangement

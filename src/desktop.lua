@@ -12,6 +12,8 @@
 --   menubar  A opens the W menu, Down back to the grid
 --   menu     Up / Down, A chooses, B / START close it
 --   sheet    Left / Right choose, A answers, B cancels
+--   notes    the notifications drawer (src/notes.lua): pulled down from the top of the screen, or the
+--            W menu's Notifications; the screen frosted under it (src/frost.lua)
 --   touch    tap an icon, the W, a menu row, a sheet's button, the power button on the chin;
 --            swipe the grid (or the mouse wheel) for the next page; the mouse highlights what it's over
 --   window   an app with `window` (src/apps.lua) opens in the screen under the menu bar: its title
@@ -52,6 +54,9 @@ return function(deps)
   local WHITE, BLACK = K.WHITE, K.BLACK
   local mix, light, dark, fade = K.mix, K.light, K.dark, K.fade
   local Ar = deps.arrange
+  -- (the drawer's frosted glass: the screen caught in a canvas while it shows)
+  local Fr = deps.frost and deps.frost({ log = deps.log }) or nil
+  local Nd    -- the notifications drawer (made below, once the glyphs are)
 
   -- the boot (seconds): the screen black, the W with its progress bar (full FILL in, held full to
   -- the end of LOGO), the desktop fading up
@@ -134,7 +139,8 @@ return function(deps)
       window = { { "B", "hint.close" }, { "START", "hint.menu" } },
       padGrid = { { "A", "hint.open" }, { "B", "hint.putAway" }, { "SELECT", "hint.arrange" }, { "START", "hint.menu" } },
       padGridPages = { { "A", "hint.open" }, { "L R", "hint.page" }, { "B", "hint.putAway" }, { "START", "hint.menu" } },
-      notes = { { "^ v", "hint.scroll" }, { "A", "hint.open" }, { "B", "hint.back" } },
+      notes = { { "^ v", "hint.scroll" }, { "A", "hint.open" }, { "< >", "notes.clear" }, { "SELECT", "notes.clearAll" },
+                { "B", "hint.back" } },
     },
     menu = PAD and { "menu.about", "menu.notifications", "menu.putAway" } or { "menu.about", "menu.notifications",
       "menu.logoff" },
@@ -203,6 +209,7 @@ return function(deps)
           padGlow = 0, padN = 0, padQ = { {}, {}, {} },
           waitRelease = true, booted = PAD or ctx.warm or options().boot == false }
     if r.booted then r.t0 = now() - bootLength() end
+    if Nd then Nd.reset() end
     -- (back from one of the game's screens an app's window opened: the window again, as it was)
     local resume = ctx.resume
     if resume then
@@ -225,6 +232,8 @@ return function(deps)
     if not r then return end
     local w = r.win
     r = nil
+    if Nd then Nd.reset() end
+    if Fr then Fr.release() end
     if w and w.close then pcall(w.close) end
   end
   function D.isOpen() return r ~= nil end
@@ -515,15 +524,22 @@ return function(deps)
     if not r then return end
     r.menuOpen = false
     r.sheet, r.sheetYes = kind, true
-    -- (the notifications: read now; the list from the top)
-    if kind == "notes" then
-      r.notesTop = 0
-      if deps.notify then deps.notify.seen() end
-    end
+    -- (the notifications: the drawer slides down; read now)
+    if kind == "notes" and Nd then Nd.open() end
   end
   local function closeSheet()
+    if r.sheet == "notes" and Nd then Nd.close() end
     r.sheet = nil
     se("SE_SELECT")
+  end
+  -- the drawer's answer: closed, or a card's app opened
+  local function notesDid(act, rec)
+    if act == "close" then
+      closeSheet()
+    elseif act == "open" then
+      closeSheet()
+      if rec then D.openApp(rec.app, rec.state) end
+    end
   end
   local function logoff()
     r.sheet = nil
@@ -604,13 +620,7 @@ return function(deps)
       repeated(input, "left", held), repeated(input, "right", held)
     if r.sheet then
       if r.sheet == "notes" then
-        local n = deps.notify and #deps.notify.list() or 0
-        if up then r.notesTop = max(0, (r.notesTop or 0) - 1); se("SE_SELECT")
-        elseif down then r.notesTop = min(max(0, n - 1), (r.notesTop or 0) + 1); se("SE_SELECT")
-        elseif pressed("a") then
-          local rec = deps.notify and deps.notify.list()[(r.notesTop or 0) + 1]
-          closeSheet()
-          if rec then D.openApp(rec.app, rec.state) end
+        if Nd then notesDid(Nd.input(input, up, down, left, right))
         elseif pressed("b") or pressed("start") then closeSheet() end
         return
       end
@@ -714,6 +724,10 @@ return function(deps)
 
   function D.wheel(dy)
     if not r then return false end
+    if r.sheet == "notes" and Nd then
+      Nd.wheel(dy)
+      return true
+    end
     if booting() or r.sheet or r.menuOpen then return true end
     if r.win then
       if r.win.scroll then pcall(r.win.scroll, dy * 10, r.mouseX, r.mouseY) end
@@ -756,9 +770,7 @@ return function(deps)
     elseif kind == "dim" then
       if r.sheet then closeSheet() else closeMenu() end
     elseif kind == "noteRow" then
-      local rec = deps.notify and deps.notify.list()[arg]
-      closeSheet()
-      if rec then D.openApp(rec.app, rec.state) end
+      notesDid("open", deps.notify and deps.notify.list()[arg])
     elseif kind == "yes" then logoff()
     elseif kind == "no" or kind == "ok" then closeSheet()
     elseif kind == "power" then
@@ -795,6 +807,35 @@ return function(deps)
     if not (r and type(ev) == "table") then return false end
     local x, y = tonumber(ev.x) or 0, tonumber(ev.y) or 0
     local press = r.press
+    if r.sheet == "notes" and Nd and not (press and press.pulling) then
+      if ev.phase == "pressed" or ev.phase == "moved" or ev.phase == "released" or ev.phase == "cancelled" then
+        notesDid(Nd.pointer(ev.phase, (x - K.ox) / K.sc, (y - K.oy) / K.sc))
+      end
+      return true
+    end
+    -- (pulled down from the top of the screen: the drawer comes with it)
+    if press and press.id == ev.id and press.top and Nd then
+      local dy = (y - press.y) / K.sc
+      if ev.phase == "moved" and not press.pulling and dy > 4 and dy > abs(x - press.x) / K.sc then
+        press.pulling = true
+        if press.own then
+          winPointer("cancelled", x, y, ev.id)
+          press.own = false
+        end
+        r.menuOpen = false
+        r.sheet = "notes"
+        Nd.pullBegin(r.layout and r.layout.screen[4])
+      end
+      if press.pulling then
+        if ev.phase == "moved" then
+          Nd.pullTo(dy)
+        elseif ev.phase == "released" or ev.phase == "cancelled" then
+          r.press = nil
+          if Nd.pullEnd(ev.phase == "released" and dy or 0) then se("SE_SELECT") else r.sheet = nil end
+        end
+        return true
+      end
+    end
     -- (a second finger while a window has the first: the window's too, by its id -- the map's pinch)
     if press and press.own and ev.id ~= press.id and r.win and r.win.pointer then
       if ev.phase == "pressed" or ev.phase == "moved" or ev.phase == "released" or ev.phase == "cancelled" then
@@ -806,9 +847,10 @@ return function(deps)
     if ev.phase == "pressed" then
       local area, wa = r.gridArea, r.winArea
       local free = not r.sheet and not r.menuOpen
-      -- (the pad: a press at the top of the screen may pull the notifications down)
+      -- (a press at the top of the screen may pull the notifications down)
       local L0 = r.layout
-      local fromTop = PAD and L0 and not r.sheet and (y - K.oy) / K.sc < L0.screen[2] + 12 or false
+      local uy = (y - K.oy) / K.sc
+      local fromTop = L0 and not r.sheet and not booting() and uy >= L0.screen[2] and uy < L0.screen[2] + 12 or false
       r.press = { id = ev.id, x = x, y = y, ly = y, drag = false, t0 = now(), mx = x, my = y, top = fromTop,
                   grid = not r.win and area ~= nil and free and K.inside(area, x, y),
                   win = r.win ~= nil and wa ~= nil and free and K.inside(wa, x, y) }
@@ -859,7 +901,7 @@ return function(deps)
         r.hoverArg = h and h.arg or nil
       end
     elseif ev.phase == "released" then
-      if press and press.id == ev.id and press.top and y - press.y > 20 * K.sc then
+      if press and press.id == ev.id and press.top and not Nd and y - press.y > 20 * K.sc then
         -- (pulled down from the top: the notifications)
         r.press = nil
         se("SE_SELECT")
@@ -1180,6 +1222,9 @@ return function(deps)
   end
 
   D.glyph = glyph
+  Nd = deps.notes and deps.notes({ K = K, T = T, se = se, notify = deps.notify, frost = Fr, clock = clockNow,
+                                    glyph = glyph }) or nil
+  D.drawer = Nd
 
   -- an app's icon: a rounded tile in its colour with a gloss, the picture (units)
   local function appIcon(app, x, y, s, lift, a)
@@ -1881,9 +1926,10 @@ return function(deps)
     end
   end
 
-  -- the notifications: the list, newest first, a card each (a tap opens its app)
+  -- the notifications: the drawer (src/notes.lua); without it, the list, newest first, a card each
   local function drawNotes(L)
     local sb = L.screen
+    if Nd then return end
     K.col(C.dim, 0.3)
     K.box("fill", sb, D.SCREEN_RADIUS)
     K.addHit(sb, "dim")
@@ -1897,9 +1943,8 @@ return function(deps)
       K.text(T("notes.none"), nb[1], nb[2] + nb[4] / 2 - 3, 5, C.soft, "center", nb[3])
       return
     end
-    local top = min(r.notesTop or 0, max(0, #list - 1))
     local y = nb[2] + 14
-    for i = top + 1, #list do
+    for i = 1, #list do
       if y + 24 > nb[2] + nb[4] - 3 then break end
       local b = K.R(nb[1] + 4, y, nb[3] - 8, 24)
       Nt.drawCard(list[i], b, 1, Nt.ago(list[i]))
@@ -2154,6 +2199,7 @@ return function(deps)
 
     if PAD then drawPadDevice(L) else drawMonitor(L, clock) end
     local sb = L.screen
+    local frosting = Nd and Fr and Nd.visible() and Fr.begin(g)
     drawWallpaper(sb)
     if r.win then
       drawWindow(L, clock, portrait)
@@ -2178,8 +2224,10 @@ return function(deps)
         drawZoom(sb, app, from, z.back and (1 - k) or k)
       end
     end
+    if frosting then Fr.finish(g) end
     drawMenu(L)
     drawSheet(L)
+    if Nd and Nd.visible() then Nd.draw(sb, D.SCREEN_RADIUS, r.dt, clock) end
     -- (a notification arriving: a banner at the top right, under the menu bar; a tap opens it)
     local Nt = deps.notify
     if Nt then

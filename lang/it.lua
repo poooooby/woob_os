@@ -409,6 +409,8 @@ return {
     ["menu.putAway"] = "Metti via",
     ["notes.title"] = "Notifiche",
     ["notes.none"] = "Nessuna notifica",
+    ["notes.clear"] = "Cancella",
+    ["notes.clearAll"] = "Cancella tutto",
     ["app.phone"] = "Telefono",
     ["app.condition"] = "Condizione",
     ["pokenav.back"] = "PokéNav",

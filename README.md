@@ -43,7 +43,10 @@ opens a desktop in a sleek monitor instead of a text menu.
     Hall of Fame once you've earned them.
   - **Made for touch:** tap, swipe between pages, drag in windows; the buttons work just as well.
   - **Notifications:** pull down from the top of the screen (or choose Notifications in the W
-    menu) for the list, newest first; tap one to open its app.
+    menu) and the drawer follows your finger down over frosted glass, the screen blurred behind
+    it: the time, then a card for each notification, newest first. Tap one to open its app, swipe
+    it left or right to clear it, or Clear to clear them all; push the handle back up (or B) to
+    close it. On the buttons: Up / Down to choose, Left / Right to clear, SELECT to clear all.
   - **Put it away:** B on the home screen, or its top button.
 - 🗺️ **A 3D Town Map:** the Town Map, the maps on the walls and the Fly map open the region as a
   little 3D model you can turn, tilt and zoom, made from your game's own Town Map: its hills and
@@ -86,7 +89,8 @@ opens a desktop in a sleek monitor instead of a text menu.
   when an auction you're in is about to end (10 minutes before, or 5, 15 or 30: your choice in
   Settings), when you win or lose one, and when your GTS
   deposit is traded. A banner slides down over the game while you're free to walk around; tap it to
-  open WoobPad on that app. With the PC or the pad open, it slides in over its screen instead.
+  open WoobPad on that app. With the PC or the pad open, it slides in over its screen instead,
+  and on both, the notifications drawer pulls down from the top of the screen.
 
 ### Apps
 

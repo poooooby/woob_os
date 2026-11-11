@@ -409,6 +409,8 @@ return {
     ["menu.putAway"] = "Ranger",
     ["notes.title"] = "Notifications",
     ["notes.none"] = "Aucune notification",
+    ["notes.clear"] = "Effacer",
+    ["notes.clearAll"] = "Tout effacer",
     ["app.phone"] = "Téléphone",
     ["app.condition"] = "Condition",
     ["pokenav.back"] = "PokéNav",

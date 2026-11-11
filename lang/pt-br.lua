@@ -409,6 +409,8 @@ return {
     ["menu.putAway"] = "Guardar",
     ["notes.title"] = "Notificações",
     ["notes.none"] = "Nenhuma notificação",
+    ["notes.clear"] = "Limpar",
+    ["notes.clearAll"] = "Limpar tudo",
     ["app.phone"] = "Telefone",
     ["app.condition"] = "Condição",
     ["pokenav.back"] = "PokéNav",

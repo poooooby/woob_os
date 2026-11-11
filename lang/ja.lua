@@ -410,6 +410,8 @@ return {
     ["menu.putAway"] = "しまう",
     ["notes.title"] = "おしらせ",
     ["notes.none"] = "おしらせは ありません",
+    ["notes.clear"] = "けす",
+    ["notes.clearAll"] = "すべて けす",
     ["app.phone"] = "でんわ",
     ["app.condition"] = "コンディション",
     ["pokenav.back"] = "ポケナビ",

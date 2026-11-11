@@ -34,6 +34,8 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/settings.lua` | The Settings app's choices, kept in `mod.cache` (`settings.lua`) for the installation |
 | `src/wallpaper.lua` | The drawn wallpapers and the `wallpapers/` folder's pictures, painted once into canvases |
 | `src/notify.lua` | The notifications: a list, the banners' queue, the card, the field's banner |
+| `src/notes.lua` | The notifications drawer (both devices): the pull, the cards, swiping one away, Clear |
+| `src/frost.lua` | Frosted glass: the screen caught in a canvas while the drawer shows, a small copy blurred under it |
 | `src/map3d/model.lua` | The 3D map's model: the region from the game's Town Map (its picture a heightmap and its colours, its grid the places), the census's Centers / Marts / Gyms, the badges, the player's cell, Fly's checks |
 | `src/map3d/render.lua` | The 3D map's drawing: meshes, the shader, the depth canvas, the camera (`camera` / `project`), day and night; a flat fallback |
 | `src/map3d/scene.lua` | The 3D map's window: the camera, pins, the beacon, the card, the controls (the Map app and the Town Map) |
@@ -425,9 +427,19 @@ is up.
   the top button = "power": put away). No boot, no shelf (`padTransfer` does nothing), the hints
   under the body. B on the home screen: `logoff()` at once. The W menu: About, Notifications, Put
   Away (the PC's: About, Notifications, Log Off).
-- **Notifications:** the "notes" sheet (both devices): `Nt.list()` as cards (`Nt.drawCard`, its
-  `Nt.ago`), Up / Down, A or a tap opens its app (`D.openApp`); on the pad a press in the top 12
-  units pulled down more than 20 opens it.
+- **Notifications:** the "notes" sheet (both devices) is the drawer, `src/notes.lua` (Nd, each
+  desktop's own, `D.drawer`). A press in the screen's top 12 units dragged down more than 4 starts
+  a pull (`Nd.pullBegin(screenH)`, `pullTo`, `pullEnd`: open past 20 units or a third of the way);
+  `r.sheet` is "notes" from then on and the drawer takes the pointer (`Nd.pointer`, units) and the
+  buttons (`Nd.input`) until it answers "close" or "open", rec (`notesDid`). `r.sheet` clears at once
+  on closing; the drawer slides up by itself (`Nd.visible()`). Cards: `Nt.drawCard(..., glass)`,
+  their places and swipes kept on the records (`uiX`, `uiY`, `uiFling`, `uiAt`, `uiAll`); one
+  flung off is `Nt.remove`d, Clear flings them all a moment apart. The first D-pad press only rings
+  the chosen card. The frost: `src/frost.lua` (Fr) catches the screen's drawing (`Fr.begin` before
+  the wallpaper, `Fr.finish` after the zoom: back to the target before its `push("all")`, or the
+  pop puts the catching canvas back) into a canvas the target's size and a sixth-size copy, and
+  `Fr.draw` lays the copy through a 25-tap blur inside a rounded rect. Headless (no canvases or
+  shaders): a darker tint instead.
 
 ## Notifications
 

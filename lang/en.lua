@@ -421,6 +421,8 @@ return {
     ["menu.putAway"] = "Put Away",
     ["notes.title"] = "Notifications",
     ["notes.none"] = "No notifications",
+    ["notes.clear"] = "Clear",
+    ["notes.clearAll"] = "Clear All",
     ["app.phone"] = "Phone",
     ["app.condition"] = "Condition",
     ["pokenav.back"] = "PokéNav",

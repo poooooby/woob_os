@@ -410,6 +410,8 @@ return {
     ["menu.putAway"] = "Weglegen",
     ["notes.title"] = "Mitteilungen",
     ["notes.none"] = "Keine Mitteilungen",
+    ["notes.clear"] = "Löschen",
+    ["notes.clearAll"] = "Alle löschen",
     ["app.phone"] = "Telefon",
     ["app.condition"] = "Verfassung",
     ["pokenav.back"] = "PokéNav",
