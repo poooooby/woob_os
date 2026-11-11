@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-11
+
 ### Added
 - **Bank:** a savings account beside your wallet. Money that a full wallet (₽999,999) can't hold goes
   into the bank, up to ₽999,999,999, instead of being lost. Deposit, withdraw, and earn a little
@@ -14,9 +16,8 @@ All notable changes to this mod are documented here, in
 - **Challenges:** five goals a week from real play (battles, catches, Eggs, evolutions, steps,
   places and more), each paying money or items, with a bonus for all five.
 - **News:** the day's stories read by the WoobOS News anchor in a TV close-up, talking as the words
-  type out: a real daily swarm (one species all
-  over one route), the region's events, R-Bay's hottest auction, and what you've done since you last
-  watched.
+  type out: a real daily swarm (one species all over one route), the region's events, R-Bay's
+  hottest auction, and what you've done since you last watched.
 - **Settings > Gameplay:** daily swarms on or off.
 
 ### Changed
