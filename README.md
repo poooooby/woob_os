@@ -82,13 +82,15 @@ opens a desktop in a sleek monitor instead of a text menu.
     switches to the Sevii Islands once your Town Map shows them.
   - **The classic map:** START opens the game's own map instead, and Settings can keep it for
     good.
-- 🛍️ **App Store:** choose what's on your home screen. R-Bay, Slots, the GTS, the Mart, PC Games and
+- 🛍️ **App Store:** choose what's on your home screen. R-Bay, Slots, the GTS, the Mart, the Bank, Errands,
+  Challenges, the News, PC Games and
   any app another mod adds can be removed and got back whenever you like, on the PC and WoobPad alike,
   and anything they've saved stays. The game's own PC and PokéNav apps can't be removed.
 - 🔔 **Notifications:** WoobOS tells you when you're outbid on R-Bay (your money is already back),
   when an auction you're in is about to end (10 minutes before, or 5, 15 or 30: your choice in
-  Settings), when you win or lose one, and when your GTS
-  deposit is traded. A banner slides down over the game while you're free to walk around; tap it to
+  Settings), when you win or lose one, when your GTS deposit is traded, when a full wallet sends money
+  to the Bank, when a team is back from an errand, when a challenge is done, and when a new day's
+  swarm appears. A banner slides down over the game while you're free to walk around; tap it to
   open WoobPad on that app. With the PC or the pad open, it slides in over its screen instead,
   and on both, the notifications drawer pulls down from the top of the screen.
 
@@ -184,6 +186,33 @@ opens a desktop in a sleek monitor instead of a text menu.
   and Porygon, whose level grows with your badges. Prizes are sorted by rarity, a bar shows how
   close you are to the one you've picked, the Prizes tab counts the ones you can afford, and a
   redeemed prize bursts into confetti and appears on the pad.
+- 🏦 **Bank:** a savings account beside your wallet. Your wallet holds the game's ₽999,999; when it's
+  full, any money you earn goes into the bank instead (prize money, the Mart, R-Bay, Slots, rewards),
+  up to ₽999,999,999, and a notification tells you how much. Deposit and withdraw any time: Left and
+  Right pick a digit and Up and Down change it, or tap +1,000, +10,000, +100,000 or All. What you keep
+  earns a little interest each day (a tenth of a percent, up to ₽5,000 a day, for up to a week away).
+  The activity list shows every deposit, withdrawal, overflow and interest payment.
+- 👟 **Errands:** send your Pokémon out to work. Three jobs are posted every six hours (a delivery
+  round, a dig in the mine, Berry picking, a ferry escort, the power plant, a bakery, the library, a
+  night patrol), each one, four or eight hours long. Pick a team of up to three from your party and
+  boxes; they leave while they work and come back with money, an item, and EXP for each of them
+  (they level up and learn their moves, as at the Day Care). Each job favours some types and has a
+  level in mind: a star marks the Pokémon that suit it, and a team that fits earns a Great or Good
+  grade and more pay. Up to three teams can be out at once. A notification tells you when one is
+  back; Collect brings them home. Call Back brings a team home early with nothing.
+- 🏅 **Challenges:** five goals every week (Monday to Sunday), counted from how you really play:
+  beat trainers, win wild battles, catch Pokémon (of a type, new to your Pokédex, or from today's
+  swarm), hatch an Egg, evolve, level up, use items, walk, visit places. Goals grow with your
+  badges. Each pays money or items, and claiming all five earns the week's bonus. A notification and
+  a count on the icon tell you when one's done.
+- 📰 **News:** the day's stories, read live by the game's own reporter in the WoobOS News studio,
+  with the headlines crawling along the ticker. World stories: today's swarm (a species appearing all
+  over one route, for real: go there and you'll find it, at that route's levels), Ruby, Sapphire and
+  Emerald's own TV outbreaks, Emerald's great storms, and R-Bay's hottest auction. Your stories: your
+  week so far, and what's happened since you last watched (new Pokédex entries, a shiny, an Egg
+  hatching, an evolution, a trainer beaten, a new badge, a GTS trade), your teams on errands and
+  your challenges. A shows the rest of a story, then the next. A new swarm each day sends a
+  notification that opens the News on it.
 - 🕹️ **PC Games:** with the PC Games mod installed, its games (Solitaire, Snake, Tetris, Blackjack,
   Collapse, Minesweeper and PokePet) get an icon on the desktop and on WoobPad and fill the screen, sharp
   at a whole-pixel size, with your buttons. Move the mouse or touch the screen for a close button;
@@ -224,10 +253,11 @@ opens a desktop in a sleek monitor instead of a text menu.
     you're told: 5, 10, 15 or 30 minutes.
   - 🗺️ **Map:** the 3D Town Map on or off. Off, the Town Map and Fly open the game's own map.
   - 📟 **PokéNav:** WoobOS's apps in the PokéNav, or its own screens.
+  - 🚩 **Gameplay:** daily swarms on or off.
 - ℹ️ **About:** which version you're running, in the W menu at the top left.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
 
-Boxes, Items, Map, Phone, Condition, Ribbons, GTS, Mart, R-Bay, Slots, Mail, Oak's PC, the Hall of Fame, Decorate, the App Store and Settings open in a window on the desktop, in the style of macOS and iOS:
+Boxes, Items, Map, Phone, Condition, Ribbons, GTS, Mart, Bank, R-Bay, Slots, Errands, Challenges, News, Mail, Oak's PC, the Hall of Fame, Decorate, the App Store and Settings open in a window on the desktop, in the style of macOS and iOS:
 white cards on a soft grey, segmented switches, and a blue ring round whatever the controller is
 on. B or the red button closes it.
 

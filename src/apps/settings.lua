@@ -17,7 +17,8 @@ local floor, max, min = math.floor, math.max, math.min
 
 -- the sections' tiles (the rest of the look is the kit's K.UI)
 local C = { langTile = { 10, 132, 255 }, wallTile = { 175, 82, 222 }, watchTile = { 255, 69, 58 },
-            mapTile = { 46, 170, 120 }, navTile = { 255, 92, 160 }, switchOff = { 120, 120, 128, 0.28 } }
+            mapTile = { 46, 170, 120 }, navTile = { 255, 92, 160 }, gameTile = { 255, 149, 0 },
+            switchOff = { 120, 120, 128, 0.28 } }
 -- the WoobPad, Map and PokéNav sections' rows: switches (the kept setting, its words, on by default) and a
 -- choice (the values A / a tap / Left / Right step through)
 local SOON_CHOICES = { 5, 10, 15, 30 }
@@ -32,6 +33,9 @@ local MAP_TOGGLES = {
 local NAV_TOGGLES = {
   { key = "pokenavApps", label = "settings.pokenavApps" },
 }
+local GAME_TOGGLES = {
+  { key = "swarms", label = "settings.swarms" },
+}
 local SECTIONS = {
   { id = "language", key = "settings.language", tile = C.langTile },
   { id = "wallpaper", key = "settings.wallpaper", tile = C.wallTile },
@@ -39,6 +43,7 @@ local SECTIONS = {
   { id = "map", key = "settings.map", tile = C.mapTile, toggles = MAP_TOGGLES, note = "settings.mapNote" },
   { id = "pokenav", key = "settings.pokenav", tile = C.navTile, toggles = NAV_TOGGLES, note = "settings.pokenavNote",
     family = "rse" },
+  { id = "game", key = "settings.game", tile = C.gameTile, toggles = GAME_TOGGLES, note = "settings.gameNote" },
 }
 -- (a switch's hit: TOGGLE + its section's place * 20 + its row)
 local TOGGLE_SPAN = 20
@@ -274,6 +279,10 @@ return function(ctx, env)
       G.rectangle("fill", cx - u * 0.26, cy - u * 0.3, u * 0.52, u * 0.6, u * 0.12, u * 0.12)
       K.col(C.navTile)
       G.rectangle("fill", cx - u * 0.17, cy - u * 0.2, u * 0.34, u * 0.24, u * 0.04, u * 0.04)
+    elseif id == "game" then
+      -- (a flag on a pole: the day's events)
+      G.rectangle("fill", cx - u * 0.22, cy - u * 0.3, u * 0.06, u * 0.6)
+      G.polygon("fill", cx - u * 0.16, cy - u * 0.3, cx + u * 0.3, cy - u * 0.17, cx - u * 0.16, cy - u * 0.04)
     elseif id == "map" then
       -- (a folded map, a pin on it)
       G.polygon("fill", cx - u * 0.3, cy - u * 0.16, cx - u * 0.1, cy - u * 0.1, cx - u * 0.1, cy + u * 0.24, cx - u * 0.3, cy + u * 0.18)

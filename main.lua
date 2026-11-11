@@ -64,6 +64,12 @@ return function(mod)
   local makePcGames, pcGamesWindow = loadSibling(mod, "src/pcgames.lua"), loadSibling(mod, "src/apps/pcgames.lua")
   local makeGts, gtsWindow = loadSibling(mod, "src/gts.lua"), loadSibling(mod, "src/apps/gts.lua")
   local makeNotify = loadSibling(mod, "src/notify.lua")
+  local makeBank, bankWindow = loadSibling(mod, "src/bank.lua"), loadSibling(mod, "src/apps/bank.lua")
+  local makeJournal = loadSibling(mod, "src/journal.lua")
+  local makeErrands, errandsWindow = loadSibling(mod, "src/errands.lua"), loadSibling(mod, "src/apps/errands.lua")
+  local makeSwarm = loadSibling(mod, "src/swarm.lua")
+  local makeNews, newsWindow = loadSibling(mod, "src/news.lua"), loadSibling(mod, "src/apps/news.lua")
+  local makeChallenges, challengesWindow = loadSibling(mod, "src/challenges.lua"), loadSibling(mod, "src/apps/challenges.lua")
   local makeNotes, makeFrost = loadSibling(mod, "src/notes.lua"), loadSibling(mod, "src/frost.lua")
   local Icons = loadSibling(mod, "src/icons.lua")
   local storeWindow = loadSibling(mod, "src/apps/appstore.lua")
@@ -392,9 +398,12 @@ return function(mod)
     if ws and ws.winApp and ws.winApp.id == id then return true end
     return Sh ~= nil and Sh.showing(id)
   end
+  -- (which app a kind of notification belongs to; R-Bay's are the rest)
+  local NOTIFY_APP = { gts = "gts", call = "phone", bank = "bank", challenge = "challenges", errand = "errands",
+                       swarm = "news" }
   local function notify(kind, data, quiet)
     if not Nt then return end
-    local app = kind == "gts" and "gts" or (kind == "call" and "phone" or "auction")
+    local app = NOTIFY_APP[kind] or "auction"
     Nt.push(kind, data, quiet or looking(app))
   end
   -- R-Bay's market: this save's seed (its playthrough), the device's clock, WoobleDex's species
@@ -433,6 +442,129 @@ return function(mod)
       seed = function(s) return env.auction and env.auction.seedOf and env.auction.seedOf(s) or 1 end,
       pools = env.auction.pools, tierOf = env.auction.tierOf, minLevel = env.auction.minLevel,
       frlg = frlg, bx = env.bx, notify = notify, shinyPersonality = env.auction.shinyPersonality,
+    })
+  end
+  -- the Bank: money kept beside the wallet; what the wallet can't hold goes there (the engine's
+  -- Prize.apply, which every gain goes through, wrapped once per process: impl swapped per instance)
+  if makeBank then
+    env.bank = makeBank(engine, { save = mod.save, now = os.time, notify = notify })
+    local Prize = engine("src.core.game3.battle.prize")
+    if Prize and Prize.apply then
+      local w = rawget(Prize, "__woobOs")
+      if not w then
+        w = { orig = Prize.apply }
+        Prize.__woobOs = w
+        Prize.apply = function(s, amount, ...)
+          if w.impl then return w.impl(w.orig, s, amount, ...) end
+          return w.orig(s, amount, ...)
+        end
+      end
+      local bank = env.bank
+      w.impl = function(orig, s, amount, ...)
+        local gained, total = orig(s, amount, ...)
+        local over = math.max(0, math.floor(tonumber(amount) or 0)) - (tonumber(gained) or 0)
+        if s and over > 0 then
+          local ok, banked = pcall(bank.overflow, s, over)
+          -- (what the bank took counts as gained: the player has it)
+          if ok and tonumber(banked) then gained = (tonumber(gained) or 0) + banked end
+        end
+        return gained, total
+      end
+    end
+  end
+  -- the daily swarm (a species all over one route; Settings: swarms) and the journal (what the player does,
+  -- from the engine's events), the week's Challenges counted from it
+  if makeSwarm then
+    env.swarm = makeSwarm(engine, {
+      now = os.time, session = session,
+      seed = function(s) return env.auction and env.auction.seedOf and env.auction.seedOf(s) or 1 end,
+      day = function(t) return env.journal and env.journal.day(t) or math.floor(t / 86400) end,
+      badges = function(s) return env.mart and env.mart.badges(s) or 0 end,
+      on = function() return not Settings or Settings.get("swarms", true) ~= false end,
+    })
+  end
+  if makeJournal then
+    env.journal = makeJournal(engine, {
+      save = mod.save, now = os.time, session = session,
+      badges = function(s) return env.mart and env.mart.badges(s) or 0 end,
+      swarm = function() return env.swarm and env.swarm.species() or nil end,
+    })
+  end
+  -- (a type's name in WoobOS's words, "type.<id>"; else the game's own, shortened as it keeps them)
+  env.typeName = function(id)
+    local key = "type." .. tostring(id)
+    if T and T.has and T.has(key) then return T(key) end
+    local Types = engine("src.core.game3.battle.types")
+    local ok, name = pcall(Types and Types.name or error, id)
+    if not (ok and type(name) == "string" and name ~= "") then return tostring(id) end
+    return name:sub(1, 1) .. name:sub(2):lower()
+  end
+  if makeChallenges and env.journal then
+    env.challenges = makeChallenges(engine, {
+      save = mod.save, now = os.time, journal = env.journal, T = T, notify = notify,
+      seed = function(s) return env.auction and env.auction.seedOf and env.auction.seedOf(s) or 1 end,
+      badges = function(s) return env.mart and env.mart.badges(s) or 0 end,
+      frlg = frlg, itemName = env.itemName, typeName = env.typeName,
+      swarmOn = function() return env.swarm ~= nil and env.swarm.on() end,
+    })
+  end
+  -- Errands: teams sent out on jobs in real time, held in the save while they're out
+  if makeErrands and env.bx then
+    env.errands = makeErrands(engine, {
+      save = mod.save, now = os.time, bx = env.bx, T = T, notify = notify,
+      seed = function(s) return env.auction and env.auction.seedOf and env.auction.seedOf(s) or 1 end,
+      badges = function(s) return env.mart and env.mart.badges(s) or 0 end,
+    })
+  end
+  -- the News: the day's stories, the game's own reporter reading them
+  local function titled(text)
+    return (tostring(text):lower():gsub("(%a)([%w']*)", function(a, b) return a:upper() .. b end))
+  end
+  -- (a map's name, the save menu's way: a session that's only that map)
+  local function placeName(mapId)
+    local SaveMenu = engine("src.ui.game3.save_menu")
+    local s = session() or {}
+    local probe = setmetatable({ map = mapId, mapName = "", regionMapSectionId = false, mapSec = false },
+      { __index = s })
+    local ok, n = pcall(SaveMenu and SaveMenu.locationName or error, probe)
+    if ok and type(n) == "string" and n ~= "" and n ~= "PALLET TOWN" then return titled(n) end
+    return titled((tostring(mapId or "?"):gsub("^%u%u_", ""):gsub("_", " ")))
+  end
+  local reporterPic
+  env.reporter = function()
+    if reporterPic == nil then
+      reporterPic = false
+      local Constants, TrainerPic = engine("src.core.game3.constants"), engine("src.core.game3.trainer_pic")
+      local ok, img = pcall(function()
+        local id = Constants.of(gameId()):id("trainer_classes", "TRAINER_PIC_INTERVIEWER")
+        local p = TrainerPic.front(id)
+        return p and p.image
+      end)
+      if ok and img then reporterPic = img end
+    end
+    return reporterPic or nil
+  end
+  if makeNews then
+    env.news = makeNews(engine, {
+      save = mod.save, now = os.time, T = T, notify = notify,
+      journal = env.journal, swarm = env.swarm, auction = env.auction, gts = env.gts, errands = env.errands,
+      challenges = env.challenges, place = placeName,
+      monName = function(sp)
+        local Pk = engine("src.core.game3.pokemon")
+        local ok, n = pcall(Pk and Pk.name or error, sp)
+        if not (ok and n) then return tostring(sp) end
+        -- (the fonts have no gender signs: Nidoran F, Nidoran M)
+        return titled((tostring(n):gsub("\226\153\128", " F"):gsub("\226\153\130", " M")))
+      end,
+      storm = function(s)
+        if gameId() ~= "emerald" or not (env.map3d and env.map3d.model) then return nil end
+        local M = env.map3d.model
+        local okR, region = pcall(M.region, "hoenn")
+        if not (okR and region) then return nil end
+        local ok, st = pcall(M.storm, region, s)
+        if ok and st and st.place then return { kind = st.kind, place = titled(st.place.name or "") } end
+        return nil
+      end,
     })
   end
   -- the 3D map: the region from the game's Town Map (its picture read back once through a canvas),
@@ -551,6 +683,13 @@ return function(mod)
     pcgames = env.pcgames and pcGamesWindow or nil,
     pcgamesAvailable = env.pcgames and env.pcgames.available or nil,
     gts = env.gts and gtsWindow or nil,
+    bank = env.bank and bankWindow or nil,
+    challenges = env.challenges and challengesWindow or nil,
+    errands = env.errands and errandsWindow or nil,
+    errandsBadge = env.errands and function() return env.errands.waiting() end or nil,
+    news = env.news and newsWindow or nil,
+    challengesBadge = env.challenges and function(ctx) return env.challenges.waiting(ctx and ctx.session or session()) end
+      or nil,
     map = env.map3d and function(ctx, e) return mapScene(ctx, e, { mode = "app" }) end or nil,
     phone = env.phone and phoneWindow or nil,
     condition = env.condition and conditionWindow or nil,
@@ -676,6 +815,9 @@ return function(mod)
       if won > 0 and sp and Desktop.isOpen() then Desktop.padTransfer(sp, "in", "ball") end
     end
     if env.gts then pcall(env.gts.settle, s) end
+    if env.challenges then pcall(env.challenges.check, s) end
+    if env.errands then pcall(env.errands.settle, s) end
+    if env.news then pcall(env.news.tick, s) end
   end
   -- the PokéNav's Match Call / Trainer's Eyes and Condition: our apps instead (Settings: pokenavApps)
   local Pokenav = makePokenav and makePokenav(engine, {
@@ -733,6 +875,27 @@ return function(mod)
     Sh.closeGear()
     if Gear then pcall(Gear.bind) end
   end)
+  -- the journal's events (observed only), and an item used from the Bag or the field (the hook's
+  -- answer passed on as it came)
+  if env.journal then
+    for _, name in ipairs({ "battle.ended", "pokemon.caught", "egg.hatched", "pokemon.evolved", "pokemon.level_up",
+                            "map.entered", "world.stepped" }) do
+      mod.events:on(name, function(ev) env.journal.on(name, ev) end)
+    end
+    -- (the daily swarm: on its route, some of the encounters become it)
+    if env.swarm then
+      mod.hooks:wrap("encounter.species", function(nxt, enc, ctx, ...)
+        local got = nxt(enc, ctx, ...)
+        local ok, swapped = pcall(env.swarm.encounter, got, ctx)
+        return ok and swapped or got
+      end)
+    end
+    mod.hooks:wrap("item.use", function(nxt, ...)
+      local ok, kind, text = nxt(...)
+      if ok then pcall(env.journal.on, "item.used") end
+      return ok, kind, text
+    end)
+  end
   -- (a new map or a loaded save: the next PC boots again)
   mod.events:on("map.entered", function() Sh.forget() end)
   mod.events:on("save.loaded", function(ev)
@@ -741,6 +904,7 @@ return function(mod)
     -- (auctions that ended while the game was closed: settled with the save they belong to)
     if env.auction then pcall(env.auction.settle, ev and ev.save or session()) end
     if env.gts then pcall(env.gts.settle, ev and ev.save or session()) end
+    if env.errands then pcall(env.errands.settle, ev and ev.save or session()) end
   end)
 
   -- other mods add apps (DEVELOPMENT.md "Adding an app"): exports.apps.register{ id, label, glyph,
@@ -758,6 +922,8 @@ return function(mod)
   }
   mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
                         mart = env.mart, auction = env.auction, slots = env.slots, pcgames = env.pcgames, gts = env.gts,
+                        bank = env.bank, journal = env.journal, challenges = env.challenges, errands = env.errands,
+                        swarm = env.swarm, news = env.news,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange,
                         watch = Watch, pad = Watch, notify = Nt, tick = tick, map3d = env.map3d, townmap = TownMap,
                         phone = env.phone, condition = env.condition, ribbons = env.ribbons, hall = env.hall, oak = env.oak, decorate = env.decorate, pokenav = Pokenav, onCall = onCall, gear = Gear, gearPanel = GearPanel }

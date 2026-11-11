@@ -5,13 +5,24 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **Bank:** a savings account beside your wallet. Money that a full wallet (₽999,999) can't hold goes
+  into the bank, up to ₽999,999,999, instead of being lost. Deposit, withdraw, and earn a little
+  interest each day.
+- **Errands:** send teams of up to three Pokémon on real-time jobs (one, four or eight hours). They
+  come back with money, an item and EXP; a team whose types and levels suit the job earns more.
+- **Challenges:** five goals a week from real play (battles, catches, Eggs, evolutions, steps,
+  places and more), each paying money or items, with a bonus for all five.
+- **News:** the day's stories read by the game's own reporter: a real daily swarm (one species all
+  over one route), the region's events, R-Bay's hottest auction, and what you've done since you last
+  watched.
+- **Settings > Gameplay:** daily swarms on or off.
+
 ### Changed
 - **The notifications drawer** (PC and WoobPad) follows your finger down from the top of the screen
   over frosted glass, the screen blurred behind it, with the time at its top. Swipe a notification
   left or right to clear it, or Clear to clear them all; push it back up by its handle. Pulling it
   down works on the PC too.
-
-### Changed
 - **Phone calls (Emerald)** read like a chat: the caller's picture, name and a running timer in a
   header, their words in message bubbles that type themselves out after a "…" bubble (A shows the
   rest at once), a waveform while they talk, and a round red button to hang up.

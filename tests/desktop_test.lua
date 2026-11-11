@@ -113,15 +113,15 @@ local function ctxWith(mode, rows)
   ctx.row = function(id) for i, row in ipairs(ctx.rows) do if row.id == id then return i - 1 end end end
   return ctx
 end
-T.eq(ids(Apps.list(ctxWith("select", rowsAll))), "storage items map mail gts mart auction slots oak hall store settings logoff",
+T.eq(ids(Apps.list(ctxWith("select", rowsAll))), "storage items map mail gts mart bank auction slots errands challenges news oak hall store settings logoff",
   "a cleared game's PC: every app")
 T.eq(ids(Apps.list(ctxWith("select", { { id = "storage" }, { id = "player" }, { id = "quit" } }))),
-  "storage items map mail gts mart auction slots store settings logoff", "early on: no Oak's PC, no Hall of Fame")
-T.eq(ids(Apps.list(ctxWith("bedroom"))), "items map mail gts mart auction slots store settings logoff", "the bedroom PC: Items, Map, Mail, GTS, Mart, R-Bay, Slots, Settings")
+  "storage items map mail gts mart bank auction slots errands challenges news store settings logoff", "early on: no Oak's PC, no Hall of Fame")
+T.eq(ids(Apps.list(ctxWith("bedroom"))), "items map mail gts mart bank auction slots errands challenges news store settings logoff", "the bedroom PC: Items, Map, Mail, GTS, Mart, Bank, R-Bay, Slots, Settings")
 do
   local c = ctxWith("bedroom")
   c.family = "rse"
-  T.eq(ids(Apps.list(c)), "items map mail gts mart auction slots decorate store settings logoff", "Ruby / Sapphire / Emerald's bedroom: Decorate too")
+  T.eq(ids(Apps.list(c)), "items map mail gts mart bank auction slots errands challenges news decorate store settings logoff", "Ruby / Sapphire / Emerald's bedroom: Decorate too")
 end
 T.check(not Apps.register({ id = "storage", open = noop }), "an id can't be taken twice")
 T.check(not Apps.register({ id = "x" }), "an app needs open()")
@@ -269,7 +269,7 @@ openPc({ startMode = "player_pc", bedroom = true })
 st = D.state()
 T.check(D.isOpen() and st.ctx.mode == "bedroom", "the bedroom PC opens the desktop")
 local rse = st.ctx.family == "rse"
-T.eq(#st.grid + #st.dock, rse and 11 or 10, "with Items, Map, Mail, GTS, Mart, R-Bay, Slots, the App Store, Settings and Log Off" .. (rse and ", Decorate" or ""))
+T.eq(#st.grid + #st.dock, rse and 15 or 14, "with Items, Map, Mail, GTS, Mart, Bank, R-Bay, Slots, Errands, Challenges, News, the App Store, Settings and Log Off" .. (rse and ", Decorate" or ""))
 D.skipBoot()
 draw(40)
 if rse then
@@ -2170,12 +2170,14 @@ local missing, named = {}, 0
 local NOT_WORDS = { ["game.ready"] = true }   -- (an engine event's name)
 local PREFIX = { hint = 1, menu = 1, logoff = 1, button = 1, about = 1, nav = 1, game = 1, app = 1, items = 1,
                  pocket = 1, reason = 1, mail = 1, settings = 1, wall = 1, failed = 1, mart = 1, auction = 1, slots = 1, gts = 1,
-                 notes = 1 }
+                 notes = 1, bank = 1, challenges = 1, errands = 1, news = 1 }
 for _, file in ipairs({ "main.lua", "src/desktop.lua", "src/apps.lua", "src/apps/items.lua", "src/apps/mail.lua",
                         "src/apps/settings.lua", "src/apps/mart.lua", "src/mart.lua",
                         "src/apps/auction.lua", "src/auction.lua",
                         "src/apps/slots.lua", "src/slots.lua",
-                        "src/apps/gts.lua", "src/gts.lua", "src/notes.lua" }) do
+                        "src/apps/gts.lua", "src/gts.lua", "src/notes.lua",
+                        "src/bank.lua", "src/apps/bank.lua", "src/challenges.lua", "src/apps/challenges.lua",
+                        "src/errands.lua", "src/apps/errands.lua", "src/news.lua", "src/apps/news.lua" }) do
   local src = readFile(file) or ""
   for key in src:gmatch('"([%a][%w_]*%.[%w_%.]+)"') do
     if PREFIX[key:match("^(%a+)")] and not key:match("%.$") and not key:match("%.lua$") and not NOT_WORDS[key] then

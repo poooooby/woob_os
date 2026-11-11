@@ -35,6 +35,12 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/wallpaper.lua` | The drawn wallpapers and the `wallpapers/` folder's pictures, painted once into canvases |
 | `src/notify.lua` | The notifications: a list, the banners' queue, the card, the field's banner |
 | `src/notes.lua` | The notifications drawer (both devices): the pull, the cards, swiping one away, Clear |
+| `src/bank.lua`, `src/apps/bank.lua` | The Bank: the balance and its log in `mod.save` "bank", deposits, withdrawals, the wallet's overflow, daily interest; its window |
+| `src/journal.lua` | What the player does, from the engine's events: this week's counts and a log of notable moments, in `mod.save` "journal" |
+| `src/challenges.lua`, `src/apps/challenges.lua` | The week's five goals from the journal's counts, their rewards and the bonus; its window |
+| `src/errands.lua`, `src/apps/errands.lua` | Errands: the board, teams held in `mod.save` "errands" while out, the grade, collecting (EXP through the Day Care's); its window |
+| `src/swarm.lua` | The daily swarm: a route and a species from the game's own wild tables, and the `encounter.species` hook's turn |
+| `src/news.lua`, `src/apps/news.lua` | The News: the broadcast built from the world and the journal; the studio window |
 | `src/frost.lua` | Frosted glass: the screen caught in a canvas while the drawer shows, a small copy blurred under it |
 | `src/map3d/model.lua` | The 3D map's model: the region from the game's Town Map (its picture a heightmap and its colours, its grid the places), the census's Centers / Marts / Gyms, the badges, the player's cell, Fly's checks |
 | `src/map3d/render.lua` | The 3D map's drawing: meshes, the shader, the depth canvas, the camera (`camera` / `project`), day and night; a flat fallback |
@@ -529,6 +535,46 @@ Clean room: the idea of a 3D region map (TERRARIUM's for Gen 1) and none of its 
   `PartyMenu.returnFromFlyMap()` from the Fly map), Ruby `onClose(false)`. START: `orig(opts)`.
   Settings' `map3d` off (or the Desktop option off): `orig` at once. FireRed's `RegionMap.open` is
   never set (`hud.lua` would route input to it).
+
+## The apps tied to play: Bank, Errands, Challenges, News
+
+- **The Bank** (`src/bank.lua`): `main.lua` wraps the engine's `Prize.apply` once per process
+  (`Prize.__woobOs = { orig, impl }`, the impl swapped per instance; every gain goes through it:
+  prize money, `addmoney`, the Mart, R-Bay, Slots, rewards). What the wallet's cap
+  (`Prize.MAX_MONEY`, 999,999) turned away goes to `Bk.overflow` and counts as gained. Interest is
+  paid on opening the window: a tenth of a percent per whole day since the last payment, a week at
+  most, `DAILY` a day at most.
+- **The journal** (`src/journal.lua`): subscribed once at load (`mod.events:on`: `battle.ended`,
+  `pokemon.caught`, `egg.hatched`, `pokemon.evolved`, `pokemon.level_up`, `map.entered`,
+  `world.stepped`; `mod.hooks:wrap("item.use")` counts an `ok` answer). A trainer win is
+  `result == "win" and not battle.wild and not battle.link` (the battle state rides on the payload);
+  a badge is the count higher than the last battle left it. Weeks start on Monday at local midnight
+  (`Jr.localTime`, worked out once a minute: `os.date` makes tables and steps come often). A step
+  only adds to a count, never calling `store:set`. A Pokémon without a personality isn't called
+  shiny (the engine reads a bare species as shiny).
+- **Challenges** (`src/challenges.lua`): the week's set is seeded (`Au.seedOf` and the week) from
+  `KINDS` (goals by badges, `when` for hatching and evolving, the swarm one only with swarms on),
+  half paying money (`Prize.apply`), half items. `Ch.check` runs on the shell's once-a-second
+  `tick()` and tells each goal once (`told`).
+- **Errands** (`src/errands.lua`): the board is seeded per six-hour window. `Er.send` takes the team
+  out with `St.pickUpMon` (the boxes first, then the party from the back, so no slot moves under it)
+  and keeps the Pokémon themselves in `mod.save` "errands", like a GTS deposit. The grade and the
+  reward are settled as it leaves (no reroll by reloading). `Er.collect` needs room for the whole
+  team and the item, gives EXP with `Daycare.applyExperience` (moves learned silently, no
+  evolution), then `Bx.forget`.
+- **The swarm** (`src/swarm.lua`): routes are `Encounters._tables` keys ("group:num") whose
+  `MapCatalog.mapIdFor` names a ROUTE and that have land slots, sorted; the reachable share grows
+  with the badges. The species comes from every land table of the game, not that route's own. The
+  `encounter.species` wrapper calls `Sw.encounter` after the chain below it, with its own dice (the
+  game's RNG untouched). On the route (`MapCatalog.groupNumFor(ctx.mapId)`), on land, `CHANCE` of
+  the time it becomes the swarm at the route's levels.
+- **The News** (`src/news.lua`): `Nw.build` at opening makes every story's words (`T.f`), the ticker,
+  and marks the time watched (`mod.save` "news"); the journal's moments after it are told once.
+  Place names come from `SaveMenu.locationName` with a session that's only that map (its map name and
+  region section blanked); species names lose the ♀ / ♂ the fonts lack ("Nidoran F"). The
+  reporter is `TRAINER_PIC_INTERVIEWER` by name from the game's constants (FireRed and LeafGreen
+  carry the same picture). The window types the words out from beginnings made with the story.
+- **Words:** type names are `type.<id>` (the game keeps them six letters long: "PSYCHC").
 
 ## The PokéNav's apps
 

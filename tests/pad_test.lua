@@ -194,7 +194,7 @@ local function all(state)
   table.sort(out, function(a, b) return a.order < b.order or (a.order == b.order and a.id < b.id) end)
   return out
 end
-T.eq(ids(all(st)), "storage items map mail gts mart auction slots store settings",
+T.eq(ids(all(st)), "storage items map mail gts mart bank auction slots errands challenges news store settings",
   "every app, no PC rows (no Oak, Hall, Decorate, Log Off)")
 T.check(st.booted, "no boot: the home screen at once")
 T.check(not Sh.openWatch(s), "one pad at a time")

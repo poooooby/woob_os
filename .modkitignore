@@ -7,4 +7,5 @@ tests/drivers/desktop_probe.lua
 tests/pad_test.lua
 tests/map3d_test.lua
 tests/pokenav_test.lua
+tests/world_test.lua
 docs/app-icons.png

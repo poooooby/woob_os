@@ -204,6 +204,36 @@ return function(deps)
                  taglineKey = "store.tag.slots", descKey = "store.desc.slots",
                  window = deps.slots })
   end
+  -- the Bank: money kept beside the wallet, and what the full wallet can't take
+  if deps.bank then
+    A.register({ id = "bank", labelKey = "app.bank", label = "Bank",
+                 glyph = "pokedollar", color = { 22, 128, 98 }, order = 27.5, removable = true,
+                 taglineKey = "store.tag.bank", descKey = "store.desc.bank",
+                 window = deps.bank })
+  end
+  -- Errands: teams sent on jobs in real time, back with money, items and EXP (a count on its icon:
+  -- teams back, waiting to be collected)
+  if deps.errands then
+    A.register({ id = "errands", labelKey = "app.errands", label = "Errands",
+                 glyph = "shoes", color = { 0, 150, 136 }, order = 29.2, removable = true,
+                 taglineKey = "store.tag.errands", descKey = "store.desc.errands",
+                 window = deps.errands, badge = deps.errandsBadge })
+  end
+  -- News: the day's stories, read by the game's own reporter (today's swarm, the region, you)
+  if deps.news then
+    A.register({ id = "news", labelKey = "app.news", label = "News",
+                 glyph = "mic", color = { 230, 40, 50 }, order = 29.6, removable = true,
+                 taglineKey = "store.tag.news", descKey = "store.desc.news",
+                 window = deps.news })
+  end
+  -- Challenges: the week's five goals from real play, paid in money and items (a count on its icon:
+  -- rewards waiting)
+  if deps.challenges then
+    A.register({ id = "challenges", labelKey = "app.challenges", label = "Challenges",
+                 glyph = "medal", color = { 255, 159, 10 }, order = 29.4, removable = true,
+                 taglineKey = "store.tag.challenges", descKey = "store.desc.challenges",
+                 window = deps.challenges, badge = deps.challengesBadge })
+  end
   -- Map: the region in 3D, made from the game's own Town Map (Fly from it, outdoors)
   if deps.map then
     A.register({ id = "map", labelKey = "app.map", label = "Map",

@@ -24,12 +24,16 @@ local KEEP, WAITING = 20, 3
 -- a banner: sliding in, held, sliding out (seconds); one left waiting longer than STALE drops to
 -- the list only
 local IN, HOLD, OUT, STALE = 0.3, 4, 0.35, 600
-local APP = { outbid = "auction", won = "auction", lost = "auction", soon = "auction", gts = "gts", call = "phone" }
+local APP = { outbid = "auction", won = "auction", lost = "auction", soon = "auction", gts = "gts", call = "phone",
+              bank = "bank", challenge = "challenges", errand = "errands", swarm = "news" }
 local SOUND = { outbid = "SE_FAILURE", won = "SE_SUCCESS", lost = "SE_SELECT", soon = "SE_SELECT", gts = "SE_PC_LOGIN",
-                call = "SE_POKENAV_CALL" }
+                call = "SE_POKENAV_CALL", bank = "SE_M_PAY_DAY", challenge = "SE_SUCCESS",
+                errand = "SE_BALL_TRAY_BALL", swarm = "SE_PIN" }
 local TEXT = { outbid = "notify.outbid", won = "notify.won", lost = "notify.lost", soon = "notify.soon", gts = "notify.gts",
-               call = "notify.call" }
-local TITLE = { auction = "app.auction", gts = "app.gts", phone = "app.phone" }
+               call = "notify.call", bank = "notify.bank", challenge = "notify.challenge",
+               errand = "notify.errand", swarm = "notify.swarm" }
+local TITLE = { auction = "app.auction", gts = "app.gts", phone = "app.phone", bank = "app.bank",
+                challenges = "app.challenges", errands = "app.errands", news = "app.news" }
 -- the field's banner in the game's own pixels (240 x 160)
 local FIELD = { x = 36, y = 4, w = 168, h = 22 }
 
@@ -60,7 +64,7 @@ return function(deps)
     local okT, text = pcall(T.f, key, name, data.minutes or tostring(data.who or ""))
     local rec = { kind = kind, app = app, title = TITLE[app],
                   text = okT and text or name, sp = tonumber(data.sp), at = epoch(), t = now(),
-                  state = app == "gts" and { tab = "deposit" } or (app == "phone" and { tab = "recents" })
+                  state = data.state or app == "gts" and { tab = "deposit" } or (app == "phone" and { tab = "recents" })
                     or { tab = (kind == "won" or kind == "lost") and "mine" or "browse", key = data.key } }
     table.insert(recs, 1, rec)
     while #recs > KEEP do recs[#recs] = nil end
