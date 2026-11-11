@@ -397,7 +397,7 @@ return {
     ["settings.watch"] = "WoobPad",
     ["settings.watchRow"] = "Mostrar no menu START",
     ["settings.notifications"] = "Notificações",
-    ["settings.watchNote"] = "O WoobPad abre pelo menu START. As notificações aparecem sobre o jogo quando o R-Bay, o GTS ou uma chamada têm novidades.",
+    ["settings.watchNote"] = "O WoobPad abre pelo menu START.",
     ["settings.soonAlert"] = "Aviso de fim",
     ["settings.minutes"] = "%d min",
     ["hint.putAway"] = "Guardar",
@@ -747,5 +747,7 @@ return {
     ["map.weather.sand"] = "Tempestade de areia",
     ["map.weather.shade"] = "Sombreado",
     ["map.weather.clouds"] = "Nublado",
+    ["settings.banners"] = "Banners",
+    ["settings.notifyNote"] = "Um app desligado guarda as novidades para si: sem banner e sem nada na lista. Sem banners, as novidades só vão para a lista.",
   },
 }

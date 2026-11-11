@@ -363,8 +363,13 @@ do
   Wall.draw = realDraw
   Wt.openApp("settings")
   draw(2)
-  local ss = Wt.window().state
-  ss.section, ss.focus, ss.toggleCursor = 3, "detail", 3
+  local SW = Wt.window()
+  local ss = SW.state
+  local si, ti
+  for i, sec in ipairs(SW.SECTIONS) do if sec.id == "notify" then si = i end end
+  for i, t in ipairs(si and SW.SECTIONS[si].toggles or {}) do if t.key == "soonMinutes" then ti = i end end
+  T.check(si ~= nil and ti ~= nil, "Settings > Notifications, R-Bay's ending-soon alert in it")
+  ss.section, ss.focus, ss.toggleCursor = si, "detail", ti
   Wt.input(input({}, {}))
   press("a")
   T.eq(Settings.get("soonMinutes", 10), 15, "A on the alert: 15 minutes")
@@ -375,8 +380,37 @@ do
   press("left")
   T.eq(Settings.get("soonMinutes", 10), 30, "Left: back to 30")
   draw(2)
-  T.check(not st.winFailed, "the WoobPad section draws")
+  T.check(not st.winFailed, "the Notifications section draws")
   Settings.set("soonMinutes", 10)
+  -- each app that tells the player things: its own switch (the Phone only where calls come)
+  local rows, keys, at = SW.SECTIONS[si].toggles, {}, {}
+  for i, t in ipairs(rows) do keys[#keys + 1] = t.key; at[t.key] = i end
+  T.eq(rows[1].key, "notifications", "the banners first")
+  T.check(at.notifyAuction and at.notifyGts and at.notifyBank and at.notifyErrands and at.notifyChallenges
+    and at.notifyNews and rows[at.notifyAuction].app ~= nil, "an app's switch each, with its icon (" .. table.concat(keys, " ") .. ")")
+  T.eq(at.notifyPhone ~= nil, Sh.gameId() == "emerald", "the Phone's only where calls come")
+  -- R-Bay off: A on its row; nothing from it, the GTS's still come
+  ss.toggleCursor = at.notifyAuction
+  press("a")
+  T.eq(Settings.get("notifyAuction", true), false, "A: R-Bay's notifications off")
+  local before = #Nt.list()
+  T.eq(Nt.push("outbid", { name = "MEW" }), nil, "R-Bay off: nothing from it")
+  T.eq(#Nt.list(), before, "not even in the list")
+  T.check(Nt.push("gts", { name = "PIDGEY", who = "Yuki" }) ~= nil and #Nt.list() == before + 1, "the GTS's still come")
+  press("a")
+  T.eq(Settings.get("notifyAuction", true), true, "A again: back on")
+  -- (more rows than fit: the cursor's row kept in view, the wheel scrolls)
+  draw(2)
+  if #rows > ss.toggleVisible then
+    ss.toggleCursor = 1
+    for _ = 1, #rows do press("down") end
+    draw(2)
+    T.check(ss.toggleCursor == #rows and ss.toggleTop > 0 and ss.toggleCursor <= ss.toggleTop + ss.toggleVisible,
+      "Down to the last row: the list scrolls with it")
+    SW.scroll(400)
+    T.eq(ss.toggleTop, 0, "the wheel scrolls back up")
+  end
+  T.check(not st.winFailed, "and it draws")
   st.ctx.done()
 end
 

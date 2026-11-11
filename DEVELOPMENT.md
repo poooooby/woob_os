@@ -482,6 +482,15 @@ is up.
 
 ## Notifications
 
+- **Each app's switch:** `Nt.SETTING[app]` (`notifyAuction`, `notifyGts`, `notifyPhone`, `notifyBank`,
+  `notifyErrands`, `notifyChallenges`, `notifyNews`; on unless set false) is read in `Nt.push` through
+  `deps.setting`: off, the push returns nil and nothing is kept (no banner, no list entry, no sound),
+  whichever path it came by. `Nt.APPS` is Settings' order; main.lua hands both to the windows as
+  `env.notifications`. Settings > Notifications (`src/apps/settings.lua`, section `notify`) makes its
+  rows when it opens: Banners (`notifications`), then each app that's installed (the Phone only on
+  Emerald, where calls come) with its icon, R-Bay's `soonMinutes` under R-Bay. A switch list taller
+  than the window scrolls (`st.toggleTop`: the cursor's row kept in view on a press, the wheel free).
+
 `src/notify.lua` (Nt), made in `main.lua` and handed to the models as `deps.notify(kind, data,
 quiet)`: `Au` ("outbid" in `refund`, quiet when the player's own `Au.bid` lost it; "soon" once per
 bid at `deps.soon()` seconds before the end (Settings `soonMinutes`: 5 / 10 / 15 / 30, the

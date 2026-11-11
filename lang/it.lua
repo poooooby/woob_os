@@ -397,7 +397,7 @@ return {
     ["settings.watch"] = "WoobPad",
     ["settings.watchRow"] = "Mostra nel menu START",
     ["settings.notifications"] = "Notifiche",
-    ["settings.watchNote"] = "WoobPad si apre dal menu START. Le notifiche appaiono sul gioco quando R-Bay, il GTS o una chiamata hanno novità.",
+    ["settings.watchNote"] = "WoobPad si apre dal menu START.",
     ["settings.soonAlert"] = "Avviso di fine",
     ["settings.minutes"] = "%d min",
     ["hint.putAway"] = "Metti via",
@@ -747,5 +747,7 @@ return {
     ["map.weather.sand"] = "Tempesta di sabbia",
     ["map.weather.shade"] = "Ombroso",
     ["map.weather.clouds"] = "Nuvoloso",
+    ["settings.banners"] = "Banner",
+    ["settings.notifyNote"] = "Un'app disattivata tiene le sue novità per sé: niente banner, niente lista. Senza banner, le novità finiscono solo nella lista.",
   },
 }

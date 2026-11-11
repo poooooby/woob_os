@@ -97,7 +97,8 @@ opens a desktop in a sleek monitor instead of a text menu.
   to the Bank, when a team is back from an errand, when a challenge is done, and when a new day's
   swarm appears. A banner slides down over the game while you're free to walk around; tap it to
   open WoobPad on that app. With the PC or the pad open, it slides in over its screen instead,
-  and on both, the notifications drawer pulls down from the top of the screen.
+  and on both, the notifications drawer pulls down from the top of the screen. Each app's
+  notifications can be turned off in Settings.
 
 ### Apps
 
@@ -267,9 +268,11 @@ opens a desktop in a sleek monitor instead of a text menu.
     Português (Brasil). The game's own text, such as item names and mail, stays as it is.
   - 🖼️ **Wallpaper:** the classic colours of your game, five drawn wallpapers (Ribbon, Hills,
     Coast, Waves and Bloom, each tinted to your game), or your own pictures.
-  - 📱 **WoobPad:** show WoobPad in the START menu or not, turn the notification banners on or
-    off (notifications still wait in the list), and choose how long before an auction ends
-    you're told: 5, 10, 15 or 30 minutes.
+  - 🔔 **Notifications:** banners on or off (off, notifications still wait in the list), then a
+    switch for each app that tells you things: R-Bay, the GTS, the Phone (Emerald), the Bank,
+    Errands, Challenges and the News. An app switched off sends nothing, not even to the list.
+    Under R-Bay, choose how long before an auction ends you're told: 5, 10, 15 or 30 minutes.
+  - 📱 **WoobPad:** show WoobPad in the START menu or not.
   - 🗺️ **Map:** the 3D Town Map on or off. Off, the Town Map and Fly open the game's own map.
   - 📟 **PokéNav:** WoobOS's apps in the PokéNav, or its own screens.
   - 🚩 **Gameplay:** daily swarms on or off.

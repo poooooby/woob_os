@@ -7,7 +7,10 @@
 --   Nt = notify(deps)  deps: K (the kit) ; T (the words) ; now() -> seconds (the frame clock) ;
 --                      epoch() -> seconds (the device's clock) ; se(name) ; monIcon(sp, x, y, size) ;
 --                      glyph(G, kind, cx, cy, size, a) (an app's picture, window pixels) ;
---                      apps (src/apps.lua) ; enabled() -> the banners on (the list always keeps them)
+--                      apps (src/apps.lua) ; enabled() -> the banners on (the list always keeps them) ;
+--                      setting(key, default) -> an app's own switch (Settings > Notifications)
+--   Nt.APPS: the apps that tell the player things, in Settings' order ; Nt.SETTING[app]: its switch's key
+--       (on unless turned off; off: nothing from it at all, no banner and nothing in the list)
 --   Nt.push(kind, data, quiet) kind "outbid" | "won" | "lost" | "soon" | "gts" | "call"; data { name, sp, key,
 --       where }; quiet: into the list only (the app the player is looking at said so itself)
 --   Nt.list() -> the records, newest first: { kind, app, title, text, sp, at, state }
@@ -34,6 +37,10 @@ local TEXT = { outbid = "notify.outbid", won = "notify.won", lost = "notify.lost
                errand = "notify.errand", swarm = "notify.swarm" }
 local TITLE = { auction = "app.auction", gts = "app.gts", phone = "app.phone", bank = "app.bank",
                 challenges = "app.challenges", errands = "app.errands", news = "app.news" }
+-- each app's own switch (Settings > Notifications), and the order Settings lists them in
+local SETTING = { auction = "notifyAuction", gts = "notifyGts", phone = "notifyPhone", bank = "notifyBank",
+                  errands = "notifyErrands", challenges = "notifyChallenges", news = "notifyNews" }
+local APPS = { "auction", "gts", "phone", "bank", "errands", "challenges", "news" }
 -- the field's banner in the game's own pixels (240 x 160)
 local FIELD = { x = 36, y = 4, w = 168, h = 22 }
 
@@ -42,7 +49,7 @@ local NO_T = setmetatable({ f = string.format }, { __call = function(_, k) retur
 return function(deps)
   deps = deps or {}
   local K, T = deps.K, deps.T or NO_T
-  local Nt = { IN = IN, HOLD = HOLD, OUT = OUT, FIELD = FIELD }
+  local Nt = { IN = IN, HOLD = HOLD, OUT = OUT, FIELD = FIELD, APPS = APPS, SETTING = SETTING }
   local recs, nUnread = {}, 0
   local queue, nQueue = {}, 0
   local showing, showT = nil, 0
@@ -56,6 +63,8 @@ return function(deps)
   function Nt.push(kind, data, quiet)
     local app = APP[kind]
     if not app then return nil end
+    -- (that app's notifications turned off: nothing at all)
+    if deps.setting and SETTING[app] and deps.setting(SETTING[app], true) == false then return nil end
     data = data or {}
     local name = tostring(data.name or "?")
     local key = TEXT[kind]

@@ -398,7 +398,7 @@ return {
     ["settings.watch"] = "WoobPad",
     ["settings.watchRow"] = "STARTメニューに だす",
     ["settings.notifications"] = "おしらせ",
-    ["settings.watchNote"] = "WoobPadは STARTメニューから ひらきます。R-Bayや GTS、でんわに うごきが あると おしらせが でます。",
+    ["settings.watchNote"] = "WoobPad は START メニューから ひらきます。",
     ["settings.soonAlert"] = "おわる まえの おしらせ",
     ["settings.minutes"] = "%dふん",
     ["hint.putAway"] = "しまう",
@@ -748,5 +748,7 @@ return {
     ["map.weather.sand"] = "すなあらし",
     ["map.weather.shade"] = "こかげ",
     ["map.weather.clouds"] = "うすぐもり",
+    ["settings.banners"] = "バナー",
+    ["settings.notifyNote"] = "オフに した アプリは おしらせを だしません。 バナーを オフに すると おしらせは リストだけに とどきます。",
   },
 }

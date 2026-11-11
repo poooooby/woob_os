@@ -409,7 +409,7 @@ return {
     ["settings.watch"] = "WoobPad",
     ["settings.watchRow"] = "Show in START menu",
     ["settings.notifications"] = "Notifications",
-    ["settings.watchNote"] = "WoobPad opens from the START menu. Notifications appear over the field when R-Bay, the GTS or a call has news.",
+    ["settings.watchNote"] = "WoobPad opens from the START menu.",
     ["settings.soonAlert"] = "Ending-soon alert",
     ["settings.minutes"] = "%d min",
     ["hint.putAway"] = "Put away",
@@ -759,5 +759,7 @@ return {
     ["map.weather.sand"] = "Sandstorm",
     ["map.weather.shade"] = "Shade",
     ["map.weather.clouds"] = "Cloudy",
+    ["settings.banners"] = "Banners",
+    ["settings.notifyNote"] = "An app turned off keeps its news to itself: no banner, nothing in the list. With Banners off, news only goes to the list.",
   },
 }

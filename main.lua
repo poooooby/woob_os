@@ -768,7 +768,13 @@ return function(mod)
     K = Kit, T = T, now = env.now, epoch = os.time, se = env.se, monIcon = monIcon, apps = Apps,
     glyph = function(...) if Desktop then return Desktop.glyph(...) end end,
     enabled = function() return not Settings or Settings.get("notifications", true) ~= false end,
+    setting = function(key, default)
+      if not Settings then return default end
+      return Settings.get(key, default)
+    end,
   }) or nil
+  -- (Settings > Notifications: which apps tell the player things, and each one's switch)
+  env.notifications = Nt and { apps = Nt.APPS, setting = Nt.SETTING } or nil
   local deskDeps = ({
     kit = Kit,
     apps = Apps,
