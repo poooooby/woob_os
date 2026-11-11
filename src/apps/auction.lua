@@ -149,13 +149,18 @@ return function(ctx, env)
     st.key = L and L.key
     return L
   end
-  local function clampList()
+  -- (keeps the chosen row in view, unless the list was scrolled by hand since the last press: a drag
+  -- or the wheel would otherwise be pulled straight back to it on the next frame)
+  local function clampList(follow)
+    if follow then st.free = false end
     local n = st.tab == "browse" and #st.rows or st.mineN
     local c, top = st.tab == "browse" and st.cursor or st.mineCursor, st.tab == "browse" and st.top or st.mineTop
     c = max(1, min(c, n))
     local vis = st.visible
-    if c > top + vis then top = c - vis end
-    if c <= top then top = c - 1 end
+    if not st.free then
+      if c > top + vis then top = c - vis end
+      if c <= top then top = c - 1 end
+    end
     top = max(0, min(top, max(0, n - vis)))
     if st.tab == "browse" then st.cursor, st.top = c, top else st.mineCursor, st.mineTop = c, top end
   end
@@ -207,7 +212,7 @@ return function(ctx, env)
     if not L then return end
     for i, R in ipairs(st.rows) do if R == L then st.cursor = i end end
     st.key = L.key
-    clampList()
+    clampList(true)
     se("SE_SELECT")
   end
 
@@ -305,7 +310,7 @@ return function(ctx, env)
         if c ~= st.cursor then
           st.cursor = c
           st.key = st.rows[c].key
-          clampList()
+          clampList(true)
           se("SE_SELECT")
         end
       elseif pressed("select") then toHot()
@@ -317,7 +322,7 @@ return function(ctx, env)
         local c = max(1, min(st.mineN, st.mineCursor + d))
         if c ~= st.mineCursor then
           st.mineCursor = c
-          clampList()
+          clampList(true)
           se("SE_SELECT")
         end
       elseif pressed("a") then
@@ -326,7 +331,7 @@ return function(ctx, env)
         if r and st.mineCursor <= st.mineBids and listingOf(r.key) then
           st.key, st.tab = r.key, "browse"
           current()
-          clampList()
+          clampList(true)
           se("SE_SELECT")
         end
       end
@@ -359,7 +364,7 @@ return function(ctx, env)
         if st.mineCursor == i and i <= st.mineBids and listingOf(st.mineRows[i].key) then
           st.key, st.tab = st.mineRows[i].key, "browse"
           current()
-          clampList()
+          clampList(true)
         else
           st.mineCursor = i
         end
@@ -371,12 +376,13 @@ return function(ctx, env)
       st.focus = "list"
       if st.cursor == arg then return begin() end
       st.cursor, st.key = arg, st.rows[arg].key
-      clampList()
+      clampList(true)
       se("SE_SELECT")
     end
   end
 
   function W.scroll(dy)
+    st.free = true
     if st.tab == "browse" then
       st.top = max(0, min(max(0, #st.rows - st.visible), st.top - dy / ROW_H))
     else

@@ -74,11 +74,16 @@ return function(ctx, env)
     return r
   end
 
-  local function clamp()
+  -- (keeps the chosen row in view, unless the list was scrolled by hand since the last press: a drag
+  -- or the wheel would otherwise be pulled straight back to it on the next frame)
+  local function clamp(follow)
+    if follow then st.free = false end
     local n = #st.rows
     st.cursor = max(1, min(st.cursor, max(1, n)))
-    if st.cursor > st.top + st.visible then st.top = st.cursor - st.visible end
-    if st.cursor <= st.top then st.top = st.cursor - 1 end
+    if not st.free then
+      if st.cursor > st.top + st.visible then st.top = st.cursor - st.visible end
+      if st.cursor <= st.top then st.top = st.cursor - 1 end
+    end
     st.top = max(0, min(st.top, max(0, n - st.visible)))
   end
   st.rows = Rb.list(session())
@@ -96,7 +101,7 @@ return function(ctx, env)
     if c ~= st.cursor then
       st.cursor = c
       setPick(1)
-      clamp()
+      clamp(true)
       se("SE_SELECT")
     end
   end
@@ -163,12 +168,13 @@ return function(ctx, env)
     if st.rows[arg] then
       if st.cursor ~= arg then setPick(1) end
       st.cursor, st.focus = arg, "list"
-      clamp()
+      clamp(true)
       se("SE_SELECT")
     end
   end
 
   function W.scroll(dy)
+    st.free = true
     st.top = max(0, min(max(0, #st.rows - st.visible), st.top - dy / ROW_H))
   end
 

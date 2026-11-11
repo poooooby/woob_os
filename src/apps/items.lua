@@ -55,11 +55,16 @@ return function(ctx, env)
   local stepText = K.textCache(function(k) return tostring(floor(k / 1000)) .. " / " .. tostring(k % 1000) end)
 
   local function pane(name) return st[name or st.focus] end
-  local function clampPane(p)
+  -- (keeps the chosen row in view, unless the list was scrolled by hand since the last press: a drag
+  -- or the wheel would otherwise be pulled straight back to it on the next frame)
+  local function clampPane(p, follow)
+    if follow then p.free = false end
     p.cursor = max(1, min(p.cursor, #p.rows))
     local vis = st.visible
-    if p.cursor > p.top + vis then p.top = p.cursor - vis end
-    if p.cursor <= p.top then p.top = p.cursor - 1 end
+    if not p.free then
+      if p.cursor > p.top + vis then p.top = p.cursor - vis end
+      if p.cursor <= p.top then p.top = p.cursor - 1 end
+    end
     p.top = max(0, min(p.top, max(0, #p.rows - vis)))
   end
   local function refresh()
@@ -72,8 +77,8 @@ return function(ctx, env)
     local used, cap = inv.pcCount(s)
     st.pcHead = T("items.pc") .. "  " .. used .. "/" .. cap
     st.pocketKey = pk and ("pocket." .. pk.id) or "items.bag"
-    clampPane(st.pc)
-    clampPane(st.bag)
+    clampPane(st.pc, true)
+    clampPane(st.bag, true)
   end
   W.refresh = refresh
 
@@ -87,7 +92,7 @@ return function(ctx, env)
     local c = max(1, min(#p.rows, p.cursor + d))
     if c ~= p.cursor then
       p.cursor = c
-      clampPane(p)
+      clampPane(p, true)
       se("SE_SELECT")
     end
   end
@@ -270,7 +275,7 @@ return function(ctx, env)
     if not p.rows[i] then return end
     if st.focus == name and p.cursor == i then return begin(false) end
     st.focus, p.cursor = name, i
-    clampPane(p)
+    clampPane(p, true)
     se("SE_SELECT")
   end
 
@@ -280,6 +285,7 @@ return function(ctx, env)
     if x and not st.portrait then
       if x >= st.pc.x1 and x < st.pc.x2 then p = st.pc elseif x >= st.bag.x1 and x < st.bag.x2 then p = st.bag end
     end
+    p.free = true
     p.top = max(0, min(max(0, #p.rows - st.visible), p.top - dy / ROW_H))
   end
 

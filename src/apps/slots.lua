@@ -353,11 +353,16 @@ return function(ctx, env)
     for _, r in ipairs(RARITY) do if p.cost <= r.upto then return r end end
     return RARITY[#RARITY]
   end
-  local function clampList()
+  -- (keeps the chosen row in view, unless the list was scrolled by hand since the last press: a drag
+  -- or the wheel would otherwise be pulled straight back to it on the next frame)
+  local function clampList(follow)
+    if follow then st.free = false end
     local n = #prizes()
     st.cursor = max(1, min(st.cursor, n))
-    if st.cursor > st.top + st.visible then st.top = st.cursor - st.visible end
-    if st.cursor <= st.top then st.top = st.cursor - 1 end
+    if not st.free then
+      if st.cursor > st.top + st.visible then st.top = st.cursor - st.visible end
+      if st.cursor <= st.top then st.top = st.cursor - 1 end
+    end
     st.top = max(0, min(st.top, max(0, n - st.visible)))
   end
   local detailAt = { x = 0, y = 0 }
@@ -462,7 +467,7 @@ return function(ctx, env)
         local c = max(1, min(#prizes(), st.cursor + d))
         if c ~= st.cursor then
           st.cursor = c
-          clampList()
+          clampList(true)
           se("SE_SELECT")
         end
       elseif pressed("a") then redeem()
@@ -494,7 +499,7 @@ return function(ctx, env)
       if prizes()[i] then
         if st.cursor == i then return redeem() end
         st.cursor = i
-        clampList()
+        clampList(true)
         se("SE_SELECT")
       end
     end
@@ -502,6 +507,7 @@ return function(ctx, env)
 
   function W.scroll(dy)
     if st.tab == "prizes" then
+      st.free = true
       st.top = max(0, min(max(0, #prizes() - st.visible), st.top - dy / ROW_H))
     end
   end

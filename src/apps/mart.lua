@@ -52,11 +52,16 @@ return function(ctx, env)
 
   local function row() return st.rows[st.cursor] end
   local function locked(r) return st.mode == "buy" and r and (r.badges or 0) > st.badges end
-  local function clampList()
+  -- (keeps the chosen row in view, unless the list was scrolled by hand since the last press: a drag
+  -- or the wheel would otherwise be pulled straight back to it on the next frame)
+  local function clampList(follow)
+    if follow then st.free = false end
     st.cursor = max(1, min(st.cursor, #st.rows))
     local vis = st.visible
-    if st.cursor > st.top + vis then st.top = st.cursor - vis end
-    if st.cursor <= st.top then st.top = st.cursor - 1 end
+    if not st.free then
+      if st.cursor > st.top + vis then st.top = st.cursor - vis end
+      if st.cursor <= st.top then st.top = st.cursor - 1 end
+    end
     st.top = max(0, min(st.top, max(0, #st.rows - vis)))
   end
   -- how many the stepper goes up to: as many as there are to sell; 99 to buy
@@ -89,7 +94,7 @@ return function(ctx, env)
       st.rows = p and mart.sellRows(s, p.id) or {}
       st.tabKey = p and ("pocket." .. p.id) or "items.bag"
     end
-    clampList()
+    clampList(true)
     st.qty = max(1, min(st.qty, qtyMax()))
     readBag()
   end
@@ -104,7 +109,7 @@ return function(ctx, env)
     c = max(1, min(#st.rows, c))
     if c ~= st.cursor and #st.rows > 0 then
       st.cursor, st.qty, st.focus = c, 1, "list"
-      clampList()
+      clampList(true)
       readBag()
       se("SE_SELECT")
     end
@@ -233,6 +238,7 @@ return function(ctx, env)
   end
 
   function W.scroll(dy)
+    st.free = true
     st.top = max(0, min(max(0, #st.rows - st.visible), st.top - dy / ROW_H))
   end
 

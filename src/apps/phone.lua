@@ -68,10 +68,15 @@ return function(ctx, env)
   end
   W.refresh = refresh
 
-  local function clamp()
+  -- (keeps the chosen row in view, unless the list was scrolled by hand since the last press: a drag
+  -- or the wheel would otherwise be pulled straight back to it on the next frame)
+  local function clamp(follow)
+    if follow then st.free = false end
     st.cursor = max(1, min(st.cursor, #st.rows))
-    if st.cursor > st.top + st.visible then st.top = st.cursor - st.visible end
-    if st.cursor <= st.top then st.top = st.cursor - 1 end
+    if not st.free then
+      if st.cursor > st.top + st.visible then st.top = st.cursor - st.visible end
+      if st.cursor <= st.top then st.top = st.cursor - 1 end
+    end
     st.top = max(0, min(st.top, max(0, #st.rows - st.visible)))
   end
   local function row() return st.rows[st.cursor] end
@@ -166,8 +171,8 @@ return function(ctx, env)
       return true
     end
     if pressed("b") then return false end
-    if nav.up then st.cursor = st.cursor - 1; clamp(); se("SE_SELECT")
-    elseif nav.down then st.cursor = st.cursor + 1; clamp(); se("SE_SELECT")
+    if nav.up then st.cursor = st.cursor - 1; clamp(true); se("SE_SELECT")
+    elseif nav.down then st.cursor = st.cursor + 1; clamp(true); se("SE_SELECT")
     elseif pressed("l") then setTab(st.tab - 1)
     elseif pressed("r") then setTab(st.tab + 1)
     elseif pressed("select") and st.tab == 3 then
@@ -195,13 +200,14 @@ return function(ctx, env)
     if type(arg) == "number" and st.rows[arg] then
       if st.cursor == arg and st.view ~= "list" then return end
       st.cursor = arg
-      clamp()
+      clamp(true)
       openRow()
     end
   end
 
   function W.scroll(dy)
     if st.view ~= "list" and not st.wide then return end
+    st.free = true
     st.top = max(0, min(max(0, #st.rows - st.visible), st.top - dy / ROW_H))
   end
 

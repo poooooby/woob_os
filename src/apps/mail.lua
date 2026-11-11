@@ -47,11 +47,16 @@ return function(ctx, env)
   W.state = st
 
   local function rows() return st[st.folder] end
-  local function clamp()
+  -- (keeps the chosen row in view, unless the list was scrolled by hand since the last press: a drag
+  -- or the wheel would otherwise be pulled straight back to it on the next frame)
+  local function clamp(follow)
+    if follow then st.free = false end
     local n = #rows()
     st.cursor = max(1, min(st.cursor, n))
-    if st.cursor > st.top + st.visible then st.top = st.cursor - st.visible end
-    if st.cursor <= st.top then st.top = st.cursor - 1 end
+    if not st.free then
+      if st.cursor > st.top + st.visible then st.top = st.cursor - st.visible end
+      if st.cursor <= st.top then st.top = st.cursor - 1 end
+    end
     st.top = max(0, min(st.top, max(0, n - st.visible)))
     if n == 0 then st.focus, st.reading = "list", false end
   end
@@ -60,7 +65,7 @@ return function(ctx, env)
     st.inbox, st.held = mb.inbox(s), mb.held(s)
     st.segInbox = T("mail.inbox") .. "  " .. #st.inbox
     st.segHeld = T("mail.held") .. "  " .. #st.held
-    clamp()
+    clamp(true)
   end
   W.refresh = refresh
 
@@ -71,7 +76,7 @@ return function(ctx, env)
   local function setFolder(f)
     if st.folder == f then return end
     st.folder, st.cursor, st.top, st.focus, st.reading, st.action = f, 1, 0, "list", false, 1
-    clamp()
+    clamp(true)
     se("SE_SELECT")
   end
   local function open()
@@ -202,7 +207,7 @@ return function(ctx, env)
       local c = max(1, min(n, st.cursor + (nav.down and 1 or -1)))
       if c ~= st.cursor and n > 0 then
         st.cursor = c
-        clamp()
+        clamp(true)
         se("SE_SELECT")
       end
     elseif pressed("a") or (nav.right and not st.portrait) then open()
@@ -231,7 +236,7 @@ return function(ctx, env)
     if arg >= 1 and rows()[arg] then
       if st.cursor == arg and st.focus == "list" then return open() end
       st.cursor = arg
-      clamp()
+      clamp(true)
       if st.portrait then return open() end
       st.focus = "list"
       se("SE_SELECT")
@@ -240,6 +245,7 @@ return function(ctx, env)
 
   function W.scroll(dy)
     if st.reading then return end
+    st.free = true
     st.top = max(0, min(max(0, #rows() - st.visible), st.top - dy / ROW_H))
   end
 
