@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-11-11
+
 ### Added
 - **3D map:** a close-up zoom. A steps on past the nearest zoom to a low, close shot of the town or
   place under the cursor, framed in the open view above its card; a tap on the chosen place zooms in
