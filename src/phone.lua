@@ -5,13 +5,16 @@
 -- and Gym Leaders fought, their profiles, who's ready for a rematch; those games have no calls).
 -- The recent calls (30) and the favourites are kept in the save ("phone"): they rewind with it.
 --
---   Ph = Phone(engine, deps)   deps: save (mod.save) ; now() -> the device's seconds ; notify(kind, data)
+--   Ph = Phone(engine, deps)   deps: save (mod.save) ; now() -> the device's seconds ; notify(kind, data) ;
+--                              image(path) -> one of the mod's own pictures
 --   Ph.family(s) -> "emerald" | "rs" | nil        Ph.available(s) -> the game has given it
 --   Ph.contacts(s) -> { contact }   contact = { key, name, desc, pic, place, rematch, nearby, canCall,
 --                                                check = { lines } }
 --   Ph.call(s, contact) -> text, ok (logged)      Ph.recents(s) ; Ph.isFav(s, key) ; Ph.toggleFav(s, key)
 --   Ph.incoming(s, name, text, pic) (the field's calls: logged, and a notification)
---   Ph.picture(pic) -> a love Image or nil (the game's trainer picture, kept)
+--   Ph.picture(pic) -> a love Image or nil (kept): a number is the game's trainer picture; "mom",
+--                      "scott", "stone" (the mod's assets/*.png, Wooble's) and "birch" (the Professor of
+--                      the game's new-game speech) stand in for the Emerald contacts the game has none for
 
 local KEEP = 30
 
@@ -69,7 +72,8 @@ return function(engine, deps)
   local function log(name, key, text, pic, incoming)
     local d = data()
     table.insert(d.recents, 1, { name = tostring(name or "?"), key = key, text = tostring(text or ""),
-                                 pic = tonumber(pic), at = Ph.now(), incoming = incoming == true })
+                                 pic = tonumber(pic) or (type(pic) == "string" and pic or nil), at = Ph.now(),
+                                 incoming = incoming == true })
     while #d.recents > KEEP do d.recents[#d.recents] = nil end
     saved(d)
   end
@@ -85,7 +89,34 @@ return function(engine, deps)
   -- ------- pictures and words
 
   local pics = {}
+  local OWN_ART = { mom = "assets/mom.png", scott = "assets/scott.png", stone = "assets/mrstone.png" }
+  local function ownPicture(key)
+    if key == "birch" then
+      -- (the Professor as the game's new-game speech shows him)
+      local Kit = engine("src.ui.game3.rse.scene_kit")
+      local okM, man = pcall(Kit and Kit.manifest or error, "birch")
+      local p = okM and type(man) == "table" and man.pics and man.pics.birch
+      local okI, img = pcall(Kit and Kit.image or error, p and p.png)
+      return okI and img or nil
+    end
+    if OWN_ART[key] and deps.image then
+      local ok, img = pcall(deps.image, OWN_ART[key])
+      if ok and img then
+        pcall(img.setFilter, img, "nearest", "nearest")
+        return img
+      end
+    end
+    return nil
+  end
   function Ph.picture(pic)
+    if type(pic) == "string" and not tonumber(pic) then
+      local got = pics[pic]
+      if got == nil then
+        got = ownPicture(pic) or false
+        pics[pic] = got
+      end
+      return got or nil
+    end
     pic = tonumber(pic)
     if not pic or pic < 0 then return nil end
     local got = pics[pic]
@@ -112,6 +143,9 @@ return function(engine, deps)
 
   -- ------- the contacts
 
+  -- the special contacts the game has no picture for, by their name's text: ours
+  local OWN_PIC = { gText_MomMatchCallName = "mom", gText_ProfBirchMatchCallName = "birch",
+                    gText_ScottMatchCallName = "scott", gText_MrStoneMatchCallName = "stone" }
   local function emeraldContacts(s)
     local MC = engine("src.core.game3.rse.match_call")
     local ok, list = pcall(MC and MC.buildList or error, s)
@@ -127,6 +161,10 @@ return function(engine, deps)
                   name = okN and titled(name) or "?", desc = okN and titled(desc) or "",
                   pic = okP and tonumber(pic) or -1, place = okM and place and titled(place) or "",
                   rematch = okR and rematch == true, nearby = okB and nearby == true, canCall = true, check = {} }
+      if e.isSpecialTrainer and c.pic < 0 then
+        local okH, h = pcall(MC.header, e.headerId)
+        c.pic = okH and type(h) == "table" and OWN_PIC[h.name] or c.pic
+      end
       local okC, has = pcall(MC.headerHasCheckPage, e.headerId)
       if not e.isSpecialTrainer or (okC and has) then
         for i = 1, 4 do

@@ -341,6 +341,8 @@ turn it on for your Generation 3 games.
 
 Made by Wooble. The touch-screen look grew out of WoobleDex's vending machines.
 
+Original sprites by Wooble: the News anchor, and Mom, Scott and Mr. Stone in the Phone.
+
 ---
 
 [MIT License](LICENSE) · [Changelog](CHANGELOG.md) · [Development](DEVELOPMENT.md)

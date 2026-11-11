@@ -262,8 +262,8 @@ return function(ctx, env)
   local WHITE, SOFT = { 255, 255, 255 }, { 255, 255, 255, 0.7 }
   local TILE = { 228, 230, 238 }
 
-  -- the trainer's picture in a rounded tile (units); someone without one (Mom, the Professor): their
-  -- initial on a tint of their own
+  -- the trainer's picture in a rounded tile (units); someone without one: their initial on a tint of
+  -- their own
   local initialOf = setmetatable({}, { __mode = "k" })
   local INITIAL = { { 120, 160, 230 }, { 230, 140, 110 }, { 120, 190, 140 }, { 190, 130, 210 }, { 220, 180, 90 } }
   local function picture(pic, x, y, size, ring, name)

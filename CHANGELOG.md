@@ -28,6 +28,8 @@ All notable changes to this mod are documented here, in
   over frosted glass, the screen blurred behind it, with the time at its top. Swipe a notification
   left or right to clear it, or Clear to clear them all; push it back up by its handle. Pulling it
   down works on the PC too.
+- **The Phone (Emerald):** every contact has a picture. Mom, Scott and Mr. Stone have original
+  sprites by Wooble, and Prof. Birch appears as the game's opening shows him.
 - **Phone calls (Emerald)** read like a chat: the caller's picture, name and a running timer in a
   header, their words in message bubbles that type themselves out after a "…" bubble (A shows the
   rest at once), a waveform while they talk, and a round red button to hang up.

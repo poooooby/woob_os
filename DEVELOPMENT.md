@@ -620,7 +620,10 @@ Clean room: the idea of a 3D region map (TERRARIUM's for Gen 1) and none of its 
   requests, flags), made text through the PokéNav's `Screen.messageIr` and `TextIR.toPlain`.
   Indoors the game answers `gText_CallCantBeMadeHere`. Ruby / Sapphire: `rs.pokenav.data`
   `trainersEyes` with `Gfx.manifest("pokenav_detail")`'s descriptions, `canCall = false`. Pictures:
-  `trainer_pic.front(pic)`. Recents (30) and favourites in `mod.save` "phone".
+  `trainer_pic.front(pic)`. Emerald's special contacts with none (`entryTrainerPic` -1), picked by
+  their header's name text (`OWN_PIC`): Mom, Scott and Mr. Stone are `assets/mom.png`,
+  `scott.png` and `mrstone.png` (Wooble's, through `deps.image`), Prof. Birch the new-game speech's
+  (`rse.scene_kit`'s `Kit.manifest("birch").pics.birch`). Anyone still without one gets their initial. Recents (30) and favourites in `mod.save` "phone".
 - **A call's screen** (`src/apps/phone.lua` `drawCall`): `DIAL` seconds ringing, then the picture
   moves up into the header over `SHRINK`. The words (the caller's own "NAME:" taken off the front)
   are cut at the game's pages (`toPlain` joins them with a blank line) into bubbles of at most four

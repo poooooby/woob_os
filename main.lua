@@ -688,7 +688,10 @@ return function(mod)
   end
   -- the PokéNav's apps: the Phone (its contacts, the game's calls, recents and favourites in the
   -- save) and Condition (the contest conditions, the Pokéblock case)
-  if makePhone then env.phone = makePhone(engine, { save = mod.save, now = os.time, notify = notify }) end
+  if makePhone then
+    env.phone = makePhone(engine, { save = mod.save, now = os.time, notify = notify,
+                                    image = function(path) return mod.assets:image(path) end })
+  end
   if makeCondition and env.bx then env.condition = makeCondition(engine, { bx = env.bx }) end
   if makeHall then env.hall = makeHall(engine) end
   if makeOak then env.oak = makeOak(engine) end

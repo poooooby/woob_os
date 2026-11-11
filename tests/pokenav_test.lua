@@ -159,6 +159,18 @@ if EMERALD then
   local rox
   for _, c in ipairs(list) do if c.name:upper():find("ROXANNE") then rox = c end end
   T.check(rox and rox.desc ~= "" and rox.pic >= 0 and rox.canCall, "Roxanne: her class, her picture, a call")
+  -- (Mom, the Professor, Scott and Mr. Stone: the game has no picture for them, so ours)
+  setFlag("FLAG_ENABLE_PROF_BIRCH_MATCH_CALL")
+  setFlag("FLAG_ENABLE_SCOTT_MATCH_CALL")
+  local own, none = {}, {}
+  for _, c in ipairs(Ph.contacts(s)) do
+    own[c.pic] = c.name
+    if c.pic == -1 then none[#none + 1] = c.name end
+  end
+  T.check(own.mom and own.birch and own.scott and own.stone and #none == 0,
+    "Mom, Prof. Birch, Scott and Mr. Stone get pictures of their own (none left without: "
+    .. table.concat(none, ", ") .. ")")
+  T.check(Ph.picture(-1) == nil and Ph.picture("nobody") == nil, "no picture for nobody")
   if rox then
     local text, ok = Ph.call(s, rox)
     T.check(ok and type(text) == "string" and #text > 4, "a call: the game's words (" .. tostring(text):sub(1, 40) .. ")")
