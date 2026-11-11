@@ -701,5 +701,6 @@ return {
     ["type.15"] = "Hielo",
     ["type.16"] = "Dragón",
     ["type.17"] = "Siniestro",
+    ["news.breaking"] = "ÚLTIMA HORA",
   },
 }

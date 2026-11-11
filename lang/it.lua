@@ -701,5 +701,6 @@ return {
     ["type.15"] = "Ghiaccio",
     ["type.16"] = "Drago",
     ["type.17"] = "Buio",
+    ["news.breaking"] = "ULTIM'ORA",
   },
 }

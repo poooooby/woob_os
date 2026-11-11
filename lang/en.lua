@@ -713,5 +713,6 @@ return {
     ["type.15"] = "Ice",
     ["type.16"] = "Dragon",
     ["type.17"] = "Dark",
+    ["news.breaking"] = "BREAKING NEWS",
   },
 }

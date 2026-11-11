@@ -701,5 +701,6 @@ return {
     ["type.15"] = "Glace",
     ["type.16"] = "Dragon",
     ["type.17"] = "Ténèbres",
+    ["news.breaking"] = "FLASH SPÉCIAL",
   },
 }

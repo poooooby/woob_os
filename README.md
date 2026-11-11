@@ -191,7 +191,9 @@ opens a desktop in a sleek monitor instead of a text menu.
   up to ₽999,999,999, and a notification tells you how much. Deposit and withdraw any time: Left and
   Right pick a digit and Up and Down change it, or tap +1,000, +10,000, +100,000 or All. What you keep
   earns a little interest each day (a tenth of a percent, up to ₽5,000 a day, for up to a week away).
-  The activity list shows every deposit, withdrawal, overflow and interest payment.
+  The activity list shows every deposit, withdrawal, overflow and interest payment. It's a private
+  bank at night: a deep green card with a gold chip and a sheen sweeping across it, the balance
+  counting up, a ring for how full your wallet is, and coins flying between them as money moves.
 - 👟 **Errands:** send your Pokémon out to work. Three jobs are posted every six hours (a delivery
   round, a dig in the mine, Berry picking, a ferry escort, the power plant, a bakery, the library, a
   night patrol), each one, four or eight hours long. Pick a team of up to three from your party and
@@ -199,19 +201,25 @@ opens a desktop in a sleek monitor instead of a text menu.
   (they level up and learn their moves, as at the Day Care). Each job favours some types and has a
   level in mind: a star marks the Pokémon that suit it, and a team that fits earns a Great or Good
   grade and more pay. Up to three teams can be out at once. A notification tells you when one is
-  back; Collect brings them home. Call Back brings a team home early with nothing.
+  back; Collect brings them home. Call Back brings a team home early with nothing. The board is a
+  dusk sky with drifting clouds; each job lights up in its own colour, its types in theirs, and a
+  team out walks its dotted route toward the flag, with a medal and confetti when they're back.
 - 🏅 **Challenges:** five goals every week (Monday to Sunday), counted from how you really play:
   beat trainers, win wild battles, catch Pokémon (of a type, new to your Pokédex, or from today's
   swarm), hatch an Egg, evolve, level up, use items, walk, visit places. Goals grow with your
   badges. Each pays money or items, and claiming all five earns the week's bonus. A notification and
-  a count on the icon tell you when one's done.
+  a count on the icon tell you when one's done. They sit under a twinkling night sky: a gold ring
+  fills as you claim them, the bars ease up and shimmer, a finished goal glows with a Claim button
+  that bursts into confetti, and the week's bonus is a treasure chest that opens when it's ready.
 - 📰 **News:** the day's stories, read live by the game's own reporter in the WoobOS News studio,
   with the headlines crawling along the ticker. World stories: today's swarm (a species appearing all
   over one route, for real: go there and you'll find it, at that route's levels), Ruby, Sapphire and
   Emerald's own TV outbreaks, Emerald's great storms, and R-Bay's hottest auction. Your stories: your
   week so far, and what's happened since you last watched (new Pokédex entries, a shiny, an Egg
   hatching, an evolution, a trainer beaten, a new badge, a GTS trade), your teams on errands and
-  your challenges. A shows the rest of a story, then the next. A new swarm each day sends a
+  your challenges. Each story slides in on a dark broadcast panel with its picture in a spotlight,
+  the words typing out behind a caret; the swarm, outbreaks and storms come with a red BREAKING NEWS
+  banner. A shows the rest of a story, then the next. A new swarm each day sends a
   notification that opens the News on it.
 - 🕹️ **PC Games:** with the PC Games mod installed, its games (Solitaire, Snake, Tetris, Blackjack,
   Collapse, Minesweeper and PokePet) get an icon on the desktop and on WoobPad and fill the screen, sharp
