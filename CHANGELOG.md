@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-11-11
+
 ### Added
 - **News:** Rookie Watch, sports-style coverage of you as a rookie on the rise, newest first: your
   latest Gym (the score, the turns and a play-by-play of every knockout, turn by turn, to the
