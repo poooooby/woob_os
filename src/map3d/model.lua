@@ -814,6 +814,11 @@ return function(engine, deps)
     if not p then return 0 end
     return p.m, p.fresh
   end
+  -- (a region let go: the next M.region builds it again)
+  function M.forget(id)
+    local game = deps.gameId and deps.gameId() or ""
+    built[game .. ":" .. tostring(id)] = nil
+  end
   function M.toScale()
     return deps.world ~= nil and type(deps.maps and deps.maps()) == "table"
   end

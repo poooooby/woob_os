@@ -510,6 +510,7 @@ return {
     ["map.landmark"] = "Lieu-dit",
     ["map.loading"] = "Chargement de la carte",
     ["map.loadingFirst"] = "Construite une fois à partir des cartes du jeu, puis ouverte aussitôt",
+    ["map.problem"] = "La carte 3D a rencontré un problème sur cet appareil",
     ["map.route"] = "Route",
     ["map.hint.flat"] = "Plat",
     ["map.hint.3d"] = "3D",

@@ -511,6 +511,7 @@ return {
     ["map.landmark"] = "Ort",
     ["map.loading"] = "Karte wird geladen",
     ["map.loadingFirst"] = "Einmal aus den Karten des Spiels gebaut, danach sofort da",
+    ["map.problem"] = "Die 3D-Karte hatte auf diesem Gerät ein Problem",
     ["map.route"] = "Route",
     ["map.hint.flat"] = "Flach",
     ["map.hint.3d"] = "3D",

@@ -510,6 +510,7 @@ return {
     ["map.landmark"] = "Luogo",
     ["map.loading"] = "Caricamento della mappa",
     ["map.loadingFirst"] = "Creata una volta dalle mappe del gioco, poi si apre subito",
+    ["map.problem"] = "La mappa 3D ha avuto un problema su questo dispositivo",
     ["map.route"] = "Percorso",
     ["map.hint.flat"] = "Piatta",
     ["map.hint.3d"] = "3D",

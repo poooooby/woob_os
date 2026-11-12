@@ -24,7 +24,7 @@
 --                 images = { [name] = { w, h, bytes | data (an ImageData, read as it's written) } },
 --                 art = { size, lv } | nil }
 --   Mc.readDrawing(dir, index) -> { meshes = { { slot, fmt, n, ni, v = Data, i = Data | nil } },
---                                   images = { [name] = { w, h, bytes } }, art } | nil
+--                                   images = { [name] = { w, h, bytes } }, art } | nil, why
 --   Mc.forget(dir): its index deleted (built afresh next time)
 
 local floor, max, min = math.floor, math.max, math.min
@@ -294,31 +294,34 @@ return function(deps)
   -- ------- reading the drawing back (the index from readWorld)
 
   function Mc.readDrawing(dir, idx, breathe)
-    if not (idx and cache and cache.read and D and D.decompress and D.newDataView) then return nil end
+    if not (idx and cache and cache.read and D and D.decompress and D.newDataView) then return nil, "no love.data" end
     local breathe0 = breathe or function() end
     local okR, packed = pcall(cache.read, cache, dir .. "/meshes.bin")
-    if not (okR and type(packed) == "string") then return nil end
+    if not (okR and type(packed) == "string") then return nil, "meshes.bin unread: " .. tostring(packed) end
     local okD, blob = pcall(D.decompress, "data", "lz4", packed)
     packed = nil
-    if not (okD and blob and blob:getSize() == idx.meshBytes) then return nil end
+    if not (okD and blob) then return nil, "meshes.bin: " .. tostring(blob) end
+    if blob:getSize() ~= idx.meshBytes then return nil, "meshes.bin: " .. blob:getSize() .. " bytes, not " .. tostring(idx.meshBytes) end
     breathe0()
     local out = { meshes = {}, images = {}, art = idx.art, blob = blob }
     for _, e in ipairs(idx.meshes or {}) do
       local okV, v = pcall(D.newDataView, blob, e.vo, e.vl)
-      if not okV then return nil end
+      if not okV then return nil, "a mesh's view: " .. tostring(v) end
       local i
       if e.io then
         local okI, iv = pcall(D.newDataView, blob, e.io, e.il)
-        if not okI then return nil end
+        if not okI then return nil, "a mesh's map: " .. tostring(iv) end
         i = iv
       end
       out.meshes[#out.meshes + 1] = { slot = e.slot, fmt = e.fmt, n = e.n, ni = e.ni, v = v, i = i }
     end
     for name, im in pairs(idx.images or {}) do
       local okP, p = pcall(cache.read, cache, dir .. "/" .. name .. ".bin")
-      if not (okP and type(p) == "string") then return nil end
+      if not (okP and type(p) == "string") then return nil, name .. ".bin unread: " .. tostring(p) end
       local okU, bytes = pcall(D.decompress, "string", "lz4", p)
-      if not (okU and type(bytes) == "string" and #bytes == im.size) then return nil end
+      if not (okU and type(bytes) == "string" and #bytes == im.size) then
+        return nil, name .. ".bin: " .. tostring(okU and (type(bytes) == "string" and #bytes .. " bytes" or type(bytes)) or bytes)
+      end
       out.images[name] = { w = im.w, h = im.h, bytes = bytes }
       breathe0()
     end

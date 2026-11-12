@@ -522,6 +522,7 @@ return {
     ["map.landmark"] = "Landmark",
     ["map.loading"] = "Loading the map",
     ["map.loadingFirst"] = "Built once from your game's maps, then it opens at once",
+    ["map.problem"] = "The 3D map had a problem on this device",
     ["map.route"] = "Route",
     ["map.hint.flat"] = "Flat",
     ["map.hint.3d"] = "3D",

@@ -511,6 +511,7 @@ return {
     ["map.landmark"] = "めいしょ",
     ["map.loading"] = "マップを よみこみちゅう",
     ["map.loadingFirst"] = "いちどだけ ゲームの マップから つくります",
+    ["map.problem"] = "この きかいで 3D マップに もんだいが ありました",
     ["map.route"] = "どうろ",
     ["map.hint.flat"] = "ひらたく",
     ["map.hint.3d"] = "3D",

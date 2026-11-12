@@ -674,7 +674,11 @@ the voxel diorama mod in the engine's checkout either (another author's).
     device has it (`HIGHP`), and no uniform is declared in both stages (a precision mismatch fails to
     link: 0.10.1's `uEye` broke the map on an AYN Thor; the pixel stage's distance comes in a varying,
     `vRel`). A shader that won't compile is tried again without the art (`shaderSource(false)`,
-    `ART_NONE`): the map in 3D all the same, never the flat fallback for that.
+    `ART_NONE`): the map in 3D all the same, never the flat fallback for that. Whatever went wrong
+    (the shader's compile log, a job's error, why a kept drawing couldn't be read) is `R.problem()`,
+    shown on the map 12 s (scene.lua `drawProblem`, words `map.problem`): a device's failure read off a
+    screenshot. A kept drawing that can't be read sets `region.keptFailed`; the scene has the model
+    `forget` the region and builds it again behind the bar.
   - **The scene and the model**: places are the Town Map's sections, each one's cells the rectangles of
     its maps (`{ x, z, w, h }`), a door's small square for a section with no map of its own, and a place
     for a section the grid doesn't draw; the player's position exact in any of them (`inWorld`: the

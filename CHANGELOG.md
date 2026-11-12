@@ -5,6 +5,14 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Fixed
+- **3D map:** a map kept from an earlier session that can't be read back on a device is built again
+  there and then, the loading bar meanwhile, instead of the map left as coarse squares.
+
+### Added
+- **3D map:** when the map can't be drawn as it should on a device, a card at the top of the map says
+  why for a few seconds, in the device's own words, so it can be reported.
+
 ## [0.10.2] - 2026-11-11
 
 ### Fixed

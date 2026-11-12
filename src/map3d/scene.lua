@@ -87,6 +87,7 @@ return function(ctx, env, opts)
     touch = {}, nTouch = 0, rect = { x = 0, y = 0, w = 1, h = 1 }, flyMon = nil, flyWhy = nil, three = false,
     storm = { on = false, kind = nil, place = nil, x = 0, z = 0, tx = 0, tz = 0, grow = 0 },
     wx = {}, wxBy = {}, wxRegion = nil,
+    problem = nil, problemLines = nil, problemAt = nil,
   }
   W.state = st
 
@@ -1051,6 +1052,42 @@ return function(ctx, env, opts)
     end
   end
 
+  -- why the map couldn't be drawn in 3D (render.lua's R.problem: the GPU's or the engine's own words),
+  -- for a while after it's first seen, so a device's failure can be read off the screen. Its lines made
+  -- once, when the words change
+  local PROBLEM_FOR = 12
+  local function drawProblem(body, clock)
+    local why = Rd.problem and Rd.problem()
+    if not why then return end
+    local w = min(220, body[3] - M * 4)
+    if why ~= st.problem then
+      st.problem, st.problemAt = why, clock
+      local lines, line = {}, ""
+      local flat = why:gsub("%s+", " ")
+      for word in flat:gmatch("%S+") do
+        local try = line == "" and word or (line .. " " .. word)
+        if K.width(try, 3.4) > w - 10 and line ~= "" then
+          lines[#lines + 1] = line
+          line = word
+          if #lines == 3 then break end
+        else
+          line = try
+        end
+      end
+      if #lines < 3 and line ~= "" then lines[#lines + 1] = line end
+      st.problemLines = lines
+    end
+    if clock - st.problemAt > PROBLEM_FOR then return end
+    local lines = st.problemLines
+    local h = 11 + #lines * 4.6
+    local b = K.R(body[1] + (body[3] - w) / 2, body[2] + M + 16, w, h)
+    glass(b, 5, 0.55)
+    K.bold(T("map.problem"), b[1] + 5, b[2] + 3, 4.4, WHITE)
+    for i = 1, #lines do
+      K.text(lines[i], b[1] + 5, b[2] + 4 + i * 4.6, 3.4, SOFT)
+    end
+  end
+
   -- the region's capsule (top left; tap: the next), "Fly to where?" (Fly), "you" and the compass
   -- (top right: back to the player; north up)
   local function drawChips(body)
@@ -1125,6 +1162,20 @@ return function(ctx, env, opts)
       end
     end
     if not st.region then return end
+    -- (its drawing kept on disk couldn't be read here: built afresh, the bar meanwhile)
+    if st.region.keptFailed and st.region.world then
+      local r, ri = st.region, st.ri
+      r.keptFailed = nil
+      local p = place()
+      if Mdl.forget then
+        Mdl.forget(r.id)
+        whenReady(r.id, function()
+          setRegion(ri, p and p.id or nil)
+          aim(true)
+        end)
+        if st.loading then return end
+      end
+    end
     if clock - st.liveAt >= 1 or clock < st.liveAt then
       st.liveAt = clock
       refreshLive()
@@ -1154,6 +1205,7 @@ return function(ctx, env, opts)
     drawLabel()
     local compact = body[3] < 150 or body[4] < 110
     drawChips(body)
+    drawProblem(body, clock)
     st.cardLift = 0
     drawCard(body, compact)
     if st.toast and not K.toast(st.toast, clock, K.R(body[1], body[2], body[3], body[4] - 34 - (opts.footer or 0)),

@@ -1348,22 +1348,23 @@ return function(deps)
   local function keptMeshes(G, region)
     local c = region.cache
     local LI = love and love.image
-    if not (Mc and LI and LI.newImageData) then return nil end
+    if not (Mc and LI and LI.newImageData) then return nil, "no love.image" end
     rbreathe("kept")
-    local got = Mc.readDrawing(c.dir, c.kept, rbreathe)
-    if not got then return nil end
+    local got, why = Mc.readDrawing(c.dir, c.kept, rbreathe)
+    if not got then return nil, why end
     if rprog then rprog.r = 0.35 end
     local function imageData(name)
       local im = got.images[name]
       if not im then return nil end
       local ok, data = pcall(LI.newImageData, im.w, im.h, "rgba8", im.bytes)
       im.bytes = nil
+      if not ok then why = name .. ": " .. tostring(data) end
       return ok and data or nil
     end
     local picData = imageData("picture")
     local img = picData and pictureImage(G, picData)
     if picData then pcall(picData.release, picData) end
-    if not img then return nil end
+    if not img then return nil, why or "the picture's image" end
     rbreathe()
     local m = { ground = {}, water = {}, slab = slabMesh(G, region), picture = img }
     local iData, aData = imageData("index"), imageData("atlas")
@@ -1377,10 +1378,13 @@ return function(deps)
     rbreathe()
     for n, e in ipairs(got.meshes) do
       local ok, mesh = pcall(G.newMesh, e.fmt == "V" and FORMAT or FORMAT_W, e.n, "triangles", "static")
-      if not (ok and mesh) then return nil end
-      local okV = pcall(mesh.setVertices, mesh, e.v)
-      if not okV then return nil end
-      if e.i and not pcall(mesh.setVertexMap, mesh, e.i, "uint32") then return nil end
+      if not (ok and mesh) then return nil, "a mesh: " .. tostring(mesh) end
+      local okV, errV = pcall(mesh.setVertices, mesh, e.v)
+      if not okV then return nil, "a mesh's vertices: " .. tostring(errV) end
+      if e.i then
+        local okI, errI = pcall(mesh.setVertexMap, mesh, e.i, "uint32")
+        if not okI then return nil, "a mesh's map: " .. tostring(errI) end
+      end
       if e.slot == "ground" then
         pcall(mesh.setTexture, mesh, img)
         m.ground[#m.ground + 1] = mesh
@@ -1692,6 +1696,10 @@ return function(deps)
 
   -- ------- the shader, the canvas and the draw
 
+  -- (why the map couldn't be drawn in 3D, in the GPU's or the engine's own words: shown on the map so a
+  -- device's failure can be read off it)
+  local problem = nil
+  function R.problem() return problem end
   local shader, shaderTried = nil, false
   local function getShader(G)
     if shaderTried then return shader end
@@ -1702,10 +1710,16 @@ return function(deps)
     if not ok then
       -- (the tiles' art left out where the GPU won't take it: the map in 3D all the same)
       if deps.log then deps.log("the map's shader with the tiles' art failed: %s", tostring(s)) end
+      problem = "the tiles' art (the map drawn without it): " .. tostring(s)
       ok, s = pcall(G.newShader, shaderSource(false))
     end
     if PROFILE and deps.log then deps.log("map shader compiled in %.0f ms", (rclock() - t0) * 1000) end
-    if ok then shader = s elseif deps.log then deps.log("the map's shader failed: %s", tostring(s)) end
+    if ok then
+      shader = s
+    else
+      problem = "the shader: " .. tostring(s)
+      if deps.log then deps.log("the map's shader failed: %s", tostring(s)) end
+    end
     return shader
   end
 
@@ -1721,10 +1735,15 @@ return function(deps)
         local mm
         local c = region.cache
         if c and c.kept then
-          mm = keptMeshes(G, region)
+          local why
+          mm, why = keptMeshes(G, region)
           if not mm then
-            if deps.log then deps.log("the kept map is unreadable: built afresh next time") end
+            -- (unreadable here: let go, and the region built afresh (src/map3d/scene.lua sees
+            -- region.keptFailed and has the model build it again))
+            problem = "the kept map: " .. tostring(why)
+            if deps.log then deps.log("the kept map is unreadable: %s", tostring(why)) end
             if Mc then Mc.forget(c.dir) end
+            region.keptFailed = true
           end
         else
           mm = worldMeshes(G, region)
@@ -1742,6 +1761,7 @@ return function(deps)
     local ok, err = coroutine.resume(job)
     rprog = nil
     if not ok then
+      problem = "the meshes: " .. tostring(err)
       if deps.log then deps.log("the map's meshes failed: %s", tostring(err)) end
       meshesOf[region] = false
     end
