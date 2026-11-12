@@ -22,6 +22,7 @@
 --   src/notify.lua                      the notifications (R-Bay, the GTS): a list and banners
 --   src/map3d/model.lua, render.lua, scene.lua, towns.lua   the region in 3D (from the game's Town
 --                                       Map), its drawing, its window (the Map app), its towns' buildings
+--   src/map3d/world.lua, cache.lua      the region built to scale from the game's maps; kept on disk
 --   src/townmap.lua                     the full-screen host: the 3D Town Map, the PokéNav's apps
 --   src/phone.lua, src/apps/phone.lua   the Phone: the PokéNav's Match Call / Trainer's Eyes contacts
 --   src/condition.lua, src/apps/condition.lua   Condition: the contest conditions, Pokéblocks
@@ -77,6 +78,7 @@ return function(mod)
   local makeMapModel, makeMapRender = loadSibling(mod, "src/map3d/model.lua"), loadSibling(mod, "src/map3d/render.lua")
   local mapScene, makeTownMap = loadSibling(mod, "src/map3d/scene.lua"), loadSibling(mod, "src/townmap.lua")
   local makeTowns, makeWorld = loadSibling(mod, "src/map3d/towns.lua"), loadSibling(mod, "src/map3d/world.lua")
+  local makeMapCache = loadSibling(mod, "src/map3d/cache.lua")
   local makePhone, phoneWindow = loadSibling(mod, "src/phone.lua"), loadSibling(mod, "src/apps/phone.lua")
   local makeCondition, conditionWindow = loadSibling(mod, "src/condition.lua"), loadSibling(mod, "src/apps/condition.lua")
   local makeRibbons, ribbonsWindow = loadSibling(mod, "src/ribbons.lua"), loadSibling(mod, "src/apps/ribbons.lua")
@@ -677,12 +679,18 @@ return function(mod)
     end
     -- (Ruby / Sapphire / Emerald: Hoenn built to scale from those maps)
     local World = makeWorld and makeWorld(engine, { maps = mapDefs }) or nil
-    local Model = makeMapModel(engine, { pixels = pixels, gameId = gameId, maps = mapDefs, world = World, log = warn })
+    -- (a region built to scale kept on disk: the next start reads it back instead of building it)
+    local Version = engine("src.core.Version")
+    local MapCache = makeMapCache and mod.cache and makeMapCache({
+      cache = mod.cache, loadData = T and T.loadData, version = version, engine = Version and Version.engine,
+      data = love and love.data, log = warn }) or nil
+    local Model = makeMapModel(engine, { pixels = pixels, gameId = gameId, maps = mapDefs, world = World, log = warn,
+                                         mapCache = MapCache })
     local Towns = makeTowns and makeTowns() or nil
     env.map3d = {
       model = Model,
       towns = Towns,
-      render = makeMapRender({ log = warn, towns = Towns }),
+      render = makeMapRender({ log = warn, towns = Towns, mapCache = MapCache }),
       clock = function()
         local Rtc = engine("src.core.game3.rtc")
         if not (Rtc and Rtc.hostInfo) then return 12, 0 end

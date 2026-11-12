@@ -44,11 +44,12 @@ local function layout(w, h, cell, border)
   return L
 end
 
--- Littleroot: ground; a house (rows 4-7, cols 4-8; its door at 6, 8); the sea along its foot
+-- Littleroot: ground; a house (rows 4-7, cols 4-8; its door at 6, 8) and another built against it
+-- (cols 9-13, its door at 11, 8); the sea along its foot
 local town = layout(20, 20, function(x, y)
   if y >= 17 then return 41, SEA end
-  if x == 6 and y == 8 then return 113, GROUND end
-  if x >= 4 and x <= 8 and y >= 4 and y <= 8 then return 7, WALL end
+  if (x == 6 or x == 11) and y == 8 then return 113, GROUND end
+  if x >= 4 and x <= 13 and y >= 4 and y <= 8 then return 7, WALL end
   return 0, GROUND
 end)
 -- Route 101: a field up top (rows 0-9, a lake in it), a band of rock (rows 10-15), the lowland below;
@@ -68,7 +69,8 @@ end)
 local maps = {
   EM_LITTLEROOT_TOWN = { mapType = 1, midLayout = town, pair = "test", regionMapSectionId = 0,
     connections = { { dir = "north", map = "EM_ROUTE101", offset = 0 } },
-    warps = { { x = 6, y = 8, destMap = "EM_LITTLEROOT_TOWN_BRENDANS_HOUSE_1F", destWarp = 1 } } },
+    warps = { { x = 6, y = 8, destMap = "EM_LITTLEROOT_TOWN_BRENDANS_HOUSE_1F", destWarp = 1 },
+              { x = 11, y = 8, destMap = "EM_LITTLEROOT_TOWN_MAYS_HOUSE_1F", destWarp = 1 } } },
   EM_ROUTE101 = { mapType = 3, midLayout = route, pair = "test", regionMapSectionId = 16,
     connections = { { dir = "south", map = "EM_LITTLEROOT_TOWN", offset = 0 } },
     warps = { { x = 19, y = 30, destMap = "EM_ROUTE102_GATE", destWarp = 1 } } },
@@ -78,6 +80,7 @@ local maps = {
   EM_ROUTE102_GATE = { mapType = 8, warps = { { x = 0, y = 4, destMap = "EM_ROUTE101", destWarp = 1 },
                                               { x = 9, y = 4, destMap = "EM_ROUTE102", destWarp = 1 } } },
   EM_LITTLEROOT_TOWN_BRENDANS_HOUSE_1F = { mapType = 8, warps = { { x = 3, y = 7, destMap = "EM_LITTLEROOT_TOWN", destWarp = 1 } } },
+  EM_LITTLEROOT_TOWN_MAYS_HOUSE_1F = { mapType = 8, warps = { { x = 3, y = 7, destMap = "EM_LITTLEROOT_TOWN", destWarp = 2 } } },
 }
 
 local function engine(name)
@@ -86,8 +89,13 @@ local function engine(name)
   local ok, m = pcall(require, name)
   return ok and m or nil
 end
+-- (the tileset's own pixels, for the map's art at full size: the ground's bottom layer all colour 1, its
+-- top layer colour 2 in its first pixel; the wall see-through in both)
+local PIX = { under = string.rep("\1", 256) .. string.rep("\0", 256), uOff = 1, uSlot = { [GROUND] = 0, [WALL] = 1 },
+              over = "\2" .. string.rep("\0", 255), oOff = 1, oSlot = { [GROUND] = 0 },
+              LR = { [1] = 10, [2] = 200 }, LG = { [1] = 20, [2] = 100 }, LB = { [1] = 30, [2] = 50 } }
 local Wd = assert(loadfile(MOD .. "/src/map3d/world.lua"))()(engine, {
-  maps = function() return maps end, art = function() return ART end })
+  maps = function() return maps end, art = function() return ART end, pixels = function() return PIX end })
 local C, H = Wd.C, Wd.H
 
 -- ------- placing the maps
@@ -111,17 +119,37 @@ T.eq(world.cls[k(10, 18)], C.SEA, "the sea")
 T.eq(world.cls[k(10, 12)], C.GROUND, "the town's ground")
 T.eq(world.cls[k(5, -28)], C.ROCK, "Route 101's band of rock")
 T.eq(world.cls[k(9, -37)], C.POND, "the lake up on the field")
-local door
-for _, d in ipairs(world.doors) do if d.map == "EM_LITTLEROOT_TOWN" then door = d end end
+local door, door2
+for _, d in ipairs(world.doors) do
+  if d.map == "EM_LITTLEROOT_TOWN" and d.x == 6 then door = d end
+  if d.map == "EM_LITTLEROOT_TOWN" and d.x == 11 then door2 = d end
+end
 T.check(door and door.kind == "house" and door.x == 6 and door.y == 8, "the house's door, a house's kind")
 local f = door and door.foot
 T.check(f and f.x0 == 4 and f.y0 == 4 and f.x1 == 9 and f.y1 == 9,
   "its footprint: the block above and beside the door (" .. (f and (f.x0 .. "," .. f.y0 .. "-" .. f.x1 .. "," .. f.y1) or "-") .. ")")
 T.eq(world.cls[k(5, 5)], C.BUILDING, "the house's tiles a building")
+local f2 = door2 and door2.foot
+T.check(f2 and not door2.shares and f2.x0 == 9 and f2.x1 == 14,
+  "the house built against it a building of its own, from halfway between their doors (" ..
+  (f2 and (f2.x0 .. "-" .. f2.x1) or (door2 and door2.shares and "shares" or "-")) .. ")")
 -- (the gap east of Route 101, closed in by Route 102 and the town: filled from a border)
 local filled = 0
 for kk = 1, world.cols * world.rows do if world.filled[kk] then filled = filled + 1 end end
 T.check(filled > 0, "the gaps filled from the maps' borders (" .. filled .. " tiles)")
+
+-- ------- the tiles' own art, full size (the map's near view)
+do
+  local px, pi = {}, world.pix[k(10, 12)]
+  local ok = world.tile(pi, GROUND, px)
+  T.check(ok and #px == 768, "a tile's art: 16 x 16, three numbers a pixel (" .. #px .. ")")
+  T.check(px[1] == 200 and px[2] == 100 and px[3] == 50 and px[4] == 10 and px[5] == 20 and px[6] == 30
+    and px[766] == 10, "the top layer over the bottom, the bottom where the top is see-through")
+  T.check(world.tile(pi, WALL, px) and px[1] == 230 and px[2] == 220 and px[3] == 200,
+    "see-through in both layers: the tile's mean colour")
+  T.check(world.tile(pi, ROCK, px) == false and world.tile(99, GROUND, px) == false,
+    "no art for a metatile or a tileset it doesn't have")
+end
 
 -- ------- heights
 
@@ -246,5 +274,59 @@ T.check(g1 and sevii.cls[kk(sevii, 8, -2)] == Fr.C.ROCK, "One Island's mountain 
 T.check(sevii and not sevii.grown[kk(sevii, 8, -18)] and Fr.WATER[sevii.cls[kk(sevii, 8, -18)] or Fr.C.SEA],
   "only so far: the sea past it")
 T.check(sevii and not sevii.grown[kk(sevii, 0, -6)] or false, "rounded off: its corners not grown as far")
+
+-- ------- kept on disk (src/map3d/cache.lua): the maps' fingerprint, the outline and terrain read back
+do
+  local fp1, fp2 = Wd.fingerprint(), Wd.fingerprint()
+  T.check(type(fp1) == "string" and fp1 == fp2, "the maps' fingerprint: the same maps, the same (" .. tostring(fp1) .. ")")
+  local was = town.midAt
+  function town:midAt(x, y)
+    if x == 3 and y == 3 then return ROCK end
+    return was(self, x, y)
+  end
+  local fp3 = Wd.fingerprint()
+  town.midAt = was
+  T.check(fp3 ~= fp1, "one tile changed: another fingerprint")
+  T.check(Wd.fingerprint() == fp1, "and back")
+
+  -- (an in-memory mod.cache; love.data stood in for: compressing is a copy)
+  local files = {}
+  local fakeCache = {
+    write = function(_, rel, bytes) files[rel] = bytes return true end,
+    read = function(_, rel) return files[rel] end,
+    delete = function(_, rel) files[rel] = nil return true end,
+  }
+  local function loadData(src)
+    local chunk = loadstring(src)
+    return chunk and chunk() or nil
+  end
+  local fakeData = { compress = function(_, _, b) return b end }
+  local Mc = assert(loadfile(MOD .. "/src/map3d/cache.lua"))()({ cache = fakeCache, loadData = loadData,
+    version = "9.9.9", engine = "1.0", data = fakeData })
+  local stamp = Mc.stamp(fp1)
+  T.check(stamp and stamp:find(fp1, 1, true) and stamp:find("9.9.9", 1, true), "the stamp: the version and the maps")
+  local world = Wd.build()
+  local t, step = Wd.terrain(world)
+  local dir = Mc.dir("emerald", "hoenn")
+  local ok, err = Mc.write(dir, stamp, { world = world, terrain = t, step = step, meshes = {}, images = {} })
+  T.check(ok, "written (" .. tostring(err) .. ")")
+  T.check(files[dir .. "/world.lua"] and files[dir .. "/terrain.bin"], "its index and its terrain")
+  local got = Mc.readWorld(dir, stamp)
+  T.check(got and got.world.cols == world.cols and got.world.rows == world.rows and got.world.x0 == world.x0
+    and #got.world.maps == #world.maps and #got.world.doors == #world.doors, "read back: the world's box, maps and doors")
+  local m0 = world.maps[1]
+  local m1 = got and got.world.byId[m0.id]
+  T.check(m1 and m1.x == m0.x and m1.y == m0.y and m1.w == m0.w and m1.sec == m0.sec, "a map's place, by its name")
+  local same = got and got.terrain.cols == t.cols and got.terrain.rows == t.rows and got.step == step
+  for q = 1, t.cols * t.rows do
+    if not same then break end
+    local a, b = got.terrain, t
+    if math.abs(a.h[q] - b.h[q]) > 1e-4 or a.kind[q] ~= b.kind[q] or math.abs(a.r[q] - b.r[q]) > 0.003 then same = false end
+  end
+  T.check(same, "the terrain: every sample's height, colour and kind")
+  T.check(Mc.readWorld(dir, Mc.stamp(fp3)) == nil, "another stamp (the maps changed): not read")
+  Mc.forget(dir)
+  T.check(Mc.readWorld(dir, stamp) == nil, "forgotten: not read")
+end
 
 T.finish("woob_os world3d (" .. GAME .. ")")

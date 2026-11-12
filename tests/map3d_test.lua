@@ -359,7 +359,7 @@ do
   W.scroll(-40)
   T.check(st.goal.dist > 2.4, "the wheel out from the close-up")
   W.scroll(400)
-  T.check(st.goal.dist >= 2 - 1e-6 and st.goal.dist < 2.4, "the wheel in: to just past the close-up (" .. st.goal.dist .. ")")
+  T.check(st.goal.dist >= 1.4 - 1e-6 and st.goal.dist < 2.4, "the wheel in: on past the close-up (" .. st.goal.dist .. ")")
   W.input(input({ "a" }), NONE)
   T.eq(st.zoom, 1, "A after the close-up: the whole region again")
 end

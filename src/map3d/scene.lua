@@ -34,8 +34,9 @@ local PITCH_MIN, PITCH_MAX = 0.42, 1.38
 -- a close-up of the place itself (a town is one Town Map cell: a fixed distance, a lower angle)
 local ZOOMS = 4
 local CLOSE_DIST, CLOSE_PITCH = 2.4, 0.62
-local MIN_DIST = 2                   -- the wheel and two fingers stop here
+local MIN_DIST = 1.4                 -- the wheel and two fingers stop here (the tiles' art close)
 local SNAP = 1.1        -- let go this near a town or a landmark (units): the cursor glides onto it
+local LOAD_SLICE = 0.012   -- seconds a frame given to building a region while its bar shows
 local GLIDE = 11        -- how fast it glides (per second)
 local M = 3
 
@@ -54,6 +55,7 @@ local HINTS = {
   town = { { "+", "map.hint.go" }, { "L R", "map.hint.turn" }, { "A", "map.hint.zoom" }, { "SELECT", "map.hint.flat" },
            { "START", "map.classic" },
            { "B", "hint.back" } },
+  loading = { { "B", "hint.back" } },
 }
 local NO_T = setmetatable({ list = function(l) return l end, f = string.format }, { __call = function(_, k) return k end })
 
@@ -287,7 +289,46 @@ return function(ctx, env, opts)
     updateHere()
   end
 
-  local function start()
+  -- ------- a region built to scale not built yet: a bar while it's built (or read back from the disk),
+  -- a few milliseconds a frame, then the map. st.loading = { id, after, shown, fresh }
+  local function ready(id)
+    if not (Mdl.toScale and Mdl.toScale() and Mdl.ready) then return true end
+    if not Mdl.ready(id) then return false end
+    local okR, r = pcall(Mdl.region, id)
+    return not (okR and r) or Rd.ready(r)
+  end
+  local function whenReady(id, after)
+    if ready(id) then return after() end
+    st.loading = { id = id, after = after, shown = 0, fresh = nil }
+  end
+  -- (one frame's share of the build; done: what was waiting for it, the frame after, so the two
+  -- don't share one)
+  local function stepLoading()
+    local L = st.loading
+    if L.done then
+      st.loading = nil
+      return L.after()
+    end
+    Mdl.prepare(L.id)
+    if Mdl.building(L.id) then
+      Mdl.step(LOAD_SLICE)
+      return
+    end
+    local okR, r = pcall(Mdl.region, L.id)
+    if okR and r and r.world and Rd.prepare(K.graphics(), r, LOAD_SLICE) then return end
+    L.done, L.shown = true, 1
+  end
+  -- (how far: the model, then its meshes, half each; whether it's being built afresh (the first time))
+  local function loadingProgress(L)
+    local m, fresh = Mdl.progress(L.id)
+    if m < 1 then return m * 0.5, fresh end
+    local okR, r = pcall(Mdl.region, L.id)
+    if not (okR and r) then return 1, fresh end
+    if fresh == nil and r.cache then fresh = not r.cache.kept end
+    return 0.5 + 0.5 * Rd.progress(r), fresh
+  end
+
+  local function begin()
     local s = session()
     local okP, rid, px, pz = pcall(Mdl.player, s)
     -- (only on one of the map's places: not, say, in the moving truck before the game begins)
@@ -310,9 +351,19 @@ return function(ctx, env, opts)
         if d.id == resume.region then first = i end
       end
     end
-    setRegion(first, type(resume) == "table" and resume.place or nil)
-    if mode == "fly" then st.zoom = 1 end
-    aim(true)
+    whenReady(st.regions[first].id, function()
+      setRegion(first, type(resume) == "table" and resume.place or nil)
+      if mode == "fly" then st.zoom = 1 end
+      aim(true)
+    end)
+  end
+  local function start()
+    -- (the region the player is in first: where they stand needs it)
+    if Mdl.toScale and Mdl.toScale() then
+      local okH, rid = pcall(Mdl.regionHere, session())
+      if okH and rid and not ready(rid) then return whenReady(rid, begin) end
+    end
+    begin()
   end
 
   -- ------- moving about
@@ -372,9 +423,12 @@ return function(ctx, env, opts)
 
   local function nextRegion(d)
     if #st.regions < 2 then return end
-    setRegion((st.ri - 1 + d) % #st.regions + 1)
-    aim(true)
+    local i = (st.ri - 1 + d) % #st.regions + 1
     se("SE_SELECT")
+    whenReady(st.regions[i].id, function()
+      setRegion(i)
+      aim(true)
+    end)
   end
   local function toPlayer()
     if not st.player then return end
@@ -399,6 +453,7 @@ return function(ctx, env, opts)
   end
   function W.input(input, nav)
     cur = input
+    if st.loading then return not input:wasPressed("b") end
     st.turn = st.flat and 0 or ((down("l") and -1 or 0) + (down("r") and 1 or 0))
     -- (the right stick: the engine keeps its position)
     local axis = input.rightStickAxis
@@ -428,6 +483,7 @@ return function(ctx, env, opts)
   end
 
   function W.tap(arg)
+    if st.loading then return end
     if arg == A_REGION then return nextRegion(1) end
     if arg == A_ME then return toPlayer() end
     if arg == A_FLY then return fly() end
@@ -454,12 +510,14 @@ return function(ctx, env, opts)
 
   -- the wheel (and the hosts' scroll): zoom
   function W.scroll(dy)
+    if st.loading then return end
     local g = st.goal
     g.dist = max(MIN_DIST, min(zoomDist(1) * 1.2, g.dist * exp(-dy * 0.012)))
   end
 
   -- drags turn and tilt; two fingers pinch to zoom
   function W.pointer(phase, x, y, id)
+    if st.loading then return false end
     id = id or 1
     local tch = st.touch
     if phase == "pressed" then
@@ -510,6 +568,7 @@ return function(ctx, env, opts)
   end
 
   function W.hints()
+    if st.loading then return T.list(HINTS.loading) end
     if st.flat then return T.list(mode == "fly" and HINTS.flatFly or HINTS.flat) end
     if mode == "fly" then return T.list(HINTS.fly) end
     if mode == "town" then return T.list(HINTS.town) end
@@ -959,6 +1018,39 @@ return function(ctx, env, opts)
     end
   end
 
+  -- the loading screen: the sky over the sea, a glass card in the middle, its bar filling (eased, so it
+  -- never jumps back), and the first time a word on why
+  local LOAD_TOP, LOAD_FOOT = { 64, 112, 190 }, { 20, 44, 98 }
+  local BAR_BACK, BAR_FILL, BAR_TOP = { 255, 255, 255, 0.16 }, { 10, 132, 255 }, { 255, 255, 255, 0.35 }
+  local function drawLoading(body, dt)
+    local L = st.loading
+    local want, fresh = loadingProgress(L)
+    if fresh ~= nil then L.fresh = fresh end
+    L.shown = max(L.shown, L.shown + (want - L.shown) * min(1, dt * 8))
+    local x, y, w, h = body[1], body[2], body[3], body[4]
+    K.grad(K.R(x, y, w, h), 0, LOAD_TOP, LOAD_FOOT)
+    local cw = min(150, w - M * 4)
+    local first = L.fresh == true
+    local ch = first and 31 or 23
+    local b = K.R(x + (w - cw) / 2, y + (h - ch) / 2, cw, ch)
+    glass(b, 6)
+    K.bold(T("map.loading"), b[1], b[2] + 4, 5.6, WHITE, "center", b[3])
+    local bar = K.R(b[1] + 8, b[2] + 13.5, b[3] - 16, 3.4)
+    K.col(BAR_BACK)
+    K.box("fill", bar, 1.7)
+    local fw = max(3.4, bar[3] * min(1, L.shown))
+    local fill = K.R(bar[1], bar[2], fw, bar[4])
+    K.col(BAR_FILL)
+    K.box("fill", fill, 1.7)
+    -- (its gloss a plain band: a gradient's mesh is kept per size, and this one grows every frame)
+    K.col(BAR_TOP)
+    K.box("fill", K.R(fill[1] + 0.8, fill[2] + 0.5, max(0, fw - 1.6), 1.1), 0.55)
+    if first then
+      local words = T("map.loadingFirst")
+      K.text(words, b[1] + 4, b[2] + 21, K.fit(words, 3.6, b[3] - 8), SOFT, "center", b[3] - 8)
+    end
+  end
+
   -- the region's capsule (top left; tap: the next), "Fly to where?" (Fly), "you" and the compass
   -- (top right: back to the player; north up)
   local function drawChips(body)
@@ -1021,9 +1113,18 @@ return function(ctx, env, opts)
   end
 
   function W.draw(body, clock)
-    if not st.region then return end
     local dt = st.lastT and max(0, min(0.1, clock - st.lastT)) or 0
     st.lastT = clock
+    if st.loading then
+      stepLoading()
+      if st.loading then
+        st.three = false
+        K.scissor(body)
+        drawLoading(body, dt)
+        return
+      end
+    end
+    if not st.region then return end
     if clock - st.liveAt >= 1 or clock < st.liveAt then
       st.liveAt = clock
       refreshLive()

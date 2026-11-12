@@ -5,6 +5,27 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **3D map:** the region's map is kept once it's built, so from the next time you play it's ready
+  moments after you start instead of being built again (it's built afresh after an update, or when
+  your game's maps change). Opened while it's still being built or read back, the Map shows a
+  loading bar instead of pausing, the first time with a word on why.
+
+### Changed
+- **3D map:** zoomed in, the ground, the forests' tops and the buildings' roofs and fronts show the
+  game's own tile art at full size, sharp, in 3D and on the flat map; further out it blends back into
+  the tiles' colours, so nothing shimmers as the camera moves. The flat map shows the region built to
+  scale rather than the Town Map's picture. The mouse wheel and a pinch zoom in a little closer than
+  the close-up.
+- **3D map:** Pokémon Centers, Marts, houses and the rest stand with their whole front wall (the door,
+  the windows, the sign) up their face and their roof on top, a little taller, instead of the roof's
+  top row left flat on the ground behind them and the wall's top row on their roof.
+
+### Fixed
+- **3D map:** buildings that stood flat on the ground: a house built against its neighbour (Mauville's
+  beside the Mart, Lavaridge's beside the Herb Shop), Stern's Shipyard, the Cycling Road's gatehouses
+  and the Winstrates' house.
+
 ## [0.10.0] - 2026-11-11
 
 ### Added

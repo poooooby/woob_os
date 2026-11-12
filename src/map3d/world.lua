@@ -9,15 +9,17 @@
 --   map placed (Littleroot, Pallet Town, an island's town). World units: MT tiles each.
 --
 --   Wd = World(engine, deps)   deps: maps() -> the game's map definitions ; art(pair) -> a tileset's
---                              colours (the tests' stand-ins for the cart's); FireRed / LeafGreen's
---                              Town Map: layouts() -> its pictures' grids, pictureOf(section) -> 0..3
+--                              colours, pixels(pair) -> its pixels (the tests' stand-ins for the
+--                              cart's); FireRed / LeafGreen's Town Map: layouts() -> its pictures'
+--                              grids, pictureOf(section) -> 0..3
 --   Wd.MT, Wd.C (the classes), Wd.REGIONS (hoenn, kanto, sevii123, sevii45, sevii67)
 --   Wd.build(opts) -> world    (synchronous; inside a coroutine it yields as it goes: opts.pace(),
 --                              true when it should; opts.region the region's id, Hoenn by default)
 --     world = { maps = { { id, def, x, y, w, h, sec, how } }, byId, x0, y0, cols, rows,
 --               cls[], mid[], pix[] (the tile's tileset index), elev[], mapIx[],
 --               doors = { { x, y, map, dest, kind, foot = { x0, y0, x1, y1 } | nil } },
---               pairs = { { name, art } }, art(k, q) -> r, g, b (a quarter of the tile, 0..3) }
+--               pairs = { { name, art } }, art(k, q) -> r, g, b (a quarter of the tile, 0..3),
+--               tile(pi, mid, out) -> true, out[1..768] the tile's 16 x 16 pixels (r, g, b) | false }
 --   Wd.CLASS_COLOR[c] -> r, g, b (the debug picture's colours)
 
 local floor, max, min, abs, sqrt = math.floor, math.max, math.min, math.abs, math.sqrt
@@ -578,15 +580,11 @@ return function(engine, deps)
   -- ------- the tile art: per tileset, each metatile's colours (its four quarters as seen from above,
   -- the top layer over the bottom) and how green and leafy it is
 
-  local artCache = {}
-  local function readArt(pair)
-    if artCache[pair] ~= nil then return artCache[pair] or nil end
-    artCache[pair] = false
-    -- (the tests hand it their own: { [mid] = { q, green, blue, rock, over, r, g, b } })
-    if deps.art then
-      artCache[pair] = deps.art(pair) or false
-      return artCache[pair] or nil
-    end
+  -- a tileset's own pixels: each metatile's 256 palette bytes (the bottom layer's, the top layer's; 0 is
+  -- see-through) and the palette's colours -> { under, over, uOff, oOff, uSlot, oSlot, LR, LG, LB, ids } | nil
+  -- (read for its colours, and again for the map's picture at full size; the tests may hand their own)
+  local function readPixels(pair)
+    if deps.pixels then return deps.pixels(pair) end
     local NP = engine("src.import.gba.native_pack")
     local Extract = engine("src.import.gba.extract_island1")
     if not (NP and Extract and Dataset and Dataset.cache) then return nil end
@@ -606,9 +604,27 @@ return function(engine, deps)
       LR[byte], LG[byte], LB[byte] = c[1], c[2], c[3]
     end
     local oi = okO and over and NP.decodeIdx(over) or nil
-    local overSlot = {}
-    if oi then for i, m in ipairs(oi.midIds) do overSlot[m] = i - 1 end end
-    local uOff, oOff = 13 + ui.midCount * 2, oi and (13 + oi.midCount * 2) or 0
+    local uSlot, oSlot = {}, {}
+    for i, m in ipairs(ui.midIds) do uSlot[m] = i - 1 end
+    if oi then for i, m in ipairs(oi.midIds) do oSlot[m] = i - 1 end end
+    return { under = under, over = oi and over or nil, uOff = 13 + ui.midCount * 2, oOff = oi and (13 + oi.midCount * 2) or 0,
+             uSlot = uSlot, oSlot = oSlot, LR = LR, LG = LG, LB = LB, ids = ui.midIds }
+  end
+
+  local artCache = {}
+  local function readArt(pair)
+    if artCache[pair] ~= nil then return artCache[pair] or nil end
+    artCache[pair] = false
+    -- (the tests hand it their own: { [mid] = { q, green, blue, rock, over, r, g, b } })
+    if deps.art then
+      artCache[pair] = deps.art(pair) or false
+      return artCache[pair] or nil
+    end
+    local P = readPixels(pair)
+    if not P then return nil end
+    local under, over, LR, LG, LB = P.under, P.over, P.LR, P.LG, P.LB
+    local overSlot, uOff, oOff = P.oSlot, P.uOff, P.oOff
+    local ui = { midIds = P.ids }
     local byte = string.byte
     -- (each palette byte's kind: 1 leafy green, 2 water blue, 3 rock (browns, greys), 0 else)
     local KIND = {}
@@ -689,7 +705,9 @@ return function(engine, deps)
   end
 
   -- a building's footprint from its door: the solid block of building tiles above and beside it
-  local function footprint(world, dx, dy)
+  -- (lo, hi: how far along it may run, either side: halfway to the next building's door)
+  local function footprint(world, dx, dy, lo, hi)
+    lo, hi = lo or -math.huge, hi or math.huge
     local cls, cols = world.cls, world.cols
     local function at(x, y)
       local gx, gy = x - world.x0, y - world.y0
@@ -709,8 +727,8 @@ return function(engine, deps)
       second = (world.mid[k1] or 0) >= 512
       if not built(k1) then return nil end
       local x0, x1 = dx, dx
-      while dx - x0 < 6 and built(at(x0 - 1, dy + 1)) do x0 = x0 - 1 end
-      while x1 - dx < 6 and built(at(x1 + 1, dy + 1)) do x1 = x1 + 1 end
+      while dx - x0 < 6 and x0 - 1 >= lo and built(at(x0 - 1, dy + 1)) do x0 = x0 - 1 end
+      while x1 - dx < 6 and x1 + 1 <= hi and built(at(x1 + 1, dy + 1)) do x1 = x1 + 1 end
       local y1 = dy + 1
       while y1 - dy < 8 do
         local n = 0
@@ -739,16 +757,46 @@ return function(engine, deps)
       end
       return true
     end
+    -- (a doorway two tiles tall (Stern's Shipyard): the floor in it, the wall above that)
+    local top = dy - 1
+    if not built(k0) then
+      local k2 = at(dx, dy - 2)
+      if k2 and not world.filled[k2] then
+        local was = second
+        second = (world.mid[k2] or 0) >= 512
+        if built(k2) then top, k0 = dy - 2, k2 else second = was end
+      end
+    end
     if not built(k0) then return cur.picture and under() or nil end
     -- (along the row above the door, then up while most of that run stays built)
     local x0, x1 = dx, dx
-    while dx - x0 < 6 and built(at(x0 - 1, dy - 1)) do x0 = x0 - 1 end
-    while x1 - dx < 6 and built(at(x1 + 1, dy - 1)) do x1 = x1 + 1 end
-    local y0 = dy - 1
+    while dx - x0 < 6 and x0 - 1 >= lo and built(at(x0 - 1, top)) do x0 = x0 - 1 end
+    while x1 - dx < 6 and x1 + 1 <= hi and built(at(x1 + 1, top)) do x1 = x1 + 1 end
+    local y0 = top
     while dy - y0 < 8 do
       local n = 0
       for x = x0, x1 do if built(at(x, y0 - 1)) then n = n + 1 end end
       if n < (x1 - x0 + 1) * 0.7 then break end
+      y0 = y0 - 1
+    end
+    -- (the roof's top rows: drawn over the player's head (the tiles' top layer) and walked behind, so
+    -- not walls; the building's all the same where most of the run's inner tiles (a dome's corners show
+    -- the grass behind) are a good share top-layer art and not mostly green)
+    local function roofTop(k)
+      if not k or world.filled[k] then return false end
+      local c = cls[k]
+      if c == C.BUILDING or c == C.DOOR or c == C.ROCK or c == C.SEA or c == C.POND
+          or c == C.SHALLOW or c == C.CURRENT then return false end
+      local p = world.pairs[world.pix[k] or 0]
+      local a = p and p.art[world.mid[k]]
+      return a ~= nil and a.over >= 0.35 and a.green < 0.65
+    end
+    local ix0, ix1 = x0, x1
+    if x1 - x0 >= 2 then ix0, ix1 = x0 + 1, x1 - 1 end
+    for _ = 1, 2 do
+      local n = 0
+      for x = ix0, ix1 do if roofTop(at(x, y0 - 1)) then n = n + 1 end end
+      if n < (ix1 - ix0 + 1) * 0.6 then break end
       y0 = y0 - 1
     end
     for y = y0, dy do
@@ -1440,12 +1488,74 @@ return function(engine, deps)
     return t, S / MT
   end
 
+  -- what the regions are built from, as a short string: a hash of every outdoor map's name, size,
+  -- section, tileset, connections, doors and tiles. A built map kept on disk is used again only while
+  -- it's the same (another cart, a mod changing the maps: built afresh). p: the pacing, as Wd.build's
+  function Wd.fingerprint(p)
+    local all = maps()
+    if type(all) ~= "table" then return nil end
+    pace = p
+    local ids, n = {}, 0
+    for id, def in pairs(all) do
+      if type(id) == "string" and outdoor(id, def) then ids[#ids + 1] = id end
+      n = n + 1
+      if n % 4 == 0 then breathe() end
+    end
+    table.sort(ids)
+    breathe()
+    local A, B = 0, 0
+    local function add(v)
+      A = (A * 31 + v) % 2147483629
+      B = (B * 37 + v) % 2147483587
+    end
+    local sbyte = string.byte
+    local function addS(s)
+      s = tostring(s)
+      for i = 1, #s do add(sbyte(s, i)) end
+      add(0)
+    end
+    for _, id in ipairs(ids) do
+      local def = all[id]
+      local L = def.midLayout
+      local w, h = sizeOf(def)
+      addS(id)
+      add(w)
+      add(h)
+      add(tonumber(def.regionMapSectionId) or 0)
+      add(tonumber(def.mapType) or 0)
+      addS(def.pair or L.pair or "")
+      for _, c in ipairs(type(def.connections) == "table" and def.connections or {}) do
+        addS(c.dir or c.direction or "")
+        addS(c.map or "")
+        add((tonumber(c.offset) or 0) + 65536)
+      end
+      for _, wp in ipairs(type(def.warps) == "table" and def.warps or {}) do
+        add(tonumber(wp.x) or 0)
+        add(tonumber(wp.y) or 0)
+        addS(wp.destMap or "")
+      end
+      for cy = 0, h - 1 do
+        for cx = 0, w - 1 do
+          add((tonumber(L:midAt(cx, cy)) or 0) % 65536 * 4096 + (tonumber(L:collAt(cx, cy)) or 0) % 256 * 16
+            + (tonumber(L:elevAt(cx, cy)) or 0) % 16)
+        end
+        if cy % 8 == 7 then breathe() end
+      end
+      breathe()
+    end
+    pace = nil
+    return ("%d-%08x%08x"):format(#ids, A, B)
+  end
+
   function Wd.build(opts)
     opts = opts or {}
     pace, logf = opts.pace, opts.log
+    -- (how far along, 0..1, for the map's loading bar)
+    local prog = opts.progress or function() end
     local all = maps()
     local layout = Wd.place(all, opts.region)
     if not layout then pace, logf = nil, nil return nil end
+    prog(0.08)
     local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
     for _, m in ipairs(layout.list) do
       x0, y0 = min(x0, m.x), min(y0, m.y)
@@ -1484,6 +1594,7 @@ return function(engine, deps)
         pairIx[pair] = pi
         world.pairs[pi] = { name = pair, art = readArt(pair) or {} }
       end
+      prog(0.08 + 0.5 * mi / #layout.list)
       local art = world.pairs[pi].art
       local behaviors = InteractionScripts and InteractionScripts.behaviors and InteractionScripts.behaviors[pair] or {}
       local crop = m.crop
@@ -1655,6 +1766,7 @@ return function(engine, deps)
     end
     dist, outer = nil, nil
     breathe()
+    prog(0.66)
     -- (FireRed / LeafGreen: land a map's edge cuts off -- an island's mountain or forest running on
     -- past where the game stops drawing -- goes on into the sea and is rounded off there: a run of land
     -- along an edge grows out a third as far as it is long (at most GROW) in a half ellipse, its outline
@@ -1772,6 +1884,7 @@ return function(engine, deps)
       end
       breathe()
     end
+    prog(0.72)
     -- (the doors: each map's warps on its door tiles, and where they lead)
     for _, m in ipairs(layout.list) do
       for _, w in ipairs(m.warps or m.def.warps or {}) do
@@ -1786,11 +1899,19 @@ return function(engine, deps)
       end
     end
     -- (a building with two doors (a museum, the Department Store) is one building: the second door's
-    -- footprint, over the first's, left off)
+    -- footprint, over the first's, left off. Doors three or more tiles apart on a row are two buildings
+    -- side by side (Mauville's house by its Mart): each footprint stops halfway to the other's door)
     local feet = {}
     for _, d in ipairs(world.doors) do
       if d.kind ~= "cave" and d.kind ~= "gate" then
-        local f = footprint(world, d.x, d.y)
+        local lo, hi = -math.huge, math.huge
+        for _, o in ipairs(world.doors) do
+          if o ~= d and abs(o.y - d.y) <= 1 and abs(o.x - d.x) >= 3 and abs(o.x - d.x) <= 14 then
+            local mid = floor((o.x + d.x) / 2)
+            if o.x < d.x then lo = max(lo, mid + 1) else hi = min(hi, mid) end
+          end
+        end
+        local f = footprint(world, d.x, d.y, lo, hi)
         for _, g in ipairs(feet) do
           if f then
             local ow = min(f.x1, g.x1) - max(f.x0, g.x0)
@@ -1817,13 +1938,48 @@ return function(engine, deps)
       local o = q * 3
       return a.q[o + 1], a.q[o + 2], a.q[o + 3]
     end
+    -- a tile's own picture, 16 x 16, the top layer over the bottom: out[1..768] r, g, b (0..255) row by
+    -- row (a pixel see-through in both layers the tile's mean colour) -> false without its art
+    -- (pi: world.pairs' number, as world.pix holds)
+    local pixOf = {}
+    local sbyte = string.byte
+    function world.tile(pi, mid, out)
+      local P = pixOf[pi]
+      if P == nil then
+        local p = world.pairs[pi]
+        P = p and readPixels(p.name) or false
+        pixOf[pi] = P
+      end
+      local us = P and P.uSlot[mid]
+      if not us then return false end
+      local a = world.pairs[pi].art[mid]
+      local mr, mg, mb = a and a.r or 0, a and a.g or 0, a and a.b or 0
+      local under, over, LR, LG, LB = P.under, P.over, P.LR, P.LG, P.LB
+      local ub = P.uOff + us * 256
+      local os = over and P.oSlot[mid]
+      local ob = os and (P.oOff + os * 256) or nil
+      for off = 0, 255 do
+        local p = ob and sbyte(over, ob + off) or 0
+        if p == 0 then p = sbyte(under, ub + off) or 0 end
+        local o = off * 3
+        if p ~= 0 then
+          out[o + 1], out[o + 2], out[o + 3] = LR[p], LG[p], LB[p]
+        else
+          out[o + 1], out[o + 2], out[o + 3] = mr, mg, mb
+        end
+      end
+      return true
+    end
+    prog(0.78)
     heights(world)
+    prog(0.97)
     breathe()
     -- (once its meshes are made: the per-tile arrays let go, the maps and doors kept)
     function world.release()
       world.cls, world.mid, world.pix, world.elev, world.mapIx, world.filled, world.h = nil, nil, nil, nil, nil, nil, nil
       world.ws, world.deck, world.bkind = nil, nil, nil
       world.pairs = {}
+      pixOf = {}
       cls, midA, pixA, elevA, mapA = nil, nil, nil, nil, nil
       world.released = true
     end

@@ -509,6 +509,8 @@ return {
     ["map.notVisited"] = "Noch nicht besucht",
     ["map.cantFlyThere"] = "Fliegen geht nur zu Städten.",
     ["map.landmark"] = "Ort",
+    ["map.loading"] = "Karte wird geladen",
+    ["map.loadingFirst"] = "Einmal aus den Karten des Spiels gebaut, danach sofort da",
     ["map.route"] = "Route",
     ["map.hint.flat"] = "Flach",
     ["map.hint.3d"] = "3D",

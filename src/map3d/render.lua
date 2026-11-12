@@ -26,8 +26,9 @@
 --   R.lightning(t) -> 0..1 (its flash; 0: none), its offset x, z from the storm's middle, its number
 --   R.night(hour, minute) -> 0 (day) .. 1 (night) ; R.dusk(hour, minute) -> 0..1
 --   R.frost(G, x, y, w, h, rad) -> true: frosted glass (the map blurred) in that rounded rect
---   R.flatCamera(cx, cz, half, rect) ; R.drawPicture(G, region, rect) -> the flat map (the game's
---   own Town Map picture, north up) ; R.drawLand(G, region, rect) (flat, without the picture)
+--   R.flatCamera(cx, cz, half, rect) ; R.drawPicture(G, region, rect) -> the flat map, north up (the
+--   world's own picture, its tiles' art near; else the game's Town Map picture) ; R.drawLand(G, region,
+--   rect) (flat, without the picture)
 
 local floor, max, min, abs, sqrt, sin, cos, pi = math.floor, math.max, math.min, math.abs, math.sqrt, math.sin,
   math.cos, math.pi
@@ -50,11 +51,44 @@ local FORMAT = {
 -- flags (VertexFlag): 0 lit, 1 the sea, 2 a window (lit at night), 3 a cloud (drifts; its normal is
 -- its anchor), 4 unlit (the slab's sides keep their colour), 5 a rain streak, 6 a storm's puff of cloud or
 -- dust, 7 a grain of sand, 8 a bit of everyday weather (its seed in the normal), 9 a lobe of its cloud or
--- haze (its anchor in the normal)
+-- haze (its anchor in the normal); the world built to scale (FORMAT_W): 10 the ground, 11 a forest's
+-- top, 12 a building's front
 local F_SEA, F_WINDOW, F_CLOUD = 1, 2, 3
 local F_RAIN, F_PUFF, F_GRAIN = 5, 6, 7
 local F_WX, F_WXPUFF = 8, 9
 local WX_MAX = 12          -- the most weathers shown at once (the shader's arrays)
+
+-- the tiles' own art, full size, for the world built to scale (src/map3d/render.lua's groundArt): which
+-- cell of the atlas each tile is (the index: one texel a tile, its number in red + green * 256, 0 for
+-- none), the atlas's 16 x 16 cells and their half- and quarter-size copies below them. Near, each art
+-- pixel sharp; further off the smaller copies, then the picture (two pixels a tile), so nothing
+-- shimmers as it moves. `r`: screen pixels an art pixel; `w` how much of the art shows
+local ART_GLSL = [[
+uniform Image uIndex;
+uniform Image uAtlas;
+uniform vec4 uArtSize;   // the world's columns and rows, the atlas's width and height (pixels); 0: no art
+uniform vec2 uArtLv;     // where the half-size cells start and the quarter-size ones (the atlas's y)
+vec3 tileArt(vec2 tc, vec3 pic, float r, out float w) {
+  w = 0.0;
+  if (uArtSize.x < 0.5 || r < 0.125) return pic;
+  vec2 t = tc * uArtSize.xy;
+  vec2 cell = floor(t);
+  vec4 ix = Texel(uIndex, (cell + 0.5) / uArtSize.xy);
+  float id = floor(ix.r * 255.0 + 0.5) + floor(ix.g * 255.0 + 0.5) * 256.0;
+  if (id < 0.5) return pic;
+  id -= 1.0;
+  vec2 c = vec2(mod(id, 128.0), floor(id / 128.0 + 0.0001));
+  vec2 f = clamp(t - cell, 0.0, 0.9999);
+  vec2 inv = 1.0 / uArtSize.zw;
+  vec3 a16 = Texel(uAtlas, (c * 16.0 + floor(f * 16.0) + 0.5) * inv).rgb;
+  vec3 a8 = Texel(uAtlas, (vec2(0.0, uArtLv.x) + c * 8.0 + clamp(f * 8.0, 0.5, 7.5)) * inv).rgb;
+  vec3 a4 = Texel(uAtlas, (vec2(0.0, uArtLv.y) + c * 4.0 + clamp(f * 4.0, 0.5, 3.5)) * inv).rgb;
+  vec3 a = mix(a8, a16, clamp((r - 0.5) * 2.0, 0.0, 1.0));
+  a = mix(a4, a, clamp((r - 0.25) * 4.0, 0.0, 1.0));
+  w = clamp((r - 0.125) * 8.0, 0.0, 1.0);
+  return mix(pic, a, w);
+}
+]]
 
 local SHADER = [[
 varying vec3 vNormal;
@@ -62,6 +96,7 @@ varying float vFlag;
 varying float vWave;
 varying float vFade;
 varying vec2 vGround;
+varying float vY;
 #ifdef VERTEX
 uniform mat4 uViewProj;
 uniform float uTime;
@@ -161,11 +196,14 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     vFade = k * smoothstep(1.0, 3.2, distance(p, uEye));
   }
   vGround = p.xz;
-  if (VertexFlag > 10.5) vFade = distance(p, uEye);
+  vY = p.y;
   return uViewProj * vec4(p, 1.0);
 }
 #endif
 #ifdef PIXEL
+]] .. ART_GLSL .. [[
+uniform vec3 uEye;
+uniform float uArtK;     // screen pixels an art pixel at one world unit from the eye
 uniform vec3 uSun;
 uniform vec3 uSunColor;
 uniform vec3 uAmbient;
@@ -192,13 +230,22 @@ vec3 underStorm(vec3 c) {
 }
 vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
   if (vFlag > 9.5) {
-    // (the overworld built to scale: the tiles' own colours from the mesh's picture; a forest's top
-    // (11) each tile a round crown, lit on its sun side, dark between them; 16 tiles a world unit)
-    vec3 base = color.rgb * Texel(tex, tc).rgb;
+    // (the overworld built to scale: the tiles' own colours from the mesh's picture, their own art near
+    // on what faces up, a forest's top (11) and a building's front (12); where the art doesn't show, a
+    // forest's top each tile a round crown, lit on its sun side, dark between them; 16 tiles a world unit)
+    vec3 pic = Texel(tex, tc).rgb;
     vec3 n = normalize(vNormal);
-    if (vFlag > 10.5 && n.y > 0.9) {
-      // (fading out with distance: far off the pattern is finer than a pixel and would shimmer)
-      float near = 1.0 - smoothstep(3.0, 9.0, vFade);
+    vec3 c = pic;
+    float near = 0.0;
+    if (n.y > 0.5 || vFlag > 10.5) {
+      float dist = distance(vec3(vGround.x, vY, vGround.y), uEye);
+      float w = 0.0;
+      c = tileArt(tc, pic, uArtK / max(dist, 0.001), w);
+      // (the crowns fading out with distance: far off the pattern is finer than a pixel and would shimmer)
+      if (vFlag > 10.5 && vFlag < 11.5 && n.y > 0.9) near = (1.0 - smoothstep(3.0, 9.0, dist)) * (1.0 - w);
+    }
+    vec3 base = color.rgb * c;
+    if (near > 0.0) {
       vec2 f = fract(vGround * 16.0) - 0.5;
       float r = length(f);
       n = normalize(mix(n, vec3(f.x * 1.7, 1.0, f.y * 1.7), near));
@@ -256,10 +303,21 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
 }
 ]]
 
+-- the flat map of the world built to scale: its picture (two pixels a tile), the tiles' own art over it
+-- when near enough
+local FLAT_ART = ART_GLSL .. [[
+uniform float uArtR;     // screen pixels an art pixel
+vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
+  vec3 pic = Texel(tex, tc).rgb;
+  float w = 0.0;
+  return vec4(tileArt(tc, pic, uArtR, w), 1.0) * color;
+}
+]]
+
 return function(deps)
   deps = deps or {}
   local R = {}
-  local drawFlatLand
+  local drawFlatLand, sendArt
 
   -- ------- the camera: a kept view-projection (column-major, for the shader) and its use
 
@@ -330,8 +388,10 @@ return function(deps)
   local pictureQuads = setmetatable({}, { __mode = "k" })
   local SEA_DARK = { 0.16, 0.22, 0.42 }
   local meshesOf = setmetatable({}, { __mode = "k" })
+  local flatShader, flatTried = nil, false
   function R.drawPicture(G, region, rect)
-    -- (the world built to scale: its own tiles' picture, two pixels a tile, once its meshes are made)
+    -- (the world built to scale: its own tiles' picture, two pixels a tile, once its meshes are made;
+    -- the tiles' own art over it near)
     local wm = region.world and meshesOf[region]
     if region.world then
       local pic = wm and wm.picture
@@ -342,7 +402,22 @@ return function(deps)
       G.setColor(SEA_DARK[1], SEA_DARK[2], SEA_DARK[3], 1)
       G.rectangle("fill", rect.x, rect.y, rect.w, rect.h)
       G.setColor(1, 1, 1, 1)
+      if wm.art and not flatTried then
+        flatTried = true
+        local ok, sh = pcall(G.newShader, FLAT_ART)
+        flatShader = ok and sh or nil
+        if not ok and deps.log then deps.log("the flat map's shader failed: %s", tostring(sh)) end
+      end
+      local sh = wm.art and flatShader
+      local prev = sh and G.getShader and G.getShader() or nil
+      if sh then
+        G.setShader(sh)
+        sendArt(sh, wm.art)
+        -- (a picture pixel is half a tile: eight art pixels)
+        pcall(sh.send, sh, "uArtR", s / 8)
+      end
       G.draw(pic, ax, ay, 0, s, s)
+      if sh then G.setShader(prev) end
       return true
     end
     local img = region.picture
@@ -550,7 +625,9 @@ return function(deps)
     { "VertexFlag", "float", 1 },
     { "VertexTexCoord", "float", 2 },
   }
-  local F_GROUND, F_CANOPY = 10, 11
+  -- (10 the ground, 11 a forest's top, 12 a building's front: the tiles' art near on 11, 12 and what
+  -- faces up)
+  local F_GROUND, F_CANOPY, F_FRONT = 10, 11, 12
   local CHUNK = 64
   -- (built in the background, a few milliseconds at a time: a yield whenever the slice is used up)
   local rslice = { start = 0, budget = 0.004 }
@@ -572,7 +649,11 @@ return function(deps)
   -- (a world mesh from one flat array, 13 numbers a vertex: no table per vertex, so building the
   -- region leaves little for the collector)
   local VW = 13
-  local function newMeshW(G, flat, map)
+  -- (a build that's kept on disk (src/map3d/cache.lua): each mesh's bytes, as the GPU takes them,
+  -- gathered as it's made; nil when it isn't kept)
+  local rkeep = nil
+  local Mc = deps.mapCache
+  local function newMeshW(G, flat, map, slot)
     local n = floor(#flat / VW)
     if n == 0 then return nil end
     local ok, m = pcall(G.newMesh, FORMAT_W, n, "triangles", "static")
@@ -587,9 +668,34 @@ return function(deps)
       if i % 4096 == 0 then rbreathe() end
     end
     if map then pcall(m.setVertexMap, m, map) end
+    if rkeep and slot then
+      local v = Mc.packW(flat, n, rbreathe)
+      local i = map and Mc.packIdx(map, rbreathe) or nil
+      if v then
+        rkeep.meshes[#rkeep.meshes + 1] = { slot = slot, fmt = "W", n = n, ni = map and #map or 0, v = v, i = i }
+      else
+        rkeep = nil
+      end
+    end
     return m
   end
 
+  local rprog = nil   -- (the job's progress, 0..1: { r })
+  local function pictureImage(G, data)
+    -- (with its smaller copies, so far off it doesn't sparkle as it moves; without, where the GPU
+    -- can't)
+    local okI, img = pcall(G.newImage, data, { mipmaps = true })
+    if okI and img then
+      pcall(img.setMipmapFilter, img, "linear")
+    else
+      okI, img = pcall(G.newImage, data)
+    end
+    if not (okI and img) then return nil end
+    pcall(img.setFilter, img, "linear", "linear")
+    pcall(img.setWrap, img, "clamp", "clamp")
+    return img
+  end
+  -- -> the image, its pixels
   local function groundPicture(G, region)
     local W = region.world
     local LI = love and love.image
@@ -605,20 +711,116 @@ return function(deps)
           data:setPixel(i * 2 + q % 2, j * 2 + floor(q / 2), r / 255, g / 255, b / 255, 1)
         end
       end
+      if rprog then rprog.r = 0.1 * j / W.rows end
       rbreathe()
     end
-    -- (with its smaller copies, so far off it doesn't sparkle as it moves; without, where the GPU
-    -- can't)
-    local okI, img = pcall(G.newImage, data, { mipmaps = true })
-    if okI and img then
-      pcall(img.setMipmapFilter, img, "linear")
-    else
-      okI, img = pcall(G.newImage, data)
+    return pictureImage(G, data), data
+  end
+  -- the art's two images (the index sharp, the atlas smooth) -> index, atlas | nil
+  local function artImages(G, index, atlas)
+    local okI, iImg = pcall(G.newImage, index)
+    local okT, aImg = pcall(G.newImage, atlas)
+    if not (okI and iImg and okT and aImg) then return nil end
+    pcall(iImg.setFilter, iImg, "nearest", "nearest")
+    pcall(iImg.setWrap, iImg, "clamp", "clamp")
+    pcall(aImg.setFilter, aImg, "linear", "linear")
+    pcall(aImg.setWrap, aImg, "clamp", "clamp")
+    return iImg, aImg
+  end
+
+  -- the tiles' own art at full size (ART_GLSL): every tile the world uses once in an atlas, 16 x 16 a
+  -- cell, 128 cells a row, the half- and quarter-size copies under them; and the index, one texel a
+  -- tile, its cell's number (from 1) -> { index, atlas, size = { cols, rows, aw, ah }, lv = { y8, y4 } } |
+  -- nil (no art: the picture alone)
+  local ATLAS_ROW = 128
+  local ATLAS_MAX = ATLAS_ROW * floor(4096 / 28)
+  local function groundArt(G, region)
+    local W = region.world
+    local LI = love and love.image
+    if not (W.tile and W.mid and W.pix and LI and LI.newImageData and G.newImage) then return nil end
+    local cols, rows, midA, pixA = W.cols, W.rows, W.mid, W.pix
+    -- (the tiles used, each once: its tileset's number and its metatile)
+    local cellOf, keys = {}, {}
+    for k = 1, cols * rows do
+      local pi = pixA[k] or 0
+      if pi > 0 then
+        local key = pi * 65536 + (midA[k] or 0)
+        if cellOf[key] == nil and #keys < ATLAS_MAX then
+          keys[#keys + 1] = key
+          cellOf[key] = #keys
+        end
+      end
+      if k % 65536 == 0 then rbreathe() end
     end
-    if not (okI and img) then return nil end
-    pcall(img.setFilter, img, "linear", "linear")
-    pcall(img.setWrap, img, "clamp", "clamp")
-    return img
+    if #keys == 0 then return nil end
+    local cr = math.ceil(#keys / ATLAS_ROW)
+    local aw, ah = ATLAS_ROW * 16, cr * 28
+    local y8, y4 = cr * 16, cr * 24
+    local okA, atlas = pcall(LI.newImageData, aw, ah)
+    local okX, index = pcall(LI.newImageData, cols, rows)
+    if not (okA and atlas and okX and index) then return nil end
+    rbreathe("art")
+    local px = {}
+    for id = 1, #keys do
+      local key = keys[id]
+      if W.tile(floor(key / 65536), key % 65536, px) then
+        local cx, cy = (id - 1) % ATLAS_ROW, floor((id - 1) / ATLAS_ROW)
+        local x16, y16 = cx * 16, cy * 16
+        for y = 0, 15 do
+          for x = 0, 15 do
+            local o = (y * 16 + x) * 3
+            atlas:setPixel(x16 + x, y16 + y, px[o + 1] / 255, px[o + 2] / 255, px[o + 3] / 255, 1)
+          end
+        end
+        -- (the smaller copies: each pixel the mean of the 2 x 2 or 4 x 4 under it)
+        for s = 2, 4, 2 do
+          local n = 16 / s
+          local bx, by = cx * n, (s == 2 and y8 or y4) + cy * n
+          for y = 0, n - 1 do
+            for x = 0, n - 1 do
+              local r, g, b = 0, 0, 0
+              for dy = 0, s - 1 do
+                for dx = 0, s - 1 do
+                  local o = ((y * s + dy) * 16 + x * s + dx) * 3
+                  r, g, b = r + px[o + 1], g + px[o + 2], b + px[o + 3]
+                end
+              end
+              local k = s * s * 255
+              atlas:setPixel(bx + x, by + y, r / k, g / k, b / k, 1)
+            end
+          end
+        end
+      else
+        cellOf[key] = 0
+      end
+      if id % 32 == 0 then
+        if rprog then rprog.r = 0.1 + 0.15 * id / #keys end
+        rbreathe()
+      end
+    end
+    rbreathe("index")
+    for j = 0, rows - 1 do
+      local row = j * cols
+      for i = 0, cols - 1 do
+        local k = row + i + 1
+        local pi = pixA[k] or 0
+        local id = pi > 0 and cellOf[pi * 65536 + (midA[k] or 0)] or 0
+        if id > 0 then index:setPixel(i, j, (id % 256) / 255, floor(id / 256) / 255, 0, 1) end
+      end
+      if j % 16 == 0 then rbreathe() end
+    end
+    local iImg, aImg = artImages(G, index, atlas)
+    if not iImg then return nil end
+    if PROFILE and deps.log then deps.log("the map's art: %d tiles, an atlas %d x %d", #keys, aw, ah) end
+    -- (its pixels kept while the build is kept on disk; else let go)
+    local art = { index = iImg, atlas = aImg, size = { cols, rows, aw, ah }, lv = { y8, y4 } }
+    if rkeep then
+      art.data = { index = index, atlas = atlas }
+    else
+      pcall(index.release, index)
+      pcall(atlas.release, atlas)
+    end
+    return art
   end
 
   -- (a quad of the world's: four corners, one normal, one shade, the picture's place for each corner)
@@ -918,7 +1120,7 @@ return function(deps)
       rbreathe()
     end
     rbreathe("solid mesh")
-    local solid = newMeshW(G, flat, map)
+    local solid = newMeshW(G, flat, map, "ground")
     rbreathe("water")
     flat, map = {}, {}
     -- (the water: runs of one surface, cut at every world unit)
@@ -964,7 +1166,7 @@ return function(deps)
       rbreathe()
     end
     rbreathe("water mesh")
-    local water = newMeshW(G, flat, map)
+    local water = newMeshW(G, flat, map, "water")
     return solid, water
   end
 
@@ -1020,7 +1222,7 @@ return function(deps)
         local u0, u1, v0, vs, v1 = gx0 / cols, gx1 / cols, gy0 / rows, split / rows, gy1 / rows
         faceW(verts, map, x0, top, z0, x1, top, z0, x1, top, z1, x0, top, z1, 0, 1, 0, 1, F_GROUND,
           u0, v0, u1, v0, u1, vs, u0, vs)
-        faceW(verts, map, x0, top, z1, x1, top, z1, x1, base, z1, x0, base, z1, 0, 0, 1, 1, F_GROUND,
+        faceW(verts, map, x0, top, z1, x1, top, z1, x1, base, z1, x0, base, z1, 0, 0, 1, 1, F_FRONT,
           u0, vs, u1, vs, u1, v1, u0, v1)
         local ve = (gy0 + 0.3) / rows
         faceW(verts, map, x1, top, z0, x0, top, z0, x0, base, z0, x1, base, z0, 0, 0, -1, BUILD_SHADE, F_GROUND,
@@ -1032,16 +1234,56 @@ return function(deps)
           ue, v1, ue, v0, ue, v0, ue, v1)
       end
     end
-    return newMeshW(G, verts, map)
+    return newMeshW(G, verts, map, "buildings")
+  end
+
+  -- what's kept on disk, written once the meshes are made (the files a few at a time)
+  local function keep(region, m, picData)
+    local c = region.cache
+    local parts = { world = region.world, terrain = region.terrain, step = region.step, meshes = rkeep.meshes,
+                    images = {}, art = m.art and { size = m.art.size, lv = m.art.lv } or nil }
+    parts.images.picture = { w = picData:getWidth(), h = picData:getHeight(), data = picData }
+    local ad = m.art and m.art.data
+    if ad then
+      parts.images.atlas = { w = ad.atlas:getWidth(), h = ad.atlas:getHeight(), data = ad.atlas }
+      parts.images.index = { w = ad.index:getWidth(), h = ad.index:getHeight(), data = ad.index }
+    else
+      parts.art = nil
+    end
+    local t0 = rclock()
+    local ok, done, err = pcall(Mc.write, c.dir, c.stamp, parts, rbreathe)
+    if not (ok and done) then
+      if deps.log then deps.log("the map couldn't be kept: %s", tostring(ok and err or done)) end
+      Mc.forget(c.dir)
+    elseif PROFILE and deps.log then
+      deps.log("the map kept in %.0f ms", (rclock() - t0) * 1000)
+    end
+    if ad then
+      pcall(ad.index.release, ad.index)
+      pcall(ad.atlas.release, ad.atlas)
+      m.art.data = nil
+    end
   end
 
   local function worldMeshes(G, region)
     local W = region.world
+    -- (kept on disk once made: when the region has a place there and love.data can pack it)
+    local c = region.cache
+    rkeep = (Mc and c and c.stamp and not c.kept and love and love.data and love.data.pack) and { meshes = {} } or nil
     rbreathe("picture")
-    local img = groundPicture(G, region)
+    local img, picData = groundPicture(G, region)
+    if not img then
+      rkeep = nil
+      return nil
+    end
+    local okArt, art = pcall(groundArt, G, region)
+    if not okArt then
+      if deps.log then deps.log("the map's art failed: %s", tostring(art)) end
+      art = nil
+    end
     rbreathe("chunks")
-    if not img then return nil end
-    local m = { ground = {}, water = {}, slab = slabMesh(G, region), picture = img }
+    local m = { ground = {}, water = {}, slab = slabMesh(G, region), picture = img, art = art }
+    local nChunks, done = math.ceil(W.rows / CHUNK) * math.ceil(W.cols / CHUNK), 0
     for j0 = 0, W.rows - 1, CHUNK do
       for i0 = 0, W.cols - 1, CHUNK do
         local mesh, water = worldChunk(G, region, i0, j0, min(W.cols, i0 + CHUNK), min(W.rows, j0 + CHUNK))
@@ -1050,6 +1292,8 @@ return function(deps)
           m.ground[#m.ground + 1] = mesh
         end
         if water then m.water[#m.water + 1] = water end
+        done = done + 1
+        if rprog then rprog.r = 0.25 + 0.6 * done / nChunks end
       end
     end
     rbreathe("buildings")
@@ -1057,11 +1301,88 @@ return function(deps)
     rbreathe("landmarks")
     if deps.towns and deps.towns.landmarks then
       local okL, lv = pcall(deps.towns.landmarks, region)
-      if okL then m.landmarks = newMesh(G, lv) elseif deps.log then deps.log("the map's landmarks failed: %s", tostring(lv)) end
+      if okL then
+        m.landmarks = newMesh(G, lv)
+        if rkeep and m.landmarks then
+          local v = Mc.packV(lv, rbreathe)
+          if v then rkeep.meshes[#rkeep.meshes + 1] = { slot = "landmarks", fmt = "V", n = #lv, ni = 0, v = v } else rkeep = nil end
+        end
+      elseif deps.log then
+        deps.log("the map's landmarks failed: %s", tostring(lv))
+      end
     end
+    if rprog then rprog.r = 0.9 end
     rbreathe("done")
     if m.buildings then pcall(m.buildings.setTexture, m.buildings, img) end
     m.land = m.ground[1]
+    if rkeep then
+      rbreathe("keep")
+      keep(region, m, picData)
+    elseif m.art and m.art.data then
+      pcall(m.art.data.index.release, m.art.data.index)
+      pcall(m.art.data.atlas.release, m.art.data.atlas)
+      m.art.data = nil
+    end
+    rkeep = nil
+    pcall(picData.release, picData)
+    return m
+  end
+
+  -- a region read back from the disk (src/map3d/cache.lua): its pictures and meshes as they were kept
+  -- -> the meshes | nil (unreadable: the index let go, built afresh next time)
+  local function keptMeshes(G, region)
+    local c = region.cache
+    local LI = love and love.image
+    if not (Mc and LI and LI.newImageData) then return nil end
+    rbreathe("kept")
+    local got = Mc.readDrawing(c.dir, c.kept, rbreathe)
+    if not got then return nil end
+    if rprog then rprog.r = 0.35 end
+    local function imageData(name)
+      local im = got.images[name]
+      if not im then return nil end
+      local ok, data = pcall(LI.newImageData, im.w, im.h, "rgba8", im.bytes)
+      im.bytes = nil
+      return ok and data or nil
+    end
+    local picData = imageData("picture")
+    local img = picData and pictureImage(G, picData)
+    if picData then pcall(picData.release, picData) end
+    if not img then return nil end
+    rbreathe()
+    local m = { ground = {}, water = {}, slab = slabMesh(G, region), picture = img }
+    local iData, aData = imageData("index"), imageData("atlas")
+    if iData and aData and got.art then
+      local iImg, aImg = artImages(G, iData, aData)
+      if iImg then m.art = { index = iImg, atlas = aImg, size = got.art.size, lv = got.art.lv } end
+    end
+    if iData then pcall(iData.release, iData) end
+    if aData then pcall(aData.release, aData) end
+    if rprog then rprog.r = 0.6 end
+    rbreathe()
+    for n, e in ipairs(got.meshes) do
+      local ok, mesh = pcall(G.newMesh, e.fmt == "V" and FORMAT or FORMAT_W, e.n, "triangles", "static")
+      if not (ok and mesh) then return nil end
+      local okV = pcall(mesh.setVertices, mesh, e.v)
+      if not okV then return nil end
+      if e.i and not pcall(mesh.setVertexMap, mesh, e.i, "uint32") then return nil end
+      if e.slot == "ground" then
+        pcall(mesh.setTexture, mesh, img)
+        m.ground[#m.ground + 1] = mesh
+      elseif e.slot == "water" then
+        m.water[#m.water + 1] = mesh
+      elseif e.slot == "buildings" then
+        pcall(mesh.setTexture, mesh, img)
+        m.buildings = mesh
+      elseif e.slot == "landmarks" then
+        m.landmarks = mesh
+      end
+      if rprog then rprog.r = 0.6 + 0.4 * n / #got.meshes end
+      if n % 4 == 0 then rbreathe() end
+    end
+    pcall(got.blob.release, got.blob)
+    m.land = m.ground[1]
+    m.kept = true
     return m
   end
 
@@ -1361,7 +1682,9 @@ return function(deps)
     if shaderTried then return shader end
     shaderTried = true
     if not G.newShader then return nil end
+    local t0 = rclock()
     local ok, s = pcall(G.newShader, SHADER)
+    if PROFILE and deps.log then deps.log("map shader compiled in %.0f ms", (rclock() - t0) * 1000) end
     if ok then shader = s elseif deps.log then deps.log("the map's shader failed: %s", tostring(s)) end
     return shader
   end
@@ -1369,11 +1692,23 @@ return function(deps)
   -- the world built to scale: its meshes made by a job of their own (R.prepare in the background, or
   -- here while the map is open: nil until they're done, the flat land meanwhile)
   local jobsOf = setmetatable({}, { __mode = "k" })
+  local progOf = setmetatable({}, { __mode = "k" })
   local function stepJob(G, region, budget)
     local job = jobsOf[region]
     if not job then
+      progOf[region] = progOf[region] or { r = 0 }
       job = coroutine.create(function()
-        local mm = worldMeshes(G, region)
+        local mm
+        local c = region.cache
+        if c and c.kept then
+          mm = keptMeshes(G, region)
+          if not mm then
+            if deps.log then deps.log("the kept map is unreadable: built afresh next time") end
+            if Mc then Mc.forget(c.dir) end
+          end
+        else
+          mm = worldMeshes(G, region)
+        end
         if mm then mm.clouds = cloudMesh(G, region) end
         meshesOf[region] = mm or false
         -- (the tiles themselves aren't needed past this: their arrays let go)
@@ -1383,7 +1718,9 @@ return function(deps)
       jobsOf[region] = job
     end
     rslice.start, rslice.budget = rclock(), budget
+    rprog = progOf[region]
     local ok, err = coroutine.resume(job)
+    rprog = nil
     if not ok then
       if deps.log then deps.log("the map's meshes failed: %s", tostring(err)) end
       meshesOf[region] = false
@@ -1398,6 +1735,12 @@ return function(deps)
     return stepJob(G, region, budget or 0.004)
   end
   function R.ready(region) return not (region and region.world) or meshesOf[region] ~= nil end
+  -- how far its meshes are made, 0..1 (for the map's loading bar)
+  function R.progress(region)
+    if R.ready(region) then return 1 end
+    local p = progOf[region]
+    return p and p.r or 0
+  end
 
   local function meshes(G, region)
     local m = meshesOf[region]
@@ -1467,6 +1810,20 @@ return function(deps)
     G.draw(small, view.x, view.y, 0, view.w / smallW, view.h / smallH)
     G.pop()
     return true
+  end
+
+  -- (the tiles' art to a shader with ART_GLSL: none, the picture alone)
+  local NO_ART = { 0, 0, 1, 1 }
+  local TAN_HALF = math.tan(FOV / 2)
+  function sendArt(sh, art)
+    if art then
+      pcall(sh.send, sh, "uIndex", art.index)
+      pcall(sh.send, sh, "uAtlas", art.atlas)
+      pcall(sh.send, sh, "uArtSize", art.size)
+      pcall(sh.send, sh, "uArtLv", art.lv)
+    else
+      pcall(sh.send, sh, "uArtSize", NO_ART)
+    end
   end
 
   local SUN, SUN_COLOR, AMBIENT, CLOUD = { 0, 1, 0 }, { 1, 1, 1 }, { 0.4, 0.4, 0.4 }, { 0, 1 }
@@ -1597,6 +1954,8 @@ return function(deps)
     pcall(sh.send, sh, "uStormAt", STORM_AT)
     pcall(sh.send, sh, "uStormTint", STORM_TINT)
     pcall(sh.send, sh, "uFlash", flash)
+    sendArt(sh, m.art)
+    pcall(sh.send, sh, "uArtK", h / (2 * TAN_HALF) / ((region.unit or 16) * 16))
     sendWeatherGround(sh, weather, t)
     G.setColor(1, 1, 1, 1)
     G.setDepthMode("lequal", true)

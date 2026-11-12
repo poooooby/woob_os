@@ -508,6 +508,8 @@ return {
     ["map.notVisited"] = "Ainda não visitado",
     ["map.cantFlyThere"] = "Só dá para voar até cidades.",
     ["map.landmark"] = "Ponto de interesse",
+    ["map.loading"] = "Carregando o mapa",
+    ["map.loadingFirst"] = "Criado uma vez a partir dos mapas do jogo; depois abre na hora",
     ["map.route"] = "Rota",
     ["map.hint.flat"] = "Plano",
     ["map.hint.3d"] = "3D",

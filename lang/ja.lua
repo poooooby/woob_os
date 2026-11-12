@@ -509,6 +509,8 @@ return {
     ["map.notVisited"] = "まだ いったことが ない",
     ["map.cantFlyThere"] = "まちにしか とべません。",
     ["map.landmark"] = "めいしょ",
+    ["map.loading"] = "マップを よみこみちゅう",
+    ["map.loadingFirst"] = "いちどだけ ゲームの マップから つくります",
     ["map.route"] = "どうろ",
     ["map.hint.flat"] = "ひらたく",
     ["map.hint.3d"] = "3D",

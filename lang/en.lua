@@ -520,6 +520,8 @@ return {
     ["map.notVisited"] = "Not visited yet",
     ["map.cantFlyThere"] = "You can only fly to towns.",
     ["map.landmark"] = "Landmark",
+    ["map.loading"] = "Loading the map",
+    ["map.loadingFirst"] = "Built once from your game's maps, then it opens at once",
     ["map.route"] = "Route",
     ["map.hint.flat"] = "Flat",
     ["map.hint.3d"] = "3D",

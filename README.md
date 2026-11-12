@@ -52,12 +52,14 @@ opens a desktop in a sleek monitor instead of a text menu.
   little 3D model you can turn, tilt and zoom. The sea waves, clouds drift over it and it follows your
   device's clock: dawn, day, a warm dusk, and a starry night with the windows lit.
   - **Built to scale from your game's own maps:** every route and town where it really is and every
-    tile in its own colours. Forests stand as rounded canopies, mountains rise in terraces as tall as
-    the game draws their cliffs, and the land between the routes is the forest, rock or sea the game
-    shows past their edges. Every building stands where its door is, the Centers, Marts, Gyms and
-    houses each in their own art. Bridges cross the water on posts and the caves open in the rock. The
-    map of the region you're in is put together in the background shortly after you start playing, so
-    it opens at once.
+    tile in its own colours, in the game's own pixel art as you zoom in: the paths, flowers, fences,
+    roofs and shop fronts as the overworld draws them. Forests stand as rounded canopies, mountains
+    rise in terraces as tall as the game draws their cliffs, and the land between the routes is the
+    forest, rock or sea the game shows past their edges. Every building stands where its door is, the
+    Centers, Marts, Gyms and houses each in their own art. Bridges cross the water on posts and the
+    caves open in the rock. The map of the region you're in is put together in the background shortly
+    after you start playing, so it opens at once, and it's kept: from then on it's ready moments
+    after you start. Opened before it's ready, a bar shows how far along it is.
   - **Hoenn (Ruby, Sapphire, Emerald):** Mt. Chimney's summit the highest point, its crater smoking;
     Sky Pillar, Lilycove's Department Store and the S.S. Tidal at the harbour, Mossdeep's rocket, the
     Weather Institute's dish, Mirage Tower, the Abandoned Ship, the Pokémon League and the Battle
@@ -89,9 +91,9 @@ opens a desktop in a sleek monitor instead of a text menu.
     its zooms (or the mouse wheel): the whole region, nearer, near, and a close-up of the town or
     place under the cursor, framed above its card. On a touch screen, drag to turn and tilt, pinch to
     zoom and tap a place to send the cursor there; tap it again to zoom in on it.
-  - **Flat or 3D:** SELECT (or the 2D / 3D button) swaps to the flat map, the game's own Town Map
-    picture seen from above, north up, with the same cursor, places and cards; L and R change
-    the region there. The compass shows north; tap it to turn
+  - **Flat or 3D:** SELECT (or the 2D / 3D button) swaps to the flat map, the region seen from
+    straight above, north up, down to every tile of the overworld as you zoom in, with the same
+    cursor, places and cards; L and R change the region there. The compass shows north; tap it to turn
     north back up.
   - **Glass:** the cards, the buttons and the hints float over the map on frosted glass.
   - **The islands:** in FireRed and LeafGreen, the region's name (or L and R on the flat map)

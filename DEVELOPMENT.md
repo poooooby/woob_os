@@ -44,6 +44,7 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/frost.lua` | Frosted glass: the screen caught in a canvas while the drawer shows, a small copy blurred under it |
 | `src/map3d/model.lua` | The 3D map's model: every region from `world.lua` (Hoenn; Kanto and the Sevii Islands' three pictures); with no maps (headless) from the game's Town Map (its picture a heightmap and its colours, its grid the places); the census's Centers / Marts / Gyms, the badges, the player's position, Fly's checks; the background build (`prepare` / `step`) |
 | `src/map3d/world.lua` | A region built to scale from the game's own maps (Hoenn, Kanto, the Sevii Islands): placement, each tile's class, the doors and footprints, heights, the coarse terrain |
+| `src/map3d/cache.lua` | A region built to scale kept on disk (`mod.cache`): its outline, terrain, meshes and pictures, read back while the stamp (versions, the maps' fingerprint) matches |
 | `src/map3d/render.lua` | The 3D map's drawing: meshes, the shader, the depth canvas, the camera (`camera` / `project`), day and night; a flat fallback |
 | `src/map3d/scene.lua` | The 3D map's window: the camera, pins, the beacon, the card, the controls (the Map app and the Town Map) |
 | `src/map3d/towns.lua` | The 3D map's towns: sizes by tier, roofs by name, the signature structures and landmarks, the Center / Mart / Gym, trees |
@@ -559,9 +560,14 @@ the voxel diorama mod in the engine's checkout either (another author's).
     quarters' colours as seen from above and the shares of leafy, water and rock pixels): a tree, rock or
     something built. Doors: each warp to an unplaced map, its kind from where it leads (`KINDS`), its
     footprint the block of built tiles above it from the same half of the tilesets (FireRed / LeafGreen:
-    a gatehouse entered going south, the block under it); a door over half or more of another's
-    footprint is the same building (`d.shares`: a museum's two doors, two buildings side by side the
-    search runs together), drawn once.
+    a gatehouse entered going south, the block under it; a doorway two tiles tall, Stern's Shipyard,
+    from two above), then up to two rows of the roof's top (top-layer art the player walks behind, not
+    walls: `roofTop`, judged on the run's inner tiles, a dome's corners showing the grass) so a Center's
+    or a Mart's four rows are all in it and its front is its two wall rows. A footprint runs along a row
+    only halfway to another door three or more tiles off (`lo` / `hi`: Mauville's house built against
+    its Mart); a door over half or more of another's footprint is the same building (`d.shares`: a
+    museum's two doors), drawn once. The probe-style check: count the leftover `C.SMALL` blobs by map
+    and the doors with no footprint (Sootopolis's doors in the crater rock have none, rightly).
   - **FireRed / LeafGreen's tiles**: their rough sea and the Cycling Road's water are sea (`BEH`); the
     open sea is all one sea tile (a Sevii map's own ring of rough water is drawn lighter than the sea
     past it and would show the map's rectangle); bridges are plain ground, so a strip of it at most three
@@ -610,13 +616,31 @@ the voxel diorama mod in the engine's checkout either (another author's).
     `frame` (the shell's `render.hud`, every frame) looks once a second which region the player is in
     (`Mdl.regionHere`: FireRed / LeafGreen by the picture the map's section is on), starts that one 4 s
     after the player is free and steps it 4 ms a frame; each region built once (Kanto, then a Sevii
-    picture when they sail there). Opened sooner, `Mdl.region` finishes the model there and the scene
-    shows the flat land until the meshes are made (12 ms a frame). The per-tile arrays are let go once
-    the meshes exist (`world.release`). Emerald: about 2 s of slices, none over ~25 ms; FireRed's Kanto
-    about 6 s, none over ~15 ms; a Sevii picture a fifth of a second all told.
+    picture when they sail there). Opened sooner, the Map shows a loading bar (scene.lua `st.loading`,
+    `whenReady(id, after)`: the player's region before `begin`, any other on L / R) and steps the model
+    and then the meshes 12 ms a frame (`LOAD_SLICE`), the bar half each (`Mdl.progress` from
+    `Wd.build`'s `opts.progress` marks, `Rd.progress` from the job's stages); done, what waited for it
+    runs the frame after. `Mdl.toScale()` false (headless, no maps): no bar, built there and then. The
+    per-tile arrays are let go once the meshes exist (`world.release`). Emerald: about 0.8 s of work
+    (model 0.44, meshes 0.39 on a desktop), no slice over ~30 ms; FireRed's Kanto about 6 s of slices;
+    a Sevii picture a fifth of a second all told.
+  - **Kept on disk** (`src/map3d/cache.lua` Mc, `mod.cache`, `map3d/<game>-<region>/`): `world.lua` (the
+    index, written last, deleted first: a half-written folder is never read), `terrain.bin` (the coarse
+    terrain, seven bytes a sample, pure Lua), `meshes.bin` (every mesh's vertices and vertex map end to
+    end as the GPU takes them: `FORMAT_W` 40 bytes a vertex, `FORMAT` 32, uint32 maps from 0; packed with
+    `love.data.pack` 128 vertices a call, lz4), `picture.bin` / `atlas.bin` / `index.bin` (raw RGBA, lz4).
+    Its stamp: `Mc.FORMAT`, WoobOS's version, the engine's (`src.core.Version`) and `Wd.fingerprint`
+    (every outdoor map's name, size, section, tileset, connections, warps and tiles hashed, ~20 ms,
+    yielding every four maps). The model reads the outline back (`readWorld`: maps, byId, doors, the box)
+    and makes the places as from a build; the render job, `region.cache.kept`, makes the meshes from the
+    bytes (`setVertices` / `setVertexMap` on `DataView`s) and the images (`newImageData(w, h, "rgba8")`);
+    unreadable: `Mc.forget`, built afresh next launch. A build that isn't kept gathers its meshes' bytes as
+    it makes them (`rkeep`) and writes them at the end. Hoenn: about 8 MB; read back in about 0.25 s, no
+    frame over ~50 ms. The stamp only changes with the version: while working on the builder, delete
+    `gen1recomp/mod_cache/woob_os/map3d` (a run leaves it; it's the installation's).
   - **Drawing** (render.lua's world path): the tiles' colours as one picture (2 x 2 texels a tile), a
-    second vertex format with texture coordinates (`FORMAT_W`, built from flat arrays: `newMeshW`);
-    chunks of 64 x 64 tiles: tops merged, walls where a tile stands over its neighbour, forests a
+    second vertex format with texture coordinates (`FORMAT_W`, built from flat arrays: `newMeshW`;
+    flags 10 the ground, 11 a forest's top, 12 a building's front); chunks of 64 x 64 tiles: tops merged, walls where a tile stands over its neighbour, forests a
     canopy (flag 11: crowns in the shader) rounded tree by tree on their edges with a skirt, decks with
     rails and posts; the water a mesh of its own over water tiles only, at each one's level; buildings
     blocks with their roof's rows on top and their front wall's rows up their face (`KIND_H`); the
@@ -632,7 +656,20 @@ the voxel diorama mod in the engine's checkout either (another author's).
     beside it; a building block sits a hair (`E`) in from its tiles' edges, its walls from the lowest
     ground under it; the world's water waves a third as high (`WAVE`, the wave's height in the
     normal's y) so it never crosses a deck's underside or Pacifidlog's logs; the ground's picture has
-    mipmaps; the forests' crowns fade out with distance (`vFade`, flag 11).
+    mipmaps; the forests' crowns fade out with distance, and where the tiles' art shows.
+  - **The tiles' own art, full size** (render.lua `groundArt`, the shaders' `ART_GLSL`): every
+    (tileset, metatile) the world uses once in an atlas, 16 x 16 a cell, 128 cells a row, half- and
+    quarter-size copies (each pixel the mean under it) below at `lv`; an index image of one texel a
+    tile (its cell's number from 1, red + green x 256; 0 none: the picture). The pixels come from
+    `world.tile(pi, mid, out)` (the top layer over the bottom, both see-through the tile's mean; the
+    tileset's `mids.idx` / `mids_over.idx` read again, `readPixels`, let go with `world.release`).
+    `tileArt(tc, pic, r, w)` picks by `r`, screen pixels an art pixel (3D: `uArtK` / the fragment's
+    distance from the eye; flat: `uArtR`, the picture's scale / 8): >= 1 the 16s sharp (sampled at
+    texel centres, the atlas linear), the 8s and 4s between (clamped inside their cell), the picture
+    under 1/8, so nothing shimmers. On what faces up, flag 11 and flag 12 (a building's front: its
+    wall rows up the face); walls and sides keep the picture (the art would streak down them). Emerald:
+    5743 tiles, an atlas 2048 x 1260, built in the job's slices; no textures with mipmaps are sampled
+    after a branch. The flat map draws its picture through `FLAT_ART` (`R.drawPicture`).
   - **The scene and the model**: places are the Town Map's sections, each one's cells the rectangles of
     its maps (`{ x, z, w, h }`), a door's small square for a section with no map of its own, and a place
     for a section the grid doesn't draw; the player's position exact in any of them (`inWorld`: the
@@ -713,14 +750,15 @@ the voxel diorama mod in the engine's checkout either (another author's).
   sits in the middle of the view above its card: `st.cardLift` is the card's share of half the view
   (set as the card draws, the last frame's), solved through `Rd.FOV` for the goal's pitch and
   distance. A tap on the chosen place steps in (to near, the close-up, then back to 0.55). The
-  wheel and two fingers stop at `MIN_DIST` (2).
+  wheel and two fingers stop at `MIN_DIST` (1.4: the tiles' art up close).
 - **The cursor and the flat map:** the scene keeps a world cursor (`st.cx`, `st.cz`); the held
   D-pad (`dirX` / `dirY`, read with `isDown`) moves it in screen directions from the camera's yaw
   (north up when flat), slower over a town; let go, it glides (`GLIDE`) onto the nearest nav place
   within `SNAP`; `placeAt` (town over landmark over route) is the card's place (`st.here`). The
   right stick: the engine's `input.rightStickAxis`. Flat (`st.flat`, SELECT / the chip): `R.flatCamera`
-  (an orthographic view-projection, heights lifting a little) and `R.drawPicture` (the model's
-  `region.picture`, its 240 x 160 at world 0, 0; `R.drawLand` without one); L / R change the region.
+  (an orthographic view-projection, heights lifting a little) and `R.drawPicture` (the world's
+  picture with its tiles' art near, `FLAT_ART`; without a world the model's `region.picture`, its
+  240 x 160 at world 0, 0; `R.drawLand` without either); L / R change the region.
 - **The window** (`src/map3d/scene.lua`): the window contract plus `pointer(phase, x, y, id)` (the
   desktop and the watch pass a second finger's events, by its id, while a window holds the first:
   the pinch). Modes "app" (Fly: `env.map3d.fly`; `flyCheck`: the badge, a Pokémon that knows Fly,

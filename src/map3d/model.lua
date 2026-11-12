@@ -13,6 +13,11 @@
 --   M = Model(engine, deps)   deps: pixels(img, x, y, w, h) -> sample(px, py) -> r, g, b (0..255) | nil
 --                             (the picture read back; nil headless: the grid alone makes the land)
 --   M.regions(family) -> { { id, key } }       M.region(id) -> the built region (kept)
+--   M.ready(id) -> bool (built)  M.progress(id) -> 0..1 (its build, for a loading bar), fresh (true: built
+--                             from the maps to be kept, the first time; false: read back; nil: not known)
+--   M.toScale() -> bool                         (built from the game's maps: slow enough for a bar)
+--                             deps.mapCache (src/map3d/cache.lua): a region built to scale kept on disk,
+--                             read back instead of built while the maps are the same
 --   M.live(region, session)   visited / Fly / badges read again (on open, once a second)
 --   M.player(session) -> regionId, x, z        (world units, nil when unknown)
 --   M.regionHere(session) -> regionId          (the region the player's map is in; nothing built)
@@ -658,18 +663,43 @@ return function(engine, deps)
   -- Islands' three pictures. Its places the Town Map's sections, each one's cells the rectangles of its
   -- maps (world units), a cave or a building of its own where its door is. nil when the maps aren't
   -- there (the Town Map's region instead)
-  local function worldRegion(desc, family, pace)
+  local progressOf = {}
+  local function worldRegion(desc, family, pace, prog)
     local Wd = deps.world
     if not Wd then return nil end
-    local okB, world = pcall(Wd.build, { pace = pace, region = desc.id })
-    if not (okB and world) then
-      if deps.log and not okB then deps.log("the to-scale map failed: %s", tostring(world)) end
-      return nil
+    prog = prog or {}
+    local function rest() if pace and pace() and coroutine.running() then coroutine.yield() end end
+    -- (kept on disk from an earlier build while the maps are the same: read back, not built)
+    local Mc, dir, stamp, kept = deps.mapCache, nil, nil, nil
+    if Mc then
+      local okF, fp = pcall(Wd.fingerprint, pace)
+      stamp = okF and fp and Mc.stamp(fp) or nil
+      dir = Mc.dir(deps.gameId and deps.gameId() or "", desc.id)
+      prog.m = 0.04
+      if stamp then
+        local okK, got = pcall(Mc.readWorld, dir, stamp, rest)
+        kept = okK and got or nil
+        if not okK and deps.log then deps.log("the kept map couldn't be read: %s", tostring(got)) end
+        -- (built afresh, to be kept: the first time; read back: not)
+        prog.fresh = kept == nil
+      end
+    end
+    local world, t, step
+    if kept then
+      world, t, step = kept.world, kept.terrain, kept.step
+      prog.m = 0.9
+    else
+      local okB, w = pcall(Wd.build, { pace = pace, region = desc.id,
+                                        progress = function(f) prog.m = 0.04 + f * 0.86 end })
+      if not (okB and w) then
+        if deps.log and not okB then deps.log("the to-scale map failed: %s", tostring(w)) end
+        return nil
+      end
+      world = w
+      rest()
+      t, step = Wd.terrain(world, pace)
     end
     local MT = Wd.MT
-    local function rest() if pace and pace() and coroutine.running() then coroutine.yield() end end
-    rest()
-    local t, step = Wd.terrain(world, pace)
     rest()
     local all = family == "frlg" and frlgPlaces(desc) or rsePlaces()
     rest()
@@ -738,7 +768,9 @@ return function(engine, deps)
     rest()
     local region = { id = desc.id, key = desc.key, family = family, terrain = t, places = places,
                      x0 = world.x0 / MT, z0 = world.y0 / MT, w = world.cols / MT, h = world.rows / MT, step = step,
-                     fromPicture = true, world = world, classes = Wd.C, heights = Wd.H, unit = MT }
+                     fromPicture = true, world = world, classes = Wd.C, heights = Wd.H, unit = MT,
+                     -- (where it's kept on disk; kept: read back from there, its drawing too)
+                     cache = stamp and { dir = dir, stamp = stamp, kept = kept and kept.index or nil } or nil }
     for _, p in ipairs(places) do p.y = M.heightAt(region, p.x, p.z) end
     return region
   end
@@ -769,6 +801,22 @@ return function(engine, deps)
     local game = deps.gameId and deps.gameId() or ""
     return jobs[game .. ":" .. tostring(id)] ~= nil
   end
+  function M.ready(id)
+    local game = deps.gameId and deps.gameId() or ""
+    return built[game .. ":" .. tostring(id)] ~= nil
+  end
+  function M.progress(id)
+    local game = deps.gameId and deps.gameId() or ""
+    local key = game .. ":" .. tostring(id)
+    local r = built[key]
+    if r then return 1, r.cache and not r.cache.kept or nil end
+    local p = progressOf[key]
+    if not p then return 0 end
+    return p.m, p.fresh
+  end
+  function M.toScale()
+    return deps.world ~= nil and type(deps.maps and deps.maps()) == "table"
+  end
 
   function M.region(id, background)
     local game = deps.gameId and deps.gameId() or ""
@@ -790,7 +838,9 @@ return function(engine, deps)
       if built[key] then return built[key] end
     end
     local desc, family = descOf(id)
-    local region = worldRegion(desc, family, background and pace or nil)
+    progressOf[key] = progressOf[key] or { m = 0 }
+    local region = worldRegion(desc, family, background and pace or nil, progressOf[key])
+    progressOf[key] = nil
     if region then
       built[key] = region
       return region
