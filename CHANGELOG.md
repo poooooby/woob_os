@@ -5,6 +5,12 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Fixed
+- **3D map on Android:** the map stopped partway through loading and showed coarse squares instead
+  of the map, in 3D and flat (the tiles' art made its shader one the phone's GPU wouldn't take).
+  Where a GPU still won't take the art, the map is drawn in 3D without it, and the flat map no
+  longer depends on the 3D one at all.
+
 ## [0.10.1] - 2026-11-11
 
 ### Added

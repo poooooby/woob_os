@@ -670,6 +670,11 @@ the voxel diorama mod in the engine's checkout either (another author's).
     wall rows up the face); walls and sides keep the picture (the art would streak down them). Emerald:
     5743 tiles, an atlas 2048 x 1260, built in the job's slices; no textures with mipmaps are sampled
     after a branch. The flat map draws its picture through `FLAT_ART` (`R.drawPicture`).
+    OpenGL ES (Android): its pixel stage defaults to mediump, so the shaders ask for highp where the
+    device has it (`HIGHP`), and no uniform is declared in both stages (a precision mismatch fails to
+    link: 0.10.1's `uEye` broke the map on an AYN Thor; the pixel stage's distance comes in a varying,
+    `vRel`). A shader that won't compile is tried again without the art (`shaderSource(false)`,
+    `ART_NONE`): the map in 3D all the same, never the flat fallback for that.
   - **The scene and the model**: places are the Town Map's sections, each one's cells the rectangles of
     its maps (`{ x, z, w, h }`), a door's small square for a section with no map of its own, and a place
     for a section the grid doesn't draw; the player's position exact in any of them (`inWorld`: the

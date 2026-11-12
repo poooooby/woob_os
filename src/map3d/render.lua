@@ -63,6 +63,11 @@ local WX_MAX = 12          -- the most weathers shown at once (the shader's arra
 -- none), the atlas's 16 x 16 cells and their half- and quarter-size copies below them. Near, each art
 -- pixel sharp; further off the smaller copies, then the picture (two pixels a tile), so nothing
 -- shimmers as it moves. `r`: screen pixels an art pixel; `w` how much of the art shows
+local HIGHP = [[
+#if defined(GL_ES) && defined(PIXEL) && defined(GL_FRAGMENT_PRECISION_HIGH)
+precision highp float;
+#endif
+]]
 local ART_GLSL = [[
 uniform Image uIndex;
 uniform Image uAtlas;
@@ -90,13 +95,21 @@ vec3 tileArt(vec2 tc, vec3 pic, float r, out float w) {
 }
 ]]
 
-local SHADER = [[
+local ART_NONE = [[
+vec3 tileArt(vec2 tc, vec3 pic, float r, out float w) {
+  w = 0.0;
+  return pic;
+}
+]]
+
+local function shaderSource(art)
+  return HIGHP .. [[
 varying vec3 vNormal;
 varying float vFlag;
 varying float vWave;
 varying float vFade;
 varying vec2 vGround;
-varying float vY;
+varying vec3 vRel;       // (where it is from the eye: the pixel stage's distance, no uniform shared)
 #ifdef VERTEX
 uniform mat4 uViewProj;
 uniform float uTime;
@@ -196,13 +209,12 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     vFade = k * smoothstep(1.0, 3.2, distance(p, uEye));
   }
   vGround = p.xz;
-  vY = p.y;
+  vRel = p - uEye;
   return uViewProj * vec4(p, 1.0);
 }
 #endif
 #ifdef PIXEL
-]] .. ART_GLSL .. [[
-uniform vec3 uEye;
+]] .. (art and ART_GLSL or ART_NONE) .. [[
 uniform float uArtK;     // screen pixels an art pixel at one world unit from the eye
 uniform vec3 uSun;
 uniform vec3 uSunColor;
@@ -238,7 +250,7 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
     vec3 c = pic;
     float near = 0.0;
     if (n.y > 0.5 || vFlag > 10.5) {
-      float dist = distance(vec3(vGround.x, vY, vGround.y), uEye);
+      float dist = length(vRel);
       float w = 0.0;
       c = tileArt(tc, pic, uArtK / max(dist, 0.001), w);
       // (the crowns fading out with distance: far off the pattern is finer than a pixel and would shimmer)
@@ -281,6 +293,7 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
 }
 #endif
 ]]
+end
 
 -- the frosted glass under the overlays: the map blurred (a quarter-size copy, 25 taps), inside a
 -- rounded rectangle (window pixels: its signed distance)
@@ -305,7 +318,7 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
 
 -- the flat map of the world built to scale: its picture (two pixels a tile), the tiles' own art over it
 -- when near enough
-local FLAT_ART = ART_GLSL .. [[
+local FLAT_ART = HIGHP .. ART_GLSL .. [[
 uniform float uArtR;     // screen pixels an art pixel
 vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
   vec3 pic = Texel(tex, tc).rgb;
@@ -669,9 +682,11 @@ return function(deps)
     end
     if map then pcall(m.setVertexMap, m, map) end
     if rkeep and slot then
-      local v = Mc.packW(flat, n, rbreathe)
-      local i = map and Mc.packIdx(map, rbreathe) or nil
-      if v then
+      -- (a failure here only means it isn't kept: the map is made all the same)
+      local okV, v = pcall(Mc.packW, flat, n, rbreathe)
+      local okI, i = true, nil
+      if map then okI, i = pcall(Mc.packIdx, map, rbreathe) end
+      if okV and okI and v and (i or not map) then
         rkeep.meshes[#rkeep.meshes + 1] = { slot = slot, fmt = "W", n = n, ni = map and #map or 0, v = v, i = i }
       else
         rkeep = nil
@@ -1304,8 +1319,8 @@ return function(deps)
       if okL then
         m.landmarks = newMesh(G, lv)
         if rkeep and m.landmarks then
-          local v = Mc.packV(lv, rbreathe)
-          if v then rkeep.meshes[#rkeep.meshes + 1] = { slot = "landmarks", fmt = "V", n = #lv, ni = 0, v = v } else rkeep = nil end
+          local okV, v = pcall(Mc.packV, lv, rbreathe)
+          if okV and v then rkeep.meshes[#rkeep.meshes + 1] = { slot = "landmarks", fmt = "V", n = #lv, ni = 0, v = v } else rkeep = nil end
         end
       elseif deps.log then
         deps.log("the map's landmarks failed: %s", tostring(lv))
@@ -1683,7 +1698,12 @@ return function(deps)
     shaderTried = true
     if not G.newShader then return nil end
     local t0 = rclock()
-    local ok, s = pcall(G.newShader, SHADER)
+    local ok, s = pcall(G.newShader, shaderSource(true))
+    if not ok then
+      -- (the tiles' art left out where the GPU won't take it: the map in 3D all the same)
+      if deps.log then deps.log("the map's shader with the tiles' art failed: %s", tostring(s)) end
+      ok, s = pcall(G.newShader, shaderSource(false))
+    end
     if PROFILE and deps.log then deps.log("map shader compiled in %.0f ms", (rclock() - t0) * 1000) end
     if ok then shader = s elseif deps.log then deps.log("the map's shader failed: %s", tostring(s)) end
     return shader
@@ -1731,7 +1751,8 @@ return function(deps)
   -- -> true while there's more to make
   function R.prepare(G, region, budget)
     if not (region and region.world) or meshesOf[region] ~= nil or not (G and G.newMesh) then return false end
-    if not getShader(G) then return false end
+    -- (made even when the shader can't be: the flat map's picture comes from this job too)
+    getShader(G)
     return stepJob(G, region, budget or 0.004)
   end
   function R.ready(region) return not (region and region.world) or meshesOf[region] ~= nil end
