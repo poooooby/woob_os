@@ -8,13 +8,16 @@
 -- Pokédex, hatches, evolutions), a GTS trade, a team out on an errand or back, the week's challenges.
 -- Nothing made up: the battles are the journal's box scores (src/journal.lua), the swarm is real
 -- (src/swarm.lua). The last time they watched is kept in the save (mod.save "news"), and the swarm's
--- notification once a day.
+-- notification once a day. Each story has the anchor's mood for it: "cheer" for the rookie's big
+-- moments (a Gym, a clean sweep, a first for the Pokédex, a hatch, an evolution, the week's challenges
+-- all done), "shock" for breaking news and anything shiny or legendary, none (her everyday read) for
+-- the rest.
 --
 --   Nw = News(engine, deps)  deps: save ; now() ; journal ; swarm ; auction ; gts ; errands ;
 --       challenges ; storm(s) -> { kind, place } | nil ; place(mapId) -> its name ; monName(sp) ;
 --       moveName(num) ; itemName(id) ; T ; notify(kind, data)
 --   Nw.build(s) -> { stories = { { tag = "world" | "you", head, body, beats = { { mark, text } } | nil,
---       sp, glyph, color, key } }, ticker }
+--       sp, glyph, color, key, mood = "cheer" | "shock" | nil } }, ticker }
 --     keys: gym, match1, match2, signing, week, swarm, outbreak, storm, rbay, shiny, catch, hatch,
 --       evolve, gts, errand, errandBack, challenges, quiet
 --   Nw.tick(s) (once a second: a new day's swarm -> a "swarm" notification, once a day)
@@ -135,7 +138,7 @@ return function(engine, deps)
       end
       local f = g.fin
       out[#out + 1] = { tag = "you", key = "gym", head = head, body = body, beats = beats, at = num(g.at),
-                        sp = f and f.by or g.lead, glyph = "medal", color = { 255, 189, 46 } }
+                        sp = f and f.by or g.lead, glyph = "medal", color = { 255, 189, 46 }, mood = "cheer" }
     end
     for i, w in ipairs(Jr.wins and Jr.wins() or {}) do
       if i > 2 then break end
@@ -147,7 +150,7 @@ return function(engine, deps)
       if num(w.them) == 0 then body = body .. " " .. T("news.match.clean") end
       out[#out + 1] = { tag = "you", key = "match" .. i, head = T.f("news.match.head", me, num(w.me), who, num(w.them)),
                         body = body, at = num(w.at), sp = f and f.by or (w.mine and w.mine[1]),
-                        glyph = "glove", color = { 255, 69, 58 } }
+                        glyph = "glove", color = { 255, 69, 58 }, mood = num(w.them) == 0 and "cheer" or nil }
     end
     local c = Jr.catch and Jr.catch()
     if type(c) == "table" and c.sp then
@@ -156,7 +159,7 @@ return function(engine, deps)
       if ball then body = body .. " " .. T.f("news.sign.ball", ball) end
       if c.shiny then body = body .. " " .. T("news.sign.shiny") elseif c.new then body = body .. " " .. T("news.sign.new") end
       out[#out + 1] = { tag = "you", key = "signing", head = T.f("news.sign.head", me, name(c.sp)), body = body,
-                        at = num(c.at), sp = c.sp }
+                        at = num(c.at), sp = c.sp, mood = c.shiny and "shock" or (c.new and "cheer" or nil) }
     end
     -- (newest first, the way the day's sports lead)
     table.sort(out, function(a, b)
@@ -189,19 +192,19 @@ return function(engine, deps)
     if sw then
       local where, who = place(sw.mapId), name(sw.species)
       add("world", "swarm", T.f("news.swarm.head", who, where), T.f("news.swarm.body", who, where, sw.min, sw.max),
-        { sp = sw.species })
+        { sp = sw.species, mood = "shock" })
     end
     local ob = s and s.outbreak
     if type(ob) == "table" and tonumber(ob.species) and (not sw or tonumber(ob.species) ~= sw.species) then
       local who, where = name(tonumber(ob.species)), place(ob.map)
       add("world", "outbreak", T.f("news.outbreak.head", who, where), T.f("news.outbreak.body", who, where),
-        { sp = tonumber(ob.species) })
+        { sp = tonumber(ob.species), mood = "shock" })
     end
     local storm = deps.storm and deps.storm(s)
     if type(storm) == "table" and storm.place then
       local k = storm.kind == "sand" and "sand" or "rain"
       add("world", "storm", T.f("news.storm." .. k .. ".head", storm.place), T.f("news.storm." .. k .. ".body", storm.place),
-        { glyph = "cloud", color = k == "sand" and { 214, 150, 60 } or { 70, 110, 200 } })
+        { glyph = "cloud", color = k == "sand" and { 214, 150, 60 } or { 70, 110, 200 }, mood = "shock" })
     end
     if deps.auction and s then
       local ok, ls = pcall(deps.auction.listings, s, now)
@@ -218,7 +221,8 @@ return function(engine, deps)
         local tierWord = T("auction.tier." .. tostring(best.tier or "common"))
         add("world", "rbay", T.f("news.rbay.head", name(best.sp)),
           T.f("news.rbay.body", tierWord, name(best.sp), commas(tonumber(best.price) or 0)),
-          { sp = best.sp, glyph = "rocket", color = { 196, 30, 44 } })
+          { sp = best.sp, glyph = "rocket", color = { 196, 30, 44 },
+            mood = (best.shiny or (TIER_RANK[best.tier] or 0) >= TIER_RANK.legendary) and "shock" or nil })
       end
     end
     -- (the rest since they last watched, the newest few: the latest catch is the signing already;
@@ -234,14 +238,17 @@ return function(engine, deps)
         if m.k == "catch" and type(signed) == "table" and signed.at == m.at and signed.sp == m.sp then
           ok = false
         elseif m.k == "catch" and m.shiny then
-          add("you", "shiny", T.f("news.shiny.head", name(m.sp)), T.f("news.shiny.body", me, name(m.sp)), { sp = m.sp })
+          add("you", "shiny", T.f("news.shiny.head", name(m.sp)), T.f("news.shiny.body", me, name(m.sp)),
+            { sp = m.sp, mood = "shock" })
         elseif m.k == "catch" and m.new then
-          add("you", "catch", T.f("news.catch.head", name(m.sp)), T.f("news.catch.body", me, name(m.sp)), { sp = m.sp })
+          add("you", "catch", T.f("news.catch.head", name(m.sp)), T.f("news.catch.body", me, name(m.sp)),
+            { sp = m.sp, mood = "cheer" })
         elseif m.k == "hatch" then
-          add("you", "hatch", T.f("news.hatch.head", name(m.sp)), T.f("news.hatch.body", me, name(m.sp)), { sp = m.sp })
+          add("you", "hatch", T.f("news.hatch.head", name(m.sp)), T.f("news.hatch.body", me, name(m.sp)),
+            { sp = m.sp, mood = "cheer" })
         elseif m.k == "evolve" then
           add("you", "evolve", T.f("news.evolve.head", name(m.from), name(m.sp)),
-            T.f("news.evolve.body", me, name(m.from), name(m.sp)), { sp = m.sp })
+            T.f("news.evolve.body", me, name(m.from), name(m.sp)), { sp = m.sp, mood = "cheer" })
         else
           ok = false
         end
@@ -277,7 +284,7 @@ return function(engine, deps)
         local done = 0
         for _, e in ipairs(l) do if deps.challenges.done(e) then done = done + 1 end end
         add("you", "challenges", T.f("news.challenges.head", done, #l), T.f("news.challenges.body", done, #l),
-          { glyph = "medal", color = { 255, 159, 10 } })
+          { glyph = "medal", color = { 255, 159, 10 }, mood = done >= #l and "cheer" or nil })
       end
     end
     if #list == 0 then add("you", "quiet", T("news.quiet.head"), T("news.quiet.body"), { glyph = "mic", color = { 88, 86, 214 } }) end

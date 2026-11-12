@@ -5,6 +5,27 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **3D map (Ruby, Sapphire, Emerald):** Hoenn built to scale from the game's own maps instead of the
+  Town Map. Every outdoor map sits where it joins its neighbours (Petalburg Woods in Route 104,
+  Sootopolis in its crater, Mt. Pyre, Sky Pillar and the Safari Zone where their doors lead), each
+  tile in its own colours, the gaps between routes filled with the forest, rock or sea the game shows
+  past their edges. Forests are rounded canopies; mountains rise in terraces read from the game's cliff
+  art, highest at Mt. Chimney's summit; lakes up in the mountains sit at their own level and the sea
+  stays off the land. Every building stands on its door's footprint with its own roof and front-wall
+  art, Gyms taller than houses; bridges and Pacifidlog's logs are decks over the water. Landmarks:
+  Sky Pillar, Mt. Chimney's crater, Lilycove's Department Store, the ships at the
+  harbours, Mossdeep's rocket, the Weather Institute's dish, the Contest Hall's dome, Mirage Tower, the
+  Abandoned Ship, the Pokémon League, the Battle Tower, Fortree's houses in the trees, the caves'
+  mouths. The weather sits over each map's real spot and the player's mark where they really stand.
+  The map is built in the background a few milliseconds a frame shortly after play starts, so it
+  opens at once.
+- **News:** the anchor reacts to the stories she reads. She cheers with a fist pump for a Gym won, a
+  clean sweep, a first for the Pokédex, a hatch, an evolution or the week's challenges all done, and
+  puts her hands on her head for breaking news (a swarm, an outbreak, a storm), a shiny, or a shiny
+  or legendary Pokémon up on R-Bay. Each reaction comes on as the story cuts in, stays while she
+  talks, holds a moment once the words are all there, then she settles back.
+
 ## [0.9.3] - 2026-11-11
 
 ### Added

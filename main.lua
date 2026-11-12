@@ -76,7 +76,7 @@ return function(mod)
   local makeGear, makeGearPanel = loadSibling(mod, "src/kanto_gear.lua"), loadSibling(mod, "src/gear_panel.lua")
   local makeMapModel, makeMapRender = loadSibling(mod, "src/map3d/model.lua"), loadSibling(mod, "src/map3d/render.lua")
   local mapScene, makeTownMap = loadSibling(mod, "src/map3d/scene.lua"), loadSibling(mod, "src/townmap.lua")
-  local makeTowns = loadSibling(mod, "src/map3d/towns.lua")
+  local makeTowns, makeWorld = loadSibling(mod, "src/map3d/towns.lua"), loadSibling(mod, "src/map3d/world.lua")
   local makePhone, phoneWindow = loadSibling(mod, "src/phone.lua"), loadSibling(mod, "src/apps/phone.lua")
   local makeCondition, conditionWindow = loadSibling(mod, "src/condition.lua"), loadSibling(mod, "src/apps/condition.lua")
   local makeRibbons, ribbonsWindow = loadSibling(mod, "src/ribbons.lua"), loadSibling(mod, "src/apps/ribbons.lua")
@@ -566,23 +566,29 @@ return function(mod)
     if okS and type(spr) == "table" and spr.image and spr.quads then clerkSpr, clerkFor = spr, g end
     return clerkSpr
   end
-  -- the News's anchor: assets/newscaster.png, square frames side by side (0 at rest, the rest her
-  -- talking), loaded once for whole-pixel scaling, its frames cut with it; `foot` = the empty rows
-  -- under every frame (the bust is drawn that much lower, to meet the shot's edge)
-  local ANCHOR = "assets/newscaster.png"
-  local anchorArt
-  env.anchor = function()
-    if anchorArt == nil then
-      anchorArt = false
+  -- the News's anchor: a sheet per mood (assets/newscaster.png her everyday read, newscaster-cheer.png,
+  -- newscaster-shock.png), square frames side by side (0 at rest), each loaded the first time it's
+  -- asked for, for whole-pixel scaling, its frames cut with it; `foot` = the empty rows under every
+  -- frame (the bust is drawn that much lower, to meet the shot's edge). env.anchor(mood): nil for a
+  -- mood with no sheet (the window falls back on the everyday one)
+  local ANCHOR = { talk = "assets/newscaster.png", cheer = "assets/newscaster-cheer.png",
+                   shock = "assets/newscaster-shock.png" }
+  local anchorArt = {}
+  env.anchor = function(mood)
+    local key = mood or "talk"
+    local path = ANCHOR[key]
+    if not path then return nil end
+    if anchorArt[key] == nil then
+      anchorArt[key] = false
       local LG, LI = love and love.graphics, love and love.image
-      local ok, img = pcall(mod.assets.image, mod.assets, ANCHOR)
+      local ok, img = pcall(mod.assets.image, mod.assets, path)
       if ok and img and LG and LG.newQuad then
         pcall(img.setFilter, img, "nearest", "nearest")
         local iw, ih = img:getDimensions()
         local n, quads = math.max(1, math.floor(iw / ih)), {}
         for i = 0, n - 1 do quads[i] = LG.newQuad(i * ih, 0, ih, ih, iw, ih) end
         local foot = 0
-        local okP, full = pcall(mod.assets.path, mod.assets, ANCHOR)
+        local okP, full = pcall(mod.assets.path, mod.assets, path)
         local okD, data = false, nil
         if okP and LI and LI.newImageData then okD, data = pcall(LI.newImageData, full) end
         if okD and data then
@@ -600,10 +606,10 @@ return function(mod)
           end
           pcall(data.release, data)
         end
-        anchorArt = { image = img, quads = quads, n = n, size = ih, foot = foot }
+        anchorArt[key] = { image = img, quads = quads, n = n, size = ih, foot = foot }
       end
     end
-    return anchorArt or nil
+    return anchorArt[key] or nil
   end
   if makeNews then
     env.news = makeNews(engine, {
@@ -669,7 +675,9 @@ return function(mod)
       local g = mod.game
       return g and g.data and g.data.maps or nil
     end
-    local Model = makeMapModel(engine, { pixels = pixels, gameId = gameId, maps = mapDefs })
+    -- (Ruby / Sapphire / Emerald: Hoenn built to scale from those maps)
+    local World = makeWorld and makeWorld(engine, { maps = mapDefs }) or nil
+    local Model = makeMapModel(engine, { pixels = pixels, gameId = gameId, maps = mapDefs, world = World, log = warn })
     local Towns = makeTowns and makeTowns() or nil
     env.map3d = {
       model = Model,
@@ -900,6 +908,29 @@ return function(mod)
     if env.errands then pcall(env.errands.settle, s) end
     if env.news then pcall(env.news.tick, s) end
   end
+  -- each frame: Ruby / Sapphire / Emerald's map built to scale in the background, a few milliseconds a
+  -- frame once the player has been out in the field a few seconds after the game starts (so the map
+  -- opens at once; opened sooner, it finishes the build itself)
+  local mapPrep = { at = nil, done = false, game = nil }
+  local function frame(game)
+    local m3 = env.map3d
+    if not m3 or mapPrep.done then return end
+    local g = gameId()
+    if mapPrep.game ~= g then mapPrep.game, mapPrep.at = g, nil end
+    if m3.model.family() ~= "rse" or (Settings and Settings.get("map3d", true) == false) then
+      mapPrep.done = true
+      return
+    end
+    local now = love and love.timer and love.timer.getTime() or 0
+    if not (Sh and Sh.free(game)) then return end
+    if not mapPrep.at then mapPrep.at = now + 4 end
+    if now < mapPrep.at then return end
+    m3.model.prepare("hoenn")
+    if m3.model.step(0.004) then return end
+    local region = m3.model.region("hoenn")
+    if region and region.world and m3.render.prepare(love.graphics, region, 0.004) then return end
+    mapPrep.done = true
+  end
   -- the PokéNav's Match Call / Trainer's Eyes and Condition: our apps instead (Settings: pokenavApps)
   local Pokenav = makePokenav and makePokenav(engine, {
     open = function(appId, s, onClose, state) return Sh and Sh.openFull(appId, s, onClose, state) or false end,
@@ -927,7 +958,7 @@ return function(mod)
   }) or nil
   Sh = makeShell(mod, { require = require, log = mod.log, desktop = Desktop, apps = Apps, watch = Watch,
                         gearPanel = GearPanel,
-                        notify = Nt, tick = tick, session = session,
+                        notify = Nt, tick = tick, frame = frame, session = session,
                         townmap = TownMap, map3d = env.map3d, pokenav = Pokenav,
                         onCall = env.phone and onCall or nil,
                         map3dOn = function() return not Settings or Settings.get("map3d", true) ~= false end,

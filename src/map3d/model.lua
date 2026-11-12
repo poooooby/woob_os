@@ -328,9 +328,15 @@ return function(engine, deps)
     local badges = badgeList()
     for _, p in ipairs(places) do
       p.tier = p.kind == "town" and tierOf(p.sym) or nil
-      local sx, sz = 0, 0
-      for _, c in ipairs(p.cells) do sx, sz = sx + c[1] + 0.5, sz + c[2] + 0.5 end
-      p.x, p.z, p.y = sx / #p.cells, sz / #p.cells, LAND_Y
+      -- (a cell is { x, z } one unit square, or { x, z, w, h } in the world built to scale: its middle,
+      -- the big ones counting for more)
+      local sx, sz, sw = 0, 0, 0
+      for _, c in ipairs(p.cells) do
+        local w, h = c[3] or 1, c[4] or 1
+        local a = w * h
+        sx, sz, sw = sx + (c[1] + w / 2) * a, sz + (c[2] + h / 2) * a, sw + a
+      end
+      p.x, p.z, p.y = sx / sw, sz / sw, LAND_Y
       local key = p.census
       if key and key ~= "" then
         p.center = hasMap(key .. "_PokemonCenter_1F")
@@ -507,30 +513,34 @@ return function(engine, deps)
     for _, sp in ipairs(okM and type(man) == "table" and type(man.specialPlaces) == "table" and man.specialPlaces or {}) do
       if type(sp) == "table" and byId[sp[2]] and not byId[sp[1]] then inside[sp[1]] = byId[sp[2]] end
     end
-    local function add(p, w, x0, x1, z0, z1)
+    -- (in the world built to scale each map is where it is: a weather is over its own map, wm)
+    local function add(p, w, x0, x1, z0, z1, wm)
       -- (a place one cell across: all of it that way)
-      if p.x1 - p.x0 <= 1 then x0, x1 = 0, 1 end
-      if p.z1 - p.z0 <= 1 then z0, z1 = 0, 1 end
-      local key = tostring(p.id) .. ":" .. w
+      if not wm and p.x1 - p.x0 <= 1 then x0, x1 = 0, 1 end
+      if not wm and p.z1 - p.z0 <= 1 then z0, z1 = 0, 1 end
+      local key = (wm and wm.id or tostring(p.id)) .. ":" .. w
       local sp = found[key]
       if sp then
         sp.fx0, sp.fx1, sp.fz0, sp.fz1 = min(sp.fx0, x0), max(sp.fx1, x1), min(sp.fz0, z0), max(sp.fz1, z1)
       else
-        sp = { key = key, raw = w, place = p, fx0 = x0, fx1 = x1, fz0 = z0, fz1 = z1 }
+        sp = { key = key, raw = w, place = p, fx0 = x0, fx1 = x1, fz0 = z0, fz1 = z1, map = wm }
         found[key] = sp
         spots[#spots + 1] = sp
       end
     end
+    local W = region.world
     for id, def in pairs(maps) do
       local sec = type(def) == "table" and tonumber(def.regionMapSectionId)
       local p, within = sec and byId[sec], sec and inside[sec]
+      local wm = W and W.byId[id]
+      if W and not wm then p, within = nil, nil end
       local okO, outdoor = pcall(Dataset and Dataset.isOutdoorMapType or error, (p or within) and def.mapType)
       if within and okO and outdoor and shown(tonumber(def.weather)) then
-        add(within, tonumber(def.weather), 0, 1, 0, 1)
+        add(within, tonumber(def.weather), 0, 1, 0, 1, wm)
       end
       if p and okO and outdoor then
         local own = tonumber(def.weather)
-        if shown(own) then add(p, own, 0, 1, 0, 1) end
+        if shown(own) then add(p, own, 0, 1, 0, 1, wm) end
         local ev = type(events) == "table" and events[id] or nil
         local mw, mh = max(1, tonumber(def.width) or 1), max(1, tonumber(def.height) or 1)
         local boxes = {}
@@ -553,7 +563,7 @@ return function(engine, deps)
         end
         for w, b in pairs(boxes) do
           add(p, w, max(0, b[1] / mw - WX_PAD), min(1, (b[2] + 1) / mw + WX_PAD),
-            max(0, b[3] / mh - WX_PAD), min(1, (b[4] + 1) / mh + WX_PAD))
+            max(0, b[3] / mh - WX_PAD), min(1, (b[4] + 1) / mh + WX_PAD), wm)
         end
       end
     end
@@ -587,9 +597,16 @@ return function(engine, deps)
       end
       local kind = w and WX[w]
       if kind then
-        local p = sp.place
-        local x0, x1 = p.x0 + (p.x1 - p.x0) * sp.fx0, p.x0 + (p.x1 - p.x0) * sp.fx1
-        local z0, z1 = p.z0 + (p.z1 - p.z0) * sp.fz0, p.z0 + (p.z1 - p.z0) * sp.fz1
+        local p, m = sp.place, sp.map
+        local x0, x1, z0, z1
+        if m then
+          local MT = region.unit
+          x0, x1 = (m.x + m.w * sp.fx0) / MT, (m.x + m.w * sp.fx1) / MT
+          z0, z1 = (m.y + m.h * sp.fz0) / MT, (m.y + m.h * sp.fz1) / MT
+        else
+          x0, x1 = p.x0 + (p.x1 - p.x0) * sp.fx0, p.x0 + (p.x1 - p.x0) * sp.fx1
+          z0, z1 = p.z0 + (p.z1 - p.z0) * sp.fz0, p.z0 + (p.z1 - p.z0) * sp.fz1
+        end
         local w2 = { key = sp.key, kind = kind, place = p, x = (x0 + x1) / 2, z = (z0 + z1) / 2,
                      rx = max(0.55, (x1 - x0) / 2), rz = max(0.55, (z1 - z0) / 2) }
         w2.y, w2.y0 = groundUnder(region, w2.x, w2.z, w2.rx, w2.rz)
@@ -629,11 +646,138 @@ return function(engine, deps)
     return ok and s or nil, img
   end
 
-  function M.region(id)
+  -- Ruby / Sapphire / Emerald: Hoenn built to scale from the game's own maps (src/map3d/world.lua);
+  -- its places the Town Map's sections, each one's cells the rectangles of its maps (world units), a
+  -- cave or a building of its own where its door is. nil when the maps aren't there (the Town Map's
+  -- region instead)
+  local function worldRegion(desc, pace)
+    local Wd = deps.world
+    if not Wd then return nil end
+    local okB, world = pcall(Wd.build, { pace = pace })
+    if not (okB and world) then
+      if deps.log and not okB then deps.log("the to-scale map failed: %s", tostring(world)) end
+      return nil
+    end
+    local MT = Wd.MT
+    local function rest() if pace and pace() and coroutine.running() then coroutine.yield() end end
+    rest()
+    local t, step = Wd.terrain(world, pace)
+    rest()
+    local all = rsePlaces()
+    rest()
+    local bySec = {}
+    for _, p in ipairs(all) do
+      p.cells, bySec[p.id] = {}, p
+    end
+    -- (a section the Town Map's grid doesn't draw -- Sky Pillar, Mt. Pyre, Mirage Tower, the
+    -- Abandoned Ship -- a place all the same, named as the rest are)
+    local RM = engine("src.ui.game3.rse.region_map")
+    local okM, man = pcall(RM and RM.manifest or error)
+    local secs = okM and type(man) == "table" and man.mapsecs or {}
+    local symOf = {}
+    for k, v in pairs(secs) do symOf[v] = k end
+    local first, last = secs.LITTLEROOT_TOWN or 0, secs.EVER_GRANDE_CITY or 15
+    local function placeOf(sec)
+      sec = tonumber(sec)
+      if not sec or sec == secs.NONE or sec == secs.DYNAMIC then return nil end
+      if bySec[sec] then return bySec[sec] end
+      local okN, raw = pcall(RM and RM.mapName or error, sec)
+      local name = okN and type(raw) == "string" and raw or ""
+      if name == "" then return nil end
+      local sym = symOf[sec] or name:upper():gsub("[^%w]+", "_"):gsub("_$", "")
+      local kind = (sec >= first and sec <= last) and "town" or (name:find("^ROUTE") and "route" or "landmark")
+      local p = { id = sec, cells = {}, sym = sym, kind = kind, name = titled(name), census = camel(name), peak = PEAKS[sym] }
+      bySec[sec] = p
+      all[#all + 1] = p
+      return p
+    end
+    for _, m in ipairs(world.maps) do
+      local p = placeOf(m.sec)
+      if p then p.cells[#p.cells + 1] = { m.x / MT, m.y / MT, m.w / MT, m.h / MT } end
+    end
+    for _, d in ipairs(world.doors) do
+      local p = placeOf(d.sec)
+      if p and (#p.cells == 0 or p.atDoor) then
+        p.atDoor = true
+        p.cells[#p.cells + 1] = { (d.x - 3) / MT, (d.y - 4) / MT, 6 / MT, 6 / MT }
+      end
+    end
+    local places = {}
+    for _, p in ipairs(all) do
+      if #p.cells > 0 then
+        local c1 = p.cells[1]
+        p.x0, p.z0, p.x1, p.z1 = c1[1], c1[2], c1[1] + c1[3], c1[2] + c1[4]
+        for _, c in ipairs(p.cells) do
+          p.x0, p.z0 = min(p.x0, c[1]), min(p.z0, c[2])
+          p.x1, p.z1 = max(p.x1, c[1] + c[3]), max(p.z1, c[2] + c[4])
+        end
+        places[#places + 1] = p
+      end
+    end
+    rest()
+    finishPlaces(places)
+    rest()
+    local region = { id = desc.id, key = desc.key, family = "rse", terrain = t, places = places,
+                     x0 = world.x0 / MT, z0 = world.y0 / MT, w = world.cols / MT, h = world.rows / MT, step = step,
+                     fromPicture = true, world = world, classes = Wd.C, heights = Wd.H, unit = MT }
+    for _, p in ipairs(places) do p.y = M.heightAt(region, p.x, p.z) end
+    return region
+  end
+
+  -- built in the background: M.prepare(id) starts it, M.step(budget) goes on with it a few
+  -- milliseconds at a time (each frame); asked for meanwhile, M.region finishes it there and then
+  local jobs, slice = {}, { start = 0, budget = 0.004, sync = false }
+  local function clock() return love and love.timer and love.timer.getTime() or os.clock() end
+  local function pace() return not slice.sync and clock() - slice.start > slice.budget end
+  function M.prepare(id)
+    local game = deps.gameId and deps.gameId() or ""
+    local key = game .. ":" .. tostring(id)
+    if built[key] or jobs[key] then return end
+    jobs[key] = coroutine.create(function() return M.region(id, true) end)
+  end
+  -- -> true while there's more to build
+  function M.step(budget)
+    local more = false
+    for key, co in pairs(jobs) do
+      slice.start, slice.budget, slice.sync = clock(), budget or 0.004, false
+      local ok, err = coroutine.resume(co)
+      if not ok and deps.log then deps.log("the map's build failed: %s", tostring(err)) end
+      if coroutine.status(co) == "dead" then jobs[key] = nil else more = true end
+    end
+    return more
+  end
+  function M.building(id)
+    local game = deps.gameId and deps.gameId() or ""
+    return jobs[game .. ":" .. tostring(id)] ~= nil
+  end
+
+  function M.region(id, background)
     local game = deps.gameId and deps.gameId() or ""
     local key = game .. ":" .. tostring(id)
     if built[key] then return built[key] end
+    -- (being built in the background: finished here, now)
+    local job = jobs[key]
+    if job and not background then
+      slice.sync = true
+      while coroutine.status(job) ~= "dead" do
+        local ok, err = coroutine.resume(job)
+        if not ok then
+          if deps.log then deps.log("the map's build failed: %s", tostring(err)) end
+          break
+        end
+      end
+      slice.sync = false
+      jobs[key] = nil
+      if built[key] then return built[key] end
+    end
     local desc, family = descOf(id)
+    if family == "rse" then
+      local region = worldRegion(desc, background and pace or nil)
+      if region then
+        built[key] = region
+        return region
+      end
+    end
     local crop = CROP[family]
     local places = family == "frlg" and frlgPlaces(desc) or rsePlaces()
     finishPlaces(places)
@@ -738,6 +882,30 @@ return function(engine, deps)
   function M.player(s)
     if not s then return nil end
     if familyOf() == "rse" then
+      -- (the world built to scale: exactly where they stand outdoors; indoors or in a cave, the door
+      -- they came in by)
+      local game = deps.gameId and deps.gameId() or ""
+      local wr = built[game .. ":hoenn"]
+      local W = wr and wr.world
+      if W then
+        local MT = wr.unit
+        local m = W.byId[s.map]
+        if m and tonumber(s.x) then return "hoenn", (m.x + s.x + 0.5) / MT, (m.y + s.y + 0.5) / MT end
+        local RMw = engine("src.ui.game3.rse.region_map")
+        for _, saved in ipairs({ s.escapeWarp, s.dynamicWarp }) do
+          local okW, w = pcall(RMw and RMw.savedWarp or error, saved)
+          local wm = okW and type(w) == "table" and W.byId[w.map]
+          if wm then return "hoenn", (wm.x + (tonumber(w.x) or 0) + 0.5) / MT, (wm.y + (tonumber(w.y) or 0) + 0.5) / MT end
+        end
+        -- (nowhere placed -- under the sea, say: the middle of its place)
+        local Map = engine("src.core.game3.map")
+        local okD, def = pcall(Map and Map.currentDef or error)
+        local sec = okD and type(def) == "table" and tonumber(def.regionMapSectionId)
+        for _, p in ipairs(wr.places) do
+          if p.id == sec then return "hoenn", p.x, p.z end
+        end
+        return nil
+      end
       local RM = engine("src.ui.game3.rse.region_map")
       local ok, st = pcall(RM and RM.newState or error, { session = s, mode = "wall" })
       if not (ok and type(st) == "table" and tonumber(st.playerIconX)) then return nil end

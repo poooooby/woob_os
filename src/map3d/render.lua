@@ -36,6 +36,10 @@ local SLAB = -0.9          -- the slab's foot
 local SEA_ALPHA = 0.78
 local FOV = 0.72           -- radians, top to bottom
 local NEAR, FAR = 0.3, 260
+-- (the near plane moves out with the camera: a far view keeps its depth sharp, so ground just over the
+-- water never flickers under it; a close one comes in near)
+local NEAR_K, NEAR_MIN, NEAR_MAX = 0.05, 0.05, 2.5
+local PROFILE = false
 
 local FORMAT = {
   { "VertexPosition", "float", 3 },
@@ -81,7 +85,8 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     float a = p.x * 1.9 + uTime * 1.2;
     float b = p.z * 2.4 - uTime * 0.9;
     float c = (p.x + p.z) * 3.1 + uTime * 1.7;
-    p.y += (sin(a) + sin(b)) * 0.018 + sin(c) * 0.008;
+    // (the wave's height scaled by the normal's y: the Town Map's sea 1, the world's calmer)
+    p.y += ((sin(a) + sin(b)) * 0.018 + sin(c) * 0.008) * VertexNormal.y;
     vWave = sin(a) * 0.5 + sin(c) * 0.5;
     vNormal = normalize(vec3(-cos(a) * 0.07, 1.0, -cos(b) * 0.08));
   } else if (VertexFlag > 2.5 && VertexFlag < 3.5) {
@@ -143,7 +148,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     vNormal = vec3(0.0, 1.0, 0.0);
     vFade = uWxMove.w * smoothstep(0.0, 0.18, edge) * smoothstep(0.0, 0.08, f) * (1.0 - smoothstep(0.92, 1.0, f))
       * smoothstep(0.4, 1.4, distance(base, uEye));
-  } else if (VertexFlag > 8.5) {
+  } else if (VertexFlag > 8.5 && VertexFlag < 9.5) {
     // (a lobe of cloud or haze drifting slowly along, growing in where it wraps round)
     vec3 a = VertexNormal;
     vec2 u = vec2(fract(a.x + uTime * uWxMove.y), a.z);
@@ -156,6 +161,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     vFade = k * smoothstep(1.0, 3.2, distance(p, uEye));
   }
   vGround = p.xz;
+  if (VertexFlag > 10.5) vFade = distance(p, uEye);
   return uViewProj * vec4(p, 1.0);
 }
 #endif
@@ -185,11 +191,27 @@ vec3 underStorm(vec3 c) {
   return mix(c, c * uStormTint.rgb, k * uStormTint.a) + vec3(0.25, 0.28, 0.4) * uFlash * k;
 }
 vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
+  if (vFlag > 9.5) {
+    // (the overworld built to scale: the tiles' own colours from the mesh's picture; a forest's top
+    // (11) each tile a round crown, lit on its sun side, dark between them; 16 tiles a world unit)
+    vec3 base = color.rgb * Texel(tex, tc).rgb;
+    vec3 n = normalize(vNormal);
+    if (vFlag > 10.5 && n.y > 0.9) {
+      // (fading out with distance: far off the pattern is finer than a pixel and would shimmer)
+      float near = 1.0 - smoothstep(3.0, 9.0, vFade);
+      vec2 f = fract(vGround * 16.0) - 0.5;
+      float r = length(f);
+      n = normalize(mix(n, vec3(f.x * 1.7, 1.0, f.y * 1.7), near));
+      base *= 1.0 - smoothstep(0.3, 0.62, r) * 0.42 * near;
+    }
+    float d = max(dot(n, uSun), 0.0);
+    return vec4(underStorm(underWeather(base * (uAmbient + uSunColor * d))), color.a);
+  }
   if (vFlag > 5.5 && vFlag < 6.5) {
     float lightOn = max(dot(normalize(vNormal), uSun), 0.0);
     return vec4(color.rgb * (uAmbient + uSunColor * lightOn) + vec3(0.5, 0.55, 0.75) * uFlash, color.a * vFade);
   }
-  if (vFlag > 8.5) {
+  if (vFlag > 8.5 && vFlag < 9.5) {
     // (a weather's cloud: its shading baked in, the sky's light on it, a dim flash in a thunderstorm's)
     return vec4(color.rgb * min(uAmbient + uSunColor * 0.75, vec3(1.15)) + vec3(0.42, 0.46, 0.6) * vWave,
                 color.a * vFade);
@@ -247,6 +269,7 @@ return function(deps)
   for i = 1, 16 do VPF[i] = 0 end
   local view = { x = 0, y = 0, w = 1, h = 1 }
   local EYE = { 0, 0, 0 }
+  local nearNow = NEAR
   R.vp = VP
 
   R.FOV = FOV
@@ -268,7 +291,10 @@ return function(deps)
     local ux, uy, uz = sy * fz - sz * fy, sz * fx - sx * fz, sx * fy - sy * fx
     local aspect = max(0.1, rect.w / max(1, rect.h))
     local f = 1 / math.tan(FOV / 2)
-    local a, b = (FAR + NEAR) / (NEAR - FAR), (2 * FAR * NEAR) / (NEAR - FAR)
+    local near = max(NEAR_MIN, min(NEAR_MAX, cam.dist * NEAR_K))
+    local far = max(FAR, cam.dist * 6)
+    nearNow = near
+    local a, b = (far + near) / (near - far), (2 * far * near) / (near - far)
     -- view rows: s, u, -f (and the eye's translation)
     local tx = -(sx * ex + sy * ey + sz * ez)
     local ty = -(ux * ex + uy * ey + uz * ez)
@@ -295,6 +321,7 @@ return function(deps)
     VP[1], VP[13] = k / aspect, -cx * k / aspect
     VP[6], VP[10], VP[14] = k * 0.25, -k, cz * k
     VP[16] = 1
+    nearNow = NEAR
     for i = 1, 16 do VPF[i] = VP[i] end
     view.x, view.y, view.w, view.h = rect.x, rect.y, rect.w, rect.h
   end
@@ -302,7 +329,22 @@ return function(deps)
   -- the Town Map's own picture under the flat camera (pixel for pixel, sharp) -> false without it
   local pictureQuads = setmetatable({}, { __mode = "k" })
   local SEA_DARK = { 0.16, 0.22, 0.42 }
+  local meshesOf = setmetatable({}, { __mode = "k" })
   function R.drawPicture(G, region, rect)
+    -- (the world built to scale: its own tiles' picture, two pixels a tile, once its meshes are made)
+    local wm = region.world and meshesOf[region]
+    if region.world then
+      local pic = wm and wm.picture
+      local ax, ay = R.project(region.x0, 0, region.z0)
+      local bx = R.project(region.x0 + 1, 0, region.z0)
+      if not (pic and ax and bx) then return false end
+      local s = (bx - ax) / (2 * (region.unit or 16))
+      G.setColor(SEA_DARK[1], SEA_DARK[2], SEA_DARK[3], 1)
+      G.rectangle("fill", rect.x, rect.y, rect.w, rect.h)
+      G.setColor(1, 1, 1, 1)
+      G.draw(pic, ax, ay, 0, s, s)
+      return true
+    end
     local img = region.picture
     if not img then return false end
     local q = pictureQuads[img]
@@ -330,7 +372,7 @@ return function(deps)
     local cx = VP[1] * x + VP[5] * y + VP[9] * z + VP[13]
     local cy = VP[2] * x + VP[6] * y + VP[10] * z + VP[14]
     local cw = VP[4] * x + VP[8] * y + VP[12] * z + VP[16]
-    if cw <= NEAR * 0.5 then return nil end
+    if cw <= nearNow * 0.5 then return nil end
     return view.x + (cx / cw * 0.5 + 0.5) * view.w, view.y + (0.5 - cy / cw * 0.5) * view.h, cw
   end
   local project = R.project
@@ -494,6 +536,532 @@ return function(deps)
       return nil
     end
     return newMesh(G, verts)
+  end
+
+  -- ------- the overworld built to scale (src/map3d/world.lua): its tiles' colours as one picture
+  -- (each tile's four quarters), the ground in chunks of terraces (flat tops of one height merged, walls
+  -- only where a tile stands over its neighbour), forests a raised canopy (crowns in the shader), each
+  -- building a block: its roof's art on top, its front wall's art (the door, the windows) standing up
+  -- as its face. Every vertex carries where it is in the picture.
+  local FORMAT_W = {
+    { "VertexPosition", "float", 3 },
+    { "VertexNormal", "float", 3 },
+    { "VertexColor", "byte", 4 },
+    { "VertexFlag", "float", 1 },
+    { "VertexTexCoord", "float", 2 },
+  }
+  local F_GROUND, F_CANOPY = 10, 11
+  local CHUNK = 64
+  -- (built in the background, a few milliseconds at a time: a yield whenever the slice is used up)
+  local rslice = { start = 0, budget = 0.004 }
+  local function rclock() return love and love.timer and love.timer.getTime() or os.clock() end
+  local rstage, rlast = "", 0
+  local function rbreathe(stage)
+    if stage then rstage = stage end
+    local now = rclock()
+    if PROFILE and now - rlast > 0.03 and rlast > 0 and deps.log then deps.log("map build gap %.0f ms at %s", (now - rlast) * 1000, rstage) end
+    rlast = now
+    if coroutine.running() and now - rslice.start > rslice.budget then
+      coroutine.yield()
+      rlast = rclock()
+    end
+  end
+  local TREE_H, SMALL_H = 0.08, 0.035
+  local CLIFF_SHADE, TREE_SHADE, BUILD_SHADE = 0.72, 0.5, 0.82
+
+  -- (a world mesh from one flat array, 13 numbers a vertex: no table per vertex, so building the
+  -- region leaves little for the collector)
+  local VW = 13
+  local function newMeshW(G, flat, map)
+    local n = floor(#flat / VW)
+    if n == 0 then return nil end
+    local ok, m = pcall(G.newMesh, FORMAT_W, n, "triangles", "static")
+    if not ok then
+      if deps.log then deps.log("the map's mesh failed: %s", tostring(m)) end
+      return nil
+    end
+    for i = 1, n do
+      local b = (i - 1) * VW
+      m:setVertex(i, flat[b + 1], flat[b + 2], flat[b + 3], flat[b + 4], flat[b + 5], flat[b + 6], flat[b + 7],
+        flat[b + 8], flat[b + 9], flat[b + 10], flat[b + 11], flat[b + 12], flat[b + 13])
+      if i % 4096 == 0 then rbreathe() end
+    end
+    if map then pcall(m.setVertexMap, m, map) end
+    return m
+  end
+
+  local function groundPicture(G, region)
+    local W = region.world
+    local LI = love and love.image
+    if not (LI and LI.newImageData and G.newImage) then return nil end
+    local ok, data = pcall(LI.newImageData, W.cols * 2, W.rows * 2)
+    if not (ok and data) then return nil end
+    for j = 0, W.rows - 1 do
+      for i = 0, W.cols - 1 do
+        local k = j * W.cols + i + 1
+        for q = 0, 3 do
+          local r, g, b = W.art(k, q)
+          if not r then r, g, b = 38, 78, 160 end
+          data:setPixel(i * 2 + q % 2, j * 2 + floor(q / 2), r / 255, g / 255, b / 255, 1)
+        end
+      end
+      rbreathe()
+    end
+    -- (with its smaller copies, so far off it doesn't sparkle as it moves; without, where the GPU
+    -- can't)
+    local okI, img = pcall(G.newImage, data, { mipmaps = true })
+    if okI and img then
+      pcall(img.setMipmapFilter, img, "linear")
+    else
+      okI, img = pcall(G.newImage, data)
+    end
+    if not (okI and img) then return nil end
+    pcall(img.setFilter, img, "linear", "linear")
+    pcall(img.setWrap, img, "clamp", "clamp")
+    return img
+  end
+
+  -- (a quad of the world's: four corners, one normal, one shade, the picture's place for each corner)
+  local function corner(f, o, x, y, z, nx, ny, nz, s, flag, u, v)
+    f[o + 1], f[o + 2], f[o + 3], f[o + 4], f[o + 5], f[o + 6] = x, y, z, nx, ny, nz
+    f[o + 7], f[o + 8], f[o + 9], f[o + 10], f[o + 11], f[o + 12], f[o + 13] = s, s, s, 1, flag, u, v
+  end
+  local function faceW(flat, map, ax, ay, az, bx, by, bz, cx, cy, cz, dx, dy, dz, nx, ny, nz, s, flag,
+                       ua, va, ub, vb, uc, vc, ud, vd)
+    local o = #flat
+    local b = o / VW
+    corner(flat, o, ax, ay, az, nx, ny, nz, s, flag, ua, va)
+    corner(flat, o + VW, bx, by, bz, nx, ny, nz, s, flag, ub, vb)
+    corner(flat, o + VW * 2, cx, cy, cz, nx, ny, nz, s, flag, uc, vc)
+    corner(flat, o + VW * 3, dx, dy, dz, nx, ny, nz, s, flag, ud, vd)
+    local n = #map
+    map[n + 1], map[n + 2], map[n + 3], map[n + 4], map[n + 5], map[n + 6] = b + 1, b + 2, b + 3, b + 1, b + 3, b + 4
+  end
+
+  -- (one vertex of the world's -> its number; a triangle of three)
+  local function vtxW(flat, x, y, z, nx, ny, nz, s, flag, u, v)
+    local o = #flat
+    corner(flat, o, x, y, z, nx, ny, nz, s, flag, u, v)
+    return o / VW + 1
+  end
+  local function triW(map, a, b, c)
+    local n = #map
+    map[n + 1], map[n + 2], map[n + 3] = a, b, c
+  end
+
+  -- one chunk of the world (tiles i0..i1-1, j0..j1-1 of its grid) -> its solid mesh, its water's mesh:
+  --   - the ground: flat tops of one height merged, walls where a tile stands over its neighbour
+  --   - the forests: on their edges each tree a rounded crown (its middle up, its corners as high as
+  --     the trees round them, a dark skirt down to the ground where it meets open ground), inside a
+  --     smooth canopy at the trees' height (the shader's crowns on it)
+  --   - bridges and logs: a deck (its own art on top), rails along a bridge's open sides, posts down
+  --     into the water
+  --   - the water: its surface over each water tile, at its own level (the sea's, a lake's), in pieces
+  --     no wider than a world unit (the shader's waves need their corners)
+  local SEA_RGB = { 0.24, 0.52, 0.86 }
+  local WAVE = 0.35
+  local NBR4 = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } }
+  local function worldChunk(G, region, i0, j0, i1, j1)
+    local W, C, Hh = region.world, region.classes, region.heights
+    local cols, rows, h, cls, ws, deck = W.cols, W.rows, W.h, W.cls, W.ws, W.deck
+    local MT = region.unit
+    local ox, oz = W.x0, W.y0
+    local TREE, SMALL, LOG = C.TREE, C.SMALL, C.LOG
+    local function at(i, j)
+      if i < 0 or j < 0 or i >= cols or j >= rows then return nil end
+      return j * cols + i + 1
+    end
+    local function surf(i, j)
+      local k = at(i, j)
+      if not k then return Hh.SEA_BED end
+      if cls[k] == SMALL then return h[k] + SMALL_H end
+      return h[k]
+    end
+    local function tree(i, j)
+      local k = at(i, j)
+      return k ~= nil and cls[k] == TREE
+    end
+    local flat, map = {}, {}
+    rbreathe("tops")
+    -- (the ground's tops)
+    local used = {}
+    for j = j0, j1 - 1 do
+      for i = i0, i1 - 1 do
+        local k = j * cols + i + 1
+        if not used[k] then
+          local sv = surf(i, j)
+          local w = 1
+          while i + w < i1 and not used[k + w] and surf(i + w, j) == sv do w = w + 1 end
+          local d = 1
+          while j + d < j1 do
+            local whole = true
+            for x = 0, w - 1 do
+              if used[k + d * cols + x] or surf(i + x, j + d) ~= sv then whole = false break end
+            end
+            if not whole then break end
+            d = d + 1
+          end
+          for y = 0, d - 1 do
+            local row = k + y * cols
+            for x = 0, w - 1 do used[row + x] = true end
+          end
+          local x0, z0, x1, z1 = (ox + i) / MT, (oz + j) / MT, (ox + i + w) / MT, (oz + j + d) / MT
+          local u0, v0, u1, v1 = i / cols, j / rows, (i + w) / cols, (j + d) / rows
+          faceW(flat, map, x0, sv, z0, x1, sv, z0, x1, sv, z1, x0, sv, z1, 0, 1, 0, 1, F_GROUND,
+            u0, v0, u1, v0, u1, v1, u0, v1)
+        end
+      end
+      rbreathe()
+    end
+    used = nil
+    rbreathe("walls")
+    -- (the ground's walls: runs merged, the picture along the tile's own edge)
+    for j = j0, j1 - 1 do
+      for side = 1, 2 do
+        local nj = side == 1 and j + 1 or j - 1
+        local z = (oz + j + (side == 1 and 1 or 0)) / MT
+        local vv = (j + (side == 1 and 0.9 or 0.1)) / rows
+        local nz = side == 1 and 1 or -1
+        local i = i0
+        while i < i1 do
+          local a, b = surf(i, j), surf(i, nj)
+          if a > b + 1e-4 then
+            local w = 1
+            while i + w < i1 and surf(i + w, j) == a and surf(i + w, nj) == b do w = w + 1 end
+            local xa, xb = (ox + i) / MT, (ox + i + w) / MT
+            local ua, ub = i / cols, (i + w) / cols
+            faceW(flat, map, xa, a, z, xb, a, z, xb, b, z, xa, b, z, 0, 0, nz, CLIFF_SHADE, F_GROUND,
+              ua, vv, ub, vv, ub, vv, ua, vv)
+            i = i + w
+          else
+            i = i + 1
+          end
+        end
+      end
+      rbreathe()
+    end
+    for i = i0, i1 - 1 do
+      for side = 1, 2 do
+        local ni = side == 1 and i + 1 or i - 1
+        local x = (ox + i + (side == 1 and 1 or 0)) / MT
+        local uu = (i + (side == 1 and 0.9 or 0.1)) / cols
+        local nx = side == 1 and 1 or -1
+        local j = j0
+        while j < j1 do
+          local a, b = surf(i, j), surf(ni, j)
+          if a > b + 1e-4 then
+            local d = 1
+            while j + d < j1 and surf(i, j + d) == a and surf(ni, j + d) == b do d = d + 1 end
+            local za, zb = (oz + j) / MT, (oz + j + d) / MT
+            local va, vb = j / rows, (j + d) / rows
+            faceW(flat, map, x, a, za, x, a, zb, x, b, zb, x, b, za, nx, 0, 0, CLIFF_SHADE, F_GROUND,
+              uu, va, uu, vb, uu, vb, uu, va)
+            j = j + d
+          else
+            j = j + 1
+          end
+        end
+      end
+      rbreathe()
+    end
+    rbreathe("forests")
+    -- (the forests: a corner's height, the trees' tops round it, lower the fewer trees there are)
+    local function top(i, j) return h[at(i, j)] + TREE_H end
+    local function cornerH(i, j, ci, cj)
+      local n, sum = 0, 0
+      for dj = -1, 0 do
+        for di = -1, 0 do
+          if tree(ci + di, cj + dj) then n, sum = n + 1, sum + top(ci + di, cj + dj) end
+        end
+      end
+      local full = sum / max(1, n)
+      if n == 4 then return full end
+      local g = h[at(i, j)]
+      local f = 0.28 + 0.72 * ((n - 1) / 3) ^ 1.3
+      return g + (full - g) * f
+    end
+    local function edge(i, j)
+      for dj = -1, 1 do
+        for di = -1, 1 do
+          if (di ~= 0 or dj ~= 0) and not tree(i + di, j + dj) then return true end
+        end
+      end
+      return false
+    end
+    local px, pz, pu, pv, hc, vs = { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }
+    for j = j0, j1 - 1 do
+      local i = i0
+      while i < i1 do
+        if tree(i, j) then
+          local k = j * cols + i + 1
+          local u0, v0, u1, v1 = i / cols, j / rows, (i + 1) / cols, (j + 1) / rows
+          local x0, z0, x1, z1 = (ox + i) / MT, (oz + j) / MT, (ox + i + 1) / MT, (oz + j + 1) / MT
+          hc[1], hc[2], hc[3], hc[4] = cornerH(i, j, i, j), cornerH(i, j, i + 1, j), cornerH(i, j, i + 1, j + 1),
+            cornerH(i, j, i, j + 1)
+          px[1], px[2], px[3], px[4] = x0, x1, x1, x0
+          pz[1], pz[2], pz[3], pz[4] = z0, z0, z1, z1
+          pu[1], pu[2], pu[3], pu[4] = u0, u1, u1, u0
+          pv[1], pv[2], pv[3], pv[4] = v0, v0, v1, v1
+          local t = top(i, j)
+          if not edge(i, j) then
+            -- (inside: the canopy; a run at one height when its corners all are)
+            if hc[1] == t and hc[2] == t and hc[3] == t and hc[4] == t then
+              local w = 1
+              while i + w < i1 and tree(i + w, j) and not edge(i + w, j) and top(i + w, j) == t
+                  and cornerH(i + w, j, i + w + 1, j) == t and cornerH(i + w, j, i + w + 1, j + 1) == t do
+                w = w + 1
+              end
+              local xw, uw = (ox + i + w) / MT, (i + w) / cols
+              faceW(flat, map, x0, t, z0, xw, t, z0, xw, t, z1, x0, t, z1, 0, 1, 0, 1, F_CANOPY,
+                u0, v0, uw, v0, uw, v1, u0, v1)
+              i = i + w
+            else
+              for c = 1, 4 do vs[c] = vtxW(flat, px[c], hc[c], pz[c], 0, 1, 0, 1, F_CANOPY, pu[c], pv[c]) end
+              triW(map, vs[1], vs[2], vs[3])
+              triW(map, vs[1], vs[3], vs[4])
+              i = i + 1
+            end
+          else
+            -- (on the edge: a rounded crown, its middle up, a skirt where it meets open ground)
+            local g = h[k]
+            local cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
+            local peak = t + 0.012
+            local mid = vtxW(flat, cx, peak, cz, 0, 1, 0, 1, F_CANOPY, (u0 + u1) / 2, (v0 + v1) / 2)
+            local half = 0.5 / MT
+            for c = 1, 4 do
+              local dx, dz = (px[c] - cx) / half, (pz[c] - cz) / half
+              local slope = (peak - hc[c]) / (half * 1.414)
+              local nx, nz = dx * 0.7 * slope, dz * 0.7 * slope
+              local l = sqrt(nx * nx + 1 + nz * nz)
+              vs[c] = vtxW(flat, px[c], hc[c], pz[c], nx / l, 1 / l, nz / l, 1, F_CANOPY, pu[c], pv[c])
+            end
+            for c = 1, 4 do triW(map, mid, vs[c], vs[c % 4 + 1]) end
+            for e = 1, 4 do
+              local ni, nj = i + NBR4[e][1], j + NBR4[e][2]
+              if not tree(ni, nj) then
+                local a, b = e, e % 4 + 1
+                -- (down to the tree's own ground: below that the ground's own wall stands on the same
+                -- plane, and two faces on one plane flash)
+                local floorY = g
+                if hc[a] > floorY + 1e-4 or hc[b] > floorY + 1e-4 then
+                  faceW(flat, map, px[a], hc[a], pz[a], px[b], hc[b], pz[b], px[b], floorY, pz[b], px[a], floorY, pz[a],
+                    NBR4[e][1], 0, NBR4[e][2], TREE_SHADE, F_GROUND, pu[a], pv[a], pu[b], pv[b], pu[b], pv[b], pu[a], pv[a])
+                end
+              end
+            end
+            i = i + 1
+          end
+        else
+          i = i + 1
+        end
+      end
+      rbreathe()
+    end
+    rbreathe("decks")
+    -- (bridges and logs: decks)
+    local DT = 0.028
+    for j = j0, j1 - 1 do
+      for i = i0, i1 - 1 do
+        local k = j * cols + i + 1
+        local dk = deck and deck[k]
+        if dk then
+          local isLog = cls[k] == LOG
+          local x0, z0, x1, z1 = (ox + i) / MT, (oz + j) / MT, (ox + i + 1) / MT, (oz + j + 1) / MT
+          local u0, v0, u1, v1 = i / cols, j / rows, (i + 1) / cols, (j + 1) / rows
+          faceW(flat, map, x0, dk, z0, x1, dk, z0, x1, dk, z1, x0, dk, z1, 0, 1, 0, 1, F_GROUND, u0, v0, u1, v0, u1, v1, u0, v1)
+          local under = dk - DT
+          faceW(flat, map, x0, under, z1, x1, under, z1, x1, under, z0, x0, under, z0, 0, -1, 0, 0.4, F_GROUND,
+            u0, v1, u1, v1, u1, v0, u0, v0)
+          px[1], pz[1], px[2], pz[2] = x0, z0, x1, z0
+          for e = 1, 4 do
+            local ni, nj = i + NBR4[e][1], j + NBR4[e][2]
+            local nk = at(ni, nj)
+            local nd = nk and deck[nk]
+            if not nd or abs(nd - dk) > 0.01 then
+              local ax, az, bx, bz
+              if e == 1 then ax, az, bx, bz = x0, z0, x1, z0
+              elseif e == 2 then ax, az, bx, bz = x1, z0, x1, z1
+              elseif e == 3 then ax, az, bx, bz = x1, z1, x0, z1
+              else ax, az, bx, bz = x0, z1, x0, z0 end
+              local land = nk and not ws[nk] and abs(surf(ni, nj) - dk) < 0.05
+              -- (its side; beside land only above the land's top: the land's own wall is below, on the
+              -- same plane)
+              local lo = under
+              if nk and not ws[nk] then lo = max(under, surf(ni, nj)) end
+              if dk > lo + 1e-4 then
+                faceW(flat, map, ax, dk, az, bx, dk, bz, bx, lo, bz, ax, lo, az, NBR4[e][1], 0, NBR4[e][2],
+                  0.6, F_GROUND, u0, v0, u1, v0, u1, v0, u0, v0)
+              end
+              if not isLog and not land then
+                local r = 0.035
+                faceW(flat, map, ax, dk + r, az, bx, dk + r, bz, bx, dk, bz, ax, dk, az, NBR4[e][1], 0, NBR4[e][2],
+                  0.78, F_GROUND, u0, v0, u1, v0, u1, v0, u0, v0)
+              end
+            end
+          end
+          -- (a post under every other tile of a bridge over water, down to the bed)
+          if not isLog and ws[k] and (i + j) % 2 == 0 then
+            local pw = 0.12 / MT
+            local cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
+            local b0 = h[k]
+            faceW(flat, map, cx - pw, under, cz + pw, cx + pw, under, cz + pw, cx + pw, b0, cz + pw, cx - pw, b0, cz + pw,
+              0, 0, 1, 0.5, F_GROUND, u0, v0, u0, v0, u0, v0, u0, v0)
+            faceW(flat, map, cx + pw, under, cz - pw, cx - pw, under, cz - pw, cx - pw, b0, cz - pw, cx + pw, b0, cz - pw,
+              0, 0, -1, 0.5, F_GROUND, u0, v0, u0, v0, u0, v0, u0, v0)
+            faceW(flat, map, cx + pw, under, cz + pw, cx + pw, under, cz - pw, cx + pw, b0, cz - pw, cx + pw, b0, cz + pw,
+              1, 0, 0, 0.5, F_GROUND, u0, v0, u0, v0, u0, v0, u0, v0)
+            faceW(flat, map, cx - pw, under, cz - pw, cx - pw, under, cz + pw, cx - pw, b0, cz + pw, cx - pw, b0, cz - pw,
+              -1, 0, 0, 0.5, F_GROUND, u0, v0, u0, v0, u0, v0, u0, v0)
+          end
+        end
+      end
+      rbreathe()
+    end
+    rbreathe("solid mesh")
+    local solid = newMeshW(G, flat, map)
+    rbreathe("water")
+    flat, map = {}, {}
+    -- (the water: runs of one surface, cut at every world unit)
+    local wused = {}
+    local CUT = MT
+    for j = j0, j1 - 1 do
+      for i = i0, i1 - 1 do
+        local k = j * cols + i + 1
+        local s = ws[k]
+        if s and not wused[k] then
+          local w = 1
+          while i + w < i1 and w < CUT and not wused[k + w] and ws[k + w] == s and (i + w) % CUT ~= 0 do w = w + 1 end
+          local d = 1
+          while j + d < j1 and d < CUT and (j + d) % CUT ~= 0 do
+            local whole = true
+            for x = 0, w - 1 do
+              local kk = k + d * cols + x
+              if wused[kk] or ws[kk] ~= s then whole = false break end
+            end
+            if not whole then break end
+            d = d + 1
+          end
+          for y = 0, d - 1 do
+            local row = k + y * cols
+            for x = 0, w - 1 do wused[row + x] = true end
+          end
+          local x0, z0, x1, z1 = (ox + i) / MT, (oz + j) / MT, (ox + i + w) / MT, (oz + j + d) / MT
+          local b = #flat / VW
+          -- (calmer waves than the Town Map's sea (their height in the normal's y): clear of the decks'
+          -- undersides and the logs, which would otherwise flash where a wave crosses them)
+          corner(flat, b * VW, x0, s, z0, 0, WAVE, 0, 1, F_SEA, 0, 0)
+          corner(flat, (b + 1) * VW, x1, s, z0, 0, WAVE, 0, 1, F_SEA, 0, 0)
+          corner(flat, (b + 2) * VW, x1, s, z1, 0, WAVE, 0, 1, F_SEA, 0, 0)
+          corner(flat, (b + 3) * VW, x0, s, z1, 0, WAVE, 0, 1, F_SEA, 0, 0)
+          for c = 0, 3 do
+            local o = (b + c) * VW
+            flat[o + 7], flat[o + 8], flat[o + 9], flat[o + 10] = SEA_RGB[1], SEA_RGB[2], SEA_RGB[3], SEA_ALPHA
+          end
+          triW(map, b + 1, b + 2, b + 3)
+          triW(map, b + 1, b + 3, b + 4)
+        end
+      end
+      rbreathe()
+    end
+    rbreathe("water mesh")
+    local water = newMeshW(G, flat, map)
+    return solid, water
+  end
+
+  -- the buildings: a block on each door's footprint, as tall as its front wall's rows (the game draws a
+  -- house's front two tiles tall); the roof's rows of the picture over its top, the wall's rows up its
+  -- face, the picture's edge down its sides and back; standing on what its door stands on (a deck,
+  -- Pacifidlog's logs)
+  -- (how tall each kind stands, by its front wall's height: a Gym a good deal taller than a house)
+  local KIND_H = { center = 1.15, mart = 1.05, gym = 1.5, lab = 1.15, contest = 1.3, institute = 1.25,
+                   space = 1.3, museum = 1.25, school = 1.15, shipyard = 1.2, harbor = 1.15, corner = 1.25 }
+  local function worldBuildings(G, region)
+    local W = region.world
+    local cols, rows, MT = W.cols, W.rows, region.unit
+    local verts, map = {}, {}
+    local Tw = deps.towns
+    for _, d in ipairs(W.doors) do
+      local f = d.foot
+      if f and Tw and Tw.replaces and Tw.replaces(d) then f = nil end
+      if f then
+        local gx0, gy0, gx1, gy1 = f.x0 - W.x0, f.y0 - W.y0, f.x1 - W.x0, f.y1 - W.y0
+        local tall = gy1 - gy0
+        local wallRows = tall >= 4 and 2 or 1
+        local split = gy1 - wallRows
+        local base = W.h[d.k] or 0
+        for _, kk in ipairs({ d.k, d.k + cols }) do
+          local dk = W.deck and W.deck[kk]
+          if dk and dk > base then base = dk end
+          if W.ws and W.ws[kk] and W.ws[kk] + 0.03 > base then base = W.ws[kk] + 0.03 end
+        end
+        -- (on sloping ground: its roof from the highest ground under it, its walls down to the lowest)
+        local hi, lo = base, base
+        for gy = gy0, gy1 - 1 do
+          for gx = gx0, gx1 - 1 do
+            local hk = W.h[gy * cols + gx + 1]
+            if hk and hk > 0 then
+              if hk > hi then hi = hk end
+              if hk < lo then lo = hk end
+            end
+          end
+        end
+        -- (Fortree's houses are up in its trees)
+        if d.kind == "house" and d.map:find("FORTREE_CITY", 1, true) then
+          lo = base + TREE_H
+          if hi < lo then hi = lo end
+        end
+        local top = hi + wallRows / MT * 1.1 * (KIND_H[d.kind] or 1)
+        base = lo
+        -- (a hair in from the tiles' edges: the ground's own walls stand on those, and two faces on one
+        -- plane flash)
+        local E = 0.003
+        local x0, z0, x1, z1 = f.x0 / MT + E, f.y0 / MT + E, f.x1 / MT - E, f.y1 / MT - E
+        local u0, u1, v0, vs, v1 = gx0 / cols, gx1 / cols, gy0 / rows, split / rows, gy1 / rows
+        faceW(verts, map, x0, top, z0, x1, top, z0, x1, top, z1, x0, top, z1, 0, 1, 0, 1, F_GROUND,
+          u0, v0, u1, v0, u1, vs, u0, vs)
+        faceW(verts, map, x0, top, z1, x1, top, z1, x1, base, z1, x0, base, z1, 0, 0, 1, 1, F_GROUND,
+          u0, vs, u1, vs, u1, v1, u0, v1)
+        local ve = (gy0 + 0.3) / rows
+        faceW(verts, map, x1, top, z0, x0, top, z0, x0, base, z0, x1, base, z0, 0, 0, -1, BUILD_SHADE, F_GROUND,
+          u1, ve, u0, ve, u0, ve, u1, ve)
+        local uw, ue = (gx0 + 0.3) / cols, (gx1 - 0.3) / cols
+        faceW(verts, map, x0, top, z0, x0, top, z1, x0, base, z1, x0, base, z0, -1, 0, 0, BUILD_SHADE, F_GROUND,
+          uw, v0, uw, v1, uw, v1, uw, v0)
+        faceW(verts, map, x1, top, z1, x1, top, z0, x1, base, z0, x1, base, z1, 1, 0, 0, BUILD_SHADE, F_GROUND,
+          ue, v1, ue, v0, ue, v0, ue, v1)
+      end
+    end
+    return newMeshW(G, verts, map)
+  end
+
+  local function worldMeshes(G, region)
+    local W = region.world
+    rbreathe("picture")
+    local img = groundPicture(G, region)
+    rbreathe("chunks")
+    if not img then return nil end
+    local m = { ground = {}, water = {}, slab = slabMesh(G, region), picture = img }
+    for j0 = 0, W.rows - 1, CHUNK do
+      for i0 = 0, W.cols - 1, CHUNK do
+        local mesh, water = worldChunk(G, region, i0, j0, min(W.cols, i0 + CHUNK), min(W.rows, j0 + CHUNK))
+        if mesh then
+          pcall(mesh.setTexture, mesh, img)
+          m.ground[#m.ground + 1] = mesh
+        end
+        if water then m.water[#m.water + 1] = water end
+      end
+    end
+    rbreathe("buildings")
+    m.buildings = worldBuildings(G, region)
+    rbreathe("landmarks")
+    if deps.towns and deps.towns.landmarks then
+      local okL, lv = pcall(deps.towns.landmarks, region)
+      if okL then m.landmarks = newMesh(G, lv) elseif deps.log then deps.log("the map's landmarks failed: %s", tostring(lv)) end
+    end
+    rbreathe("done")
+    if m.buildings then pcall(m.buildings.setTexture, m.buildings, img) end
+    m.land = m.ground[1]
+    return m
   end
 
   -- the clouds: a few flat puffs high up, each with its anchor in the normal (the shader drifts it)
@@ -797,13 +1365,50 @@ return function(deps)
     return shader
   end
 
-  local meshesOf = setmetatable({}, { __mode = "k" })
+  -- the world built to scale: its meshes made by a job of their own (R.prepare in the background, or
+  -- here while the map is open: nil until they're done, the flat land meanwhile)
+  local jobsOf = setmetatable({}, { __mode = "k" })
+  local function stepJob(G, region, budget)
+    local job = jobsOf[region]
+    if not job then
+      job = coroutine.create(function()
+        local mm = worldMeshes(G, region)
+        if mm then mm.clouds = cloudMesh(G, region) end
+        meshesOf[region] = mm or false
+        -- (the tiles themselves aren't needed past this: their arrays let go)
+        local W = region.world
+        if mm and W and W.release then W.release() end
+      end)
+      jobsOf[region] = job
+    end
+    rslice.start, rslice.budget = rclock(), budget
+    local ok, err = coroutine.resume(job)
+    if not ok then
+      if deps.log then deps.log("the map's meshes failed: %s", tostring(err)) end
+      meshesOf[region] = false
+    end
+    if coroutine.status(job) == "dead" then jobsOf[region] = nil end
+    return meshesOf[region] == nil
+  end
+  -- -> true while there's more to make
+  function R.prepare(G, region, budget)
+    if not (region and region.world) or meshesOf[region] ~= nil or not (G and G.newMesh) then return false end
+    if not getShader(G) then return false end
+    return stepJob(G, region, budget or 0.004)
+  end
+  function R.ready(region) return not (region and region.world) or meshesOf[region] ~= nil end
+
   local function meshes(G, region)
     local m = meshesOf[region]
     if m == nil then
-      m = { land = landMesh(G, region), slab = slabMesh(G, region), sea = seaMesh(G, region),
-            towns = townMesh(G, region), clouds = cloudMesh(G, region) }
-      if not m.land then m = false end
+      if region.world then
+        stepJob(G, region, 0.012)
+        return meshesOf[region] or nil
+      else
+        m = { land = landMesh(G, region), slab = slabMesh(G, region), sea = seaMesh(G, region),
+              towns = townMesh(G, region), clouds = cloudMesh(G, region) }
+      end
+      if not (m and m.land) then m = false end
       meshesOf[region] = m
     end
     return m or nil
@@ -995,10 +1600,19 @@ return function(deps)
     G.setColor(1, 1, 1, 1)
     G.setDepthMode("lequal", true)
     G.setMeshCullMode("none")
-    G.draw(m.land)
+    if m.ground then
+      for i = 1, #m.ground do G.draw(m.ground[i]) end
+      if m.buildings then G.draw(m.buildings) end
+      if m.landmarks then G.draw(m.landmarks) end
+    else
+      G.draw(m.land)
+    end
     if m.slab then G.draw(m.slab) end
     if m.towns then G.draw(m.towns) end
     if m.sea then G.draw(m.sea) end
+    if m.water then
+      for i = 1, #m.water do G.draw(m.water[i]) end
+    end
     -- (a rain cloud is solid; the dust is haze, seen through itself)
     if stormM and storm.kind == "rain" then G.draw(stormM.solid) end
     drawWeather(G, sh, weather, t, true, false)

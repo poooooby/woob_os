@@ -624,6 +624,11 @@ return function(mod, deps)
       local ok, err = pcall(deps.tick)
       if not ok and log then log:warn("the tick failed: %s", tostring(err)) end
     end
+    -- (and every frame: work done a slice at a time in the background, the map's build)
+    if deps.frame then
+      local ok, err = pcall(deps.frame, game)
+      if not ok and log then log:warn("the frame's work failed: %s", tostring(err)) end
+    end
     -- (the layer taken away under it, a reset: the desktop or the pad goes too)
     local Stack = engine("src.ui.game3.stack")
     local h, id = host()

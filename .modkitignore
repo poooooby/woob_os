@@ -8,4 +8,5 @@ tests/pad_test.lua
 tests/map3d_test.lua
 tests/pokenav_test.lua
 tests/world_test.lua
+tests/world3d_test.lua
 docs/app-icons.png

@@ -42,7 +42,8 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/swarm.lua` | The daily swarm: a route and a species from the game's own wild tables, and the `encounter.species` hook's turn |
 | `src/news.lua`, `src/apps/news.lua` | The News: the broadcast built from the world and the journal; the studio window |
 | `src/frost.lua` | Frosted glass: the screen caught in a canvas while the drawer shows, a small copy blurred under it |
-| `src/map3d/model.lua` | The 3D map's model: the region from the game's Town Map (its picture a heightmap and its colours, its grid the places), the census's Centers / Marts / Gyms, the badges, the player's cell, Fly's checks |
+| `src/map3d/model.lua` | The 3D map's model: Hoenn from `world.lua`; Kanto / Sevii from the game's Town Map (its picture a heightmap and its colours, its grid the places); the census's Centers / Marts / Gyms, the badges, the player's position, Fly's checks; the background build (`prepare` / `step`) |
+| `src/map3d/world.lua` | Hoenn built to scale from the game's own maps: placement, each tile's class, the doors and footprints, heights, the coarse terrain |
 | `src/map3d/render.lua` | The 3D map's drawing: meshes, the shader, the depth canvas, the camera (`camera` / `project`), day and night; a flat fallback |
 | `src/map3d/scene.lua` | The 3D map's window: the camera, pins, the beacon, the card, the controls (the Map app and the Town Map) |
 | `src/map3d/towns.lua` | The 3D map's towns: sizes by tier, roofs by name, the signature structures and landmarks, the Center / Mart / Gym, trees |
@@ -526,7 +527,79 @@ Settings app's choice row), `b.soon` kept in the record; "won" / "lost" in `Au.s
 
 ## The 3D map
 
-Clean room: the idea of a 3D region map (TERRARIUM's for Gen 1) and none of its code.
+Clean room: the idea of a 3D region map (TERRARIUM's for Gen 1) and none of its code; nothing from
+the voxel diorama mod in the engine's checkout either (another author's).
+
+- **Hoenn built to scale** (`src/map3d/world.lua`, Wd; `deps.world` of the model, Ruby / Sapphire /
+  Emerald; Kanto keeps the Town Map's region). One world unit is `Wd.MT` = 16 tiles.
+  - **Placement** (`Wd.place`): the outdoor maps (`Dataset.isOutdoorMapType`, not `SKIP`: underwater,
+    prototypes, Sky Pillar's top, Mt. Pyre's summit) walked by their connections from Littleroot with
+    their true sizes; the groups no connection reaches go in by a door that meets a placed map (a
+    warp's `destWarp` is 1-based), else through a gatehouse (in from one map, out to the other: the
+    gate's own width between), else by a fit of the Town Map's cells to tiles over the placed maps;
+    each settled where it covers the least open ground (`occupancy` / `occMark` / `clash` / `settle`).
+    `INTO`: Sootopolis into Route 126's island, its outer rock cropped.
+  - **Tiles** (`world.cls`, per tile, flat arrays filled in order first: plain arrays, light on the
+    collector): `BEH` names a class outright (water kinds, grasses, sand, ash, soil, walkable mountain
+    ground `MOUNT`, slopes `ROCKY`, bridges, logs); else the collision byte (41 water, 24 tall grass,
+    113 a door, 160-163 ledges, 7 a wall); a wall by its art (`readArt`: each tileset's `mids.idx` /
+    `mids_over.idx` / `palettes.bin` through `Dataset.cache`, decoded with `NativePack`; per metatile the
+    quarters' colours as seen from above and the shares of leafy, water and rock pixels): a tree, rock or
+    something built. Doors: each warp to an unplaced map, its kind from where it leads (`KINDS`), its
+    footprint the block of built tiles above it from the same half of the tilesets.
+  - **The gaps** between maps: each map's border (`L:midAt` past its edge) from the nearest mainland
+    map, looked up through smooth noise (`WARP`) so the seams wind; the open sea's side only so far out,
+    its reach noisy too.
+  - **Heights** (`heights`): a staircase read off the art's own steps, not a depth map of it.
+    - **Levels:** the walkable areas (tiles joined the way the player walks, `STEP_WALK`; cut at
+      ledges, cliffs, trees, walls and water; across two maps only where both are joined to the
+      mainland). An area by the sea or the edge is the ground's level, 0.
+    - **Steps:** going north across a band of cliff (up to `BAND` rows of rock, a waterfall or a slope)
+      from one area to another, the other is higher: a step for every two rows of face, at most three.
+      A ledge is one step, down the way it's jumped. Each pair goes the way most of its crossings say.
+    - **Solving:** each area's level is the fewest steps up from the ground's (buckets, `STEP_CAP`), so a
+      cliff read both ways can't lift anything twice.
+    - **Everything else:** forests, walls and filled land take the lowest level that reaches them without
+      crossing rock; rock is the top of the cliff it is (the highest area within two tiles), deeper in
+      a blend between the nearest low ground and the highest area it climbs to, smoothed a little,
+      whole levels (`H.LEVEL` each).
+    - **The great mountains** (`mountain(summit, base)`): Mt. Chimney's summit area two levels over
+      everything else (96 tiles of base), Mt. Pyre's two thirds of it (44); a round base (its edge in
+      smooth noise) climbing to the summit in whole levels. Inside it the mountain is the height: rock
+      on it, the ground a level under it (paths, routes and the trees on them: they stand on the
+      ground, not on pillars), a town (a town's or a city's map) flat at the lowest it is under it.
+    - **Tiny areas** (under `MIN_AREA` tiles: a cave's door in a cliff, a tile between rocks) aren't
+      levels: they take the ground round them.
+    - **Water:** a lake up in the hills just under the land round it (`ws`, the water's surface; the
+      sea's 0); bridges and logs have a `deck` over the water.
+  - **Built in the background**: `Mdl.prepare("hoenn")` / `Mdl.step(budget)` and `Rd.prepare(G,
+    region, budget)` run coroutines that yield whenever the slice is used (`pace` / `rbreathe`); main.lua's
+    `frame` (the shell's `render.hud`, every frame) starts it 4 s after the player is free and steps it
+    4 ms a frame; opened sooner, `Mdl.region` finishes the model there and the scene shows the flat land
+    until the meshes are made (12 ms a frame). The per-tile arrays are let go once the meshes exist
+    (`world.release`). Emerald: about 2 s of slices, none over ~25 ms.
+  - **Drawing** (render.lua's world path): the tiles' colours as one picture (2 x 2 texels a tile), a
+    second vertex format with texture coordinates (`FORMAT_W`, built from flat arrays: `newMeshW`);
+    chunks of 64 x 64 tiles: tops merged, walls where a tile stands over its neighbour, forests a
+    canopy (flag 11: crowns in the shader) rounded tree by tree on their edges with a skirt, decks with
+    rails and posts; the water a mesh of its own over water tiles only, at each one's level; buildings
+    blocks with their roof's rows on top and their front wall's rows up their face (`KIND_H`); the
+    landmarks `Tw.landmarks` (towns.lua's pieces at the doors and maps they belong to; `Tw.replaces`).
+    The near plane moves out with the camera (`NEAR_K`): a far view keeps its depth sharp.
+  - **No flashing** (two faces on one plane, or a pattern finer than a pixel): a forest edge's skirt
+    stops at its own ground (the ground's wall is below it); a deck's side stands only above the land
+    beside it; a building block sits a hair (`E`) in from its tiles' edges, its walls from the lowest
+    ground under it; the world's water waves a third as high (`WAVE`, the wave's height in the
+    normal's y) so it never crosses a deck's underside or Pacifidlog's logs; the ground's picture has
+    mipmaps; the forests' crowns fade out with distance (`vFade`, flag 11).
+  - **The scene and the model**: places are the Town Map's sections, each one's cells the rectangles of
+    its maps (`{ x, z, w, h }`), a door's small square for a section with no map of its own, and a place
+    for a section the grid doesn't draw; the player's position exact (the map's placement and the
+    session's x, y; indoors the escape warp); each weather over its own map's rectangle. The zoom ladder
+    comes in nearer for the world's size.
+  - **Tests**: `tests/world3d_test.lua` builds a little Hoenn of its own (fake layouts, the engine's
+    connections and behaviours, `deps.art`); the engine's own maps need the engine: the in-engine probe
+    and the drivers cover them.
 
 - **The storms** (Emerald): `Mdl.storm` reads `VAR_ABNORMAL_WEATHER_LOCATION` (1..8 Groudon's routes,
   9..16 Kyogre's, one rumour at a time; only the Weather Institute's scientist sets it, special 491),
@@ -673,10 +746,21 @@ Clean room: the idea of a 3D region map (TERRARIUM's for Gen 1) and none of its 
   as a moment, and trainers and Badges are only box scores.
   Place names come from `SaveMenu.locationName` with a session that's only that map (its map name and
   region section blanked); species names lose the ♀ / ♂ the fonts lack ("Nidoran F"). The
-  anchor is `assets/newscaster.png`: square frames side by side (twelve of 32 x 32; 0 at rest, the
-  rest her talking), cut into quads once by main.lua's `env.anchor()` (nearest filtering). The
-  window's close-up draws her at whole pixels as tall as the shot, the frames in turn at `TALK_FPS`
-  while the words type (frame 0 otherwise), a white flash for the cut to a new story. The window
+  anchor is a sheet per mood, square frames side by side, each cut into quads the first time
+  main.lua's `env.anchor(mood)` is asked for it (nearest filtering; nil for a mood with no sheet):
+  `assets/newscaster.png` her everyday read (twelve of 32 x 32; 0 at rest, the rest her talking),
+  `newscaster-cheer.png` and `newscaster-shock.png` (sixteen each: 0 at rest, 1 and 2 the reaction
+  coming on, 3 on the mood held while she talks). The model gives each story its `mood` ("cheer":
+  the Gym, a clean sweep, a signing or catch new to the Pokédex, a hatch, an evolution, the week's
+  challenges all done; "shock": the swarm, the outbreak, the storm, anything shiny, a legendary or
+  mythical auction; nil: the rest). The window loads the sheets its stories need as it opens, and
+  its close-up draws her at whole pixels as tall as the shot, the frame from `frameOf(art, mood)`:
+  everyday, the frames in turn at `TALK_FPS` while the words type (0 otherwise); in a mood, 1 and 2
+  at the cut (`LEAD`, before the words start at 0.25 s), 3 on round and round while they type, the
+  mood's `hold` frame (`MOODS`: cheer 15, shock 3, her mouth shut) for `HOLD` seconds after they're
+  all there (`st.doneAt`, A or the typing's end), then 2, 1 and 0. A white flash for the cut to a new
+  story. `st.mood` / `st.frame` are what was drawn (world_test checks each phase with stand-in
+  sheets). The window
   types the words out from beginnings made with the story (`linesOf(story, w)`: the body, then each
   beat on lines of its own, `mark` on its first line drawn as a pill (a dot for ""), `indent`; a word
   wider than the line, as Japanese is, broken between letters). Taller than the card, the typing

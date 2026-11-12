@@ -49,9 +49,21 @@ opens a desktop in a sleek monitor instead of a text menu.
     close it. On the buttons: Up / Down to choose, Left / Right to clear, SELECT to clear all.
   - **Put it away:** B on the home screen, or its top button.
 - 🗺️ **A 3D Town Map:** the Town Map, the maps on the walls and the Fly map open the region as a
-  little 3D model you can turn, tilt and zoom, made from your game's own Town Map: its hills and
-  forests, the sea, the routes, the towns and mountains where the caves are. The sea waves, clouds drift over it and it follows your
+  little 3D model you can turn, tilt and zoom. The sea waves, clouds drift over it and it follows your
   device's clock: dawn, day, a warm dusk, and a starry night with the windows lit.
+  - **Hoenn to scale (Ruby, Sapphire, Emerald):** built from your game's own maps, every route and
+    town where it really is and every tile in its own colours. Forests stand as rounded canopies,
+    mountains rise in terraces as tall as the game draws their cliffs (Mt. Chimney's summit the
+    highest, its crater smoking), and the land between the routes is the forest, rock or sea the game
+    shows past their edges. Every building stands where its door is, the Centers, Marts, Gyms and
+    houses each in their own art, and the landmarks with them: Sky Pillar, Lilycove's Department
+    Store and the S.S. Tidal at the harbour, Mossdeep's rocket, the
+    Weather Institute's dish, Mirage Tower, the Abandoned Ship, the Pokémon League and the Battle
+    Tower. Bridges cross the water on posts, Pacifidlog floats on its logs, Fortree's houses sit up in
+    its trees, and the caves open in the rock. The map is put together in the background shortly after
+    you start playing, so it opens at once.
+  - **Kanto and the Sevii Islands (FireRed, LeafGreen):** made from your game's own Town Map: its
+    hills and forests, the sea, the routes, the towns and mountains where the caves are.
   - **Legendary storms (Emerald):** after the Weather Institute tells you about abnormal weather, a
     rainstorm with lightning hangs over the route where Kyogre is rumoured, or a sandstorm over
     Groudon's. Ask again and it moves with the report. It clears once that Pokémon is caught or
@@ -61,7 +73,7 @@ opens a desktop in a sleek monitor instead of a text menu.
     and Route 123 on the days the game gives them, ash falling on Route 113 and above Mt. Chimney, a dust
     haze blowing across Route 111's desert, fog around Mt. Pyre and a few white clouds south of Route
     120. Petalburg Woods and Southern Island sit in shade. A place's card names its weather.
-  - **Every town its own:** villages are a few houses on a sandy square, cities a crowd of taller
+  - **Every town its own (FireRed, LeafGreen):** villages are a few houses on a sandy square, cities a crowd of taller
     blocks on paving. Roofs take the town's colour (Lavender's purple, Cerulean's blue, Vermilion's
     red, Lilycove's lilac …), and each town has what it's known for: Oak's lab in Pallet, Pewter's
     museum, the Pokémon Tower, Silph Co., Celadon's department store, Vermilion's lighthouse and the
@@ -225,7 +237,9 @@ opens a desktop in a sleek monitor instead of a text menu.
   that bursts into confetti, and the week's bonus is a treasure chest that opens when it's ready.
 - 📰 **News:** the day's stories, read live by the WoobOS News anchor in a TV close-up: she talks
   as each story's words type out, with the LIVE light on, the title on a lower third and a camera
-  cut between stories, and the headlines crawl along the ticker. The News covers you the way sports
+  cut between stories, and the headlines crawl along the ticker. She reacts to the big ones: a fist
+  pump for a Gym won, a clean sweep, a first for your Pokédex, a hatch or an evolution, and her hands
+  on her head for breaking news, a shiny or a legendary up for auction. The News covers you the way sports
   news covers a rookie taking the region by storm, newest first:
   - **your latest Gym:** the score, the turns and a play-by-play: the leads, each knockout and the
     turn it came on, the setbacks, and the blow that won it;

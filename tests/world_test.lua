@@ -638,6 +638,10 @@ if Sw and Nw then
     "the latest catch: a signing (" .. tostring(sg and (sg.head .. " / " .. sg.body)) .. ")")
   T.check(joined:find(" challenges ", 1, true), "the week's challenges")
   T.check(type(cast.ticker) == "string" and cast.ticker:find(cast.stories[1].head, 1, true), "the ticker: the headlines")
+  -- (the anchor's mood for each)
+  T.check(gym and gym.mood == "cheer" and m1 and m1.mood == "cheer" and sg and sg.mood == "cheer"
+    and swarmSt and swarmSt.mood == "shock", "her moods: a Gym, a clean sweep, a first cheer her; the swarm shocks her")
+  T.check(m2 and m2.mood == nil and byKey.week and byKey.week.mood == nil, "a 1-1 win and the week: her everyday read")
   local again = Nw.build(s)
   local moments = false
   for _, st in ipairs(again.stories) do if st.key == "catch" then moments = true end end
@@ -670,6 +674,67 @@ if Sw and Nw then
   local kb
   for _ = 1, 2 do kb = garbageOf(60, function() drawWin(W, false) end) end
   T.check(kb < 0.5, ("the News: next to no garbage (%.3f KB a frame)"):format(kb))
+  -- (her moods on screen: a sheet each; the reaction coming on at the cut, the mood while she talks,
+  -- held once the words are there, then back to rest; a mood with no sheet, her everyday one)
+  local sheets = {}
+  for _, m in ipairs({ "talk", "cheer", "shock" }) do
+    local n = m == "talk" and 12 or 16
+    local q = {}
+    for f = 0, n - 1 do q[f] = f end
+    sheets[m] = { image = {}, quads = q, n = n, size = 32, foot = 1 }
+  end
+  local asked = {}
+  local menv = setmetatable({ anchor = function(mood)
+    asked[mood or "talk"] = true
+    return sheets[mood or "talk"]
+  end }, { __index = X._test.env })
+  local function moodWin(story, e)
+    asked = {}
+    local MW = Apps.byId("news").window({ session = s, mode = "pad", app = "news", rows = {},
+      resume = { app = "news", state = { story = story } } }, e or menv)
+    return MW, MW.state
+  end
+  local MW, mst = moodWin("swarm")
+  T.check(asked.talk and asked.shock and asked.cheer, "her sheets loaded as the News opens")
+  local function at(W, t)
+    clock = W.state.at + t - 1 / 60
+    drawWin(W, false)
+    return W.state.frame
+  end
+  T.check(at(MW, 0.05) == 1 and at(MW, 0.15) == 2 and mst.mood == "shock", "the swarm: the shock coming on (1, 2)")
+  local tEnd = 0.25 + mst.lines.n / 52
+  local talk, inMood, tt = {}, true, 0.3
+  while tt < math.min(tEnd - 0.05, 2) do
+    local f = at(MW, tt)
+    if f < 3 or f > 15 then inMood = false end
+    talk[f] = true
+    tt = tt + 0.05
+  end
+  local kinds = 0
+  for _ in pairs(talk) do kinds = kinds + 1 end
+  T.check(inMood and kinds >= 6, "talking: round the shock's own frames (3 on; " .. kinds .. " of them)")
+  MW.input(input({ "a" }), NONE)
+  at(MW, tt)
+  local d0 = mst.doneAt
+  T.check(d0 ~= nil, "the words all there: when, kept")
+  local function after(d) return at(MW, d0 - mst.at + d) end
+  T.check(after(0.5) == 3 and after(1.5) == 3, "held, her mouth shut")
+  T.check(after(1.65) == 2 and after(1.75) == 1 and after(2) == 0, "then back to rest (2, 1, 0)")
+  local CW, cst = moodWin("gym")
+  T.check(at(CW, 0.05) == 1 and cst.mood == "cheer", "the Gym: the cheer")
+  CW.input(input({ "a" }), NONE)
+  at(CW, 0.5)
+  T.check(at(CW, 1.5) == 15, "held on the cheer's own frame")
+  local EW, est = moodWin("week")
+  T.check(at(EW, 0.1) == 0 and est.mood == nil and at(EW, 0.5) == 4, "the week: her everyday read (at rest, then talking)")
+  local FW, fst = moodWin("gym", setmetatable({ anchor = function(mood)
+    if mood then return nil end
+    return sheets.talk
+  end }, { __index = X._test.env }))
+  T.check(at(FW, 0.05) == 0 and fst.mood == nil, "a mood with no sheet: her everyday one")
+  local kbM
+  for _ = 1, 2 do kbM = garbageOf(60, function() drawWin(MW, false) end) end
+  T.check(kbM < 0.5, ("her moods: next to no garbage (%.3f KB a frame)"):format(kbM))
   -- (the Gym's play-by-play: its beats on lines of their own, marked; taller than the card, it
   -- follows the typing, then scrolls)
   local GW = Apps.byId("news").window({ session = s, mode = "pad", app = "news", rows = {},

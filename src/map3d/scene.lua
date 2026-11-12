@@ -90,12 +90,15 @@ return function(ctx, env, opts)
 
   -- ------- the regions and the places
 
+  -- (the world built to scale is wider for its towns than the Town Map's: its middle zooms come in
+  -- nearer, a few towns, then one's neighbourhood)
   local function zoomDist(z)
     local r = st.region
     local size = r and max(r.w, r.h) or 24
-    if z == 1 then return size * 1.25 end
-    if z == 2 then return size * 0.55 end
-    if z == 3 then return size * 0.3 end
+    local world = r and r.world
+    if z == 1 then return size * (world and 1.05 or 1.25) end
+    if z == 2 then return world and max(12, size * 0.32) or size * 0.55 end
+    if z == 3 then return world and max(5.5, size * 0.13) or size * 0.3 end
     return CLOSE_DIST
   end
   local function zoomPitch(z) return z == 1 and 1.05 or (z == 2 and 0.92 or (z == 3 and 0.78 or CLOSE_PITCH)) end
@@ -133,13 +136,14 @@ return function(ctx, env, opts)
     end
   end
 
-  -- (one cell, several places: a town over a landmark over a route)
+  -- (one cell, several places: a town over a landmark over a route; a cell is a unit square, or its
+  -- own size in the world built to scale)
   local RANK = { town = 3, landmark = 2, route = 1 }
   local function placeAt(region, x, z)
     local best
     for _, p in ipairs(region.places) do
       for _, c in ipairs(p.cells) do
-        if x >= c[1] and x < c[1] + 1 and z >= c[2] and z < c[2] + 1 then
+        if x >= c[1] and x < c[1] + (c[3] or 1) and z >= c[2] and z < c[2] + (c[4] or 1) then
           if not best or RANK[p.kind] > RANK[best.kind] then best = p end
         end
       end

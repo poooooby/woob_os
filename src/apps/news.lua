@@ -1,6 +1,7 @@
 -- The News (the model is src/news.lua, env.news): a studio. The anchor in a TV close-up (the WoobOS
 -- News mark behind her, a LIVE light, the title on a lower third; she talks while the words type, a
--- camera cut between stories); one story at a time on a card beside her (World or Your Story, the
+-- camera cut between stories; a story with a mood (src/news.lua: "cheer", "shock") has her react
+-- from its own sheet); one story at a time on a card beside her (World or Your Story, the
 -- headline, a picture, the words typed out; a play-by-play's beats each on its own, its turn marked
 -- before it); every headline crawling along a ticker at the foot. Words taller than the card follow
 -- the line being typed, then scroll. The broadcast is made when it opens (a notification's swarm opens
@@ -20,6 +21,13 @@ local MARK_W, MARK_SIZE = 9, 3.1     -- a beat's turn, in a pill before its firs
 local UTF8 = "[%z\1-\127\194-\244][\128-\191]*"
 local HINTS = { main = { { "A", "news.next" }, { "<", "hint.back" }, { "B", "hint.close" } } }
 local NO_T = setmetatable({ list = function(l) return l end, f = string.format }, { __call = function(_, k) return k end })
+local TALK_FPS = 9
+-- a mood's sheet: 0 at rest, 1 and 2 the reaction coming on (at the cut, before the words), 3 on the
+-- mood held while she talks, round and round; `hold` a frame of it with her mouth shut, for once the
+-- words are all there, HOLD seconds, before 2 and 1 take her back to rest
+local MOODS = { cheer = { hold = 15 }, shock = { hold = 3 } }
+local LEAD = 2 / TALK_FPS
+local HOLD = 1.6
 
 return function(ctx, env)
   local K, Nw, T = env.K, env.news, env.T or NO_T
@@ -30,7 +38,13 @@ return function(ctx, env)
   local function now() return env.now and env.now() or 0 end
 
   local cast = Nw.build(session())
-  local st = { i = 1, at = now(), full = false, lines = nil, linesW = 0, linesI = 0, cast = cast, top = 0, cap = 1 }
+  local st = { i = 1, at = now(), full = false, lines = nil, linesW = 0, linesI = 0, cast = cast, top = 0, cap = 1,
+               doneAt = nil, mood = nil, frame = 0 }
+  -- (her sheets loaded now, not at the cut to a story)
+  if env.anchor then
+    pcall(env.anchor)
+    for _, story in ipairs(cast.stories) do if story.mood then pcall(env.anchor, story.mood) end end
+  end
   W.state = st
   local resume = ctx.resume
   if resume and resume.app == ctx.app and type(resume.state) == "table" and resume.state.story then
@@ -100,7 +114,7 @@ return function(ctx, env)
   local function go(d)
     local n = #cast.stories
     st.i = (st.i - 1 + d) % n + 1
-    st.at, st.full, st.lines, st.top, st.settled = now(), false, nil, 0, false
+    st.at, st.full, st.lines, st.top, st.settled, st.doneAt = now(), false, nil, 0, false, nil
     se("SE_SELECT")
   end
   -- (words taller than the card: scrolled once they're all there)
@@ -140,7 +154,6 @@ return function(ctx, env)
   local TICKER = { 168, 20, 32 }
   local BREAKING = { swarm = true, outbreak = true, storm = true }
 
-  local TALK_FPS = 9
   local function ease(k) k = min(1, max(0, k)) return 1 - (1 - k) * (1 - k) * (1 - k) end
   local function live(x, y, clock)
     local w = K.width(T("news.live"), 3.6) + 7
@@ -169,10 +182,29 @@ return function(ctx, env)
       G.circle("fill", K.X(x + w * (i + 0.5) / 8), K.Y(y + h - 10), 0.6 * K.sc)
     end
   end
+  -- which of her frames: everyday, the sheet's frames in turn while the words type (0 at rest); in a
+  -- mood, the reaction coming on, the mood while she talks, held once the words are there, then back
+  local function frameOf(art, mood)
+    local t = now() - st.at
+    local L = st.lines
+    local typed = L and shown() or 0
+    local done = L ~= nil and typed >= L.n
+    if done and not st.doneAt then st.doneAt = now() end
+    if not mood then
+      if L and not done and typed > 0 then return floor(t * TALK_FPS) % art.n end
+      return 0
+    end
+    if t < LEAD then return 1 + floor(t * TALK_FPS) end
+    if not done then return 3 + floor((t - LEAD) * TALK_FPS) % (art.n - 3) end
+    local d = now() - max(st.doneAt, st.at + LEAD)
+    if d < HOLD then return min(MOODS[mood].hold, art.n - 1) end
+    if d < HOLD + LEAD then return 2 - floor((d - HOLD) * TALK_FPS) end
+    return 0
+  end
+
   -- the anchor's close-up: a camera shot of the studio (the mark large behind her, lights out of
-  -- focus drifting, scan lines), her bust at whole pixels as tall as the shot, the sheet's frames in
-  -- turn while the words type (frame 0 at rest), a flash for the cut to a new story, the title on a
-  -- lower third, the LIVE light
+  -- focus drifting, scan lines), her bust at whole pixels as tall as the shot (frameOf), a flash for
+  -- the cut to a new story, the title on a lower third, the LIVE light
   local function closeUp(x, y, w, h, clock)
     local G = K.graphics()
     local b = K.R(x, y, w, h)
@@ -188,14 +220,15 @@ return function(ctx, env)
       local r = 4 + (i % 3) * 2.5
       K.glow(px, py, r, r, i % 2 == 0 and TAG_WORLD or TAG_YOU, 0.16 + 0.06 * sin(clock * 0.9 + i))
     end
-    local art = env.anchor and env.anchor()
+    local story = cast.stories[st.i]
+    local mood = story and MOODS[story.mood or ""] and story.mood or nil
+    local art = mood and env.anchor and env.anchor(mood)
+    if not (art and art.n > 3) then mood, art = nil, env.anchor and env.anchor() end
     if art then
       local foot = art.foot or 0
       local px = max(1, floor(h * 0.94 * K.sc / (art.size - foot)))
-      local frame = 0
-      if st.lines and shown() < st.lines.n and shown() > 0 then
-        frame = floor((now() - st.at) * TALK_FPS) % art.n
-      end
+      local frame = frameOf(art, mood)
+      st.mood, st.frame = mood, frame
       local size = art.size * px
       G.setColor(1, 1, 1, 1)
       G.draw(art.image, art.quads[frame] or art.quads[0], floor(K.X(x + w / 2) - size / 2 + 0.5),
