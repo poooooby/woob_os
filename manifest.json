@@ -1,7 +1,7 @@
 {
   "id": "woob_os",
   "name": "WoobOS",
-  "version": "0.10.2",
+  "version": "0.10.3",
   "api": 2,
   "entry": "main.lua",
   "profile": "overhaul",

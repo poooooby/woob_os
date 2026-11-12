@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.10.3] - 2026-11-11
+
 ### Fixed
 - **3D map:** a map kept from an earlier session that can't be read back on a device is built again
   there and then, the loading bar meanwhile, instead of the map left as coarse squares.
