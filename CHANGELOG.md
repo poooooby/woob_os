@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-11-11
+
 ### Added
 - **3D map:** the region's map is kept once it's built, so from the next time you play it's ready
   moments after you start instead of being built again (it's built afresh after an update, or when
