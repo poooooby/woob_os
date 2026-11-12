@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-11
+
 ### Added
 - **3D map (Ruby, Sapphire, Emerald):** Hoenn built to scale from the game's own maps instead of the
   Town Map. Every outdoor map sits where it joins its neighbours (Petalburg Woods in Route 104,
