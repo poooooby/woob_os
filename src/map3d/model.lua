@@ -4,7 +4,9 @@
 -- landmarks, each with its cells, a name, a Center / Mart / Gym from the game's own list of maps
 -- (the engine's map catalog: PewterCity_Mart ...) and the Gym's badge. Nothing here draws.
 --
---   World units: one Town Map cell (8 pixels) each; x right, z down the picture, y up.
+--   World units: one Town Map cell (8 pixels) each; x right, z down the picture, y up. With the game's
+--   maps there (deps.world), every region is built to scale from them instead (src/map3d/world.lua: a
+--   world unit 16 tiles), its places the Town Map's sections over their maps.
 --   FireRed / LeafGreen: Kanto, Sevii 1-3, 4-5, 6-7 (each its own picture and grid); Ruby / Sapphire
 --   / Emerald: Hoenn.
 --
@@ -13,6 +15,7 @@
 --   M.regions(family) -> { { id, key } }       M.region(id) -> the built region (kept)
 --   M.live(region, session)   visited / Fly / badges read again (on open, once a second)
 --   M.player(session) -> regionId, x, z        (world units, nil when unknown)
+--   M.regionHere(session) -> regionId          (the region the player's map is in; nothing built)
 --   M.available(session, id) -> bool           (Sevii's pictures only once the game shows them)
 --   M.flyCheck(session) -> mon | nil, reason   (the party's Fly, the badge, outdoors)
 --   M.pickArgs(place) -> the arguments the game's own map hands its Fly callback
@@ -372,23 +375,35 @@ return function(engine, deps)
     end)
   end
 
+  -- FireRed / LeafGreen: a section's name ("Pewter City"), and its kind on the Town Map's map layer
+  -- (a town, a route, a landmark) or its dungeon layer (a landmark)
+  local function frlgName(sym)
+    local RX, Strings = engine("src.import.gba.region_map_extract"), engine("src.core.Strings")
+    local n = RX and RX.SECTION_NAMES and RX.SECTION_NAMES[sym]
+    if n and Strings then
+      local ok, s = pcall(Strings, n)
+      if ok then n = s end
+    end
+    return titled(n or (tostring(sym):gsub("^MAPSEC_", ""):gsub("_", " ")))
+  end
+  local function frlgKind(sym, dungeon)
+    if dungeon then return "landmark" end
+    if (sym:find("_TOWN$") or sym:find("_CITY$") or sym:find("_ISLAND$") or sym:find("PLATEAU$")
+        or sym:find("POKECENTER$")) and sym ~= "MAPSEC_BIRTH_ISLAND" and sym ~= "MAPSEC_OUTCAST_ISLAND" then
+      return "town"
+    end
+    return sym:find("^MAPSEC_ROUTE_") and "route" or "landmark"
+  end
+
   local function frlgPlaces(desc)
     local RX, MS = engine("src.import.gba.region_map_extract"), engine("src.import.gba.map_sections_extract")
-    local RM, Strings = engine("src.ui.game3.region_map"), engine("src.core.Strings")
+    local RM = engine("src.ui.game3.region_map")
     if not (RX and MS and RM) then return {} end
     RX.ensureGenerated()
     local L = RX.LAYOUTS and RX.LAYOUTS[desc.layout]
     if not L then return {} end
     local NONE = RX.MAPSEC_NONE
     local places, byId = {}, {}
-    local function nameOf(sym)
-      local n = RX.SECTION_NAMES[sym]
-      if n and Strings then
-        local ok, s = pcall(Strings, n)
-        if ok then n = s end
-      end
-      return titled(n or sym)
-    end
     for _, layer in ipairs({ "map", "dungeon" }) do
       local grid = L[layer]
       for y = 0, 14 do
@@ -398,15 +413,8 @@ return function(engine, deps)
             local info = MS.SECTIONS[m]
             local sym = info and info.id
             if sym then
-              local kind = layer == "dungeon" and "landmark" or "route"
-              if layer == "map" and (sym:find("_TOWN$") or sym:find("_CITY$") or sym:find("_ISLAND$")
-                  or sym:find("PLATEAU$") or sym:find("POKECENTER$")) and sym ~= "MAPSEC_BIRTH_ISLAND"
-                  and sym ~= "MAPSEC_OUTCAST_ISLAND" then
-                kind = "town"
-              elseif layer == "map" and not sym:find("^MAPSEC_ROUTE_") then
-                kind = "landmark"
-              end
-              addCell(places, byId, m, x + 4, y + 4, { sym = sym, kind = kind, name = nameOf(sym),
+              local kind = frlgKind(sym, layer == "dungeon")
+              addCell(places, byId, m, x + 4, y + 4, { sym = sym, kind = kind, name = frlgName(sym),
                 census = camel(sym), peak = PEAKS[sym], hidden = HIDDEN[sym] })
             end
           end
@@ -646,14 +654,14 @@ return function(engine, deps)
     return ok and s or nil, img
   end
 
-  -- Ruby / Sapphire / Emerald: Hoenn built to scale from the game's own maps (src/map3d/world.lua);
-  -- its places the Town Map's sections, each one's cells the rectangles of its maps (world units), a
-  -- cave or a building of its own where its door is. nil when the maps aren't there (the Town Map's
-  -- region instead)
-  local function worldRegion(desc, pace)
+  -- a region built to scale from the game's own maps (src/map3d/world.lua): Hoenn; Kanto and the Sevii
+  -- Islands' three pictures. Its places the Town Map's sections, each one's cells the rectangles of its
+  -- maps (world units), a cave or a building of its own where its door is. nil when the maps aren't
+  -- there (the Town Map's region instead)
+  local function worldRegion(desc, family, pace)
     local Wd = deps.world
     if not Wd then return nil end
-    local okB, world = pcall(Wd.build, { pace = pace })
+    local okB, world = pcall(Wd.build, { pace = pace, region = desc.id })
     if not (okB and world) then
       if deps.log and not okB then deps.log("the to-scale map failed: %s", tostring(world)) end
       return nil
@@ -663,7 +671,7 @@ return function(engine, deps)
     rest()
     local t, step = Wd.terrain(world, pace)
     rest()
-    local all = rsePlaces()
+    local all = family == "frlg" and frlgPlaces(desc) or rsePlaces()
     rest()
     local bySec = {}
     for _, p in ipairs(all) do
@@ -672,21 +680,32 @@ return function(engine, deps)
     -- (a section the Town Map's grid doesn't draw -- Sky Pillar, Mt. Pyre, Mirage Tower, the
     -- Abandoned Ship -- a place all the same, named as the rest are)
     local RM = engine("src.ui.game3.rse.region_map")
-    local okM, man = pcall(RM and RM.manifest or error)
+    local okM, man = pcall(family ~= "frlg" and RM and RM.manifest or error)
     local secs = okM and type(man) == "table" and man.mapsecs or {}
     local symOf = {}
     for k, v in pairs(secs) do symOf[v] = k end
     local first, last = secs.LITTLEROOT_TOWN or 0, secs.EVER_GRANDE_CITY or 15
+    local MS = family == "frlg" and engine("src.import.gba.map_sections_extract") or nil
     local function placeOf(sec)
       sec = tonumber(sec)
-      if not sec or sec == secs.NONE or sec == secs.DYNAMIC then return nil end
+      if not sec then return nil end
       if bySec[sec] then return bySec[sec] end
-      local okN, raw = pcall(RM and RM.mapName or error, sec)
-      local name = okN and type(raw) == "string" and raw or ""
-      if name == "" then return nil end
-      local sym = symOf[sec] or name:upper():gsub("[^%w]+", "_"):gsub("_$", "")
-      local kind = (sec >= first and sec <= last) and "town" or (name:find("^ROUTE") and "route" or "landmark")
-      local p = { id = sec, cells = {}, sym = sym, kind = kind, name = titled(name), census = camel(name), peak = PEAKS[sym] }
+      local p
+      if family == "frlg" then
+        local info = MS and MS.SECTIONS and MS.SECTIONS[sec]
+        local sym = info and info.id
+        if not sym or sym == "MAPSEC_NONE" or sym == "MAPSEC_SPECIAL_AREA" then return nil end
+        p = { id = sec, cells = {}, sym = sym, kind = frlgKind(sym, false), name = frlgName(sym), census = camel(sym),
+              peak = PEAKS[sym], hidden = HIDDEN[sym] }
+      else
+        if sec == secs.NONE or sec == secs.DYNAMIC then return nil end
+        local okN, raw = pcall(RM and RM.mapName or error, sec)
+        local name = okN and type(raw) == "string" and raw or ""
+        if name == "" then return nil end
+        local sym = symOf[sec] or name:upper():gsub("[^%w]+", "_"):gsub("_$", "")
+        local kind = (sec >= first and sec <= last) and "town" or (name:find("^ROUTE") and "route" or "landmark")
+        p = { id = sec, cells = {}, sym = sym, kind = kind, name = titled(name), census = camel(name), peak = PEAKS[sym] }
+      end
       bySec[sec] = p
       all[#all + 1] = p
       return p
@@ -717,7 +736,7 @@ return function(engine, deps)
     rest()
     finishPlaces(places)
     rest()
-    local region = { id = desc.id, key = desc.key, family = "rse", terrain = t, places = places,
+    local region = { id = desc.id, key = desc.key, family = family, terrain = t, places = places,
                      x0 = world.x0 / MT, z0 = world.y0 / MT, w = world.cols / MT, h = world.rows / MT, step = step,
                      fromPicture = true, world = world, classes = Wd.C, heights = Wd.H, unit = MT }
     for _, p in ipairs(places) do p.y = M.heightAt(region, p.x, p.z) end
@@ -771,12 +790,10 @@ return function(engine, deps)
       if built[key] then return built[key] end
     end
     local desc, family = descOf(id)
-    if family == "rse" then
-      local region = worldRegion(desc, background and pace or nil)
-      if region then
-        built[key] = region
-        return region
-      end
+    local region = worldRegion(desc, family, background and pace or nil)
+    if region then
+      built[key] = region
+      return region
     end
     local crop = CROP[family]
     local places = family == "frlg" and frlgPlaces(desc) or rsePlaces()
@@ -878,34 +895,58 @@ return function(engine, deps)
     return ok and on == true
   end
 
-  -- where the player is: the region and the cell, as the game's own map works it out
+  -- in a region built to scale: exactly where the player stands outdoors; indoors or in a cave, the
+  -- door they came in by; nowhere placed (under the sea, say), the middle of the map's place. false when
+  -- the region isn't one built to scale
+  local function inWorld(rid, s)
+    if not deps.world then return false end
+    local okR, wr = pcall(M.region, rid)
+    local W = okR and wr and wr.world
+    if not W then return false end
+    local MT = wr.unit
+    local m = W.byId[s.map]
+    if m and tonumber(s.x) then return rid, (m.x + s.x + 0.5) / MT, (m.y + s.y + 0.5) / MT end
+    for _, w in ipairs({ s.escapeWarp, s.dynamicWarp }) do
+      local wm = type(w) == "table" and type(w.map) == "string" and W.byId[w.map]
+      if wm then return rid, (wm.x + (tonumber(w.x) or 0) + 0.5) / MT, (wm.y + (tonumber(w.y) or 0) + 0.5) / MT end
+    end
+    local Map = engine("src.core.game3.map")
+    local okD, def = pcall(Map and Map.currentDef or error)
+    local sec = okD and type(def) == "table" and tonumber(def.regionMapSectionId)
+    for _, p in ipairs(wr.places) do
+      if p.id == sec then return rid, p.x, p.z end
+    end
+    return nil
+  end
+
+  -- the region the player's map is in (FireRed / LeafGreen: the Town Map picture its section is on)
+  local function frlgRegionOf(mapId)
+    local RX, Position = engine("src.import.gba.region_map_extract"), engine("src.ui.game3.region_map_position")
+    local Runtime = engine("src.core.game3.runtime")
+    local ok, r = pcall(function()
+      RX.ensureGenerated()
+      local maps = Runtime._game and Runtime._game.data and Runtime._game.data.maps
+      return Position.regionFor(maps[mapId].regionMapSectionId, RX.LAYOUTS)
+    end)
+    local desc = ok and FRLG_REGIONS[(tonumber(r) or 0) + 1]
+    return desc and desc.id or nil
+  end
+  function M.regionHere(s)
+    if familyOf() == "rse" then return "hoenn" end
+    if not s then return nil end
+    -- (indoors, the section of the map they came in from: a house's is its town's anyway)
+    local rid = frlgRegionOf(s.map)
+    if not rid and type(s.escapeWarp) == "table" then rid = frlgRegionOf(s.escapeWarp.map) end
+    return rid or "kanto"
+  end
+
+  -- where the player is: the region and the cell, as the game's own map works it out (in a region
+  -- built to scale, exactly)
   function M.player(s)
     if not s then return nil end
     if familyOf() == "rse" then
-      -- (the world built to scale: exactly where they stand outdoors; indoors or in a cave, the door
-      -- they came in by)
-      local game = deps.gameId and deps.gameId() or ""
-      local wr = built[game .. ":hoenn"]
-      local W = wr and wr.world
-      if W then
-        local MT = wr.unit
-        local m = W.byId[s.map]
-        if m and tonumber(s.x) then return "hoenn", (m.x + s.x + 0.5) / MT, (m.y + s.y + 0.5) / MT end
-        local RMw = engine("src.ui.game3.rse.region_map")
-        for _, saved in ipairs({ s.escapeWarp, s.dynamicWarp }) do
-          local okW, w = pcall(RMw and RMw.savedWarp or error, saved)
-          local wm = okW and type(w) == "table" and W.byId[w.map]
-          if wm then return "hoenn", (wm.x + (tonumber(w.x) or 0) + 0.5) / MT, (wm.y + (tonumber(w.y) or 0) + 0.5) / MT end
-        end
-        -- (nowhere placed -- under the sea, say: the middle of its place)
-        local Map = engine("src.core.game3.map")
-        local okD, def = pcall(Map and Map.currentDef or error)
-        local sec = okD and type(def) == "table" and tonumber(def.regionMapSectionId)
-        for _, p in ipairs(wr.places) do
-          if p.id == sec then return "hoenn", p.x, p.z end
-        end
-        return nil
-      end
+      local w, wx, wz = inWorld("hoenn", s)
+      if w ~= false then return w, wx, wz end
       local RM = engine("src.ui.game3.rse.region_map")
       local ok, st = pcall(RM and RM.newState or error, { session = s, mode = "wall" })
       if not (ok and type(st) == "table" and tonumber(st.playerIconX)) then return nil end
@@ -923,9 +964,16 @@ return function(engine, deps)
       local r = Position.regionFor(def(s.map).regionMapSectionId, RX.LAYOUTS)
       return r, cx, cy
     end)
-    if not ok then return nil end
+    if not ok then
+      local w, wx, wz = inWorld(M.regionHere(s), s)
+      if w ~= false then return w, wx, wz end
+      return nil
+    end
     local desc = FRLG_REGIONS[(tonumber(region) or 0) + 1]
-    return desc and desc.id or "kanto", x + 4.5, y + 4.5
+    local rid = desc and desc.id or "kanto"
+    local w, wx, wz = inWorld(rid, s)
+    if w ~= false then return w, wx, wz end
+    return rid, x + 4.5, y + 4.5
   end
 
   -- Fly from the map app: the party's Pokémon that knows it, the badge, and the player outdoors

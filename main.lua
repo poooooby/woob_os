@@ -908,28 +908,33 @@ return function(mod)
     if env.errands then pcall(env.errands.settle, s) end
     if env.news then pcall(env.news.tick, s) end
   end
-  -- each frame: Ruby / Sapphire / Emerald's map built to scale in the background, a few milliseconds a
-  -- frame once the player has been out in the field a few seconds after the game starts (so the map
-  -- opens at once; opened sooner, it finishes the build itself)
-  local mapPrep = { at = nil, done = false, game = nil }
+  -- each frame: the region the player is in (Hoenn; Kanto or one of the Sevii Islands' pictures) built
+  -- to scale in the background, a few milliseconds a frame once they've been out in the field a few
+  -- seconds (so the map opens at once; opened sooner, it finishes the build itself). Which region,
+  -- looked at once a second; each built once
+  local mapPrep = { at = nil, game = nil, want = nil, nextLook = 0, built = {} }
   local function frame(game)
     local m3 = env.map3d
-    if not m3 or mapPrep.done then return end
+    if not m3 then return end
     local g = gameId()
-    if mapPrep.game ~= g then mapPrep.game, mapPrep.at = g, nil end
-    if m3.model.family() ~= "rse" or (Settings and Settings.get("map3d", true) == false) then
-      mapPrep.done = true
-      return
-    end
+    if mapPrep.game ~= g then mapPrep.game, mapPrep.at, mapPrep.want, mapPrep.built = g, nil, nil, {} end
     local now = love and love.timer and love.timer.getTime() or 0
     if not (Sh and Sh.free(game)) then return end
-    if not mapPrep.at then mapPrep.at = now + 4 end
+    if not mapPrep.want then
+      if now < mapPrep.nextLook then return end
+      mapPrep.nextLook = now + 1
+      if Settings and Settings.get("map3d", true) == false then return end
+      local okH, rid = pcall(m3.model.regionHere, session())
+      if not (okH and rid) or mapPrep.built[rid] then return end
+      mapPrep.want, mapPrep.at = rid, now + 4
+    end
     if now < mapPrep.at then return end
-    m3.model.prepare("hoenn")
+    local rid = mapPrep.want
+    m3.model.prepare(rid)
     if m3.model.step(0.004) then return end
-    local region = m3.model.region("hoenn")
+    local region = m3.model.region(rid)
     if region and region.world and m3.render.prepare(love.graphics, region, 0.004) then return end
-    mapPrep.done = true
+    mapPrep.built[rid], mapPrep.want = true, nil
   end
   -- the PokéNav's Match Call / Trainer's Eyes and Condition: our apps instead (Settings: pokenavApps)
   local Pokenav = makePokenav and makePokenav(engine, {

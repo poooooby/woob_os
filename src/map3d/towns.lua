@@ -562,11 +562,14 @@ return function()
   -- ------- the landmarks of the world built to scale (src/map3d/world.lua): each where the game has
   -- it, by its door (what it leads into) or its map; standing on the ground (or the deck) there.
   -- Some take a building's place outright (the Department Store, the Battle Tower, the Pokémon
-  -- League: Tw.replaces(door)); some go on or by its block (the Space Center's rocket, the Weather
-  -- Institute's dish, the Contest Hall's dome); the rest stand on their own (Sky Pillar, Mirage
-  -- Tower, Mt. Chimney's crater, the harbours' ship, the
-  -- Abandoned Ship, Fortree's houses up in the trees, the caves' mouths)
-  local REPLACE = { store = "deptstore", tower = "tower", league = "league" }
+  -- League, Lavender's Pokémon Tower, the Trainer Tower: Tw.replaces(door)); some go on or by its block
+  -- (the Space Center's rocket, the Weather Institute's dish, the Contest Hall's dome); the rest stand
+  -- on their own (Sky Pillar, Mirage Tower, Mt. Chimney's and Mt. Ember's craters, a harbour's ship,
+  -- the Abandoned Ship, Fortree's houses up in the trees, the caves' mouths). A building with two
+  -- doors is one landmark, a harbour one ship
+  local REPLACE = { store = "deptstore", tower = "tower", league = "league", ptower = "tower", ttower = "skyscraper" }
+  -- (no taller than this, however wide their lot)
+  local SCALE_CAP = { ptower = 0.9, ttower = 0.7 }
   function Tw.replaces(d) return REPLACE[d.kind] ~= nil end
 
   local STONE, STONE_D = { 0.74, 0.72, 0.64 }, { 0.6, 0.58, 0.52 }
@@ -599,10 +602,14 @@ return function()
       if W.ws and W.ws[k] and W.ws[k] > y then y = W.ws[k] end
       return y
     end
+    local once = {}
     for _, d in ipairs(W.doors) do
       local f = d.foot
       local dest = tostring(d.dest or "")
       local gy0 = ground(d.x, d.y)
+      local key = d.map .. ">" .. (d.kind == "harbor" and "harbor" or dest)
+      local first = not once[key]
+      once[key] = true
       local fx, fz, fw, fd
       if f then
         fx, fz = (f.x0 + f.x1) / 2 / MT, (f.y0 + f.y1) / 2 / MT
@@ -613,7 +620,8 @@ return function()
       local rep = REPLACE[d.kind]
       if rep and f then
         local s = max(fw / FOOT[rep], 0.6)
-        BUILD[rep](L, fx, gy0, fz, s, 0)
+        if SCALE_CAP[d.kind] then s = min(s, SCALE_CAP[d.kind]) end
+        if first then BUILD[rep](L, fx, gy0, fz, s, 0) end
       elseif d.kind == "space" and f then
         -- (the rocket on its pad beside the Space Center)
         BUILD.rocket(L, fx + fw / 2 + 0.22, gy0, fz, 1.1)
@@ -624,7 +632,7 @@ return function()
         prism(L, fx, top + 0.08, fz, 10, 0.03, 0.09, 0.04, { 0.92, 0.92, 0.94 }, 0, false)
       elseif d.kind == "contest" and f then
         dome(L, fx, gy0 + 2 / MT * 1.1, fz, min(fw, fd) * 0.35, { 0.95, 0.72, 0.82 })
-      elseif d.kind == "harbor" then
+      elseif d.kind == "harbor" and first then
         -- (a ship moored off the harbour: the nearest open water south of the door)
         for step = 2, 18 do
           local gx, gy = d.x, d.y + step
@@ -650,8 +658,9 @@ return function()
         -- (listing a little, half sunk: its hull and a mast still well clear of the water)
         box(L, fx, 0.02, fz + 0.15, 0.62, 0.15, 0.12, { 0.5, 0.5, 0.52 }, { 0.42, 0.34, 0.26 }, 0.12, true)
         prism(L, fx - 0.05, 0.14, fz + 0.15, 8, 0.022, 0.02, 0.16, { 0.5, 0.3, 0.26 }, 0, true)
-      elseif d.kind == "cave" then
-        -- (a cave's mouth: a dark arch on the rock over its door)
+      elseif d.kind == "cave" and not dest:find("MT_EMBER_SUMMIT$") then
+        -- (a cave's mouth: a dark arch on the rock over its door; not Mt. Ember's to its summit, its
+        -- crater stands there)
         local x0, x1 = d.x / MT, (d.x + 1) / MT
         local z = (d.y + 1) / MT + 0.002
         quad(L, x0, gy0 + 0.07, z, x1, gy0 + 0.07, z, x1, gy0, z, x0, gy0, z, CAVE, 4, 0, 0, 1)
@@ -663,7 +672,22 @@ return function()
         house(L, fx, y + 0.012, fz, 2.4 / MT, 1.9 / MT, 0.07, WOOD_ROOF, 0.04, 0)
       end
     end
-    -- (Mt. Chimney's crater: where its map's lava is, a rim, the glow, smoke rising)
+    -- (a volcano's crater: a rim, the lava glowing in it, a few puffs of smoke drifting up)
+    local function crater(x, y, z, r)
+      prism(L, x, y, z, 14, r * 1.3, r * 1.05, 0.045, ROCK_D, 0, false)
+      prism(L, x, y + 0.02, z, 14, r * 1.05, r * 1.05, 0.008, LAVA, F_WINDOW, true)
+      for k = 0, 3 do
+        local a = k * 1.9
+        dome(L, x + cos(a) * r * 0.3 + k * 0.025, y + 0.08 + k * 0.07, z + sin(a) * r * 0.3 - k * 0.02,
+          0.035 + k * 0.012, SMOKE, 3)
+      end
+    end
+    -- (Mt. Ember's on its summit, where its door to the top is (the Sevii Islands))
+    if W.ember then
+      local gx, gy = W.ember.x, W.ember.y + 1
+      crater((gx + 0.5) / MT, ground(gx, gy), (gy + 0.5) / MT, 0.11)
+    end
+    -- (Mt. Chimney's where its map's lava is)
     for _, m in ipairs(W.maps) do
       if m.id:find("MT_CHIMNEY", 1, true) and not m.id:find("CABLE", 1, true) then
         local sx, sz, n = 0, 0, 0
@@ -680,15 +704,7 @@ return function()
           local gx, gz = m.x + sx / n, m.y + sz / n
           local x, z = (gx + 0.5) / MT, (gz + 0.5) / MT
           local y = ground(floor(gx), floor(gz))
-          -- (a small crater: a rim, the lava glowing in it, a few puffs of smoke drifting up)
-          local r = min(0.16, max(0.08, sqrt(n) / MT * 0.25))
-          prism(L, x, y, z, 14, r * 1.3, r * 1.05, 0.045, ROCK_D, 0, false)
-          prism(L, x, y + 0.02, z, 14, r * 1.05, r * 1.05, 0.008, LAVA, F_WINDOW, true)
-          for k = 0, 3 do
-            local a = k * 1.9
-            dome(L, x + cos(a) * r * 0.3 + k * 0.025, y + 0.08 + k * 0.07, z + sin(a) * r * 0.3 - k * 0.02,
-              0.035 + k * 0.012, SMOKE, 3)
-          end
+          crater(x, y, z, min(0.16, max(0.08, sqrt(n) / MT * 0.25)))
         end
       end
     end

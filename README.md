@@ -51,19 +51,24 @@ opens a desktop in a sleek monitor instead of a text menu.
 - 🗺️ **A 3D Town Map:** the Town Map, the maps on the walls and the Fly map open the region as a
   little 3D model you can turn, tilt and zoom. The sea waves, clouds drift over it and it follows your
   device's clock: dawn, day, a warm dusk, and a starry night with the windows lit.
-  - **Hoenn to scale (Ruby, Sapphire, Emerald):** built from your game's own maps, every route and
-    town where it really is and every tile in its own colours. Forests stand as rounded canopies,
-    mountains rise in terraces as tall as the game draws their cliffs (Mt. Chimney's summit the
-    highest, its crater smoking), and the land between the routes is the forest, rock or sea the game
+  - **Built to scale from your game's own maps:** every route and town where it really is and every
+    tile in its own colours. Forests stand as rounded canopies, mountains rise in terraces as tall as
+    the game draws their cliffs, and the land between the routes is the forest, rock or sea the game
     shows past their edges. Every building stands where its door is, the Centers, Marts, Gyms and
-    houses each in their own art, and the landmarks with them: Sky Pillar, Lilycove's Department
-    Store and the S.S. Tidal at the harbour, Mossdeep's rocket, the
+    houses each in their own art. Bridges cross the water on posts and the caves open in the rock. The
+    map of the region you're in is put together in the background shortly after you start playing, so
+    it opens at once.
+  - **Hoenn (Ruby, Sapphire, Emerald):** Mt. Chimney's summit the highest point, its crater smoking;
+    Sky Pillar, Lilycove's Department Store and the S.S. Tidal at the harbour, Mossdeep's rocket, the
     Weather Institute's dish, Mirage Tower, the Abandoned Ship, the Pokémon League and the Battle
-    Tower. Bridges cross the water on posts, Pacifidlog floats on its logs, Fortree's houses sit up in
-    its trees, and the caves open in the rock. The map is put together in the background shortly after
-    you start playing, so it opens at once.
-  - **Kanto and the Sevii Islands (FireRed, LeafGreen):** made from your game's own Town Map: its
-    hills and forests, the sea, the routes, the towns and mountains where the caves are.
+    Tower. Pacifidlog floats on its logs and Fortree's houses sit up in its trees.
+  - **Kanto (FireRed, LeafGreen):** the mountain ranges round Mt. Moon and Rock Tunnel in terraces,
+    Silph Co. towering over Saffron, the Pokémon Tower in Lavender, Celadon's Department Store, the
+    S.S. Anne at Vermilion's dock and the Pokémon League up on Indigo Plateau.
+  - **The Sevii Islands (FireRed, LeafGreen):** each of the game's three island maps its own model,
+    the islands where the game's map puts them, a ship at each harbour, and Mt. Ember over One Island
+    the highest peak, its crater smoking. Where the game stops drawing partway across an island's
+    mountains or forests, they carry on and round off into the sea.
   - **Legendary storms (Emerald):** after the Weather Institute tells you about abnormal weather, a
     rainstorm with lightning hangs over the route where Kyogre is rumoured, or a sandstorm over
     Groudon's. Ask again and it moves with the report. It clears once that Pokémon is caught or
@@ -73,13 +78,6 @@ opens a desktop in a sleek monitor instead of a text menu.
     and Route 123 on the days the game gives them, ash falling on Route 113 and above Mt. Chimney, a dust
     haze blowing across Route 111's desert, fog around Mt. Pyre and a few white clouds south of Route
     120. Petalburg Woods and Southern Island sit in shade. A place's card names its weather.
-  - **Every town its own (FireRed, LeafGreen):** villages are a few houses on a sandy square, cities a crowd of taller
-    blocks on paving. Roofs take the town's colour (Lavender's purple, Cerulean's blue, Vermilion's
-    red, Lilycove's lilac …), and each town has what it's known for: Oak's lab in Pallet, Pewter's
-    museum, the Pokémon Tower, Silph Co., Celadon's department store, Vermilion's lighthouse and the
-    S.S. Anne at its dock, the Pokémon League; Devon's tower in Rustboro, Mauville under its dome,
-    Mossdeep's rocket, Fortree up in the trees, Pacifidlog on the water. Every Pokémon Center has
-    its red roof, every Mart its blue one, and every Gym a band in its badge's colour.
   - **Where you are:** a red beacon stands on your spot.
   - **The cursor:** the D-pad moves it freely over the land, the way the camera faces, as on the
     game's own map; let go near a town or a landmark and it glides onto it. Whatever is under it,

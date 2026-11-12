@@ -28,15 +28,15 @@ local ART = {
   [ROCKY] = art(0, 0, 0.6, 190, 150, 110),
 }
 
--- a layout: w x h, cell(x, y) -> coll, mid
-local function layout(w, h, cell)
+-- a layout: w x h, cell(x, y) -> coll, mid; past its edges its border (trees unless said)
+local function layout(w, h, cell, border)
   local L = { width = w, height = h, trueWidth = w, trueHeight = h, pair = "test" }
   function L:collAt(x, y)
     if x < 0 or y < 0 or x >= w or y >= h then return 255 end
     return (cell(x, y))
   end
   function L:midAt(x, y)
-    if x < 0 or y < 0 or x >= w or y >= h then return TREE end
+    if x < 0 or y < 0 or x >= w or y >= h then return border or TREE end
     local _, m = cell(x, y)
     return m
   end
@@ -158,5 +158,93 @@ for x = 1, 200 do
   prev = v
 end
 T.check(lo >= 0 and hi <= 1 and hi - lo > 0.3 and jump < 0.2, "the noise: 0..1, varied, smooth")
+
+-- ------- FireRed / LeafGreen: Kanto and a Sevii island, each a world of its own
+--   Pallet Town: a stone wall across it (rows 6-7), the sea at its foot. Route 1 to its north: a ledge
+--   across it (row 20); a strait (rows 8-12) a plank bridge crosses (x 10). Saffron City's stand-in
+--   (10 x 10) east of Route 1, the real city 14 x 14 round it (offset 2, 2) with the Mart's door and a
+--   gatehouse's out past the stand-in. One Island (Sevii 1-3): its mountain cut off by its north edge,
+--   the sea round it.
+local PLANK = 10
+ART[PLANK] = art(0, 0, 0.2, 170, 120, 70)
+local pallet = layout(20, 20, function(x, y)
+  if y >= 17 then return 41, SEA end
+  if y == 6 or y == 7 then return 7, ROCK end
+  return 0, GROUND
+end)
+local route1 = layout(20, 30, function(x, y)
+  if y >= 8 and y <= 12 then
+    if x == 10 then return 0, PLANK end
+    return 41, SEA
+  end
+  if y == 20 then return 163, GROUND end
+  return 0, GROUND
+end)
+local function saffronCell(x, y)
+  if x >= 3 and x <= 6 and y >= 2 and y <= 4 then return 7, WALL end
+  if x == 5 and y == 5 then return 113, GROUND end
+  return 0, GROUND
+end
+local saffronStandIn = layout(10, 10, saffronCell)
+local saffronReal = layout(14, 14, function(x, y)
+  if x >= 2 and y >= 2 and x < 12 and y < 12 then return saffronCell(x - 2, y - 2) end
+  if x == 0 and y == 7 then return 113, GROUND end
+  return 7, TREE
+end)
+local island = layout(16, 16, function(x, y)
+  if y <= 3 then return 7, ROCK end
+  if x >= 2 and x <= 13 and y <= 11 then return 0, GROUND end
+  return 41, SEA
+end, SEA)
+local frMaps = {
+  FR_PALLET_TOWN = { mapType = 1, midLayout = pallet, pair = "test", regionMapSectionId = 88,
+    connections = { { dir = "north", map = "FR_ROUTE_1", offset = 0 } }, warps = {} },
+  FR_ROUTE_1 = { mapType = 3, midLayout = route1, pair = "test", regionMapSectionId = 89,
+    connections = { { dir = "south", map = "FR_PALLET_TOWN", offset = 0 },
+                    { dir = "east", map = "FR_SAFFRON_CITY_CONNECTION", offset = 0 } }, warps = {} },
+  FR_SAFFRON_CITY_CONNECTION = { mapType = 1, midLayout = saffronStandIn, pair = "test", regionMapSectionId = 90,
+    connections = { { dir = "west", map = "FR_ROUTE_1", offset = 0 } }, warps = {} },
+  FR_SAFFRON_CITY = { mapType = 1, midLayout = saffronReal, pair = "test", regionMapSectionId = 90, connections = {},
+    warps = { { x = 7, y = 7, destMap = "FR_SAFFRON_CITY_MART", destWarp = 1 },
+              { x = 0, y = 7, destMap = "FR_ROUTE_7_EAST_ENTRANCE", destWarp = 1 } } },
+  FR_SAFFRON_CITY_MART = { mapType = 8, warps = {} },
+  FR_ROUTE_7_EAST_ENTRANCE = { mapType = 8, warps = {} },
+  SEVII_ONE_ISLAND = { mapType = 1, midLayout = island, pair = "test", regionMapSectionId = 101, connections = {}, warps = {} },
+}
+local Fr = assert(loadfile(MOD .. "/src/map3d/world.lua"))()(engine, {
+  maps = function() return frMaps end, art = function() return ART end, layouts = function() return {} end,
+  pictureOf = function(sec) return sec == 101 and 1 or 0 end })
+local kanto = Fr.build({ region = "kanto" })
+T.check(kanto and kanto.byId.FR_PALLET_TOWN and kanto.byId.FR_PALLET_TOWN.x == 0, "Kanto builds, from Pallet Town")
+T.check(kanto and kanto.byId.SEVII_ONE_ISLAND == nil, "Kanto has none of the Sevii Islands' maps")
+local function kk(w, gx, gy) return (gy - w.y0) * w.cols + (gx - w.x0) + 1 end
+-- (Saffron: the stand-in placed by its connection, the real city's doors on it, its own id finding it)
+local sc = kanto.byId.FR_SAFFRON_CITY_CONNECTION
+local real = kanto.byId.FR_SAFFRON_CITY
+T.check(sc and sc.how == "joined" and sc.x == 20 and sc.y == -30, "Saffron's stand-in east of Route 1, by its connection")
+T.check(real and real.standIn == sc and real.x == sc.x - 2 and real.y == sc.y - 2,
+  "the real Saffron City where its tiles match the stand-in's (" .. tostring(real and real.x) .. ", " .. tostring(real and real.y) .. ")")
+local mart, gate
+for _, d in ipairs(kanto.doors) do
+  if d.dest == "FR_SAFFRON_CITY_MART" then mart = d end
+  if d.dest == "FR_ROUTE_7_EAST_ENTRANCE" then gate = d end
+end
+T.check(mart and mart.map == "FR_SAFFRON_CITY_CONNECTION" and mart.x == sc.x + 5 and mart.y == sc.y + 5 and mart.kind == "mart",
+  "the Mart's door moved onto the stand-in")
+T.check(gate == nil, "the gatehouse's door past the stand-in left off (the route's own)")
+-- (a town's wall isn't a cliff; a ledge is a hop, not a step; a plank strip over the water a bridge)
+T.check(math.abs(kanto.h[kk(kanto, 10, 2)] - kanto.h[kk(kanto, 10, 12)]) < 1e-6, "Pallet flat on both sides of its wall")
+T.check(math.abs(kanto.h[kk(kanto, 10, -15)] - kanto.h[kk(kanto, 10, -5)]) < 1e-6, "Route 1 level on both sides of its ledge")
+local bk = kk(kanto, 10, -20)
+T.eq(kanto.cls[bk], Fr.C.BRIDGE, "the plank strip over the strait a bridge")
+T.check(kanto.deck[bk] and kanto.ws[bk] and kanto.deck[bk] > kanto.ws[bk], "its deck over the water")
+local sevii = Fr.build({ region = "sevii123" })
+T.check(sevii and sevii.byId.SEVII_ONE_ISLAND and sevii.byId.FR_PALLET_TOWN == nil, "Sevii 1-3 builds: One Island, none of Kanto")
+-- (the mountain the map's north edge cuts off goes on into the sea, rounded off; the sea beyond)
+local g1 = sevii and sevii.grown[kk(sevii, 8, -2)]
+T.check(g1 and sevii.cls[kk(sevii, 8, -2)] == Fr.C.ROCK, "One Island's mountain grown on past the map's edge")
+T.check(sevii and not sevii.grown[kk(sevii, 8, -18)] and Fr.WATER[sevii.cls[kk(sevii, 8, -18)] or Fr.C.SEA],
+  "only so far: the sea past it")
+T.check(sevii and not sevii.grown[kk(sevii, 0, -6)] or false, "rounded off: its corners not grown as far")
 
 T.finish("woob_os world3d (" .. GAME .. ")")

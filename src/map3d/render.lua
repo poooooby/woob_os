@@ -974,7 +974,8 @@ return function(deps)
   -- Pacifidlog's logs)
   -- (how tall each kind stands, by its front wall's height: a Gym a good deal taller than a house)
   local KIND_H = { center = 1.15, mart = 1.05, gym = 1.5, lab = 1.15, contest = 1.3, institute = 1.25,
-                   space = 1.3, museum = 1.25, school = 1.15, shipyard = 1.2, harbor = 1.15, corner = 1.25 }
+                   space = 1.3, museum = 1.25, school = 1.15, shipyard = 1.2, harbor = 1.15, corner = 1.25,
+                   silph = 3.4, mansion = 1.45, plant = 1.3 }
   local function worldBuildings(G, region)
     local W = region.world
     local cols, rows, MT = W.cols, W.rows, region.unit

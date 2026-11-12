@@ -42,8 +42,8 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/swarm.lua` | The daily swarm: a route and a species from the game's own wild tables, and the `encounter.species` hook's turn |
 | `src/news.lua`, `src/apps/news.lua` | The News: the broadcast built from the world and the journal; the studio window |
 | `src/frost.lua` | Frosted glass: the screen caught in a canvas while the drawer shows, a small copy blurred under it |
-| `src/map3d/model.lua` | The 3D map's model: Hoenn from `world.lua`; Kanto / Sevii from the game's Town Map (its picture a heightmap and its colours, its grid the places); the census's Centers / Marts / Gyms, the badges, the player's position, Fly's checks; the background build (`prepare` / `step`) |
-| `src/map3d/world.lua` | Hoenn built to scale from the game's own maps: placement, each tile's class, the doors and footprints, heights, the coarse terrain |
+| `src/map3d/model.lua` | The 3D map's model: every region from `world.lua` (Hoenn; Kanto and the Sevii Islands' three pictures); with no maps (headless) from the game's Town Map (its picture a heightmap and its colours, its grid the places); the census's Centers / Marts / Gyms, the badges, the player's position, Fly's checks; the background build (`prepare` / `step`) |
+| `src/map3d/world.lua` | A region built to scale from the game's own maps (Hoenn, Kanto, the Sevii Islands): placement, each tile's class, the doors and footprints, heights, the coarse terrain |
 | `src/map3d/render.lua` | The 3D map's drawing: meshes, the shader, the depth canvas, the camera (`camera` / `project`), day and night; a flat fallback |
 | `src/map3d/scene.lua` | The 3D map's window: the camera, pins, the beacon, the card, the controls (the Map app and the Town Map) |
 | `src/map3d/towns.lua` | The 3D map's towns: sizes by tier, roofs by name, the signature structures and landmarks, the Center / Mart / Gym, trees |
@@ -530,26 +530,51 @@ Settings app's choice row), `b.soon` kept in the record; "won" / "lost" in `Au.s
 Clean room: the idea of a 3D region map (TERRARIUM's for Gen 1) and none of its code; nothing from
 the voxel diorama mod in the engine's checkout either (another author's).
 
-- **Hoenn built to scale** (`src/map3d/world.lua`, Wd; `deps.world` of the model, Ruby / Sapphire /
-  Emerald; Kanto keeps the Town Map's region). One world unit is `Wd.MT` = 16 tiles.
+- **Built to scale** (`src/map3d/world.lua`, Wd; `deps.world` of the model). Every region a world of
+  its own (`Wd.REGIONS`, `Wd.build({ region })`): Hoenn whole; FireRed / LeafGreen's Kanto and the Sevii
+  Islands' three pictures, each the maps whose section is on that picture of the Town Map (`pictureOf`:
+  the engine's `Position.regionFor`; `deps.pictureOf` / `deps.layouts` in the tests), each from a town of
+  its own (`root`). With no maps (headless) the model falls back to the Town Map's region. One world unit
+  is `Wd.MT` = 16 tiles.
   - **Placement** (`Wd.place`): the outdoor maps (`Dataset.isOutdoorMapType`, not `SKIP`: underwater,
-    prototypes, Sky Pillar's top, Mt. Pyre's summit) walked by their connections from Littleroot with
-    their true sizes; the groups no connection reaches go in by a door that meets a placed map (a
-    warp's `destWarp` is 1-based), else through a gatehouse (in from one map, out to the other: the
-    gate's own width between), else by a fit of the Town Map's cells to tiles over the placed maps;
-    each settled where it covers the least open ground (`occupancy` / `occMark` / `clash` / `settle`).
-    `INTO`: Sootopolis into Route 126's island, its outer rock cropped.
+    prototypes, Sky Pillar's top, Mt. Pyre's summit, Navel Rock and Birth Island) walked by their
+    connections from the root with their true sizes; the groups no connection reaches go in by a door
+    that meets a placed map (a warp's `destWarp` is 1-based), else through a gatehouse (in from one map,
+    out to the other: the gate's own width between), else by a fit of the Town Map's cells to tiles over
+    the placed maps (the biggest group left first; one scale for both axes when only a few maps fit it:
+    an island's); after each placement the doors are tried again (the Safari Zone's areas once its middle
+    is in, Berry Forest once Three Island is). Each settled where it covers the least open ground
+    (`occupancy` / `occMark` / `clash` / `settle`). `INTO`: Sootopolis into Route 126's island, its outer
+    rock cropped.
+  - **Stand-ins**: a map `X_CONNECTION` stands in for `X` along the connections (Saffron City's: the
+    city's middle without its gatehouses, an exact 48 x 40 cut of it). `X` isn't placed again; where it
+    lies under the stand-in comes from their tiles (`standInOffset`); its doors inside the stand-in move
+    onto it (`m.warps`; the gatehouses' are the routes' own), and `byId[X]` finds it, offset (the player
+    in Saffron).
   - **Tiles** (`world.cls`, per tile, flat arrays filled in order first: plain arrays, light on the
     collector): `BEH` names a class outright (water kinds, grasses, sand, ash, soil, walkable mountain
     ground `MOUNT`, slopes `ROCKY`, bridges, logs); else the collision byte (41 water, 24 tall grass,
-    113 a door, 160-163 ledges, 7 a wall); a wall by its art (`readArt`: each tileset's `mids.idx` /
+    113 a door, 160-163 ledges, 7 and 130 (a sign) a wall); a wall by its art (`readArt`: each tileset's `mids.idx` /
     `mids_over.idx` / `palettes.bin` through `Dataset.cache`, decoded with `NativePack`; per metatile the
     quarters' colours as seen from above and the shares of leafy, water and rock pixels): a tree, rock or
     something built. Doors: each warp to an unplaced map, its kind from where it leads (`KINDS`), its
-    footprint the block of built tiles above it from the same half of the tilesets.
+    footprint the block of built tiles above it from the same half of the tilesets (FireRed / LeafGreen:
+    a gatehouse entered going south, the block under it); a door over half or more of another's
+    footprint is the same building (`d.shares`: a museum's two doors, two buildings side by side the
+    search runs together), drawn once.
+  - **FireRed / LeafGreen's tiles**: their rough sea and the Cycling Road's water are sea (`BEH`); the
+    open sea is all one sea tile (a Sevii map's own ring of rough water is drawn lighter than the sea
+    past it and would show the map's rectangle); bridges are plain ground, so a strip of it at most three
+    across with water on both sides, not grassy, is a bridge (a deck, `bkind` low).
   - **The gaps** between maps: each map's border (`L:midAt` past its edge) from the nearest mainland
     map, looked up through smooth noise (`WARP`) so the seams wind; the open sea's side only so far out,
     its reach noisy too.
+  - **Cut-off land** (FireRed / LeafGreen; `world.grown`): where a map's edge cuts through land that
+    faces the sea (the Sevii Islands' mountains and forests run on past where the game stops drawing),
+    each run of it grows on out a third as far as it is long (at most `GROW`, 14) in a half ellipse, its
+    outline wandering in noise; a forest by its edge rows repeated (its trees in step), rock as the map's
+    commonest rock with rock all round it (a mountain's top, not a cliff's face). Only over the sea:
+    never into another map, nor the forest or rock filled in between.
   - **Heights** (`heights`): a staircase read off the art's own steps, not a depth map of it.
     - **Levels:** the walkable areas (tiles joined the way the player walks, `STEP_WALK`; cut at
       ledges, cliffs, trees, walls and water; across two maps only where both are joined to the
@@ -563,28 +588,44 @@ the voxel diorama mod in the engine's checkout either (another author's).
       crossing rock; rock is the top of the cliff it is (the highest area within two tiles), deeper in
       a blend between the nearest low ground and the highest area it climbs to, smoothed a little,
       whole levels (`H.LEVEL` each).
-    - **The great mountains** (`mountain(summit, base)`): Mt. Chimney's summit area two levels over
-      everything else (96 tiles of base), Mt. Pyre's two thirds of it (44); a round base (its edge in
-      smooth noise) climbing to the summit in whole levels. Inside it the mountain is the height: rock
-      on it, the ground a level under it (paths, routes and the trees on them: they stand on the
-      ground, not on pillars), a town (a town's or a city's map) flat at the lowest it is under it.
+    - **The great mountains** (`mountain(sumL, cx, cy, r0, base, summit, low)`): Mt. Chimney's summit
+      area two levels over everything else (96 tiles of base), Mt. Pyre's two thirds of it (44); Mt.
+      Ember's (Sevii 1-3) where its door to the summit is, three levels over everything else (52), the
+      rock past its foot kept low (`low`: its map's corners stood up as columns otherwise); a round base
+      (its edge in smooth noise) climbing to the summit in whole levels. Inside it the mountain is the
+      height: rock on it, the ground a level under it (paths, routes and the trees on them: they stand
+      on the ground, not on pillars), a town (a town's or a city's map) flat at the lowest it is under it.
     - **Tiny areas** (under `MIN_AREA` tiles: a cave's door in a cliff, a tile between rocks) aren't
       levels: they take the ground round them.
+    - **FireRed / LeafGreen**: towns are flat (a town's or a city's rock isn't a cliff: Saffron's stone
+      walls); ledges are hops on flat land, not steps (Route 5's ledges stacked into a staircase); the
+      mountains filled in between the maps rise a level every three to four tiles in from their foot, up
+      to six (Mt. Moon's and Rock Tunnel's ranges); land grown past an edge comes down to the shore, a
+      level for every tile and a third from the water, after the great mountains so none stands on
+      the shore.
     - **Water:** a lake up in the hills just under the land round it (`ws`, the water's surface; the
       sea's 0); bridges and logs have a `deck` over the water.
-  - **Built in the background**: `Mdl.prepare("hoenn")` / `Mdl.step(budget)` and `Rd.prepare(G,
+  - **Built in the background**: `Mdl.prepare(id)` / `Mdl.step(budget)` and `Rd.prepare(G,
     region, budget)` run coroutines that yield whenever the slice is used (`pace` / `rbreathe`); main.lua's
-    `frame` (the shell's `render.hud`, every frame) starts it 4 s after the player is free and steps it
-    4 ms a frame; opened sooner, `Mdl.region` finishes the model there and the scene shows the flat land
-    until the meshes are made (12 ms a frame). The per-tile arrays are let go once the meshes exist
-    (`world.release`). Emerald: about 2 s of slices, none over ~25 ms.
+    `frame` (the shell's `render.hud`, every frame) looks once a second which region the player is in
+    (`Mdl.regionHere`: FireRed / LeafGreen by the picture the map's section is on), starts that one 4 s
+    after the player is free and steps it 4 ms a frame; each region built once (Kanto, then a Sevii
+    picture when they sail there). Opened sooner, `Mdl.region` finishes the model there and the scene
+    shows the flat land until the meshes are made (12 ms a frame). The per-tile arrays are let go once
+    the meshes exist (`world.release`). Emerald: about 2 s of slices, none over ~25 ms; FireRed's Kanto
+    about 6 s, none over ~15 ms; a Sevii picture a fifth of a second all told.
   - **Drawing** (render.lua's world path): the tiles' colours as one picture (2 x 2 texels a tile), a
     second vertex format with texture coordinates (`FORMAT_W`, built from flat arrays: `newMeshW`);
     chunks of 64 x 64 tiles: tops merged, walls where a tile stands over its neighbour, forests a
     canopy (flag 11: crowns in the shader) rounded tree by tree on their edges with a skirt, decks with
     rails and posts; the water a mesh of its own over water tiles only, at each one's level; buildings
     blocks with their roof's rows on top and their front wall's rows up their face (`KIND_H`); the
-    landmarks `Tw.landmarks` (towns.lua's pieces at the doors and maps they belong to; `Tw.replaces`).
+    landmarks `Tw.landmarks` (towns.lua's pieces at the doors and maps they belong to; `Tw.replaces`;
+    one per building and one ship per harbour: the S.S. Anne has three doors). Kanto's: the Pokémon
+    Tower and the Trainer Tower take their buildings' place (`SCALE_CAP` keeps them from towering with
+    a wide lot), Silph Co. is a tall block of its own art (`KIND_H`, with the Pokémon Mansion and the
+    Power Plant), Celadon's Department Store, the League on Indigo Plateau; Mt. Ember's crater on its
+    summit (`W.ember`), as Mt. Chimney's.
     The near plane moves out with the camera (`NEAR_K`): a far view keeps its depth sharp.
   - **No flashing** (two faces on one plane, or a pattern finer than a pixel): a forest edge's skirt
     stops at its own ground (the ground's wall is below it); a deck's side stands only above the land
@@ -594,12 +635,13 @@ the voxel diorama mod in the engine's checkout either (another author's).
     mipmaps; the forests' crowns fade out with distance (`vFade`, flag 11).
   - **The scene and the model**: places are the Town Map's sections, each one's cells the rectangles of
     its maps (`{ x, z, w, h }`), a door's small square for a section with no map of its own, and a place
-    for a section the grid doesn't draw; the player's position exact (the map's placement and the
-    session's x, y; indoors the escape warp); each weather over its own map's rectangle. The zoom ladder
-    comes in nearer for the world's size.
-  - **Tests**: `tests/world3d_test.lua` builds a little Hoenn of its own (fake layouts, the engine's
-    connections and behaviours, `deps.art`); the engine's own maps need the engine: the in-engine probe
-    and the drivers cover them.
+    for a section the grid doesn't draw; the player's position exact in any of them (`inWorld`: the
+    map's placement and the session's x, y; indoors the escape warp; the region built first if it
+    isn't); each weather over its own map's rectangle. The zoom ladder comes in nearer for the world's
+    size.
+  - **Tests**: `tests/world3d_test.lua` builds a little Hoenn, and a little Kanto and Sevii island, of its
+    own (fake layouts, the engine's connections and behaviours, `deps.art`, `deps.pictureOf`); the
+    engine's own maps need the engine: the in-engine probe and the drivers cover them.
 
 - **The storms** (Emerald): `Mdl.storm` reads `VAR_ABNORMAL_WEATHER_LOCATION` (1..8 Groudon's routes,
   9..16 Kyogre's, one rumour at a time; only the Weather Institute's scientist sets it, special 491),

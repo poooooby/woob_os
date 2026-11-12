@@ -1,17 +1,19 @@
--- The 3D map's world built to scale from the game's own maps (Hoenn first): every outdoor map put
--- where it joins its neighbours, each of its tiles read for what it is, and the doors (where each
--- leads), for the buildings. A tile's class comes from its collision, its behaviour and the colours of
--- its own art (the cart's tile pictures, read once per tileset); nothing of the game's is kept
--- beyond the session, nothing here draws.
+-- The 3D map's world built to scale from the game's own maps: Hoenn; Kanto and the Sevii Islands'
+-- three pictures (FireRed / LeafGreen), each a world of its own. Every outdoor map put where it joins
+-- its neighbours, each of its tiles read for what it is, and the doors (where each leads), for the
+-- buildings. A tile's class comes from its collision, its behaviour and the colours of its own art
+-- (the cart's tile pictures, read once per tileset); nothing of the game's is kept beyond the
+-- session, nothing here draws.
 --
 --   Tiles: the game's 16 px squares, x right, y down (z in the world), 0, 0 the top-left of the first
---   map placed (Littleroot). World units: MT tiles each.
+--   map placed (Littleroot, Pallet Town, an island's town). World units: MT tiles each.
 --
 --   Wd = World(engine, deps)   deps: maps() -> the game's map definitions ; art(pair) -> a tileset's
---                              colours (the tests' stand-in for the cart's pictures)
---   Wd.MT, Wd.C (the classes)
+--                              colours (the tests' stand-ins for the cart's); FireRed / LeafGreen's
+--                              Town Map: layouts() -> its pictures' grids, pictureOf(section) -> 0..3
+--   Wd.MT, Wd.C (the classes), Wd.REGIONS (hoenn, kanto, sevii123, sevii45, sevii67)
 --   Wd.build(opts) -> world    (synchronous; inside a coroutine it yields as it goes: opts.pace(),
---                              true when it should)
+--                              true when it should; opts.region the region's id, Hoenn by default)
 --     world = { maps = { { id, def, x, y, w, h, sec, how } }, byId, x0, y0, cols, rows,
 --               cls[], mid[], pix[] (the tile's tileset index), elev[], mapIx[],
 --               doors = { { x, y, map, dest, kind, foot = { x0, y0, x1, y1 } | nil } },
@@ -34,6 +36,8 @@ local C = {
 local BEH = {
   OCEAN_WATER = C.SEA, DEEP_WATER = C.SEA, SOOTOPOLIS_DEEP_WATER = C.SEA, INTERIOR_DEEP_WATER = C.SEA,
   NO_SURFACING = C.SEA, SEAWEED = C.SEA, POND_WATER = C.POND, HOT_SPRINGS = C.POND, SHALLOW_WATER = C.SHALLOW,
+  -- (FireRed / LeafGreen's: the rough sea round the Sevii Islands, the water by the Cycling Road)
+  FAST_WATER = C.SEA, CYCLING_ROAD_WATER = C.SEA, SEMI_DEEP_WATER = C.SEA,
   WATERFALL = C.FALL, EASTWARD_CURRENT = C.CURRENT, WESTWARD_CURRENT = C.CURRENT,
   NORTHWARD_CURRENT = C.CURRENT, SOUTHWARD_CURRENT = C.CURRENT,
   TALL_GRASS = C.TALL, LONG_GRASS = C.LONG, LONG_GRASS_SOUTH_EDGE = C.LONG,
@@ -65,11 +69,23 @@ local CLASS_COLOR = {
   [C.DOOR] = { 255, 0, 255 }, [C.TREE] = { 10, 80, 20 }, [C.BUILDING] = { 230, 60, 60 }, [C.ROCK] = { 120, 80, 50 },
   [C.SMALL] = { 250, 250, 250 }, [C.STRUCT] = { 255, 255, 0 }, [C.BRIDGE] = { 160, 100, 40 }, [C.LOG] = { 120, 70, 30 },
 }
--- maps left out: under the sea, unused, and the tops of structures (the landmarks stand for those)
-local SKIP = { "UNDERWATER", "PROTOTYPE", "SKY_PILLAR_TOP", "MT_PYRE_SUMMIT" }
--- a door's kind, from the name of the map it leads into
+-- maps left out: under the sea, unused, the tops of structures (the landmarks stand for those), and
+-- the islands only an event's ticket reaches (Navel Rock, Birth Island)
+local SKIP = { "UNDERWATER", "PROTOTYPE", "SKY_PILLAR_TOP", "MT_PYRE_SUMMIT", "NAVEL_ROCK", "BIRTH_ISLAND" }
+-- the regions: Hoenn whole; Kanto and the Sevii Islands' three pictures (FireRed / LeafGreen) each
+-- the maps whose sections are on that picture of the Town Map; each from a town of its own
+local REGIONS = {
+  hoenn = { root = "LITTLEROOT_TOWN$" },
+  kanto = { root = "PALLET_TOWN$", picture = 0 },
+  sevii123 = { root = "ONE_ISLAND$", picture = 1 },
+  sevii45 = { root = "FIVE_ISLAND$", picture = 2 },
+  sevii67 = { root = "SIX_ISLAND$", picture = 3 },
+}
+-- a door's kind, from the name of the map it leads into (the first that fits)
 local KINDS = {
-  { "POKEMON_CENTER", "center" }, { "_MART", "mart" }, { "DEPARTMENT_STORE", "store" }, { "_GYM", "gym" },
+  { "INDIGO_PLATEAU_POKEMON_CENTER", "league" }, { "SILPH_CO", "silph" }, { "POKEMON_TOWER", "ptower" },
+  { "TRAINER_TOWER", "ttower" }, { "SSANNE", "harbor" }, { "POKEMON_MANSION", "mansion" }, { "POWER_PLANT", "plant" },
+  { "POKEMON_CENTER", "center" }, { "POKECENTER", "center" }, { "_MART", "mart" }, { "DEPARTMENT_STORE", "store" }, { "_GYM", "gym" },
   { "_LAB", "lab" }, { "HOUSE", "house" }, { "CONTEST_HALL", "contest" }, { "GAME_CORNER", "corner" },
   { "WEATHER_INSTITUTE", "institute" }, { "SPACE_CENTER", "space" }, { "TRICK_HOUSE", "trick" },
   { "POKEMON_LEAGUE", "league" }, { "BATTLE_TOWER", "tower" }, { "BIKE_SHOP", "shop" }, { "_SHOP", "shop" },
@@ -79,7 +95,7 @@ local KINDS = {
 
 return function(engine, deps)
   deps = deps or {}
-  local Wd = { MT = MT, C = C, CLASS_COLOR = CLASS_COLOR }
+  local Wd = { MT = MT, C = C, CLASS_COLOR = CLASS_COLOR, REGIONS = REGIONS }
 
   local function maps() return deps.maps and deps.maps() or nil end
   local MB = engine("src.core.game3.mb")
@@ -137,8 +153,47 @@ return function(engine, deps)
     return out
   end
 
+  -- FireRed / LeafGreen's Town Map: its four pictures' grids (22 x 15 cells, a map layer and a dungeon
+  -- layer, [y][x] = the section), and which picture a section is on
+  local function frlgLayouts()
+    if deps.layouts then return deps.layouts() end
+    local RX = engine("src.import.gba.region_map_extract")
+    if not RX then return nil end
+    pcall(RX.ensureGenerated)
+    return RX.LAYOUTS
+  end
+  local function pictureOf(sec)
+    if deps.pictureOf then return deps.pictureOf(sec) end
+    local Pos = engine("src.ui.game3.region_map_position")
+    local ok, r = pcall(Pos and Pos.regionFor or error, tonumber(sec) or -1, frlgLayouts())
+    return ok and tonumber(r) or nil
+  end
+  -- (the region being built: Hoenn's, or one of FireRed / LeafGreen's pictures)
+  local cur = REGIONS.hoenn
+
   -- the Town Map section of a map: its rectangle on the Town Map (cells)
   local function sectionRect(sec)
+    if cur.picture then
+      local P = (frlgLayouts() or {})[cur.picture]
+      if not P then return nil end
+      local x0, y0, x1, y1
+      for _, layer in ipairs({ "map", "dungeon" }) do
+        local grid = P[layer]
+        if grid and not x0 then
+          for y = 0, 14 do
+            local row = grid[y]
+            for x = 0, 21 do
+              if row and row[x] == sec then
+                x0, y0 = min(x0 or x, x), min(y0 or y, y)
+                x1, y1 = max(x1 or x, x), max(y1 or y, y)
+              end
+            end
+          end
+        end
+      end
+      if not x0 then return nil end
+      return x0, y0, x1 - x0 + 1, y1 - y0 + 1
+    end
     local Mapsec = engine("src.ui.game3.rse.mapsec")
     local ok, e = pcall(Mapsec and Mapsec.entry or error, sec)
     if ok and type(e) == "table" and tonumber(e.width) and e.width > 0 then
@@ -325,7 +380,8 @@ return function(engine, deps)
     return crop
   end
 
-  -- Town Map cells -> tiles, fitted over the maps placed by their connections (one line per axis)
+  -- Town Map cells -> tiles, fitted over the maps placed by their connections (one line per axis; with
+  -- only a few maps -- an island's -- one scale for both)
   local function townMapFit(list)
     local sx, sxx, sxt, st, n = 0, 0, 0, 0, 0
     local sy, syy, syt, su = 0, 0, 0, 0
@@ -339,27 +395,67 @@ return function(engine, deps)
         n = n + 1
       end
     end
-    if n < 3 then return nil end
-    local ax = (n * sxt - sx * st) / max(1e-6, n * sxx - sx * sx)
-    local ay = (n * syt - sy * su) / max(1e-6, n * syy - sy * sy)
+    if n < 2 then return nil end
+    local vx, vy = n * sxx - sx * sx, n * syy - sy * sy
+    local ax = (n * sxt - sx * st) / max(1e-6, vx)
+    local ay = (n * syt - sy * su) / max(1e-6, vy)
+    if n < 6 or ax < 4 or ay < 4 then
+      local a = ((n * sxt - sx * st) + (n * syt - sy * su)) / max(1e-6, vx + vy)
+      if a < 4 then return nil end
+      ax, ay = a, a
+    end
     return { ax = ax, bx = (st - ax * sx) / n, ay = ay, by = (su - ay * sy) / n }
   end
 
-  -- every outdoor map placed: { list, byId, groups }
-  function Wd.place(all, rootPattern)
+  -- a map that stands in for another along its connections (Saffron City's, the middle of the city
+  -- without its gatehouses): where in the real one it is, by their tiles
+  local function standInOffset(m, real)
+    local A, B = real.midLayout, m.def.midLayout
+    local aw, ah = sizeOf(real)
+    local bw, bh = m.w, m.h
+    local best, bx, by = -1, 0, 0
+    for oy = 0, max(0, ah - bh) do
+      for ox = 0, max(0, aw - bw) do
+        local n = 0
+        for y = 0, bh - 1, 2 do
+          for x = 0, bw - 1, 2 do
+            if A:midAt(x + ox, y + oy) == B:midAt(x, y) then n = n + 1 end
+          end
+        end
+        if n > best then best, bx, by = n, ox, oy end
+      end
+      breathe()
+    end
+    return bx, by
+  end
+
+  -- every outdoor map of the region placed: { list, byId, root, fit }
+  function Wd.place(all, region)
     all = all or maps()
     if not all then return nil end
+    cur = REGIONS[region or "hoenn"] or REGIONS.hoenn
     local ids = {}
     -- (a map's layout is read the first time it's asked for: a few at a time)
     local seen = 0
     for id, def in pairs(all) do
-      if type(id) == "string" and outdoor(id, def) then ids[#ids + 1] = id end
+      if type(id) == "string" and outdoor(id, def)
+          and (not cur.picture or pictureOf(def.regionMapSectionId) == cur.picture) then
+        ids[#ids + 1] = id
+      end
       seen = seen + 1
       if seen % 8 == 0 then breathe() end
     end
     table.sort(ids)
+    -- (a map with a stand-in along the connections is that stand-in: not placed again)
+    local standIn, kept = {}, {}
+    for _, id in ipairs(ids) do
+      local real = id:match("^(.+)_CONNECTION$")
+      if real and all[real] then standIn[real] = id end
+    end
+    for _, id in ipairs(ids) do if not standIn[id] then kept[#kept + 1] = id end end
+    ids = kept
     local root
-    for _, id in ipairs(ids) do if id:match(rootPattern or "LITTLEROOT_TOWN$") then root = id end end
+    for _, id in ipairs(ids) do if id:match(cur.root) then root = id end end
     root = root or ids[1]
     if not root then return nil end
     local taken = {}
@@ -374,6 +470,24 @@ return function(engine, deps)
     end
     for _, m in ipairs(main) do add(m, "joined") end
     breathe()
+    -- (the real map behind a stand-in: its doors moved onto the stand-in (those inside it: its
+    -- gatehouses are the routes' own), and its own id finding the stand-in, offset (the player there))
+    for real, sid in pairs(standIn) do
+      local m = byId[sid]
+      if m then
+        local ox, oy = standInOffset(m, all[real])
+        m.warps = {}
+        for _, w in ipairs(all[real].warps or {}) do
+          local x, y = w.x - ox, w.y - oy
+          if x >= 0 and y >= 0 and x < m.w and y < m.h then
+            m.warps[#m.warps + 1] = { x = x, y = y, destMap = w.destMap, destWarp = w.destWarp }
+          end
+        end
+        local rw, rh = sizeOf(all[real])
+        byId[real] = { id = real, def = all[real], x = m.x - ox, y = m.y - oy, w = rw, h = rh, sec = m.sec,
+                       how = "stand-in", standIn = m }
+      end
+    end
     -- (the rest, a group at a time: maps joined to each other but not to the mainland)
     local groups = {}
     for _, id in ipairs(ids) do
@@ -411,27 +525,32 @@ return function(engine, deps)
         pending[#pending + 1] = grp
       end
     end
-    for pass = 1, 2 do
-      local progress = true
-      while progress do
-        progress = false
-        for gi = #pending, 1, -1 do
-          local grp = pending[gi]
-          local dx, dy = byDoors(grp, byId, all, pass == 2)
-          if dx then
-            local px, py = settle(occ, grp, dx, dy, pass == 1 and 8 or 24, 1)
-            for _, m in ipairs(grp) do
-              m.x, m.y = m.x + px, m.y + py
-              add(m, pass == 1 and "door" or "gate")
-            end
-            table.remove(pending, gi)
-            occMark(occ, grp)
-            progress = true
+    -- (a door straight into a placed map first, then through a gatehouse; neither, the biggest group
+    -- left by the Town Map; and after each, the doors again: a map placed may be the one another's
+    -- doors lead to (the Safari Zone's areas, an island's forest))
+    local function byDoor(viaGate)
+      for gi = #pending, 1, -1 do
+        local grp = pending[gi]
+        local dx, dy = byDoors(grp, byId, all, viaGate)
+        if dx then
+          local px, py = settle(occ, grp, dx, dy, viaGate and 24 or 8, 1)
+          for _, m in ipairs(grp) do
+            m.x, m.y = m.x + px, m.y + py
+            add(m, viaGate and "gate" or "door")
           end
+          table.remove(pending, gi)
+          occMark(occ, grp)
+          return true
         end
       end
+      return false
     end
-    for _, grp in ipairs(pending) do
+    local function byTownMap()
+      local gi = 1
+      for i, grp in ipairs(pending) do
+        if #grp > #pending[gi] then gi = i end
+      end
+      local grp = table.remove(pending, gi)
       local anchor
       for _, m in ipairs(grp) do
         if sectionRect(m.def.regionMapSectionId) then anchor = m break end
@@ -449,6 +568,9 @@ return function(engine, deps)
         add(m, "townmap")
       end
       occMark(occ, grp)
+    end
+    while #pending > 0 do
+      if not byDoor(false) and not byDoor(true) then byTownMap() end
     end
     return { list = list, byId = byId, root = root, fit = fit }
   end
@@ -579,7 +701,32 @@ return function(engine, deps)
     -- (a building's tiles: walls from the same half of the tilesets as the one over the door (a town's
     -- own houses are its second tileset; Centers and Marts the first), not leafy)
     local second = (world.mid[k0] or 0) >= 512
-    local function built(k)
+    local built
+    -- (a gatehouse entered going south (FireRed / LeafGreen's into Saffron): the building under its door)
+    local function under()
+      local k1 = at(dx, dy + 1)
+      if not k1 or world.filled[k1] then return nil end
+      second = (world.mid[k1] or 0) >= 512
+      if not built(k1) then return nil end
+      local x0, x1 = dx, dx
+      while dx - x0 < 6 and built(at(x0 - 1, dy + 1)) do x0 = x0 - 1 end
+      while x1 - dx < 6 and built(at(x1 + 1, dy + 1)) do x1 = x1 + 1 end
+      local y1 = dy + 1
+      while y1 - dy < 8 do
+        local n = 0
+        for x = x0, x1 do if built(at(x, y1 + 1)) then n = n + 1 end end
+        if n < (x1 - x0 + 1) * 0.7 then break end
+        y1 = y1 + 1
+      end
+      for y = dy, y1 do
+        for x = x0, x1 do
+          local k = at(x, y)
+          if k and cls[k] ~= C.DOOR and (y > dy or built(k)) then cls[k] = C.BUILDING end
+        end
+      end
+      return { x0 = x0, y0 = dy, x1 = x1 + 1, y1 = y1 + 1 }
+    end
+    function built(k)
       if not k or world.filled[k] then return false end
       local c = cls[k]
       if c == C.BUILDING or c == C.DOOR then return true end
@@ -592,7 +739,7 @@ return function(engine, deps)
       end
       return true
     end
-    if not built(k0) then return nil end
+    if not built(k0) then return cur.picture and under() or nil end
     -- (along the row above the door, then up while most of that run stays built)
     local x0, x1 = dx, dx
     while dx - x0 < 6 and built(at(x0 - 1, dy - 1)) do x0 = x0 - 1 end
@@ -770,6 +917,13 @@ return function(engine, deps)
       v.n, v.d = v.n + 1, v.d + d
     end
     local BAND = 6
+    -- (FireRed / LeafGreen's towns are flat: the stone walls round Saffron City aren't cliffs)
+    local function cliff(k)
+      if not cur.picture then return true end
+      local m = list[mapA[k] or 0]
+      local mt = m and tonumber(m.def.mapType)
+      return not (mt == 1 or mt == 2)
+    end
     for x = 0, cols - 1 do
       local below, band, rock, ledge = 0, 0, false, false
       for y = rows - 1, 0, -1 do
@@ -777,13 +931,14 @@ return function(engine, deps)
         local r = reg[k]
         local c = cls[k]
         if r > 0 then
-          if below > 0 and band > 0 and (rock or ledge) then
+          -- (FireRed / LeafGreen's ledges are a hop on flat land: only a cliff is a step there)
+          if below > 0 and band > 0 and (rock or (ledge and not cur.picture)) then
             vote(below, r, ledge and not rock and 1 or min(3, floor((band + 1) / 2)))
           end
           below, band, rock, ledge = r, 0, false, false
         elseif below > 0 then
           band = band + 1
-          if c == C.ROCK or c == C.FALL or c == C.ROCKY then rock = true
+          if (c == C.ROCK or c == C.FALL or c == C.ROCKY) and cliff(k) then rock = true
           elseif c == C.LEDGE_S then ledge = true
           elseif sea(k) or c == C.TREE or band > BAND then below, band, rock, ledge = 0, 0, false, false end
         end
@@ -794,7 +949,7 @@ return function(engine, deps)
       local base = y * cols
       for x = 1, cols - 2 do
         local c = cls[base + x + 1]
-        if c == C.LEDGE_E or c == C.LEDGE_W then
+        if (c == C.LEDGE_E or c == C.LEDGE_W) and not cur.picture then
           local w, e = reg[base + x], reg[base + x + 2]
           -- (east: jumped going east, so the west side is the higher)
           if c == C.LEDGE_E then vote(e, w, 1) else vote(w, e, 1) end
@@ -1052,19 +1207,50 @@ return function(engine, deps)
       if x % 32 == 0 then breathe() end
     end
     A = nil
-    -- (5b. the great mountains (Mt. Chimney, Mt. Pyre): a broad round base (its edge wandering in smooth
-    -- noise) climbing to the summit in whole levels. What nothing walks on there (rock, forest, the land
-    -- filled in) rises to it; a walkable area in its reach rises too: a town whole and flat, to the
-    -- lowest the mountain is under it, a path climbing with it a level under the rock round it; the
-    -- summit stays on top)
-    local function mountain(summit, base)
-      local sumL = level[summit]
+    -- (FireRed / LeafGreen: the mountains filled in between the maps (and grown past their edges) rise
+    -- the deeper in they are, a level every four tiles from their foot, in terraces, up to six)
+    if cur.picture then
+      local dr, q = {}, {}
+      for k = 1, n do
+        if HIGH[cls[k]] then dr[k] = false else dr[k] = 0 q[#q + 1] = k end
+      end
+      local qh = 1
+      while q[qh] do
+        local k = q[qh]
+        qh = qh + 1
+        local d = dr[k] + 1
+        local x = (k - 1) % cols
+        for dd = 1, 4 do
+          local nk = dd == 1 and k - 1 or dd == 2 and k + 1 or dd == 3 and k - cols or k + cols
+          local ok = nk >= 1 and nk <= n and (dd > 2 or ((dd == 1 and x > 0) or (dd == 2 and x < cols - 1)))
+          if ok and not dr[nk] then dr[nk] = d q[#q + 1] = nk end
+        end
+        if qh % 40000 == 0 then breathe() end
+      end
+      q = nil
+      for k = 1, n do
+        if filled[k] and HIGH[cls[k]] then
+          local x, y = (k - 1) % cols + world.x0, floor((k - 1) / cols) + world.y0
+          local rise = min(6, floor((dr[k] or 0) / (3.4 + 1.2 * vnoise(x, y, 20))))
+          if rise > M[k] then M[k] = rise end
+        end
+      end
+    end
+    -- (5b. the great mountains (Mt. Chimney, Mt. Pyre, Mt. Ember): a broad round base (its edge
+    -- wandering in smooth noise) climbing to the summit in whole levels. What nothing walks on there
+    -- (rock, forest, the land filled in) rises to it; a walkable area in its reach rises too: a town
+    -- whole and flat, to the lowest the mountain is under it, a path climbing with it a level under the
+    -- rock round it; the summit stays on top)
+    local function centreOf(summit)
       local sx, sy, sn = 0, 0, 0
       for k = 1, n do
         if reg[k] == summit then sx, sy, sn = sx + (k - 1) % cols, sy + floor((k - 1) / cols), sn + 1 end
       end
-      if sn == 0 then return end
-      local cx, cy, r0 = sx / sn, sy / sn, sqrt(sn / math.pi)
+      if sn == 0 then return nil end
+      return sx / sn, sy / sn, sqrt(sn / math.pi)
+    end
+    -- (low: the rock past the cone's foot stays down, a shelf round the mountain, not its old level)
+    local function mountain(sumL, cx, cy, r0, base, summit, low)
       local function coneAt(k)
         local x, y = (k - 1) % cols, floor((k - 1) / cols)
         local d = sqrt((x - cx) ^ 2 + (y - cy) ^ 2) - r0
@@ -1081,19 +1267,19 @@ return function(engine, deps)
         local mt = m and tonumber(m.def.mapType)
         return mt == 1 or mt == 2
       end
-      local low = {}
+      local townLow = {}
       for y = y0r, y1r do
         for x = x0r, x1r do
           local k = y * cols + x + 1
           local r = reg[k]
           if r > 0 and r ~= summit and town(r) then
             local c = coneAt(k)
-            local m = low[r]
-            if not m or c < m then low[r] = c end
+            local m = townLow[r]
+            if not m or c < m then townLow[r] = c end
           end
         end
       end
-      for r, c in pairs(low) do
+      for r, c in pairs(townLow) do
         local cl = floor(c)
         if cl > level[r] then level[r] = cl end
       end
@@ -1118,14 +1304,58 @@ return function(engine, deps)
               else
                 M[k] = cl
               end
+            elseif low and HIGH[cls[k]] and M[k] > 1 then
+              M[k] = 1
             end
           end
         end
         if y % 32 == 0 then breathe() end
       end
     end
-    if pyre then mountain(pyre, 44) end
-    if chim then mountain(chim, 96) end
+    if pyre then
+      local cx, cy, r0 = centreOf(pyre)
+      if cx then mountain(level[pyre], cx, cy, r0, 44, pyre) end
+    end
+    if chim then
+      local cx, cy, r0 = centreOf(chim)
+      if cx then mountain(level[chim], cx, cy, r0, 96, chim) end
+    end
+    -- (Mt. Ember's summit (the Sevii Islands) is up its door to the top: the highest ground there is)
+    for _, d in ipairs(world.doors or {}) do
+      if tostring(d.dest):find("MT_EMBER_SUMMIT$") then
+        local ex, ey = d.x - world.x0, d.y - world.y0
+        mountain(top + 3, ex + 0.5, ey + 1, 2.5, 52, nil, true)
+        world.ember = { x = d.x, y = d.y }
+        break
+      end
+    end
+    -- (the land grown out past a map's edge into the sea (FireRed / LeafGreen): down to the shore in
+    -- terraces, a level for every tile and a third from the water; a mountain's slope too)
+    local grown = world.grown
+    if grown and next(grown) then
+      local sd, q = {}, {}
+      for k = 1, n do
+        if sea(k) then sd[k] = 0 q[#q + 1] = k else sd[k] = false end
+      end
+      local qh = 1
+      while q[qh] do
+        local k = q[qh]
+        qh = qh + 1
+        local d = sd[k] + 1
+        if d <= 40 then
+          local x = (k - 1) % cols
+          for dd = 1, 4 do
+            local nk = dd == 1 and k - 1 or dd == 2 and k + 1 or dd == 3 and k - cols or k + cols
+            local ok = nk >= 1 and nk <= n and (dd > 2 or ((dd == 1 and x > 0) or (dd == 2 and x < cols - 1)))
+            if ok and not sd[nk] then sd[nk] = d q[#q + 1] = nk end
+          end
+        end
+        if qh % 40000 == 0 then breathe() end
+      end
+      for k = 1, n do
+        if grown[k] and sd[k] then M[k] = min(M[k], floor((sd[k] - 1) * 0.75)) end
+      end
+    end
     -- (6. the heights, the water's surfaces: a lake up in the hills just under the land round it, the
     -- sea's 0)
     local h, ws = {}, {}
@@ -1214,7 +1444,7 @@ return function(engine, deps)
     opts = opts or {}
     pace, logf = opts.pace, opts.log
     local all = maps()
-    local layout = Wd.place(all)
+    local layout = Wd.place(all, opts.region)
     if not layout then pace, logf = nil, nil return nil end
     local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
     for _, m in ipairs(layout.list) do
@@ -1275,7 +1505,7 @@ return function(engine, deps)
               elseif coll == 161 then c = C.LEDGE_W
               elseif coll == 162 then c = C.LEDGE_N
               elseif coll == 163 then c = C.LEDGE_S
-              elseif coll == 7 then c = wallClass(art[mid])
+              elseif coll == 7 or coll == 130 then c = wallClass(art[mid])
               else c = C.GROUND end
             end
             cls[k], midA[k], pixA[k], elevA[k], mapA[k] = c, mid, pi, L:elevAt(cx, cy), mi
@@ -1283,6 +1513,38 @@ return function(engine, deps)
         end
       end
       breathe()
+    end
+    -- (FireRed / LeafGreen's bridges are plain ground over the water: a strip of ground at most three
+    -- tiles across with water on both sides, not grassy, is a bridge, its deck over the water)
+    if cur.picture then
+      local nn = cols * rows
+      local function wet(k) local c = cls[k] return c == C.SEA or c == C.POND or c == C.SHALLOW or c == C.CURRENT end
+      local function walk(k) local c = cls[k] return c == C.GROUND or c == C.SAND end
+      local function inside(k, step)
+        local nk = k + step
+        if nk < 1 or nk > nn then return false end
+        if step == 1 or step == -1 then return floor((nk - 1) / cols) == floor((k - 1) / cols) end
+        return true
+      end
+      local function strip(k, step)
+        local a, b, w = k, k, 1
+        while w <= 3 and inside(a, -step) and walk(a - step) do a, w = a - step, w + 1 end
+        while w <= 3 and inside(b, step) and walk(b + step) do b, w = b + step, w + 1 end
+        return w <= 3 and inside(a, -step) and inside(b, step) and wet(a - step) and wet(b + step)
+      end
+      local deckAt = {}
+      for k = 1, nn do
+        if walk(k) and (strip(k, cols) or strip(k, 1)) then
+          local p = world.pairs[pixA[k]]
+          local a = p and p.art[midA[k]]
+          if not a or a.green < 0.3 then deckAt[#deckAt + 1] = k end
+        end
+        if k % 40000 == 0 then breathe() end
+      end
+      for _, k in ipairs(deckAt) do
+        cls[k] = C.BRIDGE
+        world.bkind[k] = "low"
+      end
     end
     -- (the gaps between maps: what the game shows past a map's edge, its border, from the nearest map;
     -- all of a gap the maps close in, the open sea's side only so far out)
@@ -1393,9 +1655,126 @@ return function(engine, deps)
     end
     dist, outer = nil, nil
     breathe()
+    -- (FireRed / LeafGreen: land a map's edge cuts off -- an island's mountain or forest running on
+    -- past where the game stops drawing -- goes on into the sea and is rounded off there: a run of land
+    -- along an edge grows out a third as far as it is long (at most GROW) in a half ellipse, its outline
+    -- wandering in noise; a forest's edge rows repeated out from it (its trees in step), rock the
+    -- map's own commonest rock (its mountain's top, not its cliff faces). Only over the sea: never into
+    -- another map, nor the forest or rock filled in between)
+    world.grown = {}
+    if cur.picture then
+      local GROW = 14
+      local grown, filled = world.grown, world.filled
+      local nn = cols * rows
+      local function growable(k)
+        if k < 1 or k > nn then return false end
+        local c = cls[k]
+        return not c or (filled[k] and WATER[c] == true)
+      end
+      local function landClass(c)
+        if not c or WATER[c] or c == C.FALL or c == C.BRIDGE or c == C.LOG then return nil end
+        if c == C.TREE then return C.TREE end
+        if HIGH[c] or c == C.MOUNT or c == C.STRUCT or c == C.SMALL or c == C.BUILDING or c == C.DOOR then return C.ROCK end
+        if c >= C.LEDGE_E and c <= C.LEDGE_S then return C.GROUND end
+        return c
+      end
+      for mi, m in ipairs(layout.list) do
+        local mx, my = m.x - x0, m.y - y0
+        -- (the map's commonest rock with rock all round it: the mountain's top, not a cliff's face)
+        local rockK, seen, best = nil, {}, 0
+        for cy = 1, m.h - 2 do
+          local row = (my + cy) * cols + mx + 1
+          for cx = 1, m.w - 2 do
+            local k = row + cx
+            if mapA[k] == mi and cls[k] == C.ROCK and cls[k - 1] == C.ROCK and cls[k + 1] == C.ROCK
+                and cls[k - cols] == C.ROCK and cls[k + cols] == C.ROCK then
+              local id = midA[k]
+              local c = (seen[id] or 0) + 1
+              seen[id] = c
+              if c > best then best, rockK = c, k end
+            end
+          end
+        end
+        for side = 1, 4 do
+          local along = side <= 2 and m.w or m.h
+          local out = side == 1 and -cols or (side == 2 and cols or (side == 3 and -1 or 1))
+          -- (the map's own tile at (cx, cy), world k)
+          local function tileK(cx, cy) return (my + cy) * cols + mx + cx + 1 end
+          local function edgeAt(i)
+            if side == 1 then return i, 0 elseif side == 2 then return i, m.h - 1
+            elseif side == 3 then return 0, i else return m.w - 1, i end
+          end
+          -- (the tile d out from the edge stands for: the edge's rows repeated, two by two)
+          local function sourceAt(i, d)
+            local o = d % 2
+            if side == 1 then return i, o elseif side == 2 then return i, m.h - 1 - o
+            elseif side == 3 then return o, i else return m.w - 1 - o, i end
+          end
+          local i = 0
+          while i < along do
+            local cx, cy = edgeAt(i)
+            local k = tileK(cx, cy)
+            local lc = mapA[k] == mi and not filled[k] and landClass(cls[k])
+            if lc and growable(k + out) then
+              local a = i
+              while i + 1 < along do
+                local nx, ny = edgeAt(i + 1)
+                local nk = tileK(nx, ny)
+                if mapA[nk] == mi and not filled[nk] and landClass(cls[nk]) and growable(nk + out) then i = i + 1 else break end
+              end
+              local b = i
+              local L = b - a + 1
+              local D = min(GROW, max(2, floor(L * 0.36 + 0.5)))
+              for j = a, b do
+                local ex, ey = edgeAt(j)
+                local ek = tileK(ex, ey)
+                local ec = landClass(cls[ek])
+                local t = (j - a + 0.5) / L
+                local prof = sqrt(max(0, 1 - (2 * t - 1) ^ 2))
+                local gx, gy = m.x + ex, m.y + ey
+                local depth = floor(D * prof * (0.7 + 0.6 * vnoise(gx, gy, 9)) + 0.5)
+                for d = 1, depth do
+                  local nk = ek + out * d
+                  if side >= 3 and floor((nk - 1) / cols) ~= floor((ek - 1) / cols) then break end
+                  if not growable(nk) then break end
+                  local sx, sy = sourceAt(j, d)
+                  local sk = tileK(sx, sy)
+                  local from = (mapA[sk] == mi and landClass(cls[sk]) == ec) and sk or ek
+                  if ec == C.ROCK and rockK then from = rockK end
+                  cls[nk], midA[nk], pixA[nk], elevA[nk], mapA[nk] = ec, midA[from], pixA[from], 0, mi
+                  filled[nk], grown[nk] = true, true
+                end
+              end
+            end
+            i = i + 1
+          end
+        end
+        breathe()
+      end
+    end
+    -- (FireRed / LeafGreen: the open sea all one water: the rough water a Sevii map rings itself with
+    -- is drawn lighter than the sea past it, and would show each map's rectangle)
+    if cur.picture then
+      local count, bestN, bestK = {}, 0, nil
+      for k = 1, cols * rows do
+        if cls[k] == C.SEA then
+          local key = pixA[k] * 65536 + midA[k]
+          local c = (count[key] or 0) + 1
+          count[key] = c
+          if c > bestN then bestN, bestK = c, k end
+        end
+      end
+      if bestK then
+        local pm, mm = pixA[bestK], midA[bestK]
+        for k = 1, cols * rows do
+          if cls[k] == C.SEA then pixA[k], midA[k] = pm, mm end
+        end
+      end
+      breathe()
+    end
     -- (the doors: each map's warps on its door tiles, and where they lead)
     for _, m in ipairs(layout.list) do
-      for _, w in ipairs(m.def.warps or {}) do
+      for _, w in ipairs(m.warps or m.def.warps or {}) do
         local gx, gy = m.x + w.x, m.y + w.y
         local k = (gy - y0) * cols + (gx - x0) + 1
         local dest = w.destMap
@@ -1406,8 +1785,26 @@ return function(engine, deps)
         end
       end
     end
+    -- (a building with two doors (a museum, the Department Store) is one building: the second door's
+    -- footprint, over the first's, left off)
+    local feet = {}
     for _, d in ipairs(world.doors) do
-      if d.kind ~= "cave" and d.kind ~= "gate" then d.foot = footprint(world, d.x, d.y) end
+      if d.kind ~= "cave" and d.kind ~= "gate" then
+        local f = footprint(world, d.x, d.y)
+        for _, g in ipairs(feet) do
+          if f then
+            local ow = min(f.x1, g.x1) - max(f.x0, g.x0)
+            local oh = min(f.y1, g.y1) - max(f.y0, g.y0)
+            local a = min((f.x1 - f.x0) * (f.y1 - f.y0), (g.x1 - g.x0) * (g.y1 - g.y0))
+            if ow > 0 and oh > 0 and ow * oh * 2 >= a then
+              d.shares = g
+              f = nil
+            end
+          end
+        end
+        d.foot = f
+        if f then feet[#feet + 1] = f end
+      end
     end
     -- (what's built and joined to no door: a fence, a sign, a lamp)
     for k = 1, cols * rows do

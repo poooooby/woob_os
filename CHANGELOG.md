@@ -13,13 +13,25 @@ All notable changes to this mod are documented here, in
   past their edges. Forests are rounded canopies; mountains rise in terraces read from the game's cliff
   art, highest at Mt. Chimney's summit; lakes up in the mountains sit at their own level and the sea
   stays off the land. Every building stands on its door's footprint with its own roof and front-wall
-  art, Gyms taller than houses; bridges and Pacifidlog's logs are decks over the water. Landmarks:
+  art, Gyms taller than houses, a building with two doors drawn once; bridges and Pacifidlog's logs
+  are decks over the water. Landmarks:
   Sky Pillar, Mt. Chimney's crater, Lilycove's Department Store, the ships at the
   harbours, Mossdeep's rocket, the Weather Institute's dish, the Contest Hall's dome, Mirage Tower, the
   Abandoned Ship, the Pokémon League, the Battle Tower, Fortree's houses in the trees, the caves'
   mouths. The weather sits over each map's real spot and the player's mark where they really stand.
   The map is built in the background a few milliseconds a frame shortly after play starts, so it
   opens at once.
+- **3D map (FireRed, LeafGreen):** Kanto and the Sevii Islands built to scale from the game's own maps
+  the same way, each of the Town Map's four pictures its own model. Kanto's routes and towns sit where
+  they join (Viridian Forest, the Safari Zone and Saffron City through their gatehouses), the land
+  between them the forest and the mountain ranges the game shows past their edges, the ranges round Mt.
+  Moon and Rock Tunnel rising in terraces; the towns stay flat and the ledges are hops, not steps.
+  Bridges such as Nugget Bridge and Bond Bridge are decks over the water. Landmarks: Silph Co. towering
+  over Saffron, the Pokémon Tower, Celadon's Department Store, the S.S. Anne at Vermilion's dock, the
+  Pokémon League on Indigo Plateau, a ship at each Sevii harbour, the Trainer Tower and Mt. Ember, the
+  islands' highest peak, its crater smoking. The islands sit where the game's map puts them, and where
+  a map stops partway across an island's mountain or forest, the land carries on and rounds off into
+  the sea. The region you're in is built in the background, like Hoenn's.
 - **News:** the anchor reacts to the stories she reads. She cheers with a fist pump for a Gym won, a
   clean sweep, a first for the Pokédex, a hatch, an evolution or the week's challenges all done, and
   puts her hands on her head for breaking news (a swarm, an outbreak, a storm), a shiny, or a shiny
