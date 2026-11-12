@@ -63,28 +63,38 @@ local WX_MAX = 12          -- the most weathers shown at once (the shader's arra
 -- none), the atlas's 16 x 16 cells and their half- and quarter-size copies below them. Near, each art
 -- pixel sharp; further off the smaller copies, then the picture (two pixels a tile), so nothing
 -- shimmers as it moves. `r`: screen pixels an art pixel; `w` how much of the art shows
+-- (OpenGL ES (Android): the pixel stage is mediump unless told, too coarse for a tile's place in a
+-- picture thousands of texels across. WHP marks what needs more, highp where the device has it, nothing
+-- on the desktop. Never a `precision` statement: LÖVE declares effect() before our code, at the
+-- default, and ours must match it)
 local HIGHP = [[
-#if defined(GL_ES) && defined(PIXEL) && defined(GL_FRAGMENT_PRECISION_HIGH)
-precision highp float;
+#ifdef GL_ES
+#if defined(VERTEX) || defined(GL_FRAGMENT_PRECISION_HIGH)
+#define WHP highp
+#else
+#define WHP mediump
+#endif
+#else
+#define WHP
 #endif
 ]]
 local ART_GLSL = [[
 uniform Image uIndex;
 uniform Image uAtlas;
-uniform vec4 uArtSize;   // the world's columns and rows, the atlas's width and height (pixels); 0: no art
-uniform vec2 uArtLv;     // where the half-size cells start and the quarter-size ones (the atlas's y)
-vec3 tileArt(vec2 tc, vec3 pic, float r, out float w) {
+uniform WHP vec4 uArtSize;   // the world's columns and rows, the atlas's width and height (pixels); 0: no art
+uniform WHP vec2 uArtLv;     // where the half-size cells start and the quarter-size ones (the atlas's y)
+vec3 tileArt(WHP vec2 tc, vec3 pic, float r, out float w) {
   w = 0.0;
   if (uArtSize.x < 0.5 || r < 0.125) return pic;
-  vec2 t = tc * uArtSize.xy;
-  vec2 cell = floor(t);
+  WHP vec2 t = tc * uArtSize.xy;
+  WHP vec2 cell = floor(t);
   vec4 ix = Texel(uIndex, (cell + 0.5) / uArtSize.xy);
-  float id = floor(ix.r * 255.0 + 0.5) + floor(ix.g * 255.0 + 0.5) * 256.0;
+  WHP float id = floor(ix.r * 255.0 + 0.5) + floor(ix.g * 255.0 + 0.5) * 256.0;
   if (id < 0.5) return pic;
   id -= 1.0;
-  vec2 c = vec2(mod(id, 128.0), floor(id / 128.0 + 0.0001));
-  vec2 f = clamp(t - cell, 0.0, 0.9999);
-  vec2 inv = 1.0 / uArtSize.zw;
+  WHP vec2 c = vec2(mod(id, 128.0), floor(id / 128.0 + 0.0001));
+  WHP vec2 f = clamp(t - cell, 0.0, 0.9999);
+  WHP vec2 inv = 1.0 / uArtSize.zw;
   vec3 a16 = Texel(uAtlas, (c * 16.0 + floor(f * 16.0) + 0.5) * inv).rgb;
   vec3 a8 = Texel(uAtlas, (vec2(0.0, uArtLv.x) + c * 8.0 + clamp(f * 8.0, 0.5, 7.5)) * inv).rgb;
   vec3 a4 = Texel(uAtlas, (vec2(0.0, uArtLv.y) + c * 4.0 + clamp(f * 4.0, 0.5, 3.5)) * inv).rgb;
@@ -96,7 +106,7 @@ vec3 tileArt(vec2 tc, vec3 pic, float r, out float w) {
 ]]
 
 local ART_NONE = [[
-vec3 tileArt(vec2 tc, vec3 pic, float r, out float w) {
+vec3 tileArt(WHP vec2 tc, vec3 pic, float r, out float w) {
   w = 0.0;
   return pic;
 }
@@ -108,8 +118,9 @@ varying vec3 vNormal;
 varying float vFlag;
 varying float vWave;
 varying float vFade;
-varying vec2 vGround;
-varying vec3 vRel;       // (where it is from the eye: the pixel stage's distance, no uniform shared)
+varying WHP vec2 vGround;
+varying WHP vec3 vRel;   // (where it is from the eye: the pixel stage's distance, no uniform shared)
+varying WHP vec2 vTC;    // (the picture's place: LÖVE's own arrives mediump on OpenGL ES)
 #ifdef VERTEX
 uniform mat4 uViewProj;
 uniform float uTime;
@@ -210,6 +221,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
   }
   vGround = p.xz;
   vRel = p - uEye;
+  vTC = VertexTexCoord.xy;
   return uViewProj * vec4(p, 1.0);
 }
 #endif
@@ -245,14 +257,14 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
     // (the overworld built to scale: the tiles' own colours from the mesh's picture, their own art near
     // on what faces up, a forest's top (11) and a building's front (12); where the art doesn't show, a
     // forest's top each tile a round crown, lit on its sun side, dark between them; 16 tiles a world unit)
-    vec3 pic = Texel(tex, tc).rgb;
+    vec3 pic = Texel(tex, vTC).rgb;
     vec3 n = normalize(vNormal);
     vec3 c = pic;
     float near = 0.0;
     if (n.y > 0.5 || vFlag > 10.5) {
-      float dist = length(vRel);
+      WHP float dist = length(vRel);
       float w = 0.0;
-      c = tileArt(tc, pic, uArtK / max(dist, 0.001), w);
+      c = tileArt(vTC, pic, uArtK / max(dist, 0.001), w);
       // (the crowns fading out with distance: far off the pattern is finer than a pixel and would shimmer)
       if (vFlag > 10.5 && vFlag < 11.5 && n.y > 0.9) near = (1.0 - smoothstep(3.0, 9.0, dist)) * (1.0 - w);
     }
@@ -318,13 +330,23 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
 
 -- the flat map of the world built to scale: its picture (two pixels a tile), the tiles' own art over it
 -- when near enough
-local FLAT_ART = HIGHP .. ART_GLSL .. [[
+local FLAT_ART = HIGHP .. [[
+varying WHP vec2 vTC;    // (the picture's place: LÖVE's own arrives mediump on OpenGL ES)
+#ifdef VERTEX
+vec4 position(mat4 transform_projection, vec4 vertex_position) {
+  vTC = VertexTexCoord.xy;
+  return transform_projection * vertex_position;
+}
+#endif
+#ifdef PIXEL
+]] .. ART_GLSL .. [[
 uniform float uArtR;     // screen pixels an art pixel
 vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-  vec3 pic = Texel(tex, tc).rgb;
+  vec3 pic = Texel(tex, vTC).rgb;
   float w = 0.0;
-  return vec4(tileArt(tc, pic, uArtR, w), 1.0) * color;
+  return vec4(tileArt(vTC, pic, uArtR, w), 1.0) * color;
 }
+#endif
 ]]
 
 return function(deps)

@@ -526,6 +526,14 @@ Settings app's choice row), `b.soon` kept in the record; "won" / "lost" in `Au.s
 - **The tick** moved to the shell: `main.lua`'s `tick()` once a second from `render.hud`, wherever
   the player is (the open host's session first): `Au.settle`, `Gx.settle`.
 
+## The showcase
+
+`tests/drivers/showcase.lua` is a driver to show WoobOS off by hand: a new game with made-up data and one
+scene per feature. Page Down / Page Up step through them and Home makes the data up again from the first
+scene. Run it with `POKEPORT_DRIVER_PACED=1` (real time). A new feature gets a line in its `all` table;
+`WHEN` leaves out what a game hasn't got. `SHOWCASE_AUTO=<dir>` walks every scene through the same keys and
+screenshots each. Settings changed by hand during it are the real ones.
+
 ## The 3D map
 
 Clean room: the idea of a 3D region map (TERRARIUM's for Gen 1) and none of its code; nothing from
@@ -670,10 +678,14 @@ the voxel diorama mod in the engine's checkout either (another author's).
     wall rows up the face); walls and sides keep the picture (the art would streak down them). Emerald:
     5743 tiles, an atlas 2048 x 1260, built in the job's slices; no textures with mipmaps are sampled
     after a branch. The flat map draws its picture through `FLAT_ART` (`R.drawPicture`).
-    OpenGL ES (Android): its pixel stage defaults to mediump, so the shaders ask for highp where the
-    device has it (`HIGHP`), and no uniform is declared in both stages (a precision mismatch fails to
-    link: 0.10.1's `uEye` broke the map on an AYN Thor; the pixel stage's distance comes in a varying,
-    `vRel`). A shader that won't compile is tried again without the art (`shaderSource(false)`,
+    OpenGL ES (Android): its pixel stage defaults to mediump. What needs more is marked `WHP` (the
+    `HIGHP` block: highp where the device has it, nothing on the desktop): the art's tile numbers and
+    places, and the picture's texture coordinate, which comes in a varying of our own (`vTC`: LÖVE's
+    `tc` arrives mediump). Never a global `precision highp float;`: LÖVE declares `effect()` before our
+    code at the default, and our definition must match it (0.10.2 failed so: "overloaded functions
+    must have the same parameter precision qualifiers"). No uniform is declared in both stages
+    (0.10.1's `uEye`; the distance comes in `vRel`). Test with `LOVE_GRAPHICS_USE_OPENGLES=1` in the
+    environment: the desktop then compiles as OpenGL ES with its rules, as a phone does. A shader that won't compile is tried again without the art (`shaderSource(false)`,
     `ART_NONE`): the map in 3D all the same, never the flat fallback for that. Whatever went wrong
     (the shader's compile log, a job's error, why a kept drawing couldn't be read) is `R.problem()`,
     shown on the map 12 s (scene.lua `drawProblem`, words `map.problem`): a device's failure read off a

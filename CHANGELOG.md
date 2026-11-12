@@ -5,6 +5,11 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Fixed
+- **3D map on Android:** the map's shader still failed on Android's graphics (the map drawn as coarse
+  squares, the problem card saying why): it compiles there now, the tiles' art and all, in 3D and
+  on the flat map.
+
 ## [0.10.3] - 2026-11-11
 
 ### Fixed
