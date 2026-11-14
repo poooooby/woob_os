@@ -558,9 +558,30 @@ screenshots each. Settings changed by hand during it are the real ones.
   hands the view in as the window's third argument): wide (>= 190 units) the grid left and the page
   right, each scrolling; narrow the two take turns. Unseen: a silhouette (the icon drawn dark,
   `env.monIcon(sp, x, y, size, frame, r, g, b, a)`) and "???"; seen: the card, the words, Where; caught:
-  the radar (one kept 8-vertex fan mesh, eased), abilities, the three tabs. Wrapped text is made when the
-  text or the width changes (`st.lines`, by slot). No tables or strings in the draw: 0.000 KB a frame
-  in-engine.
+  the radar (one kept 8-vertex fan mesh in the backdrop's colour; a page >= `WIDE_STATS` units wide puts
+  six bars beside it, narrower the corners are labelled), abilities, the three tabs. Wrapped text is made
+  when the text or the width changes (`st.lines`, by slot). No tables or strings in the draw: 0.000 KB a
+  frame in-engine.
+- **The motion** (pokedex_view.lua's `mv`, numbers only; `V.motion`): the view notices what changed since
+  the last frame (`st.entry`, `st.mi`, `st.tab` / `st.kind`) and stamps `pageAt` / `gridAt` / `listAt`;
+  everything else is eased toward the window's state with `approach(cur, target, dt, rate)` (frame-rate
+  independent): the grid's top (`mv.top` follows `st.gridTop`), the highlight's row and column, the page's
+  scroll (`mv.page` -> `st.detailTop`), the switches' thumbs, the moves' chip, the backdrop's colour
+  (`mv.r/g/b`, also the radar's and the abilities' strips), the radar's values (`st.shown`), narrow's
+  slide (`mv.push`). Settling in is `rise(e, dy)` (a `G.push` + translate) ... `settle(e, ...)` (a veil in
+  the ground's colour fading out, then `G.pop`): always paired with the same `e`; hits are added
+  untranslated (off by a few units for a third of a second). The picture's pop:
+  `env.dexSprite.draw(..., scale, alpha)`, the feet kept where they stand. The fade is the kit's (`K.setFade` /
+  `K.getFade`: `col` and `grad` multiply by it, reset each frame); direct `G.setColor` calls and
+  `env.monIcon` take `K.getFade()` themselves.
+- **The glass** (the kit's, shared with Condition: `K.glass(b, rad, a, tint, sheen, edge)`,
+  `K.backdrop(b, clock, r, g, b, r2, g2, b2)`, `K.glassSwitch(x, y, w, h, shown, kind, a1, l1, a2, l2, a3,
+  l3, size)`): `backdrop(body, clock)` (a pale wash of the type colour, four soft lights from one kept
+  fan mesh drifting slowly: the first type, the second (or the first lighter), violet, pink) under
+  everything, again under narrow's sliding page; `glass(b, rad, a)` = a faint shadow, white at `a`, a
+  sheen (`SHEEN_TOP` -> clear, the top 16 units) and a white edge. Cells and the switches' tracks are
+  lighter panes; the sprite box is the type colour at 0.74. Nothing behind a pane is sharp, so no blur
+  pass is needed.
 - **The picture** (main.lua `env.dexSprite`): Emerald's own front animation (`MonAnim.newSprite` +
   `summary` when one's chosen, stepped 60 a second in the draw, its frames' pictures kept by species and
   frame, drawn from `sprite.x2 / y2 / matrix` without the engine's per-draw `transform` tables); done, or
@@ -571,7 +592,9 @@ screenshots each. Settings changed by hand during it are the real ones.
   WoobleDex's priority-1 re-runs) and re-wrapped when another mod has put its own `show` in since
   (`Dm.show ~= w.fn`). Ours opens full screen through `Sh.openFull(..., { mode = "dex", backKey =
   "dex.toMenu", classic })`: START closes it and calls the game's own (`ctx.classic`). Settings
-  `pokedexApp` (Gameplay) off: the game's. WoobleDex's Register Owned (its `show` wrap, which ours doesn't
+  `pokedexApp` (Gameplay) off: the game's. The mod's option `pokedex` (options.lua, `env.dexOption`, read
+  when asked) off: `dexOn` and `pokedexAvailable` false (no takeover, no app) and the Settings row
+  hidden (`gameRows`, made when Settings opens). WoobleDex's Register Owned (its `show` wrap, which ours doesn't
   call) through its API 3 `registerOwned(session)`, before ours opens (START or the app). The catch
   screens (`showRegistration` / `showCaughtMon`) are drawn inside battle: the game's.
 - **The app**: `pokedex`, glyph `dex`, available once `FLAG_SYS_POKEDEX_GET` (`Dx.available`, every game).
@@ -939,7 +962,10 @@ the voxel diorama mod in the engine's checkout either (another author's).
 - **Condition** (`src/condition.lua`): `mon.contest` read directly (the engine's
   `Pokeblock.contest` writes a table when it's missing); the search is our own sort over the party
   and `Bx.boxMons`; `feed` is `Pokeblock.feed` then `tryClear`, refused at sheen 255 (as
-  `use_pokeblock`). The radar's fill is a kept 7-vertex fan mesh (`setVertex` per frame).
+  `use_pokeblock`). The radar's fill is a kept 7-vertex fan mesh (`setVertex` per frame). The window is
+  the kit's glass (`K.backdrop` lit by the chosen one's best two conditions' colours, the searched one
+  first, eased in `lit`; `K.glass` for the list, buttons and the Pokéblock case, smoked `SMOKE` at 0.74
+  for the chart; `K.glassSwitch` for Party / Search).
 - **The takeover** (`src/pokenav.lua`, installed at `Sh.ready`): each module's `new` wrapped once
   per process (`__woobOs`).
   - **Emerald:** a stand-in screen whose `open()` calls `Sh.openFull(app, session, onClose)`

@@ -3,27 +3,39 @@
 -- Pokémon is chosen), the lines a text wraps to are made when the text or the width changes, numbers
 -- through K.textCache, the radar one kept mesh.
 --
+-- Its motion, all numbers kept here and eased each frame (nothing timed by the host):
+--   the grid's cells rise in, one after another, when it opens or the dex changes; the chosen cell's
+--   highlight glides from cell to cell; both lists scroll smoothly to where the D-pad or the wheel sent
+--   them; the switches' thumbs slide; a newly chosen Pokémon's page settles in card by card, its
+--   backdrop's colour turning to its type's, its picture popping up on its shadow, its words sliding in;
+--   the radar morphs from the last Pokémon's stats and the numbers count with it; the gender bar fills;
+--   a tab's or a list's rows fade in in turn; narrow, the page slides in over the grid and back out.
+--
 --   View(K, env, T, st, A, KINDS) -> { draw(body, clock, portrait) }
 
-local floor, max, min, ceil, sin, cos, pi, abs = math.floor, math.max, math.min, math.ceil, math.sin, math.cos,
-  math.pi, math.abs
+local floor, max, min, ceil, sin, cos, pi, abs, exp = math.floor, math.max, math.min, math.ceil, math.sin, math.cos,
+  math.pi, math.abs, math.exp
 
 local M, GAP = 3, 2
 local CELL_MIN = 25
 local NARROW = 190          -- narrower than this (units): the grid and the page take turns
-local STAT_MAX = 200        -- the radar's rim (a base stat over it touches the rim)
+local STAT_MAX = 180        -- the radar's rim (a base stat over it touches the rim)
+local BAR_MAX = 200         -- the stat bars' full length
+local WIDE_STATS = 96       -- a page this wide: the radar beside six bars; narrower, the radar labelled
 -- (the radar's corners from the top, clockwise: HP, Attack, Defense, Speed, Sp. Def, Sp. Atk; the page's
 -- stats are HP, Atk, Def, SpA, SpD, Spe)
 local CORNER_STAT = { 1, 2, 3, 6, 5, 4 }
 local STAT_KEY = { "dex.stat.hp", "dex.stat.atk", "dex.stat.def", "dex.stat.spa", "dex.stat.spd", "dex.stat.spe" }
 local C = {
   body = { 242, 242, 247 }, card = { 255, 255, 255 }, ink = { 28, 28, 30 }, soft = { 112, 112, 120 },
-  faint = { 170, 170, 178 }, accent = { 10, 132, 255 }, accentSoft = { 10, 132, 255, 0.14 },
-  sil = { 40, 44, 56 }, silCard = { 226, 228, 236 }, ball = { 238, 64, 54 }, white = { 255, 255, 255 },
-  male = { 10, 132, 255 }, female = { 255, 55, 95 }, track = { 118, 118, 128, 0.18 },
-  grid = { 120, 124, 140, 0.35 }, edge = { 255, 255, 255 }, heroDark = { 50, 54, 70 }, heroDarkFoot = { 26, 28, 38 },
-  phys = { 236, 104, 60 }, spec = { 90, 120, 230 }, stat = { 150, 150, 160 },
+  faint = { 170, 170, 178 }, accent = { 10, 132, 255 }, chosen = { 235, 244, 255 },
+  sil = { 40, 44, 56 }, silCard = { 228, 230, 238 }, ball = { 238, 64, 54 }, white = { 255, 255, 255 },
+  black = { 0, 0, 0 }, male = { 10, 132, 255 }, female = { 255, 55, 95 }, track = { 118, 118, 128, 0.16 },
+  grid = { 120, 124, 140, 0.32 }, heroDark = { 58, 62, 80 }, heroDarkFoot = { 26, 28, 38 },
+  phys = { 236, 104, 60 }, spec = { 90, 120, 230 }, slate = { 120, 132, 178 }, slate2 = { 150, 120, 190 },
 }
+-- (a backdrop's light from the top and shade at the foot, over its colour)
+local SHADE_TOP, SHADE_FOOT = { 255, 255, 255, 0.28 }, { 0, 0, 0, 0.16 }
 -- the types' colours (the game's ids; 18 WoobleDex's Fairy)
 local TYPE = {
   [0] = { 168, 168, 120 }, [1] = { 192, 48, 40 }, [2] = { 168, 144, 240 }, [3] = { 160, 64, 160 },
@@ -32,20 +44,49 @@ local TYPE = {
   [12] = { 120, 200, 80 }, [13] = { 248, 208, 48 }, [14] = { 248, 88, 136 }, [15] = { 152, 216, 216 },
   [16] = { 112, 56, 248 }, [17] = { 112, 88, 72 }, [18] = { 238, 153, 172 },
 }
--- (each stat's colour on the radar)
-local STAT_C = { { 255, 89, 89 }, { 245, 172, 120 }, { 250, 224, 120 }, { 157, 183, 245 }, { 167, 219, 141 },
-                 { 250, 146, 178 } }
-local UTF8 = "[%z\1-\127\194-\244][\128-\191]*"
+-- (each stat's colour: the radar's corners and the bars)
+local STAT_C = { { 255, 89, 89 }, { 245, 152, 90 }, { 240, 205, 80 }, { 120, 160, 245 }, { 120, 200, 110 },
+                 { 245, 120, 165 } }
+
+-- ------- easing (t: 0 .. 1)
+local function clamp01(t) return t < 0 and 0 or (t > 1 and 1 or t) end
+local function outCubic(t)
+  t = clamp01(t)
+  local u = 1 - t
+  return 1 - u * u * u
+end
+local function outBack(t)
+  t = clamp01(t)
+  local u = t - 1
+  return 1 + 2.70158 * u * u * u + 1.70158 * u * u
+end
+-- (a value followed smoothly: the same speed whatever the frame rate)
+local function approach(cur, target, dt, rate)
+  local v = cur + (target - cur) * (1 - exp(-dt * rate))
+  if abs(target - v) < 0.002 then return target end
+  return v
+end
 
 return function(K, env, T, st, A, KINDS)
   local V = {}
-  local bodyNow = nil
+  local G = nil               -- (the host's graphics, taken each frame)
+  local bodyNow, pageArea = nil, nil
   local AB = { "ab1", "ab2", "ab3", "ab4", "ab5", "ab6" }
   local EMPTY = { types = {}, stats = { 0, 0, 0, 0, 0, 0 } }
   local num = K.textCache(function(n) return tostring(n) end)
-  local heroTop, heroFoot = {}, {}
   local mesh = nil
-  local PX, PY = { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }
+  local PX, PY, HX, HY = { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }
+  local CHX, CHW = { 0, 0, 0, 0 }, { 0, 0, 0, 0 }
+
+  -- the motion's numbers (see the top)
+  local mv = {
+    first = true, gridAt = 0, pageAt = 0, tabAt = 0, listAt = 0,
+    entry = nil, mi = nil, tab = nil, kind = nil,
+    top = 0, page = 0, curR = nil, curC = 0, curCols = 0,
+    mode = 1, tabX = 1, kindX = 1, push = 0,
+    r = 0.6, g = 0.6, b = 0.6, r2 = 0.6, g2 = 0.6, b2 = 0.6,
+  }
+  V.motion = mv
 
   local function word(key) return T(key) end
 
@@ -73,18 +114,40 @@ return function(K, env, T, st, A, KINDS)
     return #lines * lh
   end
 
-  -- a type's pill -> its width
-  local function pill(id, name, x, y, h, size)
+  -- something settling in: drawn `(1 - e) * dy` units lower and at `e` of itself (the kit's fade, so
+  -- the glass and the backdrop show through it); `settle(e)` after it, always with the same `e`
+  local FADES, depth = {}, 0
+  local function rise(e, dy)
+    if e >= 1 then return end
+    depth = depth + 1
+    FADES[depth] = K.getFade()
+    K.setFade(FADES[depth] * e)
+    G.push()
+    G.translate(0, (1 - e) * dy * K.sc)
+  end
+  local function settle(e)
+    if e >= 1 then return end
+    K.setFade(FADES[depth])
+    depth = depth - 1
+    G.pop()
+  end
+
+  local glass = K.glass
+  local function backdrop(b, clock) K.backdrop(b, clock, mv.r, mv.g, mv.b, mv.r2, mv.g2, mv.b2) end
+
+  -- a type's pill -> its width (`ring`: a light edge, on a backdrop of its own colour)
+  local function pill(id, name, x, y, h, size, a, ring)
     local pw = K.width(name, size) + 5
-    K.col(TYPE[id] or C.faint)
-    K.box("fill", K.R(x, y, pw, h), h / 2)
-    K.text(name, x, y + (h - size * 1.2) / 2, size, C.white, "center", pw)
+    local b = K.R(x, y, pw, h)
+    K.col(TYPE[id] or C.faint, a)
+    K.box("fill", b, h / 2)
+    if ring then K.ring(b, h / 2, C.white, 0.55 * (a or 1), 0.4) end
+    K.text(name, x, y + (h - size * 1.2) / 2, size, C.white, "center", pw, a)
     return pw
   end
 
   -- a small Poké Ball (caught)
   local function ballMark(cx, cy, r)
-    local G = K.graphics()
     local px, py, pr = K.X(cx), K.Y(cy), r * K.sc
     K.col(C.ball)
     G.arc("fill", px, py, pr, pi, 2 * pi)
@@ -97,11 +160,25 @@ return function(K, env, T, st, A, KINDS)
     K.col(C.white)
     G.circle("fill", px, py, pr * 0.32)
   end
+  -- a big Poké Ball's outline turning slowly (the backdrop's watermark), r units round cx, cy
+  local function ballMarkBig(cx, cy, r, turn, a)
+    local pr = r * K.sc
+    G.push()
+    G.translate(K.X(cx), K.Y(cy))
+    G.rotate(turn)
+    K.col(C.white, a)
+    G.setLineWidth(max(1, r * 0.11 * K.sc))
+    G.circle("line", 0, 0, pr)
+    G.line(-pr, 0, -pr * 0.36, 0)
+    G.line(pr * 0.36, 0, pr, 0)
+    G.circle("line", 0, 0, pr * 0.3)
+    G.circle("fill", 0, 0, pr * 0.14)
+    G.pop()
+  end
   -- (♀ / ♂ drawn: the fonts have no signs)
-  local function sexMark(sex, x, y, s)
-    local G = K.graphics()
+  local function sexMark(sex, x, y, s, a)
     local c = sex == "f" and C.female or C.male
-    K.col(c)
+    K.col(c, a)
     G.setLineWidth(max(1, s * 0.16 * K.sc))
     local r = s * 0.28
     local cx, cy = x + r, y + s * 0.42
@@ -119,17 +196,18 @@ return function(K, env, T, st, A, KINDS)
 
   -- ------- the grid
 
-  local function drawGrid(x, y, w, h, clock)
+  local function drawGrid(x, y, w, h, clock, dt)
     local book, list = st.book, st.list
-    -- (the header: the dex (a switch when there are two), its counts)
     local hh = 9
     local counts = book.counts[book.modes[st.mi]]
     if #book.modes > 1 then
-      local sw = min(w * 0.55, 80)
-      K.segmented(x, y, sw, hh, st.mi, "win", A.MODE + 1, st.modeWords[1], A.MODE + 2, st.modeWords[2])
+      mv.mode = approach(mv.mode, st.mi, dt, 18)
+      K.glassSwitch(x, y, min(w * 0.58, 84), hh, mv.mode, "win", A.MODE + 1, st.modeWords[1], A.MODE + 2,
+        st.modeWords[2], nil, nil, 4.3)
     else
       K.bold(st.modeWords[1] or "", x, y + 2, 5, C.ink)
     end
+    local n = #list
     if counts then
       local cx = x + w
       local cw = K.width(num(counts.caught), 4)
@@ -140,17 +218,34 @@ return function(K, env, T, st, A, KINDS)
       local sw2 = K.width(num(counts.seen), 4)
       cx = cx - sw2
       K.bold(num(counts.seen), cx, y + 2.4, 4, C.ink)
-      local G = K.graphics()
       K.col(C.soft)
+      G.setLineWidth(max(1, 0.3 * K.sc))
       G.circle("line", K.X(cx - 3), K.Y(y + 4.8), 1.8 * K.sc)
       G.circle("fill", K.X(cx - 3), K.Y(y + 4.8), 0.8 * K.sc)
     end
-    local gy, gh = y + hh + GAP, h - hh - GAP
+    -- (the dex's progress: seen pale, caught full, filling as it opens)
+    local py = y + hh + 2
+    K.col(C.white, 0.5)
+    K.box("fill", K.R(x, py, w, 1.4), 0.7)
+    if counts and n > 0 then
+      local e = outCubic((clock - mv.gridAt - 0.1) / 0.9)
+      local sw = w * counts.seen / n * e
+      if sw > 0.2 then
+        K.col(C.accent, 0.3)
+        K.box("fill", K.R(x, py, max(1.4, sw), 1.4), 0.7)
+      end
+      local cw = w * counts.caught / n * e
+      if cw > 0.2 then
+        K.col(C.accent)
+        K.box("fill", K.R(x, py, max(1.4, cw), 1.4), 0.7)
+      end
+    end
+    local gy = py + 4
+    local gh = y + h - gy
     local cols = max(2, floor((w + GAP) / (CELL_MIN + GAP)))
     local cw = (w - (cols - 1) * GAP) / cols
     local ch = max(22, cw * 1.08)
     st.cols, st.cellH = cols, ch + GAP
-    local n = #list
     local rows = ceil(n / cols)
     st.visRows = max(1, floor((gh + GAP) / (ch + GAP)))
     -- (following the chosen one when the D-pad moved it; free while scrolled by hand)
@@ -160,115 +255,182 @@ return function(K, env, T, st, A, KINDS)
       if r > st.gridTop + st.visRows - 1 then st.gridTop = r - st.visRows + 1 end
     end
     st.gridTop = max(0, min(max(0, rows - st.visRows), st.gridTop))
-    local area = K.R(x, gy, w, gh)
+    if mv.curR == nil or mv.curCols ~= cols then
+      mv.top = st.gridTop
+    else
+      mv.top = approach(mv.top, st.gridTop, dt, 20)
+    end
+    local top = mv.top
+    local area = K.R(x - 1.5, gy - 1.5, w + 3, gh + 1.5)
     K.scissor(area)
-    local first = floor(st.gridTop)
-    local G = K.graphics()
+    -- (the chosen cell's highlight: it glides from one to the next, over the cells)
+    local sr, sc = floor((st.sel - 1) / cols), (st.sel - 1) % cols
+    if mv.curR == nil or mv.curCols ~= cols then
+      mv.curR, mv.curC, mv.curCols = sr, sc, cols
+    else
+      mv.curR, mv.curC = approach(mv.curR, sr, dt, 26), approach(mv.curC, sc, dt, 26)
+    end
+    local first = floor(top)
     local frame = floor(clock * 3) % 2
+    local since = clock - mv.gridAt
+    local hopT = clock - mv.pageAt
+    local hop = (hopT >= 0 and hopT < 0.36) and sin(hopT / 0.36 * pi) * 2 or 0
     for r = first, min(rows - 1, first + st.visRows + 1) do
-      local cy = gy + (r - st.gridTop) * (ch + GAP)
+      local cy = gy + (r - top) * (ch + GAP)
       for c = 0, cols - 1 do
         local i = r * cols + c + 1
         local e = list[i]
         if not e then break end
         local cx = x + c * (cw + GAP)
+        -- (rising in, one after another, as the grid opens)
+        local ein = since < 1.6 and outCubic((since - ((r - first) * cols + c) * 0.022) / 0.34) or 1
+        rise(ein, 6)
         local cb = K.R(cx, cy, cw, ch)
         local chosen = i == st.sel
-        K.col(e.seen and C.card or C.silCard)
+        -- (each a pane of glass: clear while unseen, frosted once seen, brightest when chosen)
+        K.col(C.white, e.seen and (chosen and 0.8 or 0.42) or 0.16)
         K.box("fill", cb, 3)
-        if chosen then
-          K.col(C.accentSoft)
-          K.box("fill", cb, 3)
-          K.ring(cb, 3, C.accent, st.focus == "grid" and 1 or 0.5, 0.6)
-        end
-        K.text(e.numText, cx + 2, cy + 1.5, 3.2, C.soft)
-        if e.caught then ballMark(cx + cw - 3.2, cy + 3.4, 1.7) end
+        K.ring(cb, 3, C.white, e.seen and 0.75 or 0.4, 0.3)
         local is = min(cw - 4, ch - 11)
         local ix, iy = cx + (cw - is) / 2, cy + 5.5 + (ch - 11 - is) / 2
+        if e.seen and e.t1 and TYPE[e.t1] then
+          -- (the type's soft spot behind the icon)
+          K.col(TYPE[e.t1], chosen and 0.3 or 0.16)
+          G.circle("fill", K.X(ix + is / 2), K.Y(iy + is * 0.55), is * 0.42 * K.sc)
+        end
+        K.text(e.numText, cx + 2, cy + 1.5, 3.2, chosen and C.accent or C.soft)
+        if e.caught then ballMark(cx + cw - 3.2, cy + 3.4, 1.7) end
         if env.monIcon then
           if e.seen then
-            env.monIcon(e.sp, ix, iy, is, chosen and frame or 0)
+            env.monIcon(e.sp, ix, iy - (chosen and hop or 0), is, chosen and frame or 0, 1, 1, 1, K.getFade())
           else
-            env.monIcon(e.sp, ix, iy, is, 0, 0.16, 0.17, 0.22, 0.55)
+            env.monIcon(e.sp, ix, iy, is, 0, 0.16, 0.17, 0.22, 0.5 * K.getFade())
           end
         end
         local name = e.seen and e.name or "???"
         local fs = K.fit(name, 3.4, cw - 2)
-        K.text(name, cx + 1, cy + ch - 5, fs, e.seen and C.ink or C.faint, "center", cw - 2)
+        if chosen and e.seen then
+          K.bold(name, cx + 1, cy + ch - 5, fs, C.ink, "center", cw - 2)
+        else
+          K.text(name, cx + 1, cy + ch - 5, fs, e.seen and C.ink or C.faint, "center", cw - 2)
+        end
+        settle(ein)
         K.addHit(cb, "win", A.CELL + i, area)
       end
     end
+    if n > 0 then
+      local hb = K.R(x + mv.curC * (cw + GAP) - 0.6, gy + (mv.curR - top) * (ch + GAP) - 0.6, cw + 1.2, ch + 1.2)
+      K.col(C.accent, 0.1)
+      K.box("fill", hb, 3.5)
+      K.ring(hb, 3.5, C.accent, st.focus == "grid" and 1 or 0.45, 0.8)
+    end
     K.scissor(bodyNow)
-    K.scrollbar(x + w + 1.4, gy, gh, min(st.gridTop, max(0, rows - st.visRows)), st.visRows, rows)
+    K.scrollbar(x + w + 1.4, gy, gh, min(top, max(0, rows - st.visRows)), st.visRows, rows)
   end
 
   -- ------- the page
 
-  local function hero(x, y, w, e, pg, clock)
+  -- (how far a card or a word has settled in: the page's i-th, `delay` seconds after the choice)
+  local function enter(clock, delay, dur) return outCubic((clock - mv.pageAt - delay) / (dur or 0.4)) end
+
+  local function hero(x, y, w, e, pg, clock, dt)
     local h = 50
     local b = K.R(x, y, w, h)
+    K.shadow(b, 5, 1.4, 0.1)
     if not e.seen then
-      K.grad(b, 5, C.heroDark, C.heroDarkFoot)
-      K.bold("???", x + 6, y + h / 2 - 4, 7, C.white)
+      K.col(C.heroDark, 0.78)
+      K.box("fill", b, 5)
+      K.grad(b, 5, SHADE_TOP, SHADE_FOOT)
+      K.ring(b, 5, C.white, 0.35, 0.35)
+      if env.monIcon then env.monIcon(e.sp, x + 5, y + 6, 38, 0, 0, 0, 0, 0.45) end
+      K.label(e.numText, x + 50, y + 13, 3.6, C.white, nil, nil, 0.6)
+      K.bold("???", x + 50, y + 18, 8, C.white)
       return h
     end
-    local tc = TYPE[pg.types[1] and pg.types[1].id or 0] or C.faint
-    local top = heroTop[tc]
-    if not top then
-      top, heroFoot[tc] = K.light(tc, 0.25), K.dark(tc, 0.3)
-      heroTop[tc] = top
-    end
-    K.grad(b, 5, top, heroFoot[tc])
-    K.glow(x + 24, y + h * 0.55, 26, 22, C.white, 0.22)
-    -- (its picture: the game's animation, or our breathing idle)
+    -- (glass tinted in its first type's colour, turned to from the last one's: V.draw eases mv.r/g/b)
+    G.setColor(mv.r, mv.g, mv.b, 0.74)
+    K.box("fill", b, 5)
+    K.grad(b, 5, SHADE_TOP, SHADE_FOOT)
+    K.ring(b, 5, C.white, 0.6, 0.4)
+    -- (a Poké Ball turning behind it all, faint; kept inside the backdrop)
+    G.intersectScissor(K.X(x), K.Y(y), w * K.sc, h * K.sc)
+    ballMarkBig(x + w - h * 0.3, y + h * 0.62, h * 0.6, clock * 0.18, 0.13)
+    K.scissor(pageArea)
+    -- (its picture popping up on its shadow, with a light behind it)
+    local t = clock - mv.pageAt
+    local pop = 0.8 + 0.2 * outBack(t / 0.42)
+    local fa = outCubic(t / 0.18)
     local ps = 44
-    local px, py = x + 2, y + (h - ps) / 2
+    local pcx, pcy = x + 3 + ps / 2, y + h / 2 + 1
+    K.glow(pcx, pcy, 26, 22, C.white, 0.24 * fa)
+    K.col(C.black, 0.2 * fa)
+    G.ellipse("fill", K.X(pcx), K.Y(pcy + ps * 0.43), ps * 0.27 * pop * K.sc, ps * 0.06 * K.sc)
     if env.dexSprite then
-      env.dexSprite.draw(e.sp, px + ps / 2, py + ps / 2, ps, clock, st.chosenAt)
+      env.dexSprite.draw(e.sp, pcx, pcy, ps, clock, st.chosenAt, pop, fa)
     elseif env.monPic then
-      env.monPic(e.sp, px, py, ps, 1)
+      env.monPic(e.sp, pcx - ps / 2, pcy - ps / 2, ps, fa)
     end
-    K.addHit(K.R(px, py, ps, ps), "win", A.SPRITE)
-    local tx = px + ps + 3
+    K.addHit(K.R(pcx - ps / 2, pcy - ps / 2, ps, ps), "win", A.SPRITE)
+    -- (its words sliding in after it, one after another)
+    local tx = x + ps + 7
     local tw = x + w - tx - 3
-    K.label(e.numText, tx, y + 4, 3.6, C.white, nil, nil, 0.85)
+    local e1, e2, e3, e4 = enter(clock, 0.04, 0.32), enter(clock, 0.08, 0.32), enter(clock, 0.12, 0.32),
+      enter(clock, 0.16, 0.32)
+    K.label(e.numText, tx + (1 - e1) * 6, y + 4, 3.6, C.white, nil, nil, 0.85 * e1)
     local fs = K.fit(e.name, 7, tw - 6)
-    K.label(e.name, tx, y + 8, fs, C.white)
-    if e.sex then sexMark(e.sex, tx + K.width(e.name, fs) + 1.2, y + 9, 5) end
-    K.label(pg.category, tx, y + 16, K.fit(pg.category, 4, tw), C.white, nil, nil, 0.9)
-    local cx = tx
-    for i = 1, #pg.types do cx = cx + pill(pg.types[i].id, pg.types[i].name, cx, y + 22.5, 6, 3.6) + 1.5 end
-    K.label(word("dex.height"), tx, y + 32, 3.3, C.white, nil, nil, 0.75)
-    K.label(pg.heightText, tx + 15, y + 32, 3.5, C.white)
-    K.label(word("dex.weight"), tx, y + 38, 3.3, C.white, nil, nil, 0.75)
-    K.label(pg.weightText, tx + 15, y + 38, 3.5, C.white)
+    K.label(e.name, tx + (1 - e1) * 8, y + 8, fs, C.white, nil, nil, e1)
+    if e.sex then sexMark(e.sex, tx + (1 - e1) * 8 + K.width(e.name, fs) + 1.2, y + 9, 5, e1) end
+    K.label(pg.category, tx + (1 - e2) * 8, y + 16.5, K.fit(pg.category, 4, tw), C.white, nil, nil, 0.9 * e2)
+    local cx = tx + (1 - e3) * 8
+    for i = 1, #pg.types do
+      cx = cx + pill(pg.types[i].id, pg.types[i].name, cx, y + 23, 6, 3.6, e3, true) + 1.5
+    end
+    -- (height and weight, two frosted chips)
+    local chw = min(36, (tw - 1.5) / 2)
+    local cy = y + 31.8
+    local ox = (1 - e4) * 8
+    for j = 1, 2 do
+      local bx = tx + ox + (j - 1) * (chw + 1.5)
+      K.col(C.white, 0.2 * e4)
+      K.box("fill", K.R(bx, cy, chw, 13.2), 2.5)
+      -- (the word, metres / kilograms bold, feet / pounds under them)
+      local m, imp = j == 1 and pg.heightM or pg.weightM, j == 1 and pg.heightI or pg.weightI
+      K.text(word(j == 1 and "dex.height" or "dex.weight"), bx + 2.2, cy + 1, 2.9, C.white, nil, nil, 0.8 * e4)
+      K.bold(m or "", bx + 2.2, cy + 4.5, K.fit(m or "", 3.6, chw - 4), C.white, nil, nil, e4)
+      if imp then K.text(imp, bx + 2.2, cy + 9, 2.9, C.white, nil, nil, 0.75 * e4) end
+    end
     return h
   end
 
-  local function descCard(x, y, w, e, pg)
+  local function descCard(x, y, w, e, pg, clock)
     local inner = w - 8
     local lines = wrap("desc", pg.description, inner, 3.9)
     local h = 6 + #lines * 3.9 * 1.25 + 12
-    K.card(K.R(x, y, w, h), 4)
+    glass(K.R(x, y, w, h), 4)
     drawLines(lines, x + 4, y + 4, 3.9, C.ink)
-    -- (the gender ratio)
+    -- (the gender ratio: each side filling in from its end)
     local gy = y + h - 9
     K.text(word("dex.gender"), x + 4, gy, 3.4, C.soft)
     local bx, bw = x + 22, w - 26
     if pg.female == nil then
       K.text(word("dex.genderless"), bx, gy, 3.4, C.ink)
     else
-      local bar = K.R(bx, gy + 1, bw, 2.4)
-      K.col(C.female)
-      K.box("fill", bar, 1.2)
-      if pg.female < 1 then
+      local f = enter(clock, 0.18, 0.7)
+      K.col(C.track)
+      K.box("fill", K.R(bx, gy + 1, bw, 2.4), 1.2)
+      local mw, fw = bw * (1 - pg.female) * f, bw * pg.female * f
+      if mw > 0.3 then
         K.col(C.male)
-        K.box("fill", K.R(bx, gy + 1, max(2.4, bw * (1 - pg.female)), 2.4), 1.2)
+        K.box("fill", K.R(bx, gy + 1, max(2.4, mw), 2.4), 1.2)
+      end
+      if fw > 0.3 then
+        K.col(C.female)
+        K.box("fill", K.R(bx + bw - max(2.4, fw), gy + 1, max(2.4, fw), 2.4), 1.2)
       end
       sexMark("m", bx, gy + 4, 3.2)
       K.text(pg.maleText, bx + 3.6, gy + 4, 3.1, C.soft)
-      local fw = K.width(pg.femaleText, 3.1)
-      K.text(pg.femaleText, bx + bw - fw - 3.6, gy + 4, 3.1, C.soft)
+      local tw = K.width(pg.femaleText, 3.1)
+      K.text(pg.femaleText, bx + bw - tw - 3.6, gy + 4, 3.1, C.soft)
       sexMark("f", bx + bw - 3, gy + 4, 3.2)
     end
     return h
@@ -279,20 +441,30 @@ return function(K, env, T, st, A, KINDS)
     local k = min(1, v / STAT_MAX)
     return cx + cos(a) * r * k, cy + sin(a) * r * k
   end
-  local function radar(x, y, w, pg, dt)
-    local h = 76
-    K.card(K.R(x, y, w, h), 4)
+  -- the base stats: the radar (morphing from the last Pokémon's), the numbers counting with it; wide,
+  -- six bars beside it
+  local function stats(x, y, w, pg, dt)
+    local wide = w >= WIDE_STATS
+    local h = wide and 60 or 76
+    glass(K.R(x, y, w, h), 4)
     K.bold(word("dex.stats"), x + 4, y + 3, 4.2, C.ink)
-    local tt = word("dex.total")
-    local tw = K.width(pg.totalText, 4.2)
-    K.bold(pg.totalText, x + w - 4 - tw, y + 3, 4.2, C.ink)
+    local total = 0
+    for j = 1, 6 do
+      st.shown[j] = approach(st.shown[j], pg.stats[j], dt, 8)
+      total = total + st.shown[j]
+    end
+    local tt, tv = word("dex.total"), num(floor(total + 0.5))
+    local tw = K.width(tv, 4.2)
+    K.bold(tv, x + w - 4 - tw, y + 3, 4.2, C.ink)
     K.text(tt, x + w - 6 - tw - K.width(tt, 3.6), y + 3.6, 3.6, C.soft)
-    local cx, cy = x + w / 2, y + 39
-    local rad = min(22, w * 0.22)
-    local G = K.graphics()
-    local k = min(1, dt * 8)
-    for j = 1, 6 do st.shown[j] = st.shown[j] + (pg.stats[j] - st.shown[j]) * k end
-    -- (the grid: three rings and the spokes)
+    local rad = wide and 16.5 or min(22, w * 0.22)
+    local cx = wide and (x + 6 + rad) or (x + w / 2)
+    local cy = wide and (y + 35) or (y + 39)
+    -- (the grid: the rim filled faintly, three rings, the spokes)
+    for j = 1, 6 do HX[j], HY[j] = corner(j, cx, cy, rad, STAT_MAX) end
+    K.col(C.track, 0.55)
+    G.polygon("fill", K.X(HX[1]), K.Y(HY[1]), K.X(HX[2]), K.Y(HY[2]), K.X(HX[3]), K.Y(HY[3]), K.X(HX[4]), K.Y(HY[4]),
+      K.X(HX[5]), K.Y(HY[5]), K.X(HX[6]), K.Y(HY[6]))
     G.setLineWidth(max(1, 0.25 * K.sc))
     K.col(C.grid)
     for ring = 1, 3 do
@@ -303,75 +475,118 @@ return function(K, env, T, st, A, KINDS)
         G.line(K.X(ax), K.Y(ay), K.X(bx), K.Y(by))
       end
     end
-    for j = 1, 6 do
-      local ax, ay = corner(j, cx, cy, rad, STAT_MAX)
-      G.line(K.X(cx), K.Y(cy), K.X(ax), K.Y(ay))
-    end
-    -- (the shape: a fan from the middle in the stats' colours, a bright edge)
-    for j = 1, 6 do PX[j], PY[j] = corner(j, cx, cy, rad, max(8, st.shown[CORNER_STAT[j]])) end
+    for j = 1, 6 do G.line(K.X(cx), K.Y(cy), K.X(HX[j]), K.Y(HY[j])) end
+    -- (the shape: its type's colour, deeper at the edge, a bright line round it, a dot at each corner)
+    for j = 1, 6 do PX[j], PY[j] = corner(j, cx, cy, rad, max(6, st.shown[CORNER_STAT[j]])) end
     if mesh == nil then
       local ok, m = pcall(G.newMesh, 8, "fan", "dynamic")
       mesh = ok and m or false
     end
+    local r, g, b = mv.r, mv.g, mv.b
     if mesh then
-      mesh:setVertex(1, K.X(cx), K.Y(cy), 0, 0, 1, 1, 1, 0.55)
-      for j = 1, 6 do
-        local c = STAT_C[CORNER_STAT[j]]
-        mesh:setVertex(j + 1, K.X(PX[j]), K.Y(PY[j]), 0, 0, c[1] / 255, c[2] / 255, c[3] / 255, 0.75)
-      end
-      local c1 = STAT_C[CORNER_STAT[1]]
-      mesh:setVertex(8, K.X(PX[1]), K.Y(PY[1]), 0, 0, c1[1] / 255, c1[2] / 255, c1[3] / 255, 0.75)
-      G.setColor(1, 1, 1, 1)
+      mesh:setVertex(1, K.X(cx), K.Y(cy), 0, 0, r, g, b, 0.18)
+      for j = 1, 6 do mesh:setVertex(j + 1, K.X(PX[j]), K.Y(PY[j]), 0, 0, r, g, b, 0.62) end
+      mesh:setVertex(8, K.X(PX[1]), K.Y(PY[1]), 0, 0, r, g, b, 0.62)
+      G.setColor(1, 1, 1, K.getFade())
       G.draw(mesh)
     end
-    K.col(C.accent, 0.9)
-    G.setLineWidth(max(1, 0.5 * K.sc))
+    G.setColor(r * 0.7, g * 0.7, b * 0.7, K.getFade())
+    G.setLineWidth(max(1, 0.55 * K.sc))
     for j = 1, 6 do
-      local n = j % 6 + 1
-      G.line(K.X(PX[j]), K.Y(PY[j]), K.X(PX[n]), K.Y(PY[n]))
+      local nx = j % 6 + 1
+      G.line(K.X(PX[j]), K.Y(PY[j]), K.X(PX[nx]), K.Y(PY[nx]))
     end
-    -- (each corner's stat and value)
     for j = 1, 6 do
-      local si = CORNER_STAT[j]
-      local lx, ly = corner(j, cx, cy, rad + 9, STAT_MAX)
-      K.text(word(STAT_KEY[si]), lx - 16, ly - 4, 3.1, C.soft, "center", 32)
-      K.bold(pg.statText[si], lx - 16, ly - 0.4, 3.6, C.ink, "center", 32)
+      K.col(C.white)
+      G.circle("fill", K.X(PX[j]), K.Y(PY[j]), 1.15 * K.sc)
+      K.col(STAT_C[CORNER_STAT[j]])
+      G.circle("fill", K.X(PX[j]), K.Y(PY[j]), 0.75 * K.sc)
+    end
+    if not wide then
+      -- (each corner's stat and value)
+      for j = 1, 6 do
+        local si = CORNER_STAT[j]
+        local lx, ly = corner(j, cx, cy, rad + 9, STAT_MAX)
+        K.text(word(STAT_KEY[si]), lx - 16, ly - 4, 3.1, C.soft, "center", 32)
+        K.bold(num(floor(st.shown[si] + 0.5)), lx - 16, ly - 0.4, 3.6, C.ink, "center", 32)
+      end
+      return h
+    end
+    -- (the bars: each stat's colour dot, its name, its value, its bar)
+    local bx = cx + rad + 7
+    local lw, vw = 0, 7.5
+    for j = 1, 6 do lw = max(lw, K.width(word(STAT_KEY[j]), 3.1)) end
+    lw = lw + 4
+    local barX = bx + lw + vw + 2
+    local barW = x + w - 5 - barX
+    for j = 1, 6 do
+      local ry = y + 12.5 + (j - 1) * 7.4
+      local v = st.shown[j]
+      K.col(STAT_C[j])
+      G.circle("fill", K.X(bx + 0.9), K.Y(ry + 2.1), 0.9 * K.sc)
+      K.text(word(STAT_KEY[j]), bx + 3, ry + 0.2, 3.1, C.soft)
+      K.bold(num(floor(v + 0.5)), bx + lw, ry - 0.1, 3.5, C.ink, "right", vw)
+      K.col(C.track)
+      K.box("fill", K.R(barX, ry + 1, barW, 2.4), 1.2)
+      local fw = barW * min(1, v / BAR_MAX)
+      if fw > 0.3 then
+        K.col(STAT_C[j])
+        K.box("fill", K.R(barX, ry + 1, max(2.4, fw), 2.4), 1.2)
+      end
     end
     return h
   end
 
   local function abilities(x, y, w, pg)
-    local inner = w - 8
+    local inner = w - 11
     local h = 10
     for i = 1, #pg.abilities do
-      h = h + 5.5 + #wrap(AB[i] or "ab", pg.abilities[i].desc, inner, 3.5) * 3.5 * 1.25 + 2
+      h = h + 5.5 + #wrap(AB[i] or "ab", pg.abilities[i].desc, inner, 3.5) * 3.5 * 1.25 + 3
     end
-    K.card(K.R(x, y, w, h), 4)
+    glass(K.R(x, y, w, h), 4)
     K.bold(word("dex.abilities"), x + 4, y + 3, 4.2, C.ink)
     local ay = y + 10
     for i = 1, #pg.abilities do
       local a = pg.abilities[i]
-      K.bold(a.name, x + 4, ay, 4, C.accent)
-      ay = ay + 5.5
-      ay = ay + drawLines(wrap(AB[i] or "ab", a.desc, inner, 3.5), x + 4, ay, 3.5, C.soft) + 2
+      local lines = wrap(AB[i] or "ab", a.desc, inner, 3.5)
+      local bh = 5.5 + #lines * 3.5 * 1.25
+      -- (a strip in its type's colour beside each)
+      G.setColor(mv.r, mv.g, mv.b, 0.85 * K.getFade())
+      K.box("fill", K.R(x + 4, ay + 0.3, 1.3, bh - 1.2), 0.65)
+      K.bold(a.name, x + 7.5, ay, 4, C.ink)
+      drawLines(lines, x + 7.5, ay + 5.5, 3.5, C.soft)
+      ay = ay + bh + 3
     end
     return h
   end
 
+  -- (a list's i-th row fading in after the list changed)
+  local function rowIn(clock, i) return outCubic((clock - mv.listAt - min(i, 24) * 0.016) / 0.26) end
+
   -- the moves' list (the chosen kind's)
-  local function moveRows(x, y, w, pg)
+  local function moveRows(x, y, w, pg, clock, dt)
     local chipH, ky = 6, y
     local cx = x
     for i = 1, #KINDS do
       local label = word("dex.moves." .. KINDS[i])
-      local cw = K.width(label, 3.5) + 6
-      local cb = K.R(cx, ky, cw, chipH)
-      local on = i == st.kind
-      K.col(on and C.accent or C.track)
-      K.box("fill", cb, chipH / 2)
-      K.text(label, cx, ky + (chipH - 4.2) / 2, 3.5, on and C.white or C.ink, "center", cw)
+      CHX[i], CHW[i] = cx, K.width(label, 3.5) + 6
+      K.col(C.track)
+      K.box("fill", K.R(cx, ky, CHW[i], chipH), chipH / 2)
+      cx = cx + CHW[i] + 1.5
+    end
+    -- (the chosen chip's colour sliding between them)
+    mv.kindX = approach(mv.kindX, st.kind, dt, 18)
+    local k0 = max(1, min(#KINDS, floor(mv.kindX)))
+    local k1 = min(#KINDS, k0 + 1)
+    local f = mv.kindX - k0
+    K.col(C.accent)
+    K.box("fill", K.R(CHX[k0] + (CHX[k1] - CHX[k0]) * f, ky, CHW[k0] + (CHW[k1] - CHW[k0]) * f, chipH), chipH / 2)
+    for i = 1, #KINDS do
+      local on = abs(mv.kindX - i) < 0.5
+      local cb = K.R(CHX[i], ky, CHW[i], chipH)
+      K.text(word("dex.moves." .. KINDS[i]), CHX[i], ky + (chipH - 4.2) / 2, 3.5, on and C.white or C.ink, "center",
+        CHW[i])
       K.addHit(cb, "win", A.KIND + i)
-      cx = cx + cw + 1.5
     end
     local rows = pg.moves[KINDS[st.kind]] or {}
     local ry = ky + chipH + 2.5
@@ -392,6 +607,8 @@ return function(K, env, T, st, A, KINDS)
     for i = 1, #rows do
       local r = rows[i]
       local yy = ry + (i - 1) * rh
+      local ein = rowIn(clock, i)
+      rise(ein, 3)
       if i % 2 == 0 then
         K.col(C.track, 0.35)
         K.box("fill", K.R(x, yy - 0.8, w, rh), 2)
@@ -406,33 +623,42 @@ return function(K, env, T, st, A, KINDS)
       K.text(r.powerText, powX, yy + 0.6, 3.4, C.ink, "right", 10)
       if wide then K.text(r.accText, powX + 11, yy + 0.6, 3.4, C.ink, "right", 10) end
       K.text(r.ppText, powX + (wide and 22 or 11), yy + 0.6, 3.4, C.soft, "right", 10)
+      settle(ein)
     end
     return ry + #rows * rh - y
   end
 
-  local function whereRows(x, y, w, pg)
+  local function whereRows(x, y, w, pg, clock)
     local list = pg.where
     if #list == 0 then
       K.text(word("dex.where.none"), x + 2, y + 1, 3.6, C.soft)
       return 8
     end
-    local rh = 9
+    local rh = 10
     for i = 1, #list do
       local r = list[i]
       local yy = y + (i - 1) * rh
+      local ein = rowIn(clock, i)
+      rise(ein, 3)
       if i % 2 == 0 then
         K.col(C.track, 0.35)
         K.box("fill", K.R(x, yy - 0.8, w, rh), 2)
       end
-      K.bold(r.place, x + 1.5, yy + 0.4, K.fit(r.place, 3.8, w * 0.55), C.ink)
-      K.text(r.methodText, x + 1.5, yy + 4.4, 3.2, C.soft)
+      -- (a pin in the backdrop's colour)
+      G.setColor(mv.r, mv.g, mv.b, K.getFade())
+      G.circle("fill", K.X(x + 2.6), K.Y(yy + 2.4), 1.5 * K.sc)
+      K.col(C.white)
+      G.circle("fill", K.X(x + 2.6), K.Y(yy + 2.4), 0.6 * K.sc)
+      K.bold(r.place, x + 6, yy + 0.4, K.fit(r.place, 3.8, w * 0.55 - 5), C.ink)
+      K.text(r.methodText, x + 6, yy + 4.6, 3.2, C.soft)
       K.text(r.levels, x + w * 0.55, yy + 0.6, 3.5, C.ink, "right", w * 0.45 - 2)
-      K.text(r.chanceText, x + w * 0.55, yy + 4.4, 3.2, C.soft, "right", w * 0.45 - 2)
+      K.text(r.chanceText, x + w * 0.55, yy + 4.6, 3.2, C.soft, "right", w * 0.45 - 2)
+      settle(ein)
     end
     return #list * rh
   end
 
-  local function infoRows(x, y, w, e, pg)
+  local function infoRows(x, y, w, e, pg, clock)
     local yy = y
     -- (the evolution chain: the first stage, then each step with how)
     K.bold(word("dex.info.evolution"), x + 1.5, yy, 3.8, C.ink)
@@ -441,43 +667,57 @@ return function(K, env, T, st, A, KINDS)
       K.text(word("dex.evo.none"), x + 1.5, yy, 3.5, C.soft)
       yy = yy + 6
     else
+      if pg.base == e.sp then
+        K.col(C.accent, 0.12)
+        K.box("fill", K.R(x, yy - 2, w, 7.6), 2)
+      end
       if env.monIcon then env.monIcon(pg.base, x, yy - 1.5, 8, 0) end
       K.text(pg.baseName, x + 9, yy, 3.6, pg.base == e.sp and C.accent or C.ink)
-      yy = yy + 7
+      yy = yy + 7.6
       for i = 1, #pg.evolutions do
         local v = pg.evolutions[i]
+        local ein = rowIn(clock, i)
+        rise(ein, 3)
+        if v.to == e.sp then
+          K.col(C.accent, 0.12)
+          K.box("fill", K.R(x, yy - 2, w, 7.6), 2)
+        end
         local ix = x + 3 + (v.depth - 1) * 5
-        local G = K.graphics()
         K.col(C.soft)
         G.setLineWidth(max(1, 0.3 * K.sc))
         G.line(K.X(ix), K.Y(yy + 2.2), K.X(ix + 3), K.Y(yy + 2.2))
         G.polygon("fill", K.X(ix + 3.4), K.Y(yy + 2.2), K.X(ix + 2.2), K.Y(yy + 1.2), K.X(ix + 2.2), K.Y(yy + 3.2))
-        if env.monIcon then env.monIcon(v.to, ix + 4, yy - 1.5, 8, 0) end
+        if env.monIcon then env.monIcon(v.to, ix + 4, yy - 1.5, 8, 0, 1, 1, 1, K.getFade()) end
         K.text(v.toName, ix + 13, yy, 3.6, v.to == e.sp and C.accent or C.ink)
         local hw = x + w - (ix + 13 + K.width(v.toName, 3.6) + 3)
         K.text(v.how, x, yy + 0.3, K.fit(v.how, 3.2, max(10, hw)), C.soft, "right", w - 1.5)
-        yy = yy + 7
+        settle(ein)
+        yy = yy + 7.6
       end
     end
     yy = yy + 2
     for i = 1, #pg.info do
       local r = pg.info[i]
+      local ein = rowIn(clock, i + #pg.evolutions)
+      rise(ein, 3)
       if i % 2 == 1 then
         K.col(C.track, 0.35)
         K.box("fill", K.R(x, yy - 0.8, w, 6.4), 2)
       end
       K.text(r.label, x + 1.5, yy + 0.2, 3.4, C.soft)
       K.text(r.value, x + w * 0.42, yy + 0.2, K.fit(r.value, 3.4, w * 0.58 - 2), C.ink, "right", w * 0.58 - 2)
+      settle(ein)
       yy = yy + 6.4
     end
     return yy - y
   end
 
-  local function tabs(x, y, w, e, pg)
+  local function tabs(x, y, w, e, pg, clock, dt)
     local yy = y
     if e.caught then
-      K.segmented(x, yy, w, 8, st.tab, "win", A.TAB + 1, word("dex.tab.moves"), A.TAB + 2, word("dex.tab.where"),
-        A.TAB + 3, word("dex.tab.info"))
+      mv.tabX = approach(mv.tabX, st.tab, dt, 18)
+      K.glassSwitch(x, yy, w, 8, mv.tabX, "win", A.TAB + 1, word("dex.tab.moves"), A.TAB + 2, word("dex.tab.where"),
+        A.TAB + 3, word("dex.tab.info"), 4.3)
       yy = yy + 11
     else
       K.bold(word("dex.tab.where"), x + 1, yy + 1, 4.2, C.ink)
@@ -485,70 +725,149 @@ return function(K, env, T, st, A, KINDS)
     end
     local tab = e.caught and st.tab or 2
     local ch
-    if tab == 1 then ch = moveRows(x + 3, yy + 3, w - 6, pg)
-    elseif tab == 2 then ch = whereRows(x + 3, yy + 3, w - 6, pg)
-    else ch = infoRows(x + 3, yy + 3, w - 6, e, pg) end
+    if tab == 1 then ch = moveRows(x + 3, yy + 3, w - 6, pg, clock, dt)
+    elseif tab == 2 then ch = whereRows(x + 3, yy + 3, w - 6, pg, clock)
+    else ch = infoRows(x + 3, yy + 3, w - 6, e, pg, clock) end
     return yy - y + ch + 8
   end
 
   local function drawPage(x, y, w, h, clock, dt)
     local e, pg = st.entry, st.page
     st.detailVis = h
-    local area = K.R(x, y, w, h)
-    K.scissor(area)
-    local yy = y - st.detailTop
+    pageArea = K.R(x, y, w, h)
+    K.scissor(pageArea)
     if not e then
       K.scissor(bodyNow)
       return
     end
-    yy = yy + hero(x, yy, w, e, pg or EMPTY, clock) + GAP
+    mv.page = approach(mv.page, st.detailTop, dt, 18)
+    local yy = y - mv.page
+    yy = yy + hero(x, yy, w, e, pg or EMPTY, clock, dt) + GAP
     if e.seen and pg then
-      yy = yy + descCard(x, yy, w, e, pg) + GAP
+      -- (each card below settling in after the one above it)
+      local c1 = enter(clock, 0.06)
+      rise(c1, 7)
+      local dh = descCard(x, yy, w, e, pg, clock)
+      settle(c1)
+      yy = yy + dh + GAP
       if e.caught then
-        yy = yy + radar(x, yy, w, pg, dt) + GAP
-        if #pg.abilities > 0 then yy = yy + abilities(x, yy, w, pg) + GAP end
+        local c2 = enter(clock, 0.11)
+        rise(c2, 7)
+        local sh = stats(x, yy, w, pg, dt)
+        settle(c2)
+        yy = yy + sh + GAP
+        if #pg.abilities > 0 then
+          local c3 = enter(clock, 0.16)
+          rise(c3, 7)
+          local ah = abilities(x, yy, w, pg)
+          settle(c3)
+          yy = yy + ah + GAP
+        end
       else
         local note = word("dex.notCaught")
-        K.card(K.R(x, yy, w, 10), 4)
+        glass(K.R(x, yy, w, 10), 4)
         K.text(note, x + 4, yy + 3, K.fit(note, 3.8, w - 8), C.soft)
         yy = yy + 10 + GAP
       end
       -- (the tabs and their card)
+      local c4 = enter(clock, 0.21)
+      rise(c4, 7)
       local ty = yy
-      K.card(K.R(x, ty, w, max(10, st.tabH or 30)), 4)
-      local th = tabs(x + 2, ty + 2, w - 4, e, pg)
+      local tabH = max(10, st.tabH or 30)
+      glass(K.R(x, ty, w, tabH), 4)
+      local th = tabs(x + 2, ty + 2, w - 4, e, pg, clock, dt)
+      settle(c4)
       st.tabH = th + 2
       yy = ty + st.tabH + GAP
     end
-    st.detailH = yy + st.detailTop - y
+    st.detailH = yy + mv.page - y
     st.detailTop = max(0, min(st.detailTop, max(0, st.detailH - h)))
     K.scissor(bodyNow)
-    K.scrollbar(x + w + 1.4, y, h, st.detailTop, h, max(h, st.detailH))
+    K.scrollbar(x + w + 1.4, y, h, mv.page, h, max(h, st.detailH))
+  end
+
+  -- the narrow page's way back: an arrow and a word, in the accent
+  local function backButton(x, y)
+    local label = word("dex.back")
+    local bb = K.R(x, y, K.width(label, 4.2) + 7, 7)
+    K.chevron(x + 2, y + 3.5, 4.2, C.accent, -1)
+    K.text(label, x + 4.6, y + 1, 4.2, C.accent)
+    K.addHit(bb, "win", A.BACK)
   end
 
   function V.draw(body, clock, portrait)
     local x, y, w, h = body[1], body[2], body[3], body[4]
     bodyNow = body
+    G = K.graphics()
     local dt = st.lastT and max(0, min(0.1, clock - st.lastT)) or 0
     st.lastT = clock
-    K.col(C.body)
-    K.box("fill", body)
+    -- (what changed since the last frame starts its motion)
+    if mv.first then
+      mv.first, mv.gridAt, mv.pageAt, mv.listAt, mv.tabAt = false, clock, clock, clock, clock
+      mv.mode, mv.tabX, mv.kindX = st.mi, st.tab, st.kind
+    end
+    -- (the colours: the chosen Pokémon's types, slate while it's unseen; eased, snapped on the first frame)
+    local ce, cpg = st.entry, st.page
+    local t1 = ce and ce.seen and cpg and cpg.types[1] and TYPE[cpg.types[1].id] or nil
+    local t2 = t1 and (cpg.types[2] and TYPE[cpg.types[2].id] or t1) or C.slate2
+    t1 = t1 or C.slate
+    local rate = mv.coloured and 8 or 1000
+    mv.coloured = true
+    mv.r, mv.g, mv.b = approach(mv.r, t1[1] / 255, dt, rate), approach(mv.g, t1[2] / 255, dt, rate),
+      approach(mv.b, t1[3] / 255, dt, rate)
+    -- (the second light: the second type, else the first's, lighter)
+    local k2 = t2 == t1 and 0.35 or 0
+    mv.r2 = approach(mv.r2, (t2[1] + (255 - t2[1]) * k2) / 255, dt, rate)
+    mv.g2 = approach(mv.g2, (t2[2] + (255 - t2[2]) * k2) / 255, dt, rate)
+    mv.b2 = approach(mv.b2, (t2[3] + (255 - t2[3]) * k2) / 255, dt, rate)
+    if st.mi ~= mv.mi then
+      if mv.mi ~= nil then mv.gridAt = clock end
+      mv.mi, mv.curR = st.mi, nil
+    end
+    if st.entry ~= mv.entry then
+      mv.entry, mv.pageAt, mv.listAt, mv.page = st.entry, clock, clock, st.detailTop
+    end
+    if st.tab ~= mv.tab or st.kind ~= mv.kind then
+      mv.tab, mv.kind, mv.listAt = st.tab, st.kind, clock
+    end
+    backdrop(body, clock)
     st.narrow = w < NARROW
     if not st.narrow then st.detail = false end
     if st.narrow then
-      if st.detail then
-        local bb = K.R(x + M, y + M, 26, 7)
-        K.button(bb, word("dex.back"), "gray", false, 3.8)
-        K.addHit(bb, "win", A.BACK)
+      -- (the page slides in over the grid, the grid easing back under it)
+      mv.push = approach(mv.push, st.detail and 1 or 0, dt, 14)
+      local p = outCubic(mv.push)
+      if p < 0.999 then
+        local sh = p > 0.001
+        if sh then
+          G.push()
+          G.translate(-w * 0.3 * p * K.sc, 0)
+        end
+        drawGrid(x + M, y + M, w - M * 2 - 2, h - M * 2, clock, dt)
+        if sh then
+          G.pop()
+          K.col(C.black, 0.12 * p)
+          K.box("fill", body)
+        end
+      end
+      if p > 0.001 then
+        local sh = p < 0.999
+        if sh then
+          G.push()
+          G.translate(w * (1 - p) * K.sc, 0)
+          K.shadow(body, 0, 0, 0.2)
+        end
+        backdrop(body, clock)
+        backButton(x + M, y + M)
         st.pageX = x
         drawPage(x + M, y + M + 9, w - M * 2, h - M * 2 - 9, clock, dt)
-      else
-        drawGrid(x + M, y + M, w - M * 2 - 2, h - M * 2, clock)
+        if sh then G.pop() end
       end
       return
     end
+    mv.push = 0
     local lw = max(96, min(floor(w * 0.47), 190))
-    drawGrid(x + M, y + M, lw - 2, h - M * 2, clock)
+    drawGrid(x + M, y + M, lw - 2, h - M * 2, clock, dt)
     local px = x + M + lw + GAP + 1
     st.pageX = px
     drawPage(px, y + M, x + w - M - 2 - px, h - M * 2, clock, dt)

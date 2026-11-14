@@ -6,9 +6,10 @@
 --                            wooble() -> WoobleDex's exports | nil, gameId() -> "emerald" ...
 --   Dx.open(s) -> book: { modes = { "kanto" | "hoenn", "national"? }, lists = { [mode] = entries },
 --                         counts = { [mode] = { seen, caught } } }       (made each time the dex opens)
---     entry = { sp, nat, num, numText, name, sex ("f" | "m" | nil: the name's own sign), seen, caught }
+--     entry = { sp, nat, num, numText, name, sex ("f" | "m" | nil: the name's own sign), seen, caught,
+--               t1 (its first type: the grid's tint) }
 --   Dx.page(entry) -> the entry's page (kept per species; the game's rules decide what the window shows):
---     { category, heightText, weightText, types = { { id, name } }, stats = { hp, atk, def, spa, spd, spe },
+--     { category, heightText, weightText (heightM / heightI, weightM / weightI apart), types = { { id, name } }, stats = { hp, atk, def, spa, spd, spe },
 --       total, female (0..1 | nil: genderless), description, abilities = { { name, desc } },
 --       evolutions = { { from, to, toName, how } }, info = { { label, value } }, forms = { names },
 --       moves = { level = rows, tm = rows, egg = rows, tutor = rows },
@@ -102,8 +103,9 @@ return function(engine, deps)
     local okS, seen = pcall(Dex.isSeen, dex, sp)
     local okC, caught = pcall(Dex.isCaught, dex, sp)
     caught = okC and caught == true
+    local t = Pk._types and Pk._types[sp]
     return { sp = sp, nat = nat, num = num, numText = ("%03d"):format(num), name = name, sex = sex,
-             seen = caught or (okS and seen == true), caught = caught }
+             seen = caught or (okS and seen == true), caught = caught, t1 = t and t[1] or nil }
   end
 
   function Dx.open(s)
@@ -159,13 +161,13 @@ return function(engine, deps)
     if tenths % 10 >= 5 then tenths = tenths + 10 end
     local ft = floor(tenths / 120)
     local inch = floor((tenths - ft * 120) / 10)
-    return ("%.1f m  ·  %d'%02d\""):format(dm / 10, ft, inch)
+    return ("%.1f m"):format(dm / 10), ("%d'%02d\""):format(ft, inch)
   end
   local function weightText(hg)
     hg = tonumber(hg) or 0
     local hund = floor((hg * 100000) / 4536)
     if hund % 10 >= 5 then hund = hund + 10 end
-    return ("%.1f kg  ·  %d.%d lbs"):format(hg / 10, floor(hund / 100), floor((hund % 100) / 10))
+    return ("%.1f kg"):format(hg / 10), ("%d.%d lbs"):format(floor(hund / 100), floor((hund % 100) / 10))
   end
 
   local function description(sp)
@@ -416,7 +418,11 @@ return function(engine, deps)
     local okD, de = pcall(Pk.dexEntry, sp)
     de = okD and type(de) == "table" and de or {}
     pg.category = de.category and word("dex.category", titled(de.category)) or ""
-    pg.heightText, pg.weightText = heightText(de.height), weightText(de.weight)
+    -- (each in metres and in feet: the page's chips show them apart)
+    pg.heightM, pg.heightI = heightText(de.height)
+    pg.weightM, pg.weightI = weightText(de.weight)
+    pg.heightText = pg.heightM .. "  ·  " .. pg.heightI
+    pg.weightText = pg.weightM .. "  ·  " .. pg.weightI
     -- (types: the species' own row, not a copy)
     local t = Pk._types and Pk._types[sp]
     pg.types = {}

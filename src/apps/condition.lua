@@ -1,7 +1,9 @@
 -- The Condition app: the contest conditions as a radar chart (src/condition.lua). The party, or
 -- every Pokémon in the party and the boxes ranked by one condition; the chosen one's five
 -- conditions (Cool, Beauty, Cute, Smart, Tough) as a glossy pentagon that eases from one Pokémon to
--- the next, its sheen as sparkles round it, its nature and ribbons. Compare lays a second one's
+-- the next, its sheen as sparkles round it, its nature and ribbons. Frosted glass (the kit's) over soft
+-- lights in the colours of the chosen one's best conditions (the searched one's first), turning as it
+-- changes; the chart smoked glass. Compare lays a second one's
 -- outline over it. Pokéblocks feeds one from the case, with the game's own rules; the chart grows.
 --   buttons  Up / Down the Pokémon, L / R the condition (Search), START Party | Search, SELECT
 --            Compare (again: off), A Pokéblocks (then Up / Down a block, A feed, B back), B close
@@ -9,7 +11,8 @@
 --
 --   window(ctx, env) -> win (src/apps.lua)
 
-local floor, max, min, sin, cos, pi, abs = math.floor, math.max, math.min, math.sin, math.cos, math.pi, math.abs
+local floor, max, min, sin, cos, pi, abs, exp = math.floor, math.max, math.min, math.sin, math.cos, math.pi, math.abs,
+  math.exp
 
 local ROW_H, M = 11, 3
 local SEG_PARTY, SEG_SEARCH, COMPARE, BLOCKS, FEED, CLOSE = 2001, 2002, 2003, 2004, 2005, 2006
@@ -26,6 +29,8 @@ local COLOR = { { 240, 80, 60 }, { 70, 140, 255 }, { 255, 120, 190 }, { 70, 200,
 local NAME = { "cond.cool", "cond.beauty", "cond.cute", "cond.smart", "cond.tough" }
 -- the flavours' colours (spicy, dry, sweet, bitter, sour)
 local FLAVOR = { { 240, 80, 60 }, { 70, 140, 255 }, { 255, 120, 190 }, { 70, 200, 110 }, { 255, 196, 40 } }
+-- (the backdrop's lights when nothing stands out: slate, lilac)
+local SLATE, LILAC = { 120, 132, 178 }, { 150, 120, 190 }
 local NO_T = setmetatable({ list = function(l) return l end, f = string.format }, { __call = function(_, k) return k end })
 
 return function(ctx, env)
@@ -39,8 +44,10 @@ return function(ctx, env)
   local st = {
     mode = "party", cat = 1, rows = {}, cursor = 1, top = 0, visible = 6, compare = nil, sheet = false,
     blocks = {}, blockCursor = 1, toast = nil, shown = { 0, 0, 0, 0, 0 }, cshown = { 0, 0, 0, 0, 0 }, lastT = nil,
-    grow = 0,
+    grow = 0, seg = 1,
   }
+  -- (the backdrop's two lights, 0..1, eased toward the chosen one's colours)
+  local lit = { 0.6, 0.6, 0.6, 0.6, 0.6, 0.6 }
   W.state = st
   -- (opened on the search: from the PokéNav's menu)
   do
@@ -215,8 +222,7 @@ return function(ctx, env)
 
   local WHITE, INK = { 255, 255, 255 }, { 40, 40, 52 }
   local GRID, FILL_EDGE = { 120, 124, 140, 0.35 }, { 255, 255, 255, 0.9 }
-  local CHART_TOP, CHART_FOOT = { 34, 38, 58 }, { 18, 20, 32 }
-  local GLOSS, GLOSS0 = { 255, 255, 255, 0.18 }, { 255, 255, 255, 0 }
+  local SMOKE = { 24, 28, 48 }
   local SPARK = { 255, 250, 200 }
   local mesh, cmesh = nil, nil
   local PX, PY, CX, CY = {}, {}, {}, {}
@@ -248,8 +254,7 @@ return function(ctx, env)
   local function drawChart(x, y, w, h, clock, dt)
     local G = K.graphics()
     local b = K.R(x, y, w, h)
-    K.grad(b, 5, CHART_TOP, CHART_FOOT)
-    K.grad(K.R(x, y, w, h * 0.5), 5, GLOSS, GLOSS0)
+    K.glass(b, 5, 0.74, SMOKE, 0.4, 0.45)
     local r = row()
     if not r then
       K.text(T("cond.none"), x, y + h / 2 - 3, 4.6, WHITE, "center", w)
@@ -337,7 +342,7 @@ return function(ctx, env)
     st.visible = max(1, floor(h / ROW_H))
     clamp()
     if #st.rows == 0 then return end
-    K.card(K.R(x, y, w, min(h, (#st.rows - st.top) * ROW_H)), 4)
+    K.glass(K.R(x, y, w, min(h, (#st.rows - st.top) * ROW_H)), 4, 0.55)
     -- (scrolled by hand, the top falls between rows: from the row it's in, clipped to the list)
     local G = K.graphics()
     local psx, psy, psw, psh
@@ -375,8 +380,17 @@ return function(ctx, env)
     for j = 1, 5 do
       local b = K.R(x + (j - 1) * cw + 0.5, y, cw - 1, 7)
       local on = j == st.cat
-      K.col(COLOR[j], on and 1 or 0.18)
-      K.box("fill", b, 3.5)
+      if on then
+        K.col(COLOR[j])
+        K.box("fill", b, 3.5)
+      else
+        -- (clear glass tinted its colour)
+        K.col(WHITE, 0.32)
+        K.box("fill", b, 3.5)
+        K.col(COLOR[j], 0.22)
+        K.box("fill", b, 3.5)
+        K.ring(b, 3.5, WHITE, 0.75, 0.3)
+      end
       K.text(T(NAME[j]), b[1], b[2] + 1.4, K.fit(T(NAME[j]), 3.6, b[3] - 1), on and WHITE or UI.label, "center", b[3])
       K.addHit(b, "win", CAT + j)
     end
@@ -384,11 +398,23 @@ return function(ctx, env)
 
   local blocksText = K.textCache(function(n) return T.f("cond.blocksN", n) end)
   local numText = K.textCache(function(n) return tostring(n) end)
+  local function glassButton(b, label, on)
+    local rad = min(b[4] / 2, 3.2)
+    if on then
+      K.col(UI.accent, 0.88)
+      K.box("fill", b, rad)
+      K.ring(b, rad, WHITE, 0.6, 0.3)
+    else
+      K.glass(b, rad, 0.5)
+    end
+    local fs = K.fit(label, 4.2, b[3] - 3)
+    K.bold(label, b[1], b[2] + (b[4] - fs * 1.2) / 2, fs, on and WHITE or UI.label, "center", b[3])
+  end
   local function drawButtons(x, y, w)
     local bw = (w - 2) / 2
     local cb, pb = K.R(x, y, bw, 9), K.R(x + bw + 2, y, bw, 9)
-    K.button(cb, T(st.compare and "cond.compareOff" or "cond.compare"), st.compare and "tinted" or "gray", false, 4.2)
-    K.button(pb, blocksText(#st.blocks), "gray", false, 4.2)
+    glassButton(cb, T(st.compare and "cond.compareOff" or "cond.compare"), st.compare ~= nil)
+    glassButton(pb, blocksText(#st.blocks), false)
     K.addHit(cb, "win", COMPARE)
     K.addHit(pb, "win", BLOCKS)
   end
@@ -398,7 +424,8 @@ return function(ctx, env)
     K.dim(K.R(x, y, w, h), 0.25)
     local sw, sh = min(w - 10, 150), min(h - 10, 110)
     local b = K.R(x + (w - sw) / 2, y + (h - sh) / 2, sw, sh)
-    K.sheet(b, 6)
+    K.shadow(b, 6, 1.6, 0.25)
+    K.glass(b, 6, 0.84)
     local r = row()
     K.bold(T("cond.blocks"), b[1] + 5, b[2] + 4, 5.4, UI.label)
     if r then K.text(r.info.feedTo, b[1] + 5, b[2] + 11, 4, UI.secondary) end
@@ -434,9 +461,35 @@ return function(ctx, env)
   function W.draw(body, clock, portrait)
     local x, y, w, h = body[1], body[2], body[3], body[4]
     local dt = st.lastT and max(0, min(0.1, clock - st.lastT)) or 0
+    -- (the lights: the searched condition's colour, else the chosen one's best; its next best second)
+    local r = row()
+    local c1, c2 = SLATE, LILAC
+    if r then
+      local i1, i2 = 0, 0
+      for j = 1, 5 do
+        local v = r.conds[j]
+        if v > 0 and (i1 == 0 or v > r.conds[i1]) then i1, i2 = j, i1
+        elseif v > 0 and (i2 == 0 or v > r.conds[i2]) then i2 = j end
+      end
+      if st.mode == "search" then
+        i2 = i1 ~= st.cat and i1 or i2
+        i1 = st.cat
+      end
+      if i1 > 0 then c1 = COLOR[i1] end
+      if i2 > 0 then c2 = COLOR[i2] elseif i1 > 0 then c2 = LILAC end
+    end
+    local k = st.lastT and (1 - exp(-dt * 6)) or 1
+    lit[1], lit[2], lit[3] = lit[1] + (c1[1] / 255 - lit[1]) * k, lit[2] + (c1[2] / 255 - lit[2]) * k,
+      lit[3] + (c1[3] / 255 - lit[3]) * k
+    lit[4], lit[5], lit[6] = lit[4] + (c2[1] / 255 - lit[4]) * k, lit[5] + (c2[2] / 255 - lit[5]) * k,
+      lit[6] + (c2[3] / 255 - lit[6]) * k
     st.lastT = clock
-    K.segmented(x + M, y + 2, portrait and w - M * 2 or min(110, w * 0.42), 8.5,
-      st.mode == "party" and 1 or 2, "win", SEG_PARTY, T("cond.party"), SEG_SEARCH, T("cond.search"))
+    K.backdrop(body, clock, lit[1], lit[2], lit[3], lit[4], lit[5], lit[6])
+    local target = st.mode == "party" and 1 or 2
+    st.seg = st.seg + (target - st.seg) * (1 - exp(-dt * 18))
+    if abs(st.seg - target) < 0.002 then st.seg = target end
+    K.glassSwitch(x + M, y + 2, portrait and w - M * 2 or min(110, w * 0.42), 8.5, st.seg, "win",
+      SEG_PARTY, T("cond.party"), SEG_SEARCH, T("cond.search"), nil, nil, 4.3)
     local top = y + 13
     if portrait then
       if st.mode == "search" then

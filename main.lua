@@ -754,6 +754,8 @@ return function(mod)
     local wd = wooble()
     if wd and wd.registerOwned then pcall(wd.registerOwned, s) end
   end
+  -- (the mod's option: off, the game's own Pokédex everywhere and no app; read when asked, never per frame)
+  env.dexOption = function() return option("pokedex", true) ~= false end
   if makeDex then
     env.dex = makeDex(engine, { T = T, typeName = env.typeName, placeName = placeName, itemName = env.itemName,
                                 wooble = wooble, gameId = gameId })
@@ -809,12 +811,15 @@ return function(mod)
       stop = function() anim.sp, anim.sprite = nil, nil end,
       -- (centred on cx, cy, size units: the animation stepped at the game's 60 a second, its frames'
       -- pictures kept here and drawn without the engine's per-draw tables; done, or none, the still
-      -- picture breathing from its feet, with a hop just after it's chosen)
-      draw = function(sp, cx, cy, size, clock, chosenAt)
+      -- picture breathing from its feet, with a hop just after it's chosen; `scale` and `alpha` the
+      -- Pokédex's pop as it's chosen)
+      draw = function(sp, cx, cy, size, clock, chosenAt, scale, alpha)
         local base = still(sp)
         if not base then return end
         local G = Kit.graphics()
-        local k = size * Kit.sc / (base.w or 64)
+        local k0 = size * Kit.sc / (base.w or 64)
+        local k = k0 * (scale or 1)
+        alpha = alpha or 1
         local px, py = Kit.X(cx), Kit.Y(cy)
         local sprite = anim.sp == sp and anim.sprite or nil
         if sprite then
@@ -841,7 +846,7 @@ return function(mod)
               local ys = (m.yScale or 0) ~= 0 and m.yScale or 256
               sx, sy, rot = 256 / xs, 256 / ys, -(math.floor((m.rotation or 0) / 256) * 2 * math.pi / 256)
             end
-            G.setColor(1, 1, 1, 1)
+            G.setColor(1, 1, 1, alpha)
             G.draw(pic.image, px + (sprite.x2 or 0) * k, py + (sprite.y2 or 0) * k, rot, sx * k, sy * k, 32, 32)
             return
           end
@@ -849,8 +854,8 @@ return function(mod)
         local t = clock - (chosenAt or -10)
         local hop = (t >= 0 and t < 0.45) and math.sin(t / 0.45 * math.pi) * 2.5 * Kit.sc or 0
         local b = 1 + 0.022 * math.sin(clock * 2.3)
-        G.setColor(1, 1, 1, 1)
-        G.draw(base.image, px, py + 32 * k - hop, 0, k * (2 - b), k * b, 32, 64)
+        G.setColor(1, 1, 1, alpha)
+        G.draw(base.image, px, py + 32 * k0 - hop, 0, k * (2 - b), k * b, 32, 64)
       end,
     }
   end
@@ -907,7 +912,9 @@ return function(mod)
       registerOwned(ctx.session or session())
       return dexWindow(ctx, e, dexView)
     end or nil,
-    pokedexAvailable = env.dex and function(ctx) return env.dex.available(ctx.session or session()) end or nil,
+    pokedexAvailable = env.dex and function(ctx)
+      return env.dexOption() and env.dex.available(ctx.session or session())
+    end or nil,
     oakAvailable = env.oak and function(ctx) return env.oak.available(ctx.session or session()) end or nil,
     hallTeams = env.hall and function(ctx) return env.hall.count(ctx.session or session()) end or nil,
     ribbonsAvailable = env.ribbons and function(ctx) return env.ribbons.available(ctx.session or session()) end or nil,
@@ -1097,7 +1104,7 @@ return function(mod)
                         onCall = env.phone and onCall or nil,
                         map3dOn = function() return not Settings or Settings.get("map3d", true) ~= false end,
                         dexOn = env.dex and function()
-                          return not Settings or Settings.get("pokedexApp", true) ~= false
+                          return env.dexOption() and (not Settings or Settings.get("pokedexApp", true) ~= false)
                         end or nil,
                         registerOwned = registerOwned,
                         watchRow = function() return not Settings or Settings.get("watchRow", true) ~= false end,

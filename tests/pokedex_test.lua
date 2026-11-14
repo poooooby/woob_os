@@ -279,6 +279,31 @@ Settings.set("pokedexApp", false)
 Dm.show(s.dex, { session = s })
 T.check(not Tm.isOpen() and classicOpened, "the setting off: the game's own")
 Settings.set("pokedexApp", true)
+-- (the mod's option off: the game's own, no app, no row in Settings)
+local realOption = env.dexOption
+env.dexOption = function() return false end
+classicOpened = false
+Dm.show(s.dex, { session = s })
+T.check(not Tm.isOpen() and classicOpened, "the mod's option off: the game's own")
+T.check(not app.available({ session = s, mode = "pad" }), "the mod's option off: no app")
+local SetWin = Apps.byId("settings")
+local okS, SW = pcall(SetWin.window, { session = s, mode = "pad", app = "settings", rows = {} }, env)
+local hasRow = false
+if okS and SW and SW.SECTIONS then
+  for _, sec in ipairs(SW.SECTIONS) do
+    for _, t in ipairs(sec.toggles or {}) do if t.key == "pokedexApp" then hasRow = true end end
+  end
+end
+T.check(okS and not hasRow, "the mod's option off: no Pokédex row in Settings")
+env.dexOption = realOption
+local okS2, SW2 = pcall(SetWin.window, { session = s, mode = "pad", app = "settings", rows = {} }, env)
+local hasRow2 = false
+if okS2 and SW2 and SW2.SECTIONS then
+  for _, sec in ipairs(SW2.SECTIONS) do
+    for _, t in ipairs(sec.toggles or {}) do if t.key == "pokedexApp" then hasRow2 = true end end
+  end
+end
+T.check(hasRow2, "the option on: the Pokédex's row in Settings again")
 if w then w.orig = realOrig end
 
 T.finish("woob_os pokedex (" .. GAME .. ")")

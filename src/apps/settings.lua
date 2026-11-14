@@ -39,10 +39,10 @@ local MAP_TOGGLES = {
 local NAV_TOGGLES = {
   { key = "pokenavApps", label = "settings.pokenavApps" },
 }
-local GAME_TOGGLES = {
-  { key = "pokedexApp", label = "settings.pokedexApp" },
-  { key = "swarms", label = "settings.swarms" },
-}
+-- (Gameplay: the Pokédex's row only while the mod's Pokédex option is on; made when the window opens)
+local DEX_TOGGLE, SWARM_TOGGLE = { key = "pokedexApp", label = "settings.pokedexApp" },
+  { key = "swarms", label = "settings.swarms" }
+local GAME_TOGGLES = { DEX_TOGGLE, SWARM_TOGGLE }
 local SECTIONS = {
   { id = "language", key = "settings.language", tile = C.langTile },
   { id = "wallpaper", key = "settings.wallpaper", tile = C.wallTile },
@@ -100,8 +100,15 @@ return function(ctx, env)
     end
   end
 
+  local function gameRows()
+    for i = #GAME_TOGGLES, 1, -1 do GAME_TOGGLES[i] = nil end
+    if not env.dexOption or env.dexOption() then GAME_TOGGLES[#GAME_TOGGLES + 1] = DEX_TOGGLE end
+    GAME_TOGGLES[#GAME_TOGGLES + 1] = SWARM_TOGGLE
+  end
+
   local function refresh()
     notifyRows()
+    gameRows()
     st.langs = T.languages()
     local code = env.language and env.language() or "en"
     for i, l in ipairs(st.langs) do if l.code == code then st.langCursor = i end end

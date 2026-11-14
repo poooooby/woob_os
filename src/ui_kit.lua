@@ -131,11 +131,16 @@ return function(deps)
   local function X(v) return ox + v * sc end
   local function Y(v) return oy + v * sc end
   K.X, K.Y = X, Y
+  -- (`fade`: everything drawn through col / grad / glow at that much of itself; K.setFade, reset each
+  -- frame: something fading in over a backdrop that isn't one colour)
+  local fade = 1
   local function col(c, a)
     c = c or WHITE
-    G.setColor(c[1] / 255, c[2] / 255, c[3] / 255, (a or 1) * (c[4] or 1))
+    G.setColor(c[1] / 255, c[2] / 255, c[3] / 255, (a or 1) * (c[4] or 1) * fade)
   end
   K.col = col
+  function K.setFade(v) fade = v end
+  function K.getFade() return fade end
   local function box(mode, b, rad)
     G.rectangle(mode, X(b[1]), Y(b[2]), b[3] * sc, b[4] * sc, (rad or 0) * sc, (rad or 0) * sc)
   end
@@ -196,7 +201,7 @@ return function(deps)
       bySize[key], meshCount = m, meshCount + 1
     end
     if m then
-      g.setColor(1, 1, 1, alpha or 1)
+      g.setColor(1, 1, 1, (alpha or 1) * fade)
       g.draw(m, x, y)
     else
       local c = mix(top, foot, 0.5)
@@ -339,7 +344,7 @@ return function(deps)
   -- start a frame: the page laid out on the window's safe area -> pw, ph (units), portrait
   function K.frame(g, vp, page, clock)
     G = g
-    nRect, nHitRec = 0, 0
+    nRect, nHitRec, fade = 0, 0, 1
     for i = #hits, 1, -1 do hits[i] = nil end
     local ww = tonumber(vp.width) or (tonumber(vp.gameX) or 0) * 2 + (tonumber(vp.gameWidth) or 240)
     local wh = tonumber(vp.height) or (tonumber(vp.gameY) or 0) * 2 + (tonumber(vp.gameHeight) or 160)
@@ -371,7 +376,7 @@ return function(deps)
   -- field's banner, in the game's own pixels)
   function K.place(g, x, y, scale, clock)
     G = g
-    nRect, nHitRec = 0, 0
+    nRect, nHitRec, fade = 0, 0, 1
     for i = #hits, 1, -1 do hits[i] = nil end
     sc, ox, oy = scale, x, y
     K.sc, K.ox, K.oy = sc, ox, oy
@@ -650,6 +655,77 @@ return function(deps)
       else
         if i > 1 and i - 1 ~= sel then K.vline(sb[1], sb[2] + 1.5, sb[4] - 3) end
         text(label, sb[1], ty, fs, UI.label, "center", sb[3])
+      end
+      K.addHit(sb, kind, i == 1 and a1 or (i == 2 and a2 or a3))
+    end
+  end
+  -- frosted glass (the Pokédex, Condition): a pane of `tint` (white) at `a` (0.5), a sheen down from its
+  -- top edge at `sheen` (1) of itself, a bright edge at `edge` (0.8); nothing behind it is blurred, so it
+  -- sits over soft things (K.backdrop)
+  local SHEEN_TOP, SHEEN_FOOT = { 255, 255, 255, 0.55 }, { 255, 255, 255, 0 }
+  function K.glass(b, rad, a, tint, sheen, edge)
+    K.shadow(b, rad, 1.2, 0.07)
+    col(tint or WHITE, a or 0.5)
+    box("fill", b, rad)
+    grad(R(b[1], b[2], b[3], min(b[4], 16)), rad, SHEEN_TOP, SHEEN_FOOT, sheen)
+    ring(b, rad, WHITE, edge or 0.8, 0.35)
+  end
+  -- the backdrop glass sits on: a pale wash of the first colour with four soft lights drifting slowly
+  -- over b (the first colour, the second, a violet, a pink); colours 0..1, numbers only
+  local blobMesh
+  local function blob(cx, cy, rx, ry, r, g, bl, a)
+    G.setColor(r, g, bl, a * fade)
+    G.draw(blobMesh, X(cx), Y(cy), 0, rx * sc, ry * sc)
+  end
+  function K.backdrop(b, clock, r, g, bl, r2, g2, b2)
+    local x, y, w, h = b[1], b[2], b[3], b[4]
+    K.scissor(b)
+    G.setColor(0.93 + (r - 0.93) * 0.3, 0.93 + (g - 0.93) * 0.3, 0.95 + (bl - 0.95) * 0.3, fade)
+    box("fill", b)
+    if blobMesh == nil then
+      local v = { { 0, 0, 0, 0, 1, 1, 1, 1 } }
+      for i = 0, 32 do
+        local t = i / 32 * 2 * math.pi
+        v[#v + 1] = { math.cos(t), math.sin(t), 0, 0, 1, 1, 1, 0 }
+      end
+      local ok, m = pcall(G.newMesh, v, "fan", "static")
+      blobMesh = ok and m or false
+    end
+    if not blobMesh then return end
+    local sin, cos = math.sin, math.cos
+    blob(x + w * (0.74 + 0.07 * sin(clock * 0.11)), y + h * (0.22 + 0.08 * cos(clock * 0.09)), w * 0.5, h * 0.62,
+      r, g, bl, 0.9)
+    blob(x + w * (0.24 + 0.08 * cos(clock * 0.07)), y + h * (0.82 + 0.06 * sin(clock * 0.1)), w * 0.46, h * 0.6,
+      r2, g2, b2, 0.75)
+    blob(x + w * (0.48 + 0.1 * sin(clock * 0.05 + 1)), y + h * (0.5 + 0.1 * cos(clock * 0.06)), w * 0.3, h * 0.45,
+      0.55, 0.5, 1, 0.38)
+    blob(x + w * (0.08 + 0.05 * cos(clock * 0.08)), y + h * (0.1 + 0.06 * sin(clock * 0.12)), w * 0.28, h * 0.4,
+      1, 0.62, 0.7, 0.36)
+  end
+  -- a glass switch of two or three: its white thumb slides to `shown` (1 .. n, eased by the caller);
+  -- each segment a hit of `kind`, args a1 .. a3
+  function K.glassSwitch(x, y, w, h, shown, kind, a1, l1, a2, l2, a3, l3, size)
+    local n = a3 and 3 or 2
+    local rad = h / 2
+    local tb = R(x, y, w, h)
+    col(WHITE, 0.32)
+    box("fill", tb, rad)
+    ring(tb, rad, WHITE, 0.7, 0.3)
+    local sw = (w - 1) / n
+    local tx = x + 0.5 + (shown - 1) * sw
+    col(BLACK, 0.1)
+    box("fill", R(tx, y + 0.9, sw, h - 1), rad - 0.5)
+    col(WHITE)
+    box("fill", R(tx, y + 0.5, sw, h - 1), rad - 0.5)
+    for i = 1, n do
+      local label = i == 1 and l1 or (i == 2 and l2 or l3)
+      local sb = R(x + 0.5 + (i - 1) * sw, y + 0.5, sw, h - 1)
+      local fs = K.fit(label, size or 4.3, sw - 2)
+      local ty = sb[2] + (sb[4] - fs * 1.2) / 2
+      if math.abs(shown - i) < 0.5 then
+        K.bold(label, sb[1], ty, fs, UI.label, "center", sb[3])
+      else
+        text(label, sb[1], ty, fs, UI.secondary, "center", sb[3])
       end
       K.addHit(sb, kind, i == 1 and a1 or (i == 2 and a2 or a3))
     end

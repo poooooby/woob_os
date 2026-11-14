@@ -24,6 +24,13 @@ return {
     description = "The menu bar's clock in 24-hour time (15:30) instead of 3:30 PM.",
   },
   {
+    key = "pokedex",
+    label = "Pokédex",
+    type = "toggle",
+    default = true,
+    description = "WoobOS's modern Pokédex, from the START menu and as an app on the PC and WoobPad. Off: the game's own Pokédex, and no app.",
+  },
+  {
     key = "mapInvertX",
     label = "Map: Invert X",
     type = "toggle",

@@ -5,17 +5,35 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-14
+
 ### Added
 - **Pokédex:** a modern, split-screen Pokédex in place of the game's, from the START menu and as an
   app on the PC and WoobPad. A grid of every Pokémon (number, icon, name; silhouettes until seen, a
-  Poké Ball once caught) beside the chosen one's page: its picture (Emerald's own animation, a
-  breathing idle elsewhere), name, category, types, height and weight, gender ratio, description, a
-  radar of its base stats, its abilities, and Moves (level, TM/HM, egg, tutor), Where (every wild
+  Poké Ball once caught, each tinted by its type) beside the chosen one's page: its picture
+  (Emerald's own animation, a breathing idle elsewhere) on glass tinted its type's colour, name,
+  category, types, height and weight, gender ratio, description, its base stats as a radar and as
+  bars, its abilities, and Moves (level, TM/HM, egg, tutor), Where (every wild
   place, method, levels and chance) and Info (evolutions, egg groups, hatch steps, catch rate, base
   Exp., growth, EV yield, held items, base friendship). The regional dex, and the National one once
-  it's unlocked (SELECT). START opens the game's own; Settings > Gameplay can keep the game's.
+  it's unlocked (SELECT). START opens the game's own; Settings > Gameplay can keep the game's, and
+  the mod's **Pokédex** option (on by default) turns it off altogether: the game's own Pokédex and
+  no app.
+  Frosted-glass panels over a backdrop of soft lights drifting in the chosen Pokémon's type colours.
+  Animated throughout: the grid rises in, the highlight glides between Pokémon, lists scroll
+  smoothly, switches slide, the page settles in card by card as the backdrop's colour turns and
+  the picture pops up, the radar morphs and its numbers count, the gender bar fills, rows fade in,
+  and on WoobPad held upright the page slides in over the grid.
   With WoobleDex, all its Pokémon, their types, moves, abilities and forms, Gigantamax, and its
   Register Owned.
+
+### Changed
+- **Condition:** frosted glass, as in the Pokédex: the list, the buttons and the switches are glass
+  panes over soft lights in the colours of the chosen Pokémon's best conditions (the searched
+  condition's first), turning as you move; the chart sits on smoked glass and the Pokéblock case
+  is a thick pane. The Party / Search switch slides.
+
+## [0.10.4] - 2026-11-12
 
 ### Fixed
 - **3D map on Android:** the map's shader still failed on Android's graphics (the map drawn as coarse

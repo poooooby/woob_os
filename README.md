@@ -123,16 +123,21 @@ opens a desktop in a sleek monitor instead of a text menu.
   candies and Max Mushrooms) show with their own pictures.
 - 📕 **Pokédex:** a modern Pokédex in place of the game's, from the START menu and as an app on the
   PC and WoobPad once you have one. On the left, every Pokémon in a grid with its number, icon and
-  name: a dark silhouette until you've seen it, a Poké Ball once you've caught it. On the right, the
-  one you pick: its picture (moving with Emerald's own animations, breathing gently on the other
-  games), name, category, types, height and weight, gender ratio and the Pokédex's words, then a
-  chart of its six base stats, its abilities, and three tabs: **Moves** (by level, TM and HM, egg
+  name, tinted by its type: a dark silhouette until you've seen it, a Poké Ball once you've caught
+  it. It's all frosted glass over soft lights in the chosen Pokémon's type colours. On the right,
+  the one you pick, on glass tinted its type's colour: its picture (moving with
+  Emerald's own animations, breathing gently on the other games), name, category, types, height and
+  weight, gender ratio and the Pokédex's words, then its six base stats as a chart and as bars, its
+  abilities, and three tabs: **Moves** (by level, TM and HM, egg
   moves and tutors, with each move's type, power, accuracy and PP), **Where** (every place it's
   found in the wild, how, its levels and its chances) and **Info** (its evolutions and how, egg
   groups, hatch steps, catch rate, base Exp., growth, EV yield, held items, base friendship). You
   see it as the game would show it: the card and where to find it once seen, everything once
   caught. Your region's dex first, and the National dex beside it once you have it (SELECT). START
-  opens the game's own Pokédex, and Settings can keep the game's for good.
+  opens the game's own Pokédex; Settings can keep the game's on START, and the Pokédex option turns
+  it off altogether. It all moves smoothly: the highlight glides from Pokémon to Pokémon, the page
+  settles in card by card, the backdrop's colour turns, the picture pops up, the chart reshapes and
+  the numbers count as you go.
 - 🗺️ **Map:** the 3D map of your region, from the PC or WoobPad, with the same places, cards and
   camera as the Town Map. On WoobPad, out in the open with a Pokémon that knows Fly and the badge
   that allows it, START (or Fly on a town's card) flies you to any town you've visited.
@@ -153,8 +158,9 @@ opens a desktop in a sleek monitor instead of a text menu.
   next, with its sheen sparkling round it, its nature and ribbons. Search ranks every Pokémon in
   your party and boxes by one condition. Compare lays a second Pokémon's outline over the
   first. Pokéblocks feeds one from your case, with the game's own rules (natures that like or
-  dislike its flavour, a Pokémon that won't eat once its sheen is full), and the chart grows. In
-  the PokéNav, Condition and its search open it.
+  dislike its flavour, a Pokémon that won't eat once its sheen is full), and the chart grows. It's
+  frosted glass over soft lights in the colours of the chosen Pokémon's best conditions, the chart
+  on smoked glass. In the PokéNav, Condition and its search open it.
 - 🎀 **Ribbons** (Ruby, Sapphire and Emerald, once you have the PokéNav): a display case of every
   Pokémon in your party and boxes that wears a Ribbon, most first, with its contest ranks at a
   glance, each Ribbon lit in its colour, and the one you pick swinging in the spotlight with what
@@ -325,6 +331,7 @@ on. B or the red button closes it.
 | Desktop | On / Off | On | The PC opens the desktop. Off: the game's own PC menu. |
 | Boot Screen | On / Off | On | The W boot screen before the desktop. |
 | 24-Hour Clock | On / Off | Off | The menu bar's clock as 15:30 instead of 3:30 PM. |
+| Pokédex | On / Off | On | WoobOS's Pokédex from the START menu and as an app. Off: the game's own Pokédex, and no app. |
 | Map: Invert X | On / Off | Off | The 3D map's camera turns the other way (the right stick, a drag). |
 | Map: Invert Y | On / Off | Off | The 3D map's camera tilts the other way (the right stick, a drag). |
 
