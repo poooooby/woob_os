@@ -356,6 +356,7 @@ turn it on for your Generation 3 games.
   Pokédex shows all of its Pokémon with their own types (Fairy too), moves, abilities and forms, says
   which can Gigantamax, and opens in place of its Pokédex too; its Register Owned still marks your
   party and PC caught when it opens.
+- **WoobleSpritePack:** the Pokédex shows its sprites, animated, for every Pokémon it has art for.
 
 ## 📌 Good to Know
 

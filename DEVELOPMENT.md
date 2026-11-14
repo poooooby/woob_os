@@ -585,7 +585,12 @@ screenshots each. Settings changed by hand during it are the real ones.
 - **The picture** (main.lua `env.dexSprite`): Emerald's own front animation (`MonAnim.newSprite` +
   `summary` when one's chosen, stepped 60 a second in the draw, its frames' pictures kept by species and
   frame, drawn from `sprite.x2 / y2 / matrix` without the engine's per-draw `transform` tables); done, or
-  on the other games, the still picture breathing from its feet with a hop when it's chosen. The cry
+  on the other games, the still picture breathing from its feet with a hop when it's chosen.
+  WoobleSpritePack (`g9-battle-sprites-gen3`, its `exports.isActive` / `hasSprite(national, "front")` read
+  when one's chosen): its `frontPic` wrap answers one frame of its animated sheet per call (8 a second by a
+  shared clock, a fresh `{ image }` table each time), so the chosen one's picture is asked again 16 times
+  a second (`PACK_EVERY`) instead of kept; Emerald's MonAnim still moves it (the pack's `framePic` answers
+  nil, so its frames fall back to that picture). `env.dexSprite.pack()` for the probe. The cry
   (`Audio.playCry`) on A or a tap of the picture.
 - **The takeover** (`src/shell.lua` `wrapDex`, `Sh.openDex`): `show(dex, opts)` of `src.ui.game3.pokedex`
   and `src.ui.game3.rse.pokedex` (Ruby / Sapphire's is the same table), wrapped in `Sh.ready` (after

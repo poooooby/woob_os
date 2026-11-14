@@ -5,6 +5,12 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-11-14
+
+### Fixed
+- **Pokédex with WoobleSpritePack:** the picture plays the pack's animation instead of holding its
+  first frame.
+
 ## [0.11.0] - 2026-11-14
 
 ### Added

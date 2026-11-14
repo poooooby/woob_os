@@ -765,8 +765,18 @@ return function(mod)
       local Audio = engine("src.core.game3.audio")
       if Audio and Audio.playCry then pcall(Audio.playCry, sp) end
     end
-    local anim = { sp = nil, sprite = nil, acc = 0, last = nil }
+    local anim = { sp = nil, sprite = nil, acc = 0, last = nil, pack = false, packAt = -1, packPic = nil }
     local stills, frames = {}, {}
+    -- (WoobleSpritePack, g9-battle-sprites-gen3: its art comes through the engine's frontPic, one frame
+    -- of its animated sheet per call by a shared clock (8 a second); a species it draws is asked again
+    -- while it's shown, 16 times a second, instead of kept)
+    local PACK_EVERY = 1 / 16
+    local function spritePack()
+      local m = mod.find("g9-battle-sprites-gen3")
+      local ex = m and m.exports
+      local okA, on = pcall(ex and ex.isActive or error)
+      return okA and on == true and ex or nil
+    end
     local function still(sp)
       local e = stills[sp]
       if e == nil then
@@ -796,6 +806,14 @@ return function(mod)
       -- (chosen: the game's animation from the start, where the game has one)
       start = function(sp)
         anim.sp, anim.sprite, anim.acc, anim.last = sp, nil, 0, nil
+        anim.pack, anim.packAt, anim.packPic = false, -1, nil
+        local ex = spritePack()
+        if ex and ex.hasSprite then
+          local Pk = engine("src.core.game3.pokemon")
+          local okN, nat = pcall(Pk and Pk.national or error, sp)
+          local okH, has = pcall(ex.hasSprite, okN and nat or sp, "front")
+          anim.pack = okH and has == true
+        end
         local MA = engine("src.core.game3.mon_anim")
         local okE, on = pcall(MA and MA.enabled or error)
         if not (okE and on) then return end
@@ -808,13 +826,26 @@ return function(mod)
         end
         anim.sprite = sprite
       end,
-      stop = function() anim.sp, anim.sprite = nil, nil end,
+      stop = function() anim.sp, anim.sprite, anim.pack, anim.packPic = nil, nil, false, nil end,
+      -- (tests: whether the chosen one is the pack's, and the picture last drawn from it)
+      pack = function() return anim.pack, anim.packPic end,
       -- (centred on cx, cy, size units: the animation stepped at the game's 60 a second, its frames'
       -- pictures kept here and drawn without the engine's per-draw tables; done, or none, the still
       -- picture breathing from its feet, with a hop just after it's chosen; `scale` and `alpha` the
       -- Pokédex's pop as it's chosen)
       draw = function(sp, cx, cy, size, clock, chosenAt, scale, alpha)
-        local base = still(sp)
+        local base
+        if anim.pack and anim.sp == sp then
+          if not anim.packPic or clock - anim.packAt >= PACK_EVERY or clock < anim.packAt then
+            local Pk = engine("src.core.game3.pokemon")
+            local ok, got = pcall(Pk and Pk.frontPic or error, sp, 0, false, 0, "dex")
+            if ok and type(got) == "table" and got.image then anim.packPic = got end
+            anim.packAt = clock
+          end
+          base = anim.packPic or still(sp)
+        else
+          base = still(sp)
+        end
         if not base then return end
         local G = Kit.graphics()
         local k0 = size * Kit.sc / (base.w or 64)
