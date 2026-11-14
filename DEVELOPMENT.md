@@ -44,6 +44,8 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/frost.lua` | Frosted glass: the screen caught in a canvas while the drawer shows, a small copy blurred under it |
 | `src/map3d/model.lua` | The 3D map's model: every region from `world.lua` (Hoenn; Kanto and the Sevii Islands' three pictures); with no maps (headless) from the game's Town Map (its picture a heightmap and its colours, its grid the places); the census's Centers / Marts / Gyms, the badges, the player's position, Fly's checks; the background build (`prepare` / `step`) |
 | `src/map3d/world.lua` | A region built to scale from the game's own maps (Hoenn, Kanto, the Sevii Islands): placement, each tile's class, the doors and footprints, heights, the coarse terrain |
+| `src/dex.lua` | The Pokédex's model: the regional and National lists, seen and caught, each Pokémon's page from the cart (and WoobleDex) |
+| `src/apps/pokedex.lua`, `src/apps/pokedex_view.lua` | The Pokédex window: the grid and the page, its tabs; its drawing |
 | `src/map3d/cache.lua` | A region built to scale kept on disk (`mod.cache`): its outline, terrain, meshes and pictures, read back while the stamp (versions, the maps' fingerprint) matches |
 | `src/map3d/render.lua` | The 3D map's drawing: meshes, the shader, the depth canvas, the camera (`camera` / `project`), day and night; a flat fallback |
 | `src/map3d/scene.lua` | The 3D map's window: the camera, pins, the beacon, the card, the controls (the Map app and the Town Map) |
@@ -533,6 +535,48 @@ scene per feature. Page Down / Page Up step through them and Home makes the data
 scene. Run it with `POKEPORT_DRIVER_PACED=1` (real time). A new feature gets a line in its `all` table;
 `WHEN` leaves out what a game hasn't got. `SHOWCASE_AUTO=<dir>` walks every scene through the same keys and
 screenshots each. Settings changed by hand during it are the real ones.
+
+## The Pokédex
+
+- **The model** (`src/dex.lua` Dx, `env.dex`): `Dx.open(s)` makes the book each time the dex opens: the
+  regional list (FireRed / LeafGreen the first 151, Ruby / Sapphire / Emerald by `Dex.regionalNumber`) and
+  the National one (1..`Dex.NATIONAL_MAX` through `Pokemon.speciesFromNational`: WoobleDex's to 1025) only
+  when `PokedexData.isNationalUnlocked`; seen / caught by `Dex.isSeen` / `isCaught` (by species). A page
+  (`Dx.page(entry)`, kept per species, made when one's chosen, never in a draw): `dexEntry` (category,
+  height dm, weight hg), `_types`, `stats` (shown HP Atk Def SpA SpD Spe), `speciesMeta` (gender ratio:
+  255 none, 254 all female, else (r + 1) / 256 female; egg groups, cycles x 256 steps, catch rate, exp,
+  growth 0..5, `evHp`..`evSpe`, held items, friendship), the description (FireRed / LeafGreen
+  `PokedexData.getEntry(sp)`, the others `Mapsec.readLua("pokemon/pokedex/entries.lua")[sp]`: both what
+  WoobleDex wraps), abilities (`abilityName`, `SummaryData.abilityDescription`), learnsets (level, the 58
+  machines by `canLearnTmIndex`, `eggMoves`, `MoveLearn.tutorMoves`), evolutions (a parent map over
+  `_evolutions`, the chain from the first stage, `EVO_*` in words), Where (one pass over
+  `Encounters.loadCacheFile`: land / water / rocks by the game's slot weights, fishing by rod, a map filed
+  under two keys counted once, places through main.lua's `placeName`). The game's shouted words (BULBASAUR,
+  POKéMON) in a sentence's case (`unshout`; HP PP TM HM kept). WoobleDex: `formsOf` + `formLabel`, `dynamax.gmaxMoveOf`.
+  `Dx.reset` on `Pokemon.onReload`.
+- **The window** (`src/apps/pokedex.lua` state and input, `src/apps/pokedex_view.lua` drawing; main.lua
+  hands the view in as the window's third argument): wide (>= 190 units) the grid left and the page
+  right, each scrolling; narrow the two take turns. Unseen: a silhouette (the icon drawn dark,
+  `env.monIcon(sp, x, y, size, frame, r, g, b, a)`) and "???"; seen: the card, the words, Where; caught:
+  the radar (one kept 8-vertex fan mesh, eased), abilities, the three tabs. Wrapped text is made when the
+  text or the width changes (`st.lines`, by slot). No tables or strings in the draw: 0.000 KB a frame
+  in-engine.
+- **The picture** (main.lua `env.dexSprite`): Emerald's own front animation (`MonAnim.newSprite` +
+  `summary` when one's chosen, stepped 60 a second in the draw, its frames' pictures kept by species and
+  frame, drawn from `sprite.x2 / y2 / matrix` without the engine's per-draw `transform` tables); done, or
+  on the other games, the still picture breathing from its feet with a hop when it's chosen. The cry
+  (`Audio.playCry`) on A or a tap of the picture.
+- **The takeover** (`src/shell.lua` `wrapDex`, `Sh.openDex`): `show(dex, opts)` of `src.ui.game3.pokedex`
+  and `src.ui.game3.rse.pokedex` (Ruby / Sapphire's is the same table), wrapped in `Sh.ready` (after
+  WoobleDex's priority-1 re-runs) and re-wrapped when another mod has put its own `show` in since
+  (`Dm.show ~= w.fn`). Ours opens full screen through `Sh.openFull(..., { mode = "dex", backKey =
+  "dex.toMenu", classic })`: START closes it and calls the game's own (`ctx.classic`). Settings
+  `pokedexApp` (Gameplay) off: the game's. WoobleDex's Register Owned (its `show` wrap, which ours doesn't
+  call) through its API 3 `registerOwned(session)`, before ours opens (START or the app). The catch
+  screens (`showRegistration` / `showCaughtMon`) are drawn inside battle: the game's.
+- **The app**: `pokedex`, glyph `dex`, available once `FLAG_SYS_POKEDEX_GET` (`Dx.available`, every game).
+- **Tests**: `tests/pokedex_test.lua` (the cart's data: Poliwag, Bulbasaur, the gender ratios, Magikarp's
+  rods; the rules; the window wide and upright; the takeover, START, the setting).
 
 ## The 3D map
 

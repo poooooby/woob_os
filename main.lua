@@ -14,6 +14,7 @@
 --   src/ribbons.lua, src/apps/ribbons.lua   the Ribbons app
 --   src/hall.lua, src/apps/hall.lua   the Hall of Fame app
 --   src/oak.lua, src/apps/oak.lua   the Oak's PC app
+--   src/dex.lua, src/apps/pokedex.lua, src/apps/pokedex_view.lua   the Pokédex (the game's own taken over)
 --   src/gts.lua, src/apps/gts.lua       the GTS: Wonder Trade and the Global Trade Station, its window
 --   src/boxes.lua, src/apps/boxes.lua, src/apps/boxes_view.lua   the Pokémon model, the Boxes window
 --   src/i18n.lua, lang/*.lua            the words, by language ; src/settings.lua the kept choices
@@ -84,6 +85,8 @@ return function(mod)
   local makeRibbons, ribbonsWindow = loadSibling(mod, "src/ribbons.lua"), loadSibling(mod, "src/apps/ribbons.lua")
   local makeHall, hallWindow = loadSibling(mod, "src/hall.lua"), loadSibling(mod, "src/apps/hall.lua")
   local makeOak, oakWindow = loadSibling(mod, "src/oak.lua"), loadSibling(mod, "src/apps/oak.lua")
+  local makeDex, dexWindow = loadSibling(mod, "src/dex.lua"), loadSibling(mod, "src/apps/pokedex.lua")
+  local dexView = loadSibling(mod, "src/apps/pokedex_view.lua")
   local makeDecorate, decorateWindow = loadSibling(mod, "src/decorate.lua"), loadSibling(mod, "src/apps/decorate.lua")
   local makePokenav = loadSibling(mod, "src/pokenav.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell) then return end
@@ -253,10 +256,11 @@ return function(mod)
     G.setColor(1, 1, 1, a or 1)
     G.draw(rseSheet.img, q, Kit.X(x), Kit.Y(y), 0, k, k)
   end
-  -- a Pokémon's menu icon (its first frame), `size` units square (kept per species: the engine's
-  -- lookup makes garbage every call; a species without one is remembered too)
+  -- a Pokémon's menu icon, `size` units square: frame 0 / 1, tinted r, g, b, a (white by default; the
+  -- Pokédex's unseen are dark) (kept per species: the engine's lookup makes garbage every call; a species
+  -- without one is remembered too)
   local iconFor = {}
-  local function monIcon(species, x, y, size)
+  local function monIcon(species, x, y, size, frame, r, g, b, a)
     local e = iconFor[species]
     if e == nil then
       local P = engine("src.core.game3.pokemon")
@@ -265,9 +269,10 @@ return function(mod)
       iconFor[species] = e
     end
     if not e then return end
+    local q = e.quads[frame or 0] or e.quads[0]
     local G = Kit.graphics()
-    G.setColor(1, 1, 1, 1)
-    G.draw(e.image, e.quads[0], Kit.X(x), Kit.Y(y), 0, size * Kit.sc / e.w, size * Kit.sc / e.h)
+    G.setColor(r or 1, g or 1, b or 1, a or 1)
+    G.draw(e.image, q, Kit.X(x), Kit.Y(y), 0, size * Kit.sc / e.w, size * Kit.sc / e.h)
   end
   -- a Pokémon's own menu icon (eggs, forms), `size` units square, frame 0 / 1, alpha a (kept per
   -- Pokémon: the engine's lookup builds names)
@@ -738,6 +743,117 @@ return function(mod)
   if makeCondition and env.bx then env.condition = makeCondition(engine, { bx = env.bx }) end
   if makeHall then env.hall = makeHall(engine) end
   if makeOak then env.oak = makeOak(engine) end
+  -- the Pokédex: the model (WoobleDex's Pokémon, forms and Gigantamax when it's on), the picture
+  -- (Emerald's own front animation, else a breathing still) and the cry
+  local function wooble()
+    local nd = mod.find("national_dex_gen3")
+    return nd and nd.exports or nil
+  end
+  -- (WoobleDex's Register Owned: its own step, run before our Pokédex opens as before its own)
+  local function registerOwned(s)
+    local wd = wooble()
+    if wd and wd.registerOwned then pcall(wd.registerOwned, s) end
+  end
+  if makeDex then
+    env.dex = makeDex(engine, { T = T, typeName = env.typeName, placeName = placeName, itemName = env.itemName,
+                                wooble = wooble, gameId = gameId })
+    local P = engine("src.core.game3.pokemon")
+    if P and P.onReload then pcall(P.onReload, function() env.dex.reset() end, "woob_os_dex") end
+    env.cry = function(sp)
+      local Audio = engine("src.core.game3.audio")
+      if Audio and Audio.playCry then pcall(Audio.playCry, sp) end
+    end
+    local anim = { sp = nil, sprite = nil, acc = 0, last = nil }
+    local stills, frames = {}, {}
+    local function still(sp)
+      local e = stills[sp]
+      if e == nil then
+        local Pk = engine("src.core.game3.pokemon")
+        local ok, got = pcall(Pk and Pk.frontPic or error, sp, 0, false, 0, "dex")
+        e = ok and type(got) == "table" and got.image and got or false
+        stills[sp] = e
+      end
+      return e or nil
+    end
+    local function framePic(sp, frame)
+      local f = frames[sp]
+      if not f then
+        f = {}
+        frames[sp] = f
+      end
+      local e = f[frame]
+      if e == nil then
+        local MA = engine("src.core.game3.mon_anim")
+        local ok, got = pcall(MA and MA.framePic or error, sp, frame, false)
+        e = ok and type(got) == "table" and got.image and got or false
+        f[frame] = e
+      end
+      return e or nil
+    end
+    env.dexSprite = {
+      -- (chosen: the game's animation from the start, where the game has one)
+      start = function(sp)
+        anim.sp, anim.sprite, anim.acc, anim.last = sp, nil, 0, nil
+        local MA = engine("src.core.game3.mon_anim")
+        local okE, on = pcall(MA and MA.enabled or error)
+        if not (okE and on) then return end
+        local ok, sprite = pcall(MA.newSprite, sp, { affineMode = "off", hFlip = false })
+        if not (ok and type(sprite) == "table") then return end
+        sprite.data[0] = sp
+        sprite.callback = function(spr)
+          spr.data[1] = 1
+          MA.summary(spr, sp, false)
+        end
+        anim.sprite = sprite
+      end,
+      stop = function() anim.sp, anim.sprite = nil, nil end,
+      -- (centred on cx, cy, size units: the animation stepped at the game's 60 a second, its frames'
+      -- pictures kept here and drawn without the engine's per-draw tables; done, or none, the still
+      -- picture breathing from its feet, with a hop just after it's chosen)
+      draw = function(sp, cx, cy, size, clock, chosenAt)
+        local base = still(sp)
+        if not base then return end
+        local G = Kit.graphics()
+        local k = size * Kit.sc / (base.w or 64)
+        local px, py = Kit.X(cx), Kit.Y(cy)
+        local sprite = anim.sp == sp and anim.sprite or nil
+        if sprite then
+          local MA = engine("src.core.game3.mon_anim")
+          local dt = anim.last and math.max(0, math.min(0.1, clock - anim.last)) or 0
+          anim.last = clock
+          anim.acc = anim.acc + dt
+          local n = 0
+          while anim.acc >= 1 / 60 and n < 4 do
+            anim.acc, n = anim.acc - 1 / 60, n + 1
+            if not pcall(MA.step, sprite, true) then
+              anim.sprite = nil
+              break
+            end
+          end
+          if anim.sprite and MA.done(sprite) then anim.sprite = nil end
+          if anim.sprite then
+            if sprite.invisible then return end
+            local pic = (tonumber(sprite.frame) or 0) ~= 0 and framePic(sp, sprite.frame) or base
+            local sx, sy, rot = 1, 1, 0
+            local m = sprite.matrix
+            if sprite.affineMode ~= "off" and m then
+              local xs = (m.xScale or 0) ~= 0 and m.xScale or 256
+              local ys = (m.yScale or 0) ~= 0 and m.yScale or 256
+              sx, sy, rot = 256 / xs, 256 / ys, -(math.floor((m.rotation or 0) / 256) * 2 * math.pi / 256)
+            end
+            G.setColor(1, 1, 1, 1)
+            G.draw(pic.image, px + (sprite.x2 or 0) * k, py + (sprite.y2 or 0) * k, rot, sx * k, sy * k, 32, 32)
+            return
+          end
+        end
+        local t = clock - (chosenAt or -10)
+        local hop = (t >= 0 and t < 0.45) and math.sin(t / 0.45 * math.pi) * 2.5 * Kit.sc or 0
+        local b = 1 + 0.022 * math.sin(clock * 2.3)
+        G.setColor(1, 1, 1, 1)
+        G.draw(base.image, px, py + 32 * k - hop, 0, k * (2 - b), k * b, 32, 64)
+      end,
+    }
+  end
   if makeDecorate then env.decorate = makeDecorate(engine) end
   if makeRibbons and env.condition and env.phone then
     env.ribbons = makeRibbons(engine, { family = env.phone.family, available = env.condition.available })
@@ -787,6 +903,11 @@ return function(mod)
     ribbons = env.ribbons and ribbonsWindow or nil,
     hall = env.hall and hallWindow or nil,
     oak = env.oak and oakWindow or nil,
+    pokedex = env.dex and dexWindow and dexView and function(ctx, e)
+      registerOwned(ctx.session or session())
+      return dexWindow(ctx, e, dexView)
+    end or nil,
+    pokedexAvailable = env.dex and function(ctx) return env.dex.available(ctx.session or session()) end or nil,
     oakAvailable = env.oak and function(ctx) return env.oak.available(ctx.session or session()) end or nil,
     hallTeams = env.hall and function(ctx) return env.hall.count(ctx.session or session()) end or nil,
     ribbonsAvailable = env.ribbons and function(ctx) return env.ribbons.available(ctx.session or session()) end or nil,
@@ -975,6 +1096,10 @@ return function(mod)
                         townmap = TownMap, map3d = env.map3d, pokenav = Pokenav,
                         onCall = env.phone and onCall or nil,
                         map3dOn = function() return not Settings or Settings.get("map3d", true) ~= false end,
+                        dexOn = env.dex and function()
+                          return not Settings or Settings.get("pokedexApp", true) ~= false
+                        end or nil,
+                        registerOwned = registerOwned,
                         watchRow = function() return not Settings or Settings.get("watchRow", true) ~= false end,
                         watchLabel = function() return T and T("watch.start") or "WATCH" end })
   Sh.enabled = function() return option("desktop", true) ~= false end

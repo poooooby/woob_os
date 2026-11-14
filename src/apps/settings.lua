@@ -40,6 +40,7 @@ local NAV_TOGGLES = {
   { key = "pokenavApps", label = "settings.pokenavApps" },
 }
 local GAME_TOGGLES = {
+  { key = "pokedexApp", label = "settings.pokedexApp" },
   { key = "swarms", label = "settings.swarms" },
 }
 local SECTIONS = {

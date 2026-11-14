@@ -381,12 +381,15 @@ return function(mod, deps)
   end
 
   -- an app full screen over one of the game's screens (the PokéNav's Phone and Condition,
-  -- src/pokenav.lua); onClose() when it closes -> true when it opened
-  function Sh.openFull(appId, s, onClose, state)
+  -- src/pokenav.lua; the START menu's Pokédex); onClose() when it closes -> true when it opened.
+  -- o: { mode (ctx.mode, "pokenav" by default), backKey (the toolbar's way back), classic (the game's
+  -- own screen instead: ctx.classic() closes ours and calls it) }
+  function Sh.openFull(appId, s, onClose, state, o)
     if not Tm or Tm.isOpen() or D.isOpen() or (Wt and Wt.isOpen()) then return false end
     local app = A.byId(appId)
     if not (app and app.window) then return false end
-    local ctx = { session = s, mode = "pokenav", family = familyOf(gameId()), rows = {}, app = appId }
+    o = o or {}
+    local ctx = { session = s, mode = o.mode or "pokenav", family = familyOf(gameId()), rows = {}, app = appId }
     if state then ctx.resume = { app = appId, state = state } end
     function ctx.row() return nil end
     local closed = false
@@ -401,7 +404,16 @@ return function(mod, deps)
     function ctx.over() end
     function ctx.original() end
     function ctx.sheet() end
-    local so = { maker = app.window, app = appId, chrome = true, cancel = close }
+    if o.classic then
+      function ctx.classic()
+        if closed then return end
+        closed = true
+        Tm.close()
+        pop(Sh.MAP_ID)
+        o.classic()
+      end
+    end
+    local so = { maker = app.window, app = appId, chrome = true, cancel = close, backKey = o.backKey }
     if not Tm.open(ctx, so) then return false end
     if not push(Sh.MAP_ID, MapLayer) then
       Tm.close()
@@ -491,6 +503,44 @@ return function(mod, deps)
   end
   Sh.wrapMap = wrapMap
 
+  -- the START menu's Pokédex: ours full screen (the game's own still a START away), when it's on;
+  -- WoobleDex's Register Owned run first, as before its own
+  function Sh.openDex(dex, opts, original)
+    if Sh.enabled and not Sh.enabled() then return false end
+    if not (deps.dexOn and deps.dexOn()) then return false end
+    local s = opts.session or (deps.session and deps.session())
+    if not s then return false end
+    if deps.registerOwned then pcall(deps.registerOwned, s) end
+    return Sh.openFull("pokedex", s, opts.onClose, nil,
+      { mode = "dex", backKey = "dex.toMenu", classic = function() original(dex, opts) end })
+  end
+  -- the Pokédex screens' show(dex, opts), wrapped once per process -- and again when another mod has
+  -- put its own in since (WoobleDex re-makes them as the game starts)
+  local function wrapDex(name)
+    local Dm = engine(name)
+    if not (Dm and type(Dm.show) == "function") then return false end
+    local w = rawget(Dm, "__woobOs")
+    if not w or Dm.show ~= w.fn then
+      w = w or {}
+      w.orig = Dm.show
+      w.fn = function(dex, opts)
+        local impl = w.impl
+        if impl then
+          local ok, opened = pcall(impl, dex, opts or {}, w.orig)
+          if ok and opened then return nil end
+          if not ok and w.log then w.log:warn("the Pokédex failed to open: %s", tostring(opened)) end
+        end
+        return w.orig(dex, opts)
+      end
+      Dm.__woobOs = w
+      Dm.show = w.fn
+    end
+    w.log = log
+    w.impl = function(dex, opts, original) return Sh.openDex(dex, opts, original) end
+    return true
+  end
+  Sh.wrapDex = wrapDex
+
   -- the field's Match Calls (Emerald): the call window's message caught when it's chosen, handed to
   -- deps.onCall(session, trainerId, msg) when the call ends; once per process
   function Sh.wrapCalls()
@@ -545,6 +595,11 @@ return function(mod, deps)
     if Tm then
       wrapMap("src.ui.game3.region_map", "frlg")
       wrapMap("src.ui.game3.rse.region_map", "rse")
+      -- (the Pokédex: FireRed / LeafGreen's, and Ruby / Sapphire / Emerald's, one table)
+      if deps.dexOn then
+        wrapDex("src.ui.game3.pokedex")
+        wrapDex("src.ui.game3.rse.pokedex")
+      end
     end
     -- (the PokéNav's Match Call / Trainer's Eyes and Condition: WoobOS's Phone and Condition)
     if deps.pokenav then pcall(deps.pokenav.install) end

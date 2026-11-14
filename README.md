@@ -121,6 +121,18 @@ opens a desktop in a sleek monitor instead of a text menu.
   sorts the side you're on: the PC by name or pocket, or tosses an item from it; the Bag's pocket
   by name or type (the TM Case and the Berries keep the game's own order). Important items stay in the Bag. Items other mods add (WoobDex's
   candies and Max Mushrooms) show with their own pictures.
+- 📕 **Pokédex:** a modern Pokédex in place of the game's, from the START menu and as an app on the
+  PC and WoobPad once you have one. On the left, every Pokémon in a grid with its number, icon and
+  name: a dark silhouette until you've seen it, a Poké Ball once you've caught it. On the right, the
+  one you pick: its picture (moving with Emerald's own animations, breathing gently on the other
+  games), name, category, types, height and weight, gender ratio and the Pokédex's words, then a
+  chart of its six base stats, its abilities, and three tabs: **Moves** (by level, TM and HM, egg
+  moves and tutors, with each move's type, power, accuracy and PP), **Where** (every place it's
+  found in the wild, how, its levels and its chances) and **Info** (its evolutions and how, egg
+  groups, hatch steps, catch rate, base Exp., growth, EV yield, held items, base friendship). You
+  see it as the game would show it: the card and where to find it once seen, everything once
+  caught. Your region's dex first, and the National dex beside it once you have it (SELECT). START
+  opens the game's own Pokédex, and Settings can keep the game's for good.
 - 🗺️ **Map:** the 3D map of your region, from the PC or WoobPad, with the same places, cards and
   camera as the Town Map. On WoobPad, out in the open with a Pokémon that knows Fly and the badge
   that allows it, START (or Fly on a town's card) flies you to any town you've visited.
@@ -333,7 +345,10 @@ turn it on for your Generation 3 games.
 - **Kanto Gear:** Slots, R-Bay and the GTS are apps in its Silph Store. Turn them on there and they open on the Gear's own screen, with the game still playing above or beside them. They wait while you're in a battle, a menu or a conversation.
 - **WoobleDex:** Boxes shows every box of its Bigger PC (40 instead of 14). R-Bay auctions its Pokémon too, its legendaries and mythicals in their tiers. The
   Boxes preview shows a Pokémon's Dynamax Level and G-Max Factor (from
-  WoobleDex's Dynamax Candy and Max Soup, or Max Raids' dens), as the game's summary does.
+  WoobleDex's Dynamax Candy and Max Soup, or Max Raids' dens), as the game's summary does. The
+  Pokédex shows all of its Pokémon with their own types (Fairy too), moves, abilities and forms, says
+  which can Gigantamax, and opens in place of its Pokédex too; its Register Owned still marks your
+  party and PC caught when it opens.
 
 ## 📌 Good to Know
 

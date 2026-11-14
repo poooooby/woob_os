@@ -274,6 +274,13 @@ return function(deps)
                  available = function(ctx) return ctx.mode == "bedroom" and ctx.family == "rse" end,
                  window = deps.decorate })
   end
+  -- the Pokédex (every game, once the game has given it): ours, the dex as a modern app
+  if deps.pokedex then
+    A.register({ id = "pokedex", labelKey = "app.pokedex", label = "Pokédex",
+                 glyph = "dex", color = { 230, 64, 58 }, order = 29,
+                 available = function(ctx) return not deps.pokedexAvailable or deps.pokedexAvailable(ctx) end,
+                 window = deps.pokedex })
+  end
   A.register({ id = "oak", labelKey = "app.oak", label = "Oak's PC",
                glyph = "dex", color = { 232, 120, 64 }, order = 30,
                available = function(ctx)

@@ -5,6 +5,18 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **Pokédex:** a modern, split-screen Pokédex in place of the game's, from the START menu and as an
+  app on the PC and WoobPad. A grid of every Pokémon (number, icon, name; silhouettes until seen, a
+  Poké Ball once caught) beside the chosen one's page: its picture (Emerald's own animation, a
+  breathing idle elsewhere), name, category, types, height and weight, gender ratio, description, a
+  radar of its base stats, its abilities, and Moves (level, TM/HM, egg, tutor), Where (every wild
+  place, method, levels and chance) and Info (evolutions, egg groups, hatch steps, catch rate, base
+  Exp., growth, EV yield, held items, base friendship). The regional dex, and the National one once
+  it's unlocked (SELECT). START opens the game's own; Settings > Gameplay can keep the game's.
+  With WoobleDex, all its Pokémon, their types, moves, abilities and forms, Gigantamax, and its
+  Register Owned.
+
 ### Fixed
 - **3D map on Android:** the map's shader still failed on Android's graphics (the map drawn as coarse
   squares, the problem card saying why): it compiles there now, the tiles' art and all, in 3D and
