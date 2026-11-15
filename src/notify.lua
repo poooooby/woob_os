@@ -72,7 +72,7 @@ return function(deps)
     -- (the second word: the stranger's name, or the minutes left)
     local okT, text = pcall(T.f, key, name, data.minutes or tostring(data.who or ""))
     local rec = { kind = kind, app = app, title = TITLE[app],
-                  text = okT and text or name, sp = tonumber(data.sp), at = epoch(), t = now(),
+                  text = okT and text or name, sp = tonumber(data.sp) or data.sp, at = epoch(), t = now(),
                   state = data.state or app == "gts" and { tab = "deposit" } or (app == "phone" and { tab = "recents" })
                     or { tab = (kind == "won" or kind == "lost") and "mine" or "browse", key = data.key } }
     table.insert(recs, 1, rec)

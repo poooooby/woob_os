@@ -405,10 +405,11 @@ return function(K, env, T, st, A, KINDS)
   local function descCard(x, y, w, e, pg, clock)
     local inner = w - 8
     local lines = wrap("desc", pg.description, inner, 3.9)
-    local h = 6 + #lines * 3.9 * 1.25 + 12
+    local h = 6 + #lines * 3.9 * 1.25 + (pg.noGender and 3 or 12)
     glass(K.R(x, y, w, h), 4)
     drawLines(lines, x + 4, y + 4, 3.9, C.ink)
-    -- (the gender ratio: each side filling in from its end)
+    -- (the gender ratio: each side filling in from its end; Red / Blue / Yellow's Pokémon have none)
+    if pg.noGender then return h end
     local gy = y + h - 9
     K.text(word("dex.gender"), x + 4, gy, 3.4, C.soft)
     local bx, bw = x + 22, w - 26

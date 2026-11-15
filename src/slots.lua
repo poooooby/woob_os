@@ -29,6 +29,8 @@
 --   Sl.redeem(s, i) -> true, where ("bag" | "party" | "pc") | false, reason
 --   Sl.tickets() ; Sl.stats() -> { spins, bet, won, jackpots }
 --   reasons: lang/*.lua "reason.slots.<reason>" ("money" | "tickets" | "bag_full" | "no_room")
+--   deps.port (the Game Boy games: src/gb/port.lua -- the wallet, the Bag, the Pokémon) with deps.prizes (their
+--   prize corner: { kind = "item", id = "NUGGET", cost } | { kind = "mon", dex, cost })
 
 local floor, max, min = math.floor, math.max, math.min
 
@@ -134,7 +136,14 @@ return function(engine, deps)
     local R = love and love.math and love.math.random
     return R and R(1, n) or math.random(1, n)
   end
-  local function money(s) return max(0, floor(tonumber(s and s.money) or 0)) end
+  local Port = deps.port
+  local function money(s)
+    if Port then return Port.money(s) end
+    return max(0, floor(tonumber(s and s.money) or 0))
+  end
+  local function setMoney(s, n)
+    if Port then Port.setMoney(s, n) else s.money = n end
+  end
 
   local function newResult()
     local r = { stops = {}, level = 1, lines = 1, won = {}, count = {}, sym = {}, symbol = nil, scatters = 0, free = false,
@@ -161,8 +170,12 @@ return function(engine, deps)
     held = false
     local pays, tickets = result.pays, result.tickets
     if pays > 0 and s then
-      local Prize = engine("src.core.game3.battle.prize")
-      if Prize and Prize.apply then Prize.apply(s, pays) else s.money = min(MAX_MONEY, money(s) + pays) end
+      if Port then
+        Port.pay(s, pays)
+      else
+        local Prize = engine("src.core.game3.battle.prize")
+        if Prize and Prize.apply then Prize.apply(s, pays) else s.money = min(MAX_MONEY, money(s) + pays) end
+      end
     end
     local d = data()
     if tickets > 0 then d.tickets = d.tickets + tickets end
@@ -207,7 +220,7 @@ return function(engine, deps)
     if not free then
       cost = bet * lines
       if money(s) < cost then return false, "money" end
-      s.money = money(s) - cost
+      setMoney(s, money(s) - cost)
     end
     local st = result.stops
     for r = 1, NREELS do st[r] = roll(#REELS[r]) end
@@ -255,7 +268,8 @@ return function(engine, deps)
     if sp == nil then
       local P = engine("src.core.game3.pokemon")
       local dex = SYMBOLS[i] and SYMBOLS[i].dex
-      local ok, got = pcall(P and P.speciesFromNational or error, dex)
+      local ok, got
+      if Port then ok, got = true, dex and Port.species(dex) else ok, got = pcall(P and P.speciesFromNational or error, dex) end
       sp = ok and got or false
       speciesFor[i] = sp
     end
@@ -265,8 +279,38 @@ return function(engine, deps)
   -- ------- the prize corner
 
   local prizes
+  -- (the Game Boy games' prize corner: their own items and the Pokémon there are)
+  local function portPrizes()
+    local out = {}
+    for _, p in ipairs(deps.prizes or {}) do
+      local e = { kind = p.kind, cost = p.cost }
+      if p.kind == "item" then
+        local id = Port.item(p.id)
+        if id and (deps.hasItem == nil or deps.hasItem(id)) then
+          e.id, e.name, e.desc = id, Port.itemName(id), Port.itemDesc(id)
+          if deps.tmMove then
+            local mv = deps.tmMove(id)
+            if mv then e.name = e.name .. " " .. mv end
+          end
+          out[#out + 1] = e
+        end
+      else
+        local sp = Port.species(p.dex)
+        if sp then
+          e.id, e.name, e.desc = sp, Port.name(sp), ""
+          out[#out + 1] = e
+        end
+      end
+    end
+    return out
+  end
   function Sl.prizes()
     if prizes then return prizes end
+    if Port then
+      local out = portPrizes()
+      if #out > 0 then prizes = out end
+      return out
+    end
     local P, I = engine("src.core.game3.pokemon"), engine("src.core.game3.items_data")
     local out = {}
     for _, p in ipairs(PRIZES) do
@@ -308,7 +352,16 @@ return function(engine, deps)
     local d = data()
     if d.tickets < p.cost then return false, "tickets" end
     local where
-    if p.kind == "item" then
+    if Port then
+      if p.kind == "item" then
+        if not (Port.canGive(s, p.id, 1) and Port.giveItem(s, p.id, 1)) then return false, "bag_full" end
+        where = "bag"
+      else
+        local mon = Port.make(p.id, Sl.level(s))
+        where = mon and Port.give(s, mon) or nil
+        if not where then return false, "no_room" end
+      end
+    elseif p.kind == "item" then
       local Bag = engine("src.core.game3.bag")
       if not Bag then return false, "bag_full" end
       s.bag = s.bag or Bag.new()

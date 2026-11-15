@@ -43,8 +43,7 @@ return function(H, Gd)
     local it = Gd.item(id)
     local imp = important(id)
     local pocket = pocketOf(id)
-    local desc = it and it.description or ""
-    desc = tostring(desc):gsub("<NEXT>", " "):gsub("[\n\f]", " ")
+    local desc = Gd.itemDesc(id)
     return {
       id = id, qty = qty, pocket = pocket, slot = slot,
       name = Gd.itemName(id), desc = desc, important = imp,

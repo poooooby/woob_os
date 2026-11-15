@@ -6,7 +6,9 @@
 -- encounter.species hook with Sw.encounter: on that route, on land, CHANCE of the encounters become
 -- the swarm's (our own dice, not the game's). Settings "swarms" turns it off.
 --
---   Sw = Swarm(engine, deps)  deps: seed(s) ; day(t) (local days) ; now() ; badges(s) ; on() ; session()
+--   Sw = Swarm(engine, deps)  deps: seed(s) ; day(t) (local days) ; now() ; badges(s) ; on() ; session() ;
+--       routes() (the Game Boy games: { { key = mapId, mapId, here = { [species] = true }, min, max } ... } in
+--       the game's order, and every land species; ctx.mapId is then the key)
 --   Sw.today(s) -> { day, key ("group:num"), mapId, species, min, max } | nil
 --   Sw.species() -> today's species id (the session's) or nil ; Sw.on()
 --   Sw.encounter(enc, ctx) -> enc (the swarm's species on its route, sometimes)
@@ -31,6 +33,11 @@ return function(engine, deps)
   local routes, landSpecies
   local function load()
     if routes then return routes end
+    if deps.routes then
+      local okR, list, all = pcall(deps.routes)
+      if okR and type(list) == "table" and #list > 0 then routes, landSpecies = list, all or {} end
+      return routes
+    end
     local E, MC = engine("src.core.game3.encounters"), engine("src.import.gba.map_catalog")
     if not (E and MC) then return nil end
     pcall(E.ensureLoaded)
@@ -107,6 +114,11 @@ return function(engine, deps)
     if type(enc) ~= "table" or type(ctx) ~= "table" or ctx.terrain == "water" then return enc end
     local p = Sw.today(deps.session and deps.session())
     if not p then return enc end
+    if deps.routes then
+      if tostring(ctx.mapId) ~= p.key or roll() >= CHANCE then return enc end
+      local lo, hi = p.min, p.max
+      return { species = p.species, level = min(hi, max(lo, lo + floor(roll() * (hi - lo + 1)))) }
+    end
     local MC = engine("src.import.gba.map_catalog")
     local ok, g, n = pcall(MC and MC.groupNumFor or error, ctx.mapId)
     if not (ok and g and n) then return enc end

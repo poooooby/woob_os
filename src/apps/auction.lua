@@ -225,7 +225,7 @@ return function(ctx, env)
 
   local function affordable(L)
     local s = session()
-    local have = max(0, floor(tonumber(s and s.money) or 0))
+    local have = (env.money and env.money(s) or max(0, floor(tonumber(s and s.money) or 0)))
     return have + (L.mine and Au.heldOf(L.mine) or 0)
   end
   local function setTab(tab)
@@ -861,7 +861,7 @@ return function(ctx, env)
       K.text(numText(unread), bx - 3, by - 1.6, 3.2, C.white, "center", 6)
     end
     local s = session()
-    money(max(0, floor(tonumber(s and s.money) or 0)), x + w - 1, y + 2.4, 5, C.text, true)
+    money((env.money and env.money(s) or max(0, floor(tonumber(s and s.money) or 0))), x + w - 1, y + 2.4, 5, C.text, true)
   end
 
   function W.draw(body, clock, portrait)

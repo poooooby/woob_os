@@ -16,7 +16,9 @@
 --
 --   Jr = Journal(engine, deps)  deps: save (mod.save) ; now() -> epoch seconds ; badges(s) ;
 --                               session() ; swarm() -> today's swarm species id or nil ;
---                               leader(trainerClass) -> a Gym Leader's class
+--                               leader(trainerClass) -> a Gym Leader's class ; port (the Game Boy
+--                               games: src/gb/port.lua -- species as their string ids, types, shininess)
+--                               ; map() -> where the player is (else session.map)
 --   Jr.on(name, ev)   name: "battle.started" | "battle.damage_dealt" | "battle.battler_switched" |
 --                     "battle.fainted" | "battle.ended" | "pokemon.caught" | "egg.hatched" |
 --                     "pokemon.evolved" | "pokemon.level_up" | "map.entered" | "world.stepped" |
@@ -100,10 +102,17 @@ return function(engine, deps)
   function Jr.catch() return data().catch end
 
   local function P() return engine("src.core.game3.pokemon") end
+  local Port = deps.port
+  -- (a species: Gen 3's numbers; the Game Boy games' string ids as they are)
+  local function spId(v)
+    if Port then return type(v) == "string" and v ~= "" and v or nil end
+    return tonumber(v)
+  end
   local function speciesOf(mon)
-    return mon and tonumber(mon.species or mon.speciesId) or nil
+    return mon and spId(mon.species or mon.speciesId) or nil
   end
   local function shiny(mon)
+    if Port then return type(mon) == "table" and Port.shiny(mon) or false end
     -- (a Pokémon without a personality reads as shiny to the engine: only a real one counts)
     if type(mon) ~= "table" or mon.personality == nil then return false end
     local Pk = P()
@@ -116,12 +125,13 @@ return function(engine, deps)
   end
 
   local function mapNow()
+    if deps.map then return deps.map() end
     local s = deps.session and deps.session()
     return s and s.map or nil
   end
   local function spOf(b)
     if type(b) ~= "table" then return nil end
-    return tonumber(b.species or b.speciesId) or speciesOf(b.mon)
+    return spId(b.species or b.speciesId) or speciesOf(b.mon)
   end
   local function join(list, sp)
     if not sp or #list >= TEAM then return end
@@ -154,11 +164,12 @@ return function(engine, deps)
     end
     h.side, h.sp, h.turn = u.side, spOf(u), turnOf(ev)
     h.mv = type(ev.move) == "table" and tonumber(ev.move.num) or tonumber(ev.moveNum)
+    if Port and not h.mv then h.mv = type(ev.move) == "table" and ev.move.id or ev.moveId end
     h.sup, h.crit = (tonumber(ev.typeMult) or 10) > 10, ev.crit == true
   end
   live["battle.battler_switched"] = function(ev)
     if not fight then return end
-    local sp = tonumber(ev.speciesId) or spOf(ev.battler)
+    local sp = spId(ev.speciesId) or spOf(ev.battler)
     if ev.sideName == "player" then join(fight.mine, sp) elseif ev.sideName == "enemy" then join(fight.theirs, sp) end
   end
   -- (a knockout: who fell, and who did it when the last hit on them came this turn from the other side)
@@ -223,12 +234,13 @@ return function(engine, deps)
     if g and not g.badge and Jr.now() - (tonumber(g.at) or 0) < 900 then g.badge, g.n = true, n end
   end
   handlers["pokemon.caught"] = function(d, ev)
-    local sp = tonumber(ev.speciesId) or speciesOf(ev.mon)
+    local sp = spId(ev.speciesId) or speciesOf(ev.mon)
     add(d, "caught")
     if ev.isNew then add(d, "new") end
     if sp then
       local Pk = P()
-      local ok, types = pcall(Pk and Pk.types or error, sp)
+      local ok, types
+      if Port then ok, types = true, Port.types(sp) else ok, types = pcall(Pk and Pk.types or error, sp) end
       if ok and type(types) == "table" then
         local seen
         for i = 1, #types do
@@ -246,11 +258,11 @@ return function(engine, deps)
   end
   handlers["egg.hatched"] = function(d, ev)
     add(d, "hatched")
-    note(d, { k = "hatch", sp = speciesOf(ev.mon) or tonumber(ev.species), shiny = shiny(ev.mon) })
+    note(d, { k = "hatch", sp = speciesOf(ev.mon) or spId(ev.species), shiny = shiny(ev.mon) })
   end
   handlers["pokemon.evolved"] = function(d, ev)
     add(d, "evolved")
-    note(d, { k = "evolve", from = tonumber(ev.fromSpeciesId), sp = tonumber(ev.toSpeciesId) })
+    note(d, { k = "evolve", from = spId(ev.fromSpeciesId), sp = spId(ev.toSpeciesId) })
   end
   handlers["pokemon.level_up"] = function(d) add(d, "levels") end
   handlers["item.used"] = function(d) add(d, "items") end

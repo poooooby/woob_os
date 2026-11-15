@@ -142,7 +142,7 @@ return function(ctx, env)
         local info = Bx.info(mon, T)
         r.addr, r.mon, r.ok, r.why = addr, mon, ok, (not ok) and why(reason) or nil
         r.name, r.level, r.party = info and info.name or "?", tonumber(mon.level) or 1, addr.loc == "party"
-        r.sp = tonumber(mon.species or mon.speciesId)
+        r.sp = (tonumber(mon.species or mon.speciesId) or mon.species)
       end
     end
     for i = n + 1, #rows do rows[i] = nil end
@@ -187,7 +187,7 @@ return function(ctx, env)
       local info = Bx.info(dep.mon, T)
       d.name = info and info.name or "?"
       d.seek = T.f("gts.seeking", Gx.name(dep.species), rangeText(dep.levels))
-      d.sp = tonumber(dep.mon.species or dep.mon.speciesId)
+      d.sp = (tonumber(dep.mon.species or dep.mon.speciesId) or dep.mon.species)
       d.level = tonumber(dep.mon.level) or 1
       if dep.received then
         d.traded = T.f("gts.traded", d.name)
@@ -201,7 +201,7 @@ return function(ctx, env)
 
   local function tierOf(mon)
     local A = env.auction
-    return A and A.tierOf and A.tierOf(tonumber(mon.species or mon.speciesId)) or "common"
+    return A and A.tierOf and A.tierOf((tonumber(mon.species or mon.speciesId) or mon.species)) or "common"
   end
   -- the trade's show: `dur` seconds of searching (the globe), then found (the Poké Balls cross the
   -- pad), then the newcomer revealed
@@ -241,8 +241,8 @@ return function(ctx, env)
       sh.found = true
       -- (the Poké Balls cross the pad: yours out, theirs in)
       if env.pad and env.pad.transfer then
-        if sh.sent then pcall(env.pad.transfer, tonumber(sh.sent.species or sh.sent.speciesId), "out", "ball") end
-        pcall(env.pad.transfer, tonumber(sh.recv.species or sh.recv.speciesId), "in", "ball")
+        if sh.sent then pcall(env.pad.transfer, (tonumber(sh.sent.species or sh.sent.speciesId) or sh.sent.species), "out", "ball") end
+        pcall(env.pad.transfer, (tonumber(sh.recv.species or sh.recv.speciesId) or sh.recv.species), "in", "ball")
       end
       se("SE_BALL_TRADE")
     elseif not sh.found and t >= (sh.tick or 0) then
@@ -289,7 +289,7 @@ return function(ctx, env)
     st.confirm = nil
     local ok, mon = Gx.withdraw(session())
     if not ok then return toast(why(mon), true) end
-    if env.pad and env.pad.transfer then pcall(env.pad.transfer, tonumber(mon.species or mon.speciesId), "in", "ball") end
+    if env.pad and env.pad.transfer then pcall(env.pad.transfer, (tonumber(mon.species or mon.speciesId) or mon.species), "in", "ball") end
     local info = Bx.info(mon, T)
     toast(T.f("gts.withdrawn", info and info.name or "?"), false, "SE_BALL_TRADE")
     rebuildRows()
@@ -992,7 +992,7 @@ return function(ctx, env)
     local age = t - rv.t0
     local s = age < 0.3 and (age / 0.3) * 1.2 or (age < 0.5 and 1.2 - (age - 0.3) or 1 + 0.03 * sin(clock * 3))
     scaleAbout(cx, cy, s)
-    local sp = tonumber(rv.mon.species or rv.mon.speciesId)
+    local sp = (tonumber(rv.mon.species or rv.mon.speciesId) or rv.mon.species)
     -- (the Pokémon itself: shiny when it really is)
     if not (env.monPic and env.monPic(sp, cx - r, cy - r, r * 2, 1, rv.mon)) and env.monIconOf then
       pcall(env.monIconOf, rv.mon, cx - r * 0.8, cy - r * 0.8, r * 1.6, 0, 1)

@@ -68,7 +68,7 @@ return function(ctx, env)
   -- the most this way: the wallet's money (and the bank's room) in, the bank's (and the wallet's room) out
   local function most()
     local s = session()
-    if st.mode == "in" then return min(max(0, floor(tonumber(s and s.money) or 0)), Bk.MAX - Bk.balance()) end
+    if st.mode == "in" then return min((env.money and env.money(s) or max(0, floor(tonumber(s and s.money) or 0))), Bk.MAX - Bk.balance()) end
     return min(Bk.balance(), Bk.room(s))
   end
   local function setAmount(n)
@@ -244,7 +244,7 @@ return function(ctx, env)
     local b = K.R(x, y, w, 15)
     glass(b, 4)
     local s = session()
-    local m = max(0, floor(tonumber(s and s.money) or 0))
+    local m = (env.money and env.money(s) or max(0, floor(tonumber(s and s.money) or 0)))
     local cap = Bk.wallet()
     local k = min(1, m / max(1, cap))
     local cx, cy, r = x + 8, y + 7.5, 4.6

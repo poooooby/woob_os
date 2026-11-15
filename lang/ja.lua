@@ -517,6 +517,7 @@ return {
     ["type.18"] = "フェアリー",
     ["dex.mode.kanto"] = "カントー",
     ["dex.mode.hoenn"] = "ホウエン",
+    ["dex.mode.johto"] = "ジョウト",
     ["dex.mode.national"] = "ぜんこく",
     ["dex.hint.choose"] = "えらぶ",
     ["dex.hint.page"] = "くわしく",

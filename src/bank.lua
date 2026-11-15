@@ -5,7 +5,8 @@
 -- wallet, withdraw into it (as much as fits). Interest: a tenth of a percent a day on what's kept,
 -- for each whole day since the last payment (a week at most), never more than DAILY a day.
 --
---   Bk = Bank(engine, deps)  deps: save (mod.save) ; now() -> epoch seconds ; notify(kind, data)
+--   Bk = Bank(engine, deps)  deps: save (mod.save) ; now() -> epoch seconds ; notify(kind, data) ;
+--       wallet (the Game Boy games: { get(s), set(s, n), cap }; Gen 3's session.money without it)
 --   Bk.MAX ; Bk.wallet() -> the wallet's cap (the engine's) ; Bk.balance() ; Bk.log() -> newest first
 --       { kind = "in" | "out" | "over" | "interest", amount, at }
 --   Bk.deposit(s, n) / Bk.withdraw(s, n) -> true, moved | false, reason
@@ -56,11 +57,19 @@ return function(engine, deps)
 
   function Bk.balance() return data().balance end
   function Bk.log() return data().log end
+  local W = deps.wallet
   function Bk.wallet()
+    if W then return W.cap or 999999 end
     local Prize = engine("src.core.game3.battle.prize")
     return tonumber(Prize and Prize.MAX_MONEY) or 999999
   end
-  local function money(s) return max(0, floor(tonumber(s and s.money) or 0)) end
+  local function money(s)
+    if W then return max(0, floor(tonumber(W.get(s)) or 0)) end
+    return max(0, floor(tonumber(s and s.money) or 0))
+  end
+  local function setMoney(s, n)
+    if W then W.set(s, n) else s.money = n end
+  end
   function Bk.room(s) return max(0, Bk.wallet() - money(s)) end
 
   function Bk.deposit(s, n)
@@ -69,7 +78,7 @@ return function(engine, deps)
     local d = data()
     n = min(n, money(s), MAX - d.balance)
     if n <= 0 then return false, money(s) <= 0 and "none" or "full" end
-    s.money = money(s) - n
+    setMoney(s, money(s) - n)
     d.balance = d.balance + n
     note(d, "in", n)
     save(d)
@@ -83,7 +92,7 @@ return function(engine, deps)
     n = min(n, d.balance, Bk.room(s))
     if n <= 0 then return false, "wallet" end
     d.balance = d.balance - n
-    s.money = money(s) + n
+    setMoney(s, money(s) + n)
     note(d, "out", n)
     save(d)
     return true, n

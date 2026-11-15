@@ -1046,7 +1046,7 @@ return function(ctx, env)
     local pending = st.win and (st.win.pays - amount) or 0
     local bal = T("slots.balance")
     K.text(bal, x, y + 2, K.fit(bal, 3.2, third - 4), C.soft, "center", third)
-    money(max(0, floor(tonumber(s and s.money) or 0) - pending), x + third / 2, y + 6.6, 5.6, C.text, "center")
+    money(max(0, (env.money and env.money(s) or floor(tonumber(s and s.money) or 0)) - pending), x + third / 2, y + 6.6, 5.6, C.text, "center")
     local w2 = x + third
     K.text(T("slots.win"), w2, y + 2, 3.2, C.soft, "center", third)
     local lit = st.win and not st.spinning and amount > 0

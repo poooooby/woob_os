@@ -8,7 +8,8 @@
 -- one can be called back early (no reward). Kept in the save (mod.save "errands": it rewinds with it).
 --
 --   Er = Errands(engine, deps)  deps: save ; now() ; seed(s) ; bx (src/boxes.lua) ; badges(s) ;
---       notify(kind, data) ; T (words: a notification's job name)
+--       notify(kind, data) ; T (words: a notification's job name) ; port (the Game Boy games:
+--       src/gb/port.lua -- their Pokémon, EXP, Bag and money)
 --   Er.JOBS ; Er.HOURS ; Er.MAX
 --   Er.board(s, now) -> the three jobs posted { key, job, hours, taken }
 --   Er.canSend(s, addr) -> true | false, reason ; Er.candidates(s, box) -> { addr } (the party, then box)
@@ -116,12 +117,15 @@ return function(engine, deps)
 
   -- ------- who may go
 
+  local Port = deps.port
   local function isEgg(mon)
+    if Port then return Port.isEgg(mon) end
     local Pk = P()
     local ok, egg = pcall(Pk and Pk.isEgg or error, mon)
     return ok and egg == true or (mon and (mon.isEgg or mon.egg)) and true or false
   end
   local function hasMail(mon)
+    if Port then return Port.hasMail(mon) end
     local Mail = engine("src.core.game3.mail")
     local ok, has = pcall(Mail and Mail.monHasMail or error, mon)
     return ok and has == true
@@ -158,6 +162,7 @@ return function(engine, deps)
 
   -- how well a team suits a job: its types, its levels, how many -> "great" | "good" | "ok"
   local function typesOf(mon)
+    if Port then return Port.types(mon.species) end
     local Pk = P()
     local ok, types = pcall(Pk and Pk.types or error, tonumber(mon.species or mon.speciesId))
     return ok and type(types) == "table" and types or {}
@@ -223,8 +228,13 @@ return function(engine, deps)
     local St = Storage()
     local team = {}
     for _, addr in ipairs(order) do
-      local okT, mon = pcall(St.pickUpMon, s, addr.loc, addr.slot, addr.boxId)
-      if okT and type(mon) == "table" then team[#team + 1] = mon end
+      if Port then
+        local held = Bx.take(s, { addr })
+        if held and held.mons[1] then team[#team + 1] = held.mons[1] end
+      else
+        local okT, mon = pcall(St.pickUpMon, s, addr.loc, addr.slot, addr.boxId)
+        if okT and type(mon) == "table" then team[#team + 1] = mon end
+      end
     end
     if #team == 0 then return false, "gone" end
     local g = grade(job, team)
@@ -261,6 +271,7 @@ return function(engine, deps)
 
   -- a Pokémon to the player: the party, else the PC -> "party" | "pc" | nil
   local function place(s, mon)
+    if Port then return Port.give(s, mon) end
     local party = Bx.party(s)
     if #party < 6 then
       party[#party + 1] = mon
@@ -284,7 +295,12 @@ return function(engine, deps)
     end
     return false
   end
-  local function giveExp(mon, n)
+  local function giveExp(s, mon, n)
+    if Port then
+      local g = Port.addExp(s, mon, n)
+      if Bx.forget then Bx.forget(mon) end
+      return g
+    end
     local Daycare = engine("src.core.game3.daycare")
     local before = tonumber(mon.level) or 1
     local ok = pcall(Daycare and Daycare.applyExperience or error, mon, n)
@@ -302,21 +318,31 @@ return function(engine, deps)
     if not e then return false, "gone" end
     if not e.back then return false, "not_back" end
     if not room(s, #e.team) then return false, "no_room" end
-    local Bag = engine("src.core.game3.bag")
-    s.bag = s.bag or (Bag and Bag.new())
-    local okC, can = pcall(Bag.canAdd, s.bag, e.reward.item, e.reward.n)
-    if not (okC and can) then return false, "bag_full" end
+    local Bag = not Port and engine("src.core.game3.bag") or nil
+    if Port then
+      if not Port.canGive(s, e.reward.item, e.reward.n) then return false, "bag_full" end
+    else
+      s.bag = s.bag or (Bag and Bag.new())
+      local okC, can = pcall(Bag.canAdd, s.bag, e.reward.item, e.reward.n)
+      if not (okC and can) then return false, "bag_full" end
+    end
     local gained = {}
     for k, mon in ipairs(e.team) do
-      gained[k] = giveExp(mon, e.reward.exp[k] or 0)
+      gained[k] = giveExp(s, mon, e.reward.exp[k] or 0)
       place(s, mon)
     end
-    pcall(Bag.add, s.bag, e.reward.item, e.reward.n)
-    local Prize = engine("src.core.game3.battle.prize")
-    if Prize and Prize.apply then Prize.apply(s, e.reward.money) else s.money = (tonumber(s.money) or 0) + e.reward.money end
+    if Port then
+      Port.giveItem(s, e.reward.item, e.reward.n)
+      Port.pay(s, e.reward.money)
+    else
+      pcall(Bag.add, s.bag, e.reward.item, e.reward.n)
+      local Prize = engine("src.core.game3.battle.prize")
+      if Prize and Prize.apply then Prize.apply(s, e.reward.money) else s.money = (tonumber(s.money) or 0) + e.reward.money end
+    end
     table.remove(d.out, i)
     table.insert(d.log, 1, { job = e.job, grade = e.grade, money = e.reward.money, item = e.reward.item, n = e.reward.n,
-                             sp = tonumber(e.team[1] and (e.team[1].species or e.team[1].speciesId)), at = Er.now() })
+                             sp = Port and e.team[1] and e.team[1].species
+                               or tonumber(e.team[1] and (e.team[1].species or e.team[1].speciesId)), at = Er.now() })
     while #d.log > KEEP do d.log[#d.log] = nil end
     save(d)
     return true, e, gained

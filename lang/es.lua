@@ -516,6 +516,7 @@ return {
     ["type.18"] = "Hada",
     ["dex.mode.kanto"] = "Kanto",
     ["dex.mode.hoenn"] = "Hoenn",
+    ["dex.mode.johto"] = "Johto",
     ["dex.mode.national"] = "Nacional",
     ["dex.hint.choose"] = "Elegir",
     ["dex.hint.page"] = "Ficha",

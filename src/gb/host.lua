@@ -356,9 +356,71 @@ return function(mod, deps)
     end })
     return true
   end
+  -- the START menu's Pokédex: ours full screen (deps.dexOn: the option and Settings), the game's own a START
+  -- away. Gen 1's pops itself and calls onCancel (the START menu back); Gen 2's onClose pops it
+  local function dexCarrierUpdate(self)
+    if self.done then return end
+    if self.opened then
+      if not (Sh and Sh.hostOpen and Sh.hostOpen()) then
+        self.done = true
+        self.finish()
+      end
+      return
+    end
+    self.opened = true
+    local ok, got = false, false
+    if Sh and Sh.openFull then
+      ok, got = pcall(Sh.openFull, "pokedex", self.game.save, function()
+        if not self.done then
+          self.done = true
+          self.finish()
+        end
+      end, nil, { mode = "dex", backKey = "dex.toMenu", classic = function()
+        self.done = true
+        local stk = stack()
+        if stk and stk:top() == self then pcall(stk.pop, stk) end
+        self.fallback()
+      end })
+    end
+    if not (ok and got) then
+      self.done = true
+      local stk = stack()
+      if stk and stk:top() == self then pcall(stk.pop, stk) end
+      self.fallback()
+    end
+  end
+  local function dexScreen()
+    local reg = mod.content and mod.content.screens
+    if not (reg and reg.register) then return false end
+    local id = gen == 2 and "Gen2PokedexMenu" or "PokedexMenu"
+    local path = gen == 2 and "src.ui.gen2.PokedexMenu" or "src.ui.PokedexMenu"
+    reg:register(id, { new = function(game, opts)
+      opts = opts or {}
+      local M = engine(path)
+      local wanted = Sh and (not deps.enabled or deps.enabled()) and deps.dexOn and deps.dexOn()
+      -- (only the START menu's: one with a way back to it)
+      if not (wanted and (opts.onCancel or opts.onClose) and not opts.entrySpecies) then return M.new(game, opts) end
+      local c = { isMenu = true, update = dexCarrierUpdate, draw = stateDraw, isOpaque = true, game = game }
+      c.finish = function()
+        if gen == 2 then
+          if opts.onClose then opts.onClose() end
+        else
+          local stk = stack()
+          if stk and stk:top() == c then pcall(stk.pop, stk) end
+          if opts.onCancel then opts.onCancel() end
+        end
+      end
+      c.fallback = function() game.stack:push(M.new(game, opts)) end
+      return c
+    end })
+    return true
+  end
+
   function H.install()
     local ok, err = pcall(gen == 2 and gen2Screens or gen1Screens)
     if not ok and log then log:warn("the PC screens weren't taken over: %s", tostring(err)) end
+    local okD, errD = pcall(dexScreen)
+    if not okD and log then log:warn("the Pokédex wasn't taken over: %s", tostring(errD)) end
   end
 
   -- (Gen 1: OverworldState:openPC wrapped once per process; this instance's impl swapped in)

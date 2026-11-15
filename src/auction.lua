@@ -160,10 +160,36 @@ return function(engine, deps)
 
   local pools
   local function Pokemon() return engine("src.core.game3.pokemon") end
+  -- (the Game Boy games: deps.port, src/gb/port.lua -- their Pokémon, the wallet, delivery)
+  local Port = deps.port
   local function buildPools()
     local P = Pokemon()
     local out, minLv = {}, {}
     for _, t in ipairs(TIERS) do out[t] = {} end
+    if Port then
+      local pre, into = {}, {}
+      for nat = 1, Port.MAX_DEX do
+        local sp = Port.species(nat)
+        for _, e in ipairs(sp and Port.evolutions(sp) or {}) do
+          pre[e.into], into[sp] = sp, true
+          if e.level then minLv[e.into] = max(minLv[e.into] or 0, e.level) end
+        end
+      end
+      for _ = 1, 2 do
+        for sp, from in pairs(pre) do
+          if minLv[from] then minLv[sp] = max(minLv[sp] or 0, minLv[from]) end
+        end
+      end
+      for nat = 1, Port.MAX_DEX do
+        local sp = Port.species(nat)
+        if sp and not NEVER[nat] then
+          local pool = out[(LEGENDARY[nat] and "legendary") or (MYTHICAL[nat] and "mythical") or (PRIZED[nat] and "prized")
+            or (pre[sp] and not into[sp] and "rare") or (into[sp] and not pre[sp] and "common") or "uncommon"]
+          pool[#pool + 1] = { sp = sp, name = Port.name(sp) }
+        end
+      end
+      return out, minLv
+    end
     if not P then return out, minLv end
     local function add(tier, sp, name)
       local pool = out[tier]
@@ -282,6 +308,7 @@ return function(engine, deps)
   end
   Au.seedOf = seedOf
   local function typesText(sp)
+    if Port then return Port.typesText(sp) end
     local P = Pokemon()
     local Types = engine("src.core.game3.battle.types")
     local ok, t = pcall(P and P.types or error, sp)
@@ -336,7 +363,7 @@ return function(engine, deps)
     shinyDice.x = (seed * 69621 + k * 40692 + n * 48271 + 12345) % M
     if shinyDice.x == 0 then shinyDice.x = 1 end
     for _ = 1, 3 do nextRand(shinyDice) end
-    L.shiny = (nextRand(shinyDice) % SHINY) == 0
+    L.shiny = (nextRand(shinyDice) % SHINY) == 0 and not (Port and not Port.shinyOk)
     if L.shiny then
       V = V * SHINY_VALUE
       L.picMon = { species = pick.sp, isShiny = true }
@@ -466,12 +493,19 @@ return function(engine, deps)
     return L.price + step(L.price)
   end
 
-  local function money(s) return max(0, floor(tonumber(s and s.money) or 0)) end
+  local function money(s)
+    if Port then return Port.money(s) end
+    return max(0, floor(tonumber(s and s.money) or 0))
+  end
   -- what's held from the money for a bid (older saves: all of the maximum)
   local function heldOf(b) return b.held or b.max or 0 end
   Au.heldOf = heldOf
   function pay(s, amount)
     if amount <= 0 then return end
+    if Port then
+      Port.pay(s, amount)
+      return
+    end
     local Prize = engine("src.core.game3.battle.prize")
     if Prize and Prize.apply then
       Prize.apply(s, amount)
@@ -507,7 +541,7 @@ return function(engine, deps)
     if amount < Au.minBid(L) then return false, "too_low" end
     local cost = amount - (mine and heldOf(mine) or 0)
     if cost > money(s) then return false, "money" end
-    s.money = money(s) - cost
+    if Port then Port.setMoney(s, money(s) - cost) else s.money = money(s) - cost end
     if not mine then
       local ivs = {}
       for _, key in ipairs(IV_KEYS) do ivs[key] = L.ivs[key] end
@@ -536,6 +570,10 @@ return function(engine, deps)
 
   -- a won Pokémon to the player: the listed IVs, its stats again, full HP -> where ("party" | "pc") or nil
   local function deliver(s, b)
+    if Port then
+      local mon = Port.make(b.sp, b.level, { ivs = b.ivs, shiny = b.shiny })
+      return mon and Port.give(s, mon) or nil
+    end
     local Party = engine("src.core.game3.party")
     if not (Party and Party.giveMonToPlayer) then return nil end
     local ok, code, mon

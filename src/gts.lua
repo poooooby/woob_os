@@ -12,7 +12,8 @@
 --   Gx = gts(engine, deps)  deps: save (mod.save), now() -> epoch seconds, rng(n) -> 1..n,
 --                           seed(s), pools() / tierOf(sp) / minLevel(sp) (R-Bay's), frlg() -> bool,
 --                           bx (src/boxes.lua), notify(kind, { name, sp, who }) ("gts": a
---                           deposit traded), shinyPersonality(tid, sid, lo, k) (R-Bay's)
+--                           deposit traded), shinyPersonality(tid, sid, lo, k) (R-Bay's) ;
+--                           port (the Game Boy games: src/gb/port.lua -- their Pokémon, the trades)
 --   Gx.REGIONS, Gx.LEVELS (request ranges)
 --   Gx.canSend(s, addr) -> true | false, reason        addr: Bx.addr(...)
 --   Gx.candidates(s, box, filter) -> { addr ... }       (the party, then that box)
@@ -102,12 +103,21 @@ return function(engine, deps)
 
   -- ------- the rules: what may go, what may come
 
+  local Port = deps.port
+  -- (a Pokémon's species: Gen 3's number; the Game Boy games' string id)
+  local function spOf(mon)
+    if not mon then return nil end
+    if Port then return mon.species end
+    return tonumber(mon.species or mon.speciesId)
+  end
   local function isEgg(mon)
+    if Port then return Port.isEgg(mon) end
     local Pk = P()
     local ok, egg = pcall(Pk and Pk.isEgg or error, mon)
     return ok and egg == true or (mon and (mon.isEgg or mon.egg)) and true or false
   end
   local function hasMail(mon)
+    if Port then return Port.hasMail(mon) end
     local Mail = engine("src.core.game3.mail")
     local ok, has = pcall(Mail and Mail.monHasMail or error, mon)
     return ok and has == true
@@ -119,6 +129,7 @@ return function(engine, deps)
   end
   -- (FireRed / LeafGreen without the National Dex trade only Kanto's 151, both ways)
   function Gx.allowed(s, sp)
+    if Port then return true end
     if not (deps.frlg and deps.frlg()) or national(s) then return true end
     local Pk = P()
     local ok, nat = pcall(Pk and Pk.national or error, sp)
@@ -142,7 +153,7 @@ return function(engine, deps)
       end
       if not other then return false, "last" end
     end
-    if Tr and Tr.canTradeSelectedMon then
+    if Tr and Tr.canTradeSelectedMon and not Port then
       local frlg = deps.frlg and deps.frlg()
       local ok, code = pcall(Tr.canTradeSelectedMon, party, idx, { session = s, nationalDex = (not frlg) or nil })
       if ok and code and code ~= 0 then return false, CODES[code] or "invalid" end
@@ -186,6 +197,14 @@ return function(engine, deps)
   -- theirs: name, ID, gender, met in a trade, perhaps holding something
   -- (shiny: a personality shiny for the stranger's IDs, the game's own test)
   function Gx.make(s, sp, level, who, id, shiny)
+    if Port then
+      local mon = Port.make(sp, level, { ot = who[1], otId = id % 65536, shiny = shiny, traded = true })
+      if mon and Port.gen == 2 and roll(4) == 1 then
+        local item = Port.item(HELD[roll(#HELD)])
+        if item and deps.hasItem and deps.hasItem(item) then mon.item = item end
+      end
+      return mon
+    end
     local Party, Pk = engine("src.core.game3.party"), P()
     if not (Party and Pk) then return nil end
     local tid, sid = id % 65536, floor(id / 65536)
@@ -215,6 +234,15 @@ return function(engine, deps)
   -- one Pokémon of the player's out, another in, where it was: the party's slot (the game's own
   -- trade swap: mail, friendship, the Pokédex) or the box's cell (healed, the Pokédex too)
   function Gx.swap(s, addr, recv, who)
+    if Port then
+      local list = addr.loc == "party" and Bx.party(s) or Bx.boxMons(s, addr.boxId)
+      local sent = list and list[addr.slot]
+      if not sent then return nil end
+      list[addr.slot] = recv
+      if Bx.forget then Bx.forget(sent) end
+      Port.mark(s, recv.species)
+      return sent
+    end
     local Tr = Trade()
     local sent
     if addr.loc == "party" then
@@ -298,11 +326,17 @@ return function(engine, deps)
     local ok, why = Gx.canSend(s, addr)
     if not ok then return false, why end
     local St = Storage()
-    local okT, mon = pcall(St.pickUpMon, s, addr.loc, addr.slot, addr.boxId)
+    local okT, mon
+    if Port then
+      local held = Bx.take(s, { addr })
+      okT, mon = held ~= nil, held and held.mons[1]
+    else
+      okT, mon = pcall(St.pickUpMon, s, addr.loc, addr.slot, addr.boxId)
+    end
     if not (okT and type(mon) == "table") then return false, "gone" end
     -- (how fair the ask is: a rarer species, a higher level, take longer; an absurd one never comes)
     local range = LEVELS[levels] or LEVELS[1]
-    local fair = tierRank(species) - tierRank(tonumber(mon.species or mon.speciesId))
+    local fair = tierRank(species) - tierRank(spOf(mon))
     if levels ~= 1 and range[1] > (tonumber(mon.level) or 1) + 10 then fair = fair + 1 end
     local matchAt = false
     if fair <= 0 then matchAt = now + 300 + roll(3300)
@@ -314,6 +348,7 @@ return function(engine, deps)
   end
   -- a Pokémon to the player: the party, else the PC -> "party" | "pc" | nil
   local function place(s, mon)
+    if Port then return Port.give(s, mon) end
     local party = Bx.party(s)
     if #party < 6 then
       party[#party + 1] = mon
@@ -347,7 +382,7 @@ return function(engine, deps)
     dep.received, dep.stranger = recv, { who[1], who[2], who[3] }
     save(d)
     if deps.notify then
-      local sp = tonumber(recv.species or recv.speciesId)
+      local sp = spOf(recv)
       pcall(deps.notify, "gts", { name = Gx.name(sp), sp = sp, who = who[1] })
     end
     return true
@@ -360,15 +395,17 @@ return function(engine, deps)
     local where = place(s, recv)
     if not where then return false, "no_room" end
     recv.friendship, recv.happiness = 70, 70
-    local sp = tonumber(recv.species or recv.speciesId)
-    s.dex = s.dex or { seen = {}, owned = {}, caught = {} }
-    s.dex.seen = s.dex.seen or {}
+    local sp = not Port and tonumber(recv.species or recv.speciesId) or nil
+    if Port then Port.mark(s, recv.species) else
+      s.dex = s.dex or { seen = {}, owned = {}, caught = {} }
+      s.dex.seen = s.dex.seen or {}
+    end
     if sp then
       s.dex.seen[sp] = true
       local Dex = engine("src.core.game3.dex")
       pcall(Dex and Dex.handleSetPokedexFlag or error, s.dex, sp, true, recv.personality)
     end
-    local Tr = Trade()
+    local Tr = not Port and Trade() or nil
     if Tr and Tr.noteLinkTrade then pcall(Tr.noteLinkTrade, s, dep.mon, recv, dep.stranger[1]) end
     logTrade(d, "gts", dep.mon, recv, dep.stranger)
     d.deposit = nil
@@ -383,7 +420,7 @@ return function(engine, deps)
     local seen, out = {}, {}
     local function add(mon)
       if mon and not isEgg(mon) then
-        local sp = tonumber(mon.species or mon.speciesId)
+        local sp = spOf(mon)
         if sp and not seen[sp] then seen[sp], out[#out + 1] = true, sp end
       end
     end
@@ -443,7 +480,7 @@ return function(engine, deps)
     local out = {}
     local range = LEVELS[L.levels] or LEVELS[1]
     local function fits(addr, mon)
-      if tonumber(mon.species or mon.speciesId) ~= L.ask then return false end
+      if spOf(mon) ~= L.ask then return false end
       local lv = tonumber(mon.level) or 1
       if lv < range[1] or lv > range[2] then return false end
       return Gx.canSend(s, addr) == true
@@ -463,7 +500,7 @@ return function(engine, deps)
     if d.done[L.key] then return false, "gone" end
     local mon = Bx.get(s, addr)
     local range = LEVELS[L.levels] or LEVELS[1]
-    if not mon or tonumber(mon.species or mon.speciesId) ~= L.ask then return false, "wrong" end
+    if not mon or spOf(mon) ~= L.ask then return false, "wrong" end
     local lv = tonumber(mon.level) or 1
     if lv < range[1] or lv > range[2] then return false, "wrong" end
     local ok, why = Gx.canSend(s, addr)
@@ -483,6 +520,10 @@ return function(engine, deps)
   local names = {}
   function Gx.name(sp)
     local n = names[sp]
+    if n == nil and Port then
+      n = Port.name(sp)
+      names[sp] = n
+    end
     if n == nil then
       local Pk = P()
       local ok, got = pcall(Pk and Pk.name or error, sp)
@@ -493,9 +534,9 @@ return function(engine, deps)
   end
   function Gx.seenSpecies(s)
     local out = {}
-    local seen = s and s.dex and s.dex.seen or {}
+    local seen = s and (Port and s.pokedex or s.dex) and (Port and s.pokedex or s.dex).seen or {}
     for sp, yes in pairs(seen) do
-      sp = tonumber(sp)
+      if not Port then sp = tonumber(sp) end
       if yes and sp and Gx.allowed(s, sp) and Gx.name(sp) ~= "?" then out[#out + 1] = sp end
     end
     table.sort(out, function(a, b) return Gx.name(a) < Gx.name(b) end)
@@ -504,6 +545,7 @@ return function(engine, deps)
 
   -- a trade evolution waiting for the Pokémon just received (Kadabra, a Machoke, an item's ...)
   function Gx.evolveTarget(s, mon)
+    if Port then return Port.tradeTarget(mon) end
     local Evo = engine("src.core.game3.evolution")
     local ok, target = pcall(Evo and Evo.tradeTarget or error, mon, s)
     return ok and target or nil
@@ -511,6 +553,11 @@ return function(engine, deps)
 
   -- the game's evolution scene for it (headless: evolved at once), onDone after
   function Gx.openEvolution(s, mon, target, onDone)
+    if Port then
+      Port.evolve(s, mon, target)
+      if onDone then onDone() end
+      return false
+    end
     local Scene = engine("src.ui.game3.evolution_scene")
     if Scene and Scene.start and love and love.graphics and love.graphics.newImage then
       local ok = pcall(Scene.start, mon, target, { canStop = false, session = s, via = "trade", onDone = onDone })

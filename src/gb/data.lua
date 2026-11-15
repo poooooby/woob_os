@@ -69,6 +69,7 @@ return function(H)
   function Gd.isEgg(mon) return type(mon) == "table" and (mon.isEgg == true or mon.egg == true) end
   function Gd.shiny(mon)
     if Gd.gen == 1 or type(mon) ~= "table" or Gd.isEgg(mon) then return false end
+    if mon.isShiny ~= nil then return mon.isShiny == true end
     if mon.shiny ~= nil then return mon.shiny == true end
     local Mon = engine("src.battle.gen2.Mon")
     if Mon and Mon.vanillaShiny and type(mon.dvs) == "table" then
@@ -135,6 +136,13 @@ return function(H)
   function Gd.item(id)
     local d = Gd.data()
     return d and d.items and d.items[id] or nil
+  end
+  -- an item's words on one line (the game's breaks, and the hyphens it broke words with, taken out)
+  function Gd.itemDesc(id)
+    local it = Gd.item(id)
+    local d = tostring(it and it.description or "")
+    d = d:gsub("%-%s*<NEXT>%s*", ""):gsub("%-\n", ""):gsub("<NEXT>", " "):gsub("[\n\f]", " "):gsub("%s+", " ")
+    return (d:gsub("^%s+", ""):gsub("%s+$", ""))
   end
   function Gd.itemName(id)
     local it = Gd.item(id)

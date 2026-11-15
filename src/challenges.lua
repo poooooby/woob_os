@@ -6,7 +6,8 @@
 -- "challenges": it rewinds with the save).
 --
 --   Ch = Challenges(engine, deps)  deps: save ; now() ; journal (Jr) ; seed(s) ; badges(s) ;
---       notify(kind, data) ; T (words) ; typeName(id) ; itemName(id) ; swarmOn() ; frlg()
+--       notify(kind, data) ; T (words) ; typeName(id) ; itemName(id) ; swarmOn() ; frlg() ;
+--       port (the Game Boy games: src/gb/port.lua, the rewards paid through it) ; canHatch (false: no Eggs)
 --   Ch.list(s) -> the week's five { kind, param, goal, reward = { money } | { item, n }, claimed, told }
 --   Ch.progress(e) -> counted so far (at most the goal) ; Ch.done(e) ; Ch.text(e) -> its words
 --   Ch.bonus(s) -> { item, n, claimed } ; Ch.bonusReady(s)
@@ -86,7 +87,10 @@ return function(engine, deps)
     local function roll(n) return nextRand(dice) % n + 1 end
     local pool = {}
     for _, k in ipairs(KINDS) do
-      if (not k.when or k.when(b, frlg)) and (not k.swarm or swarmOn) then pool[#pool + 1] = k end
+      if (not k.when or k.when(b, frlg)) and (not k.swarm or swarmOn)
+          and not (k.id == "hatch" and deps.canHatch == false) then
+        pool[#pool + 1] = k
+      end
     end
     local list = {}
     for i = 1, min(COUNT, #pool) do
@@ -149,7 +153,16 @@ return function(engine, deps)
   end
 
   -- a reward to the player: money (the wallet, then the Bank, through Prize.apply), items to the Bag
+  local Port = deps.port
   local function pay(s, r)
+    if Port then
+      if r.money then
+        Port.pay(s, r.money)
+        return true
+      end
+      if not Port.canGive(s, r.item, r.n) then return false end
+      return Port.giveItem(s, r.item, r.n)
+    end
     if r.money then
       local Prize = engine("src.core.game3.battle.prize")
       if Prize and Prize.apply then Prize.apply(s, r.money) else s.money = (tonumber(s.money) or 0) + r.money end

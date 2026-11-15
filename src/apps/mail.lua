@@ -326,7 +326,9 @@ return function(ctx, env)
     K.box("fill", K.R(cb[1], cb[2] + 7, cb[3], 5))
     local tts = K.fit(row.title, 5, cb[3] - 22)
     K.label(row.title, cb[1] + 4, cb[2] + 3.2 + (5 - tts) * 0.5, tts, K.WHITE)
-    if env.monIcon and row.species > 0 then pcall(env.monIcon, row.species, cb[1] + cb[3] - 17, cb[2] - 1, 16) end
+    -- (a species: Gen 3's number, the Game Boy games' id)
+    local sp = row.species
+    if env.monIcon and sp and sp ~= 0 and sp ~= "" then pcall(env.monIcon, sp, cb[1] + cb[3] - 17, cb[2] - 1, 16) end
     -- the words, centred down the card
     local lines = row.lines
     local ly = cb[2] + 16

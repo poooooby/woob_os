@@ -78,7 +78,8 @@ local input = {
 }
 local accepts = true
 local world = { acceptsMenuInput = function() return accepts end, events = {} }
-local overworld = setmetatable({ isOverworld = true, player = {} }, { __index = require("src.world.OverworldController") })
+local overworld = setmetatable({ isOverworld = true, player = {}, update = function() end, draw = function() end },
+  { __index = require("src.world.OverworldController") })
 local game = { data = data, save = save, stack = stack, input = input, phase = "play" }
 if GEN == 2 then game.world = world else game.overworld = overworld; table.insert(stack.states, overworld) end
 run.loader.events:emit("game.ready", { game = game })
@@ -282,6 +283,149 @@ for _, r in ipairs(rowsNow) do
 end
 T.check(hasOak and hasHall, "the PC's rows: Oak's and the Hall's once there")
 
+-- ------- the play-tied apps
+local Mt, Bk, Au, Sl, Gx, Er, Ch, Jr, Sw, Nw, Pt = X._test.mart, X._test.bank, X._test.auction, X._test.slots,
+  X._test.gts, X._test.errands, X._test.challenges, X._test.journal, X._test.swarm, X._test.news, X._test.port
+T.check(Mt and Bk and Au and Sl and Gx and Er and Ch and Jr and Sw and Nw and Pt, "the play apps' models are made")
+local function money() return Gd.money(save) end
+Gd.setMoney(save, 5000)
+local potions = save.inventory.POTION or 0
+local okB = Mt.buy(save, "POTION", 2, 0)
+T.check(okB and money() == 4400 and save.inventory.POTION == potions + 2, "the Mart: two Potions bought")
+local okSell, earned = Mt.sell(save, "POTION", 1)
+T.check(okSell and earned == 150 and money() == 4550, "and one sold for half")
+local okLock, whyLock = Mt.buy(save, "ULTRA_BALL", 1, 0)
+T.check(not okLock and whyLock == "badges", "a Badge's goods wait for it")
+-- (the Bank)
+local okDep = Bk.deposit(save, 1000)
+T.check(okDep and money() == 3550 and Bk.balance() == 1000, "the Bank: deposited")
+local okWd = Bk.withdraw(save, 400)
+T.check(okWd and money() == 3950 and Bk.balance() == 600, "withdrawn")
+Gd.setMoney(save, 999000)
+Pt.pay(save, 5000)
+T.check(money() == 999999 and Bk.balance() == 600 + 4001, "what the wallet can't hold: to the Bank")
+Gd.setMoney(save, 200000)
+-- (R-Bay: a listing of this game's Pokémon, a bid, the win delivered)
+local now0 = os.time()
+local ls = Au.listings(save, now0)
+local L = ls and ls[1]
+T.check(L and type(L.sp) == "string" and Gd.def(L.sp) ~= nil, "R-Bay: a listing of this game's Pokémon (" .. tostring(L and L.sp) .. ")")
+if L then
+  local before = money()
+  local okBid = Au.bid(save, L, Au.minBid(L) + 100000, now0)
+  T.check(okBid and money() < before, "a bid holds the money")
+  local partyN = #save.party
+  local won = Au.settle(save, L.finish + 10)
+  T.check(won == 1 and (#save.party == partyN + 1 or Bx.count(save, Bx.current(save)) > 0), "won: the Pokémon delivered")
+end
+-- (Slots)
+local reels = { 1, 1, 1, 1, 1 }
+local k = 0
+Sl.rng = function(n) k = k % 5 + 1; return reels[k] end
+local okSpin = Sl.spin(save, 1, 1)
+Sl.collect(save)
+T.check(okSpin, "Slots: a spin")
+local prizes = Sl.prizes()
+T.check(#prizes >= 8, "the prize corner (" .. #prizes .. ")")
+local dS = Sl.store and Sl.store:get("slots")
+if dS then dS.tickets = 1000; Sl.store:set("slots", dS) end
+local monPrize, itemPrize
+for i, pz in ipairs(prizes) do
+  if pz.kind == "mon" and not monPrize then monPrize = i end
+  if pz.kind == "item" and not itemPrize then itemPrize = i end
+end
+local okI, whereI = Sl.redeem(save, itemPrize)
+T.check(okI and whereI == "bag", "an item prize to the Bag (" .. tostring(prizes[itemPrize].id) .. ")")
+local okM, whereM = Sl.redeem(save, monPrize)
+T.check(okM and (whereM == "party" or whereM == "pc"), "a Pokémon prize (" .. tostring(prizes[monPrize].id) .. ")")
+-- (the GTS: a Wonder Trade)
+local giveAway = newMon("RATTATA", 7)
+table.insert(save.party, giveAway)
+local slot = #save.party
+local okW, recv = Gx.wonder(save, Bx.addr("party", slot))
+T.check(okW and save.party[slot] == recv and recv ~= giveAway and recv.traded, "the GTS: a Wonder Trade, theirs in its place")
+-- (Errands: a box Pokémon on a job, back with EXP, money and an item)
+local boxMon = newMon("GEODUDE", 12)
+local box1 = Bx.boxMons(save, 1)
+box1[#box1 + 1] = boxMon
+local board = Er.board(save, now0)
+local okE = Er.send(save, board[1].key, { Bx.addr("box", #box1, 1) }, now0)
+T.check(okE and #Er.out() == 1 and Bx.count(save, 1) == #box1, "Errands: a team sent (out of its box)")
+Er.settle(save, now0 + 9 * 3600)
+local moneyE = money()
+local expBefore = tonumber(boxMon.exp or boxMon.experience) or 0
+local okC, errand = Er.collect(save, 1)
+T.check(okC and money() > moneyE and (tonumber(boxMon.exp or boxMon.experience) or 0) > expBefore,
+  "back: money and EXP")
+-- (the journal: the game's own events, as it reads them)
+local cBefore = Jr.count("caught")
+run.loader.events:emit("pokemon.caught", { mon = newMon("PIDGEY", 4), species = "PIDGEY", isNew = true })
+T.check(Jr.count("caught") == cBefore + 1 and Jr.count("t2") >= 1, "the journal: a catch, its types counted")
+run.loader.events:emit("battle.started", { battle = { player = { species = p1.species }, enemy = { species = "RATTATA" } },
+                                            kind = "wild" })
+run.loader.events:emit("battle.ended", { battle = {}, result = "win" })
+T.check(Jr.count("wild") >= 1, "a wild battle won")
+local chList = Ch.list(save)
+T.check(#chList == 5, "Challenges: the week's five")
+-- (the swarm)
+local sw = Sw.today(save, now0)
+T.check(sw and type(sw.species) == "string" and tostring(sw.mapId):find("ROUTE"), "the daily swarm: " ..
+  tostring(sw and sw.species) .. " on " .. tostring(sw and sw.mapId))
+if sw then
+  Sw.rng = function() return 0 end
+  local got = Sw.encounter({ species = "RATTATA", level = 3 }, { mapId = sw.mapId, terrain = "grass" })
+  T.check(got.species == sw.species, "its route's encounters become it")
+  Sw.rng = nil
+end
+-- (the News)
+local bc = Nw.build(save)
+T.check(bc and #bc.stories > 0, "the News: today's stories (" .. (bc and #bc.stories or 0) .. ")")
+
+-- ------- the Pokédex
+local Dx = X._test.dex
+T.check(Dx ~= nil, "the Pokédex's model is made")
+if Dx then
+  local book = Dx.open(save)
+  local wantModes = GEN == 2 and "johto,national" or "kanto"
+  T.eq(table.concat(book.modes, ","), wantModes, "its lists")
+  T.eq(#book.lists[GEN == 2 and "national" or "kanto"], GEN == 2 and 251 or 151, "every Pokémon of the game")
+  if GEN == 2 then T.eq(book.lists.johto[1].sp, "CHIKORITA", "Johto's first: Chikorita") end
+  local bulba
+  for _, e in ipairs(book.lists[GEN == 2 and "national" or "kanto"]) do if e.sp == "BULBASAUR" then bulba = e end end
+  local pg = Dx.page(bulba)
+  T.check(pg and pg.category:find("Seed") and pg.description ~= "", "Bulbasaur: the Seed Pokémon, its words (" ..
+    tostring(pg and pg.category) .. ")")
+  T.eq(pg and pg.total, GEN == 2 and 318 or 253, "its base stats' total")
+  T.check(pg and pg.moves.level[1] and pg.moves.level[1].name == "Tackle", "its first move: Tackle")
+  local toxic = false
+  for _, r in ipairs(pg and pg.moves.tm or {}) do if r.name == "Toxic" and r.tag == "TM06" then toxic = true end end
+  T.check(toxic, "TM06 Toxic")
+  T.check(pg and pg.evolutions[1] and pg.evolutions[1].toName == "Ivysaur" and pg.evolutions[1].how:find("16"),
+    "evolves into Ivysaur at 16")
+  if GEN == 2 then
+    T.check(pg.maleText == "87.5%" and #pg.moves.egg > 0, "87.5% male; egg moves")
+  else
+    T.check(pg.noGender == true, "Red / Blue / Yellow: no gender")
+  end
+  local pidgey
+  for _, e in ipairs(book.lists[GEN == 2 and "national" or "kanto"]) do if e.sp == "PIDGEY" then pidgey = e end end
+  local wp = Dx.page(pidgey)
+  T.check(wp and #wp.where > 0 and wp.where[1].methodText ~= "", "Pidgey: where it's found (" ..
+    tostring(wp and wp.where[1] and wp.where[1].place) .. ")")
+  -- (the START menu's Pokédex: ours, the game's flow after)
+  local Tm = X._test.townmap
+  local backed = false
+  local optsD = GEN == 2 and { onClose = function() stack:pop(); backed = true end }
+    or { onCancel = function() backed = true end }
+  Screens.push(game, GEN == 2 and "Gen2PokedexMenu" or "PokedexMenu", optsD)
+  frame(2)
+  T.check(Tm and Tm.isOpen() and Tm.state().ctx.app == "pokedex", "the START menu's Pokédex: ours")
+  frame(10)
+  if Tm and Tm.isOpen() then Tm.state().ctx.done() end
+  frame(1)
+  T.check(backed and #stack.states == base, "closed: back to the START menu's flow")
+end
+
 -- ------- the windows open and draw (the PC's desktop), next to no garbage
 local function garbageOf(n, fn)
   local best = math.huge
@@ -303,7 +447,8 @@ do
   frame(2)
   if D.skipBoot then D.skipBoot() end
   frame(30)
-  for _, id in ipairs({ "storage", "items", "mail", "hall", "oak", "settings" }) do
+  for _, id in ipairs({ "storage", "items", "mail", "hall", "oak", "settings", "mart", "bank", "auction", "slots",
+                        "gts", "errands", "challenges", "news", "pokedex" }) do
     if id ~= "mail" or GEN == 2 then
       local okO = D.openApp(id)
       T.check(okO, "the " .. id .. " app opens")
