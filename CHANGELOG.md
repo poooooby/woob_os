@@ -5,6 +5,12 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Fixed
+- **The Pokédex's page no longer flashes** on a Pokémon you've seen or caught while WoobleSpritePack
+  is on: everything under the picture went blank for a frame each time the pack made its next
+  animation frame (8 times a second). The same one-frame blank could happen elsewhere the first time
+  a Pokémon's picture or icon was drawn.
+
 ## [0.12.0] - 2026-11-14
 
 ### Added

@@ -201,6 +201,7 @@ return function(mod)
         return Chrome.drawItemIcon(id, 0, 0, 1)
       end)
       G.pop()
+      Kit.rescissor()
       local okD, data = false, nil
       if ok and drawn then okD, data = pcall(canvas.newImageData, canvas) end
       if okD and data then
@@ -271,6 +272,7 @@ return function(mod)
     if e == nil then
       local P = engine("src.core.game3.pokemon")
       local ok, got = pcall(P and P.icon or error, species)
+      Kit.rescissor()
       e = ok and type(got) == "table" and got.image and got.quads and got or false
       iconFor[species] = e
     end
@@ -288,6 +290,7 @@ return function(mod)
     if e == nil then
       local P = engine("src.core.game3.pokemon")
       local ok, got = pcall(P and P.monIcon or error, mon)
+      Kit.rescissor()
       e = ok and type(got) == "table" and got.image and got.quads and got or false
       iconOf[mon] = e
     end
@@ -345,6 +348,7 @@ return function(mod)
       if pic == nil then
         local P = engine("src.core.game3.pokemon")
         local ok, got = pcall(P and P.monFrontPic or error, mon, nil, "box")
+        Kit.rescissor()
         pic = ok and type(got) == "table" and got.image and got or false
         picOf[mon] = pic
       end
@@ -356,6 +360,7 @@ return function(mod)
       -- (a species, not a Pokémon: told it isn't shiny, else no personality and no OT ID read as
       -- the shiny one; the listing's Pokémon is made later with its own)
       local ok, got = pcall(P and P.monFrontPic or error, { species = species, isShiny = false }, nil, "box")
+      Kit.rescissor()
       pic = ok and type(got) == "table" and got.image and got or false
       pics[species] = pic
     end
@@ -788,6 +793,7 @@ return function(mod)
       if e == nil then
         local Pk = engine("src.core.game3.pokemon")
         local ok, got = pcall(Pk and Pk.frontPic or error, sp, 0, false, 0, "dex")
+        Kit.rescissor()
         e = ok and type(got) == "table" and got.image and got or false
         stills[sp] = e
       end
@@ -803,6 +809,7 @@ return function(mod)
       if e == nil then
         local MA = engine("src.core.game3.mon_anim")
         local ok, got = pcall(MA and MA.framePic or error, sp, frame, false)
+        Kit.rescissor()
         e = ok and type(got) == "table" and got.image and got or false
         f[frame] = e
       end
@@ -845,6 +852,8 @@ return function(mod)
           if not anim.packPic or clock - anim.packAt >= PACK_EVERY or clock < anim.packAt then
             local Pk = engine("src.core.game3.pokemon")
             local ok, got = pcall(Pk and Pk.frontPic or error, sp, 0, false, 0, "dex")
+            -- (the pack makes a frame's canvas the first time it's shown: the scissor set again after it)
+            Kit.rescissor()
             if ok and type(got) == "table" and got.image then anim.packPic = got end
             anim.packAt = clock
           end

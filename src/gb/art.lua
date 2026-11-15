@@ -85,6 +85,7 @@ return function(H, Gd, K, deps)
       drawFn()
     end)
     G.pop()
+    K.rescissor()
     return ok and canvas or nil
   end
 
@@ -184,6 +185,7 @@ return function(H, Gd, K, deps)
       local who = mon or { species = sp }
       local ok0, q0, img, cell = pcall(fn, who, 0)
       local ok1, q1 = pcall(fn, who, 1)
+      K.rescissor()
       if ok0 and type(q0) == "table" and q0.full and img and tonumber(cell) then
         e.ok, e.image, e.cell = true, img, tonumber(cell)
         e[0] = q0.full
@@ -236,6 +238,7 @@ return function(H, Gd, K, deps)
     e = e or {}
     e.at, e.ok = now, false
     local ok, img, w, h = pcall(ex.frontArt, mon or { species = sp })
+    K.rescissor()
     if ok and img and tonumber(w) and tonumber(h) then
       e.ok, e.image, e.w, e.h = true, img, tonumber(w), tonumber(h)
       e.box = math.max(e.w, e.h) * PACK_MARGIN
@@ -257,6 +260,7 @@ return function(H, Gd, K, deps)
       local img
       if ex.monPic then
         local ok, got = pcall(ex.monPic, live.ctx)
+        K.rescissor()
         img = ok and got or nil
       end
       if img and img.getDimensions then

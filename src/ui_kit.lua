@@ -307,6 +307,16 @@ return function(deps)
   function K.scissor(b)
     if b then G.setScissor(X(b[1]), Y(b[2]), max(0, b[3] * sc), max(0, b[4] * sc)) else G.setScissor() end
   end
+  -- the scissor there is, set again: after anything that drew into a canvas in the middle of a draw
+  -- (WoobleSpritePack making a frame, the engine a picture, ours painting an icon). LÖVE's pop puts
+  -- the scissor back while that canvas is still bound, so the GL scissor is worked out for the canvas
+  -- and clips everything after it (the Pokédex's page flashed empty 8 times a second) until the
+  -- next setScissor, though getScissor reads right
+  function K.rescissor()
+    if not (G and G.getScissor) then return end
+    local x, y, w, h = G.getScissor()
+    if x then G.setScissor(x, y, w, h) else G.setScissor() end
+  end
   function K.pulse() return 0.7 + 0.3 * math.sin(K.t * 6) end
 
   -- values as text, kept (bounded)
