@@ -544,6 +544,71 @@ if Dx then
   local wp = Dx.page(pidgey)
   T.check(wp and #wp.where > 0 and wp.where[1].methodText ~= "", "Pidgey: where it's found (" ..
     tostring(wp and wp.where[1] and wp.where[1].place) .. ")")
+  -- (WoobleSpawns: its places in place of the cart's; Gen 2's grass by the time of day, its rods' rows of a
+  -- running chance out of 255; Gen 1's Super Rod a list, each as likely)
+  local Sa = Dx.spawnArea
+  T.check(Sa ~= nil, "the WoobleSpawns reader is there")
+  if Sa then
+    local prevS, on = Sa.spawns, true
+    local function list(n, at, lv)
+      local out = {}
+      for i = 1, n do out[i] = { species = "RATTATA", level = 3 } end
+      if at then out[at] = { species = "PIDGEY", level = lv } end
+      return out
+    end
+    Sa.spawns = function()
+      return {
+        isActive = function() return on end,
+        settings = function() return { timeOfDay = "off" } end,
+        locate = function(id)
+          if id ~= "PIDGEY" then return {} end
+          if GEN == 2 then return { ROUTE_29 = { grass = true }, ROUTE_30 = { ["fish.good"] = true } } end
+          return { ROUTE_1 = { grass = true }, ROUTE_12 = { superRod = true } }
+        end,
+        tableFor = function(mapId, kind)
+          if GEN == 2 and kind == "grass" then
+            return { rates = { MORN = 25, DAY = 25, NITE = 25 }, slots = { MORN = list(7), DAY = list(7), NITE = list(7) } }
+          elseif GEN == 2 then
+            return { { chance = 89, species = "MAGIKARP", level = 10 }, { chance = 178, species = "PIDGEY", level = 12 },
+                     { chance = 255, species = "MAGIKARP", level = 15 } }
+          elseif kind == "grass" then
+            return { rate = 25, slots = list(10, 1, 4) }
+          end
+          return { { species = "PIDGEY", level = 5 }, { species = "MAGIKARP", level = 5 },
+                   { species = "MAGIKARP", level = 10 }, { species = "MAGIKARP", level = 15 } }
+        end,
+        -- (Gen 2, COMPLETE: the day's second slot -- pool 9 -- can be Pidgey, one of two)
+        poolFor = function(mapId, kind)
+          if not (GEN == 2 and kind == "grass") then return nil end
+          local p = {}
+          for i = 1, 21 do p[i] = { "RATTATA" } end
+          p[9] = { "RATTATA", "PIDGEY" }
+          return p
+        end,
+      }
+    end
+    local function rowOf(w, method)
+      for _, r in ipairs(w) do if r.method == method then return r end end
+    end
+    local sw = Dx.page(pidgey).where
+    local grass = rowOf(sw, "grass")
+    if GEN == 2 then
+      local rod = rowOf(sw, "good")
+      T.check(grass and grass.chanceText == "15%" and #sw == 2,
+              "Gen 2: the day's pool share (" .. tostring(grass and grass.chanceText) .. ", " .. #sw .. " rows)")
+      T.check(rod and rod.chanceText == "35%" and rod.lo == 12, "Gen 2: a Good Rod's row (" ..
+              tostring(rod and rod.chanceText) .. ")")
+    else
+      local rod = rowOf(sw, "super")
+      T.check(grass and grass.chanceText == "20%" and #sw == 2,
+              "Gen 1: a slot of its own (" .. tostring(grass and grass.chanceText) .. ", " .. #sw .. " rows)")
+      T.check(rod and rod.chanceText == "25%" and rod.lo == 5, "Gen 1: the Super Rod's list (" ..
+              tostring(rod and rod.chanceText) .. ")")
+    end
+    on = false
+    T.eq(#Dx.page(pidgey).where, #wp.where, "WoobleSpawns off: the cart's own again")
+    Sa.spawns = prevS
+  end
   -- (the START menu's Pokédex: ours, the game's flow after)
   local Tm = X._test.townmap
   local backed = false

@@ -5,6 +5,17 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-15
+
+### Added
+- **Pokédex: where to find the ones you haven't seen.** Choosing a Pokémon you haven't met yet shows
+  where it lives in the wild, its levels and chances, under its silhouette; its name and the rest stay
+  hidden until you see it.
+- **WoobleSpawns in the Pokédex:** with WoobleSpawns on, the Where tab lists where its wild Pokémon
+  really are, on every game: each place a Pokémon turns up in grass, surfing or on a rod it changes, its
+  levels and its chance (Complete mode's shares too), "Day" or "Night" where its Time of Day Spawns keeps
+  one to then, and "Rare" where a legendary waits. The Old Rod and Rock Smash stay the game's own.
+
 ### Fixed
 - **The Pokédex's page no longer flashes** on a Pokémon you've seen or caught while WoobleSpritePack
   is on: everything under the picture went blank for a frame each time the pack made its next

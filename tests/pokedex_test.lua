@@ -158,6 +158,76 @@ local karp = page(129)
 local rod = false
 for _, r in ipairs(karp.where) do if r.method == "old" then rod = true end end
 T.check(#karp.where > 0 and rod, "Magikarp: where it bites an Old Rod")
+
+-- ------- WoobleSpawns (modern_spawns): its places in place of the cart's grass, surfing and Good / Super Rods
+do
+  local Sa = Dx.spawnArea
+  T.check(Sa ~= nil, "the WoobleSpawns reader is there")
+  if Sa then
+    local prevS, prevId, prevMap = Sa.spawns, Dx.speciesId, Dx.mapGroupNum
+    local tod, on = "off", true
+    local function slots(n, at, lv)
+      local out = {}
+      for i = 1, n do out[i] = { species = "PIDGEY", minLevel = 3, maxLevel = 4 } end
+      if at then out[at] = { species = "MAGIKARP", minLevel = lv, maxLevel = lv + 2 } end
+      return out
+    end
+    Sa.spawns = function()
+      return {
+        isActive = function() return on end,
+        settings = function() return { timeOfDay = tod } end,
+        locate = function(id)
+          if id ~= "MAGIKARP" then return {} end
+          return { EM_LAKE_A = { land = true }, EM_SEA_B = { water = true }, EM_HOME_L = { grass = true } }
+        end,
+        tableFor = function(mapId, kind, period)
+          if mapId == "EM_LAKE_A" then return { rate = 20, slots = slots(12, nil) } end
+          if mapId == "EM_SEA_B" then
+            if tod ~= "off" and period == "day" then return { rate = 4, slots = slots(5, nil) } end
+            return { rate = 4, slots = slots(5, 1, 20) }
+          end
+          if mapId == "EM_HOME_L" then return { rate = 20, slots = slots(12, nil) } end
+        end,
+        -- (COMPLETE: Lake A's slot 1 can be Magikarp, one of two; slot 3 only Magikarp; slot 2 Pidgey alone)
+        poolFor = function(mapId, kind)
+          if mapId ~= "EM_LAKE_A" then return nil end
+          local p = {}
+          for i = 1, 12 do p[i] = { "PIDGEY" } end
+          p[1], p[3] = { "PIDGEY", "MAGIKARP" }, { "MAGIKARP" }
+          return p
+        end,
+      }
+    end
+    local karpSp = sp(129)
+    Dx.speciesId = function(s) return s == karpSp and "MAGIKARP" or nil end
+    Dx.mapGroupNum = function() return nil end
+    local function rowOf(w, place, method)
+      for _, r in ipairs(w) do if r.place == place and r.method == method then return r end end
+    end
+    local w = page(129).where
+    local lake, sea, home = rowOf(w, "Lake A", "grass"), rowOf(w, "Sea B", "surf"), rowOf(w, "Home L", "grass")
+    T.check(lake and lake.chanceText == "20%" and lake.levels ~= "",
+            "COMPLETE: each pool's share (" .. tostring(lake and lake.chanceText) .. ")")
+    T.check(sea and sea.chanceText == "60%" and sea.lo == 20 and sea.hi == 22, "a slot of its own: its odds and levels")
+    T.check(home and home.rare and home.chanceText == env.T("dex.where.rare"), "a legendary's home: Rare")
+    local cartGone, oldKept = true, false
+    for _, r in ipairs(w) do
+      if r.method == "old" then oldKept = true end
+      if (r.method == "grass" or r.method == "surf" or r.method == "good" or r.method == "super")
+        and r ~= lake and r ~= sea and r ~= home then cartGone = false end
+    end
+    T.check(cartGone, "the cart's grass, surfing and Good / Super Rod rows give way")
+    T.check(oldKept == rod, "the Old Rod stays the cart's")
+    tod = "on"
+    sea = rowOf(page(129).where, "Sea B", "surf")
+    T.check(sea and sea.when == "night" and sea.methodText:find(env.T("dex.where.night"), 1, true),
+            "TIME OF DAY SPAWNS: only at night says so (" .. tostring(sea and sea.methodText) .. ")")
+    on = false
+    local back = page(129).where
+    T.check(rowOf(back, "Lake A", "grass") == nil and #back == #karp.where, "off: the cart's own again")
+    Sa.spawns, Dx.speciesId, Dx.mapGroupNum = prevS, prevId, prevMap
+  end
+end
 local evInfo
 for _, r in ipairs(bulba.info) do if r.value:find("1 ", 1, true) and r.label == env.T("dex.info.ev") then evInfo = r.value end end
 T.check(evInfo ~= nil, "its EV yield in Info (" .. tostring(evInfo) .. ")")
@@ -248,6 +318,25 @@ if okO and W then
   W.input(input({ "a" }), NONE)
   local kb2 = garbageOf(120, function() drawWin(W, false) end)
   T.check(kb2 < 0.5, string.format("a page: next to no garbage (%.3f KB/frame)", kb2))
+  -- (one not seen yet that's found in the wild: where to look for it, nothing else)
+  local hintAt
+  for i, e in ipairs(st.list) do
+    if not e.seen and #Dx.where(e) > 0 then hintAt = i break end
+  end
+  T.check(hintAt ~= nil, "an unseen Pokémon found in the wild")
+  if hintAt then
+    W.input(input({ "b" }), NONE)
+    W.tap(W.A.CELL + hintAt)
+    T.check(st.hint and #st.hint.where > 0 and st.page == nil, "unseen: where to look for it, its page still hidden")
+    W.input(input({ "a" }), NONE)
+    T.check(st.focus == "detail", "unseen: A opens where to look")
+    local okH, errH = pcall(drawWin, W, false)
+    T.check(okH, "its Where card draws (" .. tostring(errH) .. ")")
+    local kbH = garbageOf(120, function() drawWin(W, false) end)
+    T.check(kbH < 0.5, string.format("its Where card: next to no garbage (%.3f KB/frame)", kbH))
+    W.input(input({ "b" }), NONE)
+    W.tap(W.A.CELL + caughtAt)
+  end
   -- (WoobleDex's forms: a Forms tab, each form's name, a Poké Ball under those caught; a stand-in whose
   -- forms are other species the save has: one caught, one unseen)
   local caughtSp, unseenSp

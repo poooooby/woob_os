@@ -3,7 +3,9 @@
 -- draws and nothing is written to the save.
 --
 --   Dx = Dex(engine, deps)   deps: T (the words), typeName(id), placeName(mapId), itemName(id),
---                            wooble() -> WoobleDex's exports | nil, gameId() -> "emerald" ...
+--                            wooble() -> WoobleDex's exports | nil, gameId() -> "emerald" ...,
+--                            spawnArea (src/spawn_area.lua: WoobleSpawns' places, while it's on),
+--                            speciesId(sp) -> "PIKACHU", mapGroupNum(mapId) -> group, num
 --   Dx.open(s) -> book: { modes = { "kanto" | "hoenn", "national"? }, lists = { [mode] = entries },
 --                         counts = { [mode] = { seen, caught } } }       (made each time the dex opens)
 --     entry = { sp, nat, num, numText, name, sex ("f" | "m" | nil: the name's own sign), seen, caught,
@@ -13,8 +15,9 @@
 --       total, female (0..1 | nil: genderless), description, abilities = { { name, desc } },
 --       evolutions = { { from, to, toName, how } }, info = { { label, value } }, forms = { names },
 --       moves = { level = rows, tm = rows, egg = rows, tutor = rows },
---       where = { { place, method, levels, chance } } }
+--       where = { { place, method, levels, chance } } }   (made again each time it's asked: WoobleSpawns' tables change)
 --     move row = { name, typeId, typeName, power, acc, pp, physical, tag (level / TM / blank) }
+--   Dx.where(entry) -> the page's `where` alone (one not seen yet: where to look for it)
 --   Dx.forms(entry, s) -> { { sp, name, base, seen, caught }, ... } its forms (WoobleDex's), the base one first;
 --                        {} when it has none (made when it's chosen: who's caught changes)
 --   Dx.reset(): everything made let go (a game switch, the engine's species pack reloaded)
@@ -58,8 +61,10 @@ end
 return function(engine, deps)
   deps = deps or {}
   local T = deps.T
-  -- (Dx.wooble: WoobleDex's exports; the tests swap it)
-  local Dx = { wooble = deps.wooble }
+  -- (Dx.wooble: WoobleDex's exports; Dx.spawnArea / speciesId / mapGroupNum: WoobleSpawns' places; the tests
+  -- swap them)
+  local Dx = { wooble = deps.wooble, spawnArea = deps.spawnArea, speciesId = deps.speciesId,
+               mapGroupNum = deps.mapGroupNum }
 
   local function P() return engine("src.core.game3.pokemon") end
   local function word(key, ...)
@@ -296,29 +301,51 @@ return function(engine, deps)
     return out, base, (nameOf(okB and rawB or "?"))
   end
 
+  -- (a map's name by its group and number, `key` when the game has none; kept)
+  local places = {}
+  local function placeAt(group, num, key)
+    local MC = engine("src.import.gba.map_catalog")
+    local id
+    if MC and MC.mapIdFor and group then
+      local okI, got = pcall(MC.mapIdFor, group, num)
+      id = okI and got or nil
+    end
+    local cacheKey = id or key
+    local name = places[cacheKey]
+    if not name then
+      name = deps.placeName and id and deps.placeName(id)
+        or titled((tostring(key):gsub("^%u%u_", ""):gsub("_", " ")))
+      places[cacheKey] = name
+    end
+    return name
+  end
+  -- (a list's order and words: by place, then grass, surfing, Rock Smash, the rods; a chance under 1% "<1%";
+  -- WoobleSpawns' rows: a legendary's home "Rare", one only by day or only at night says so)
+  local function finish(list)
+    table.sort(list, function(a, b)
+      if a.place ~= b.place then return a.place < b.place end
+      return (METHOD_ORDER[a.method] or 9) < (METHOD_ORDER[b.method] or 9)
+    end)
+    for _, r in ipairs(list) do
+      r.methodText = word("dex.where." .. r.method)
+      if r.when then r.methodText = r.methodText .. " · " .. word("dex.where." .. r.when) end
+      r.levels = r.lo == r.hi and word("dex.lv", r.lo) or word("dex.lvRange", r.lo, r.hi)
+      if r.rare then r.chanceText = word("dex.where.rare")
+      elseif r.chance > 0 and r.chance < 1 then r.chanceText = "<1%"
+      else r.chanceText = ("%d%%"):format(min(100, floor(r.chance + 0.5))) end
+    end
+    return list
+  end
+
   -- (where each species is found in the wild: one pass over the game's encounter tables, the first
   -- time any page asks)
   local function where()
     if whereOf then return whereOf end
     whereOf = {}
-    local E, MC = engine("src.core.game3.encounters"), engine("src.import.gba.map_catalog")
+    local E = engine("src.core.game3.encounters")
     local okE, cache = pcall(E and E.loadCacheFile or error)
     if not (okE and type(cache) == "table") then return whereOf end
-    local places = {}
-    local function placeOf(entry, key)
-      local id
-      if MC and MC.mapIdFor and entry.mapGroup then
-        local okI, got = pcall(MC.mapIdFor, entry.mapGroup, entry.mapNum)
-        id = okI and got or nil
-      end
-      local cacheKey = id or key
-      local name = places[cacheKey]
-      if not name then
-        name = deps.placeName and id and deps.placeName(id) or titled((tostring(key):gsub("_", " ")))
-        places[cacheKey] = name
-      end
-      return name
-    end
+    local function placeOf(entry, key) return placeAt(entry.mapGroup, entry.mapNum, key) end
     local function add(sp, place, method, lo, hi, chance)
       sp = tonumber(sp)
       if not sp then return end
@@ -363,18 +390,41 @@ return function(engine, deps)
         end
       end
     end
-    for _, list in pairs(whereOf) do
-      table.sort(list, function(a, b)
-        if a.place ~= b.place then return a.place < b.place end
-        return (METHOD_ORDER[a.method] or 9) < (METHOD_ORDER[b.method] or 9)
-      end)
-      for _, r in ipairs(list) do
-        r.methodText = word("dex.where." .. r.method)
-        r.levels = r.lo == r.hi and word("dex.lv", r.lo) or word("dex.lvRange", r.lo, r.hi)
-        r.chanceText = ("%d%%"):format(min(100, r.chance))
+    for _, list in pairs(whereOf) do finish(list) end
+    return whereOf
+  end
+
+  -- (with WoobleSpawns on: the cart's grass, surfing and Good / Super Rod rows give way to its own, the Old
+  -- Rod and Rock Smash kept; one place under several maps one row, its best chance)
+  local function whereNow(sp)
+    local cart = where()[sp] or {}
+    local Sa = Dx.spawnArea
+    local id = Sa and Dx.speciesId and Dx.speciesId(sp)
+    local rows = id and Sa.rows(id)
+    if not rows then return cart end
+    local list, byKey = {}, {}
+    for _, r in ipairs(cart) do
+      if not Sa.replaces(r.method) then list[#list + 1] = r end
+    end
+    for _, r in ipairs(rows) do
+      local g, n
+      if Dx.mapGroupNum then g, n = Dx.mapGroupNum(r.mapId) end
+      local place = placeAt(g, n, r.mapId)
+      local key = place .. "|" .. r.method
+      local had = byKey[key]
+      if had then
+        had.lo, had.hi = min(had.lo, r.lo), max(had.hi, r.hi)
+        had.chance = max(had.chance, r.chance)
+        had.rare = had.rare and r.rare
+        if had.when ~= r.when then had.when = nil end
+      else
+        had = { place = place, method = r.method, lo = r.lo, hi = r.hi, chance = r.chance, rare = r.rare,
+                when = r.when }
+        byKey[key] = had
+        list[#list + 1] = had
       end
     end
-    return whereOf
+    return finish(list)
   end
 
   local function info(Pk, sp, meta)
@@ -410,11 +460,19 @@ return function(engine, deps)
 
   -- ------- the page
 
+  -- where it's found alone (one not seen yet: the window shows only this), made when it's chosen
+  function Dx.where(entry)
+    return entry and entry.sp and whereNow(entry.sp) or {}
+  end
+
   function Dx.page(entry)
     local sp = entry and entry.sp
     if not sp then return nil end
     local pg = pages[sp]
-    if pg then return pg end
+    if pg then
+      pg.where = whereNow(sp)
+      return pg
+    end
     local Pk = P()
     if not Pk then return nil end
     pg = {}
@@ -471,8 +529,7 @@ return function(engine, deps)
     pg.evolutions, pg.base, pg.baseName = evolutions(Pk, sp)
     pg.info = info(Pk, sp, meta)
     pg.moves = moves(Pk, sp)
-    local w = where()[sp] or {}
-    pg.where = w
+    pg.where = whereNow(sp)
     -- (WoobleDex: its forms, and whether it can Gigantamax)
     pg.forms = {}
     local wd = Dx.wooble and Dx.wooble()

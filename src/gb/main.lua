@@ -36,6 +36,7 @@ return function(mod, loadSibling)
   local makeErrands, errandsWindow = loadSibling(mod, "src/errands.lua"), loadSibling(mod, "src/apps/errands.lua")
   local makeNews, newsWindow = loadSibling(mod, "src/news.lua"), loadSibling(mod, "src/apps/news.lua")
   local makeDex, dexWindow = loadSibling(mod, "src/gb/dex.lua"), loadSibling(mod, "src/apps/pokedex.lua")
+  local makeSpawnArea = loadSibling(mod, "src/spawn_area.lua")
   local dexView = loadSibling(mod, "src/apps/pokedex_view.lua")
   -- the 3D map: the Game Boy maps built to scale (src/gb/map3d.lua), drawn by Gen 3's renderer and window
   local makeGbMap, makeWorld = loadSibling(mod, "src/gb/map3d.lua"), loadSibling(mod, "src/map3d/world.lua")
@@ -341,7 +342,15 @@ return function(mod, loadSibling)
   -- the Pokédex (src/gb/dex.lua): the window is Gen 3's; the picture a breathing still with a hop when chosen
   env.dexOption = function() return option("pokedex", true) ~= false end
   if Gd and makeDex then
-    env.dex = makeDex(Host, Gd, { T = T, place = Play and Play.place or nil })
+    -- (WoobleSpawns, modern_spawns: the wild Pokémon it places, for the Where tab)
+    local spawnArea = makeSpawnArea and makeSpawnArea({
+      gen = Host.gen,
+      spawns = function()
+        local m = mod.find("modern_spawns")
+        return m and m.exports or nil
+      end,
+    })
+    env.dex = makeDex(Host, Gd, { T = T, place = Play and Play.place or nil, spawnArea = spawnArea })
     env.cry = function(sp)
       local g, Sound = Host.game(), engine("src.core.Sound")
       if g and g.data and Sound and Sound.playCry then pcall(Sound.playCry, g.data, sp) end

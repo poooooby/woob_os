@@ -5,7 +5,8 @@
 -- the dex's words, evolutions, egg groups and the rest (Gen 2), its moves (level, TM / HM, egg, tutor) and
 -- where it's found (grass, water, Gen 1's rods). No abilities on these games. Read only.
 --
---   Dx = dex(host, Gd, deps)   deps: T ; place(mapId) -> its name
+--   Dx = dex(host, Gd, deps)   deps: T ; place(mapId) -> its name; spawnArea (src/spawn_area.lua: WoobleSpawns'
+--                              places, while it's on; its ids are the game's own, as these are)
 --   (the interface: src/dex.lua's header; a page's noGender: Gen 1's Pokémon have none)
 
 local floor, max, min = math.floor, math.max, math.min
@@ -40,7 +41,8 @@ return function(H, Gd, deps)
   deps = deps or {}
   local T = deps.T
   local gen = H.gen
-  local Dx = {}
+  -- (Dx.spawnArea: WoobleSpawns' places; the tests swap it)
+  local Dx = { spawnArea = deps.spawnArea }
   local function word(key, ...)
     if not T then return key end
     if select("#", ...) > 0 then return T.f(key, ...) end
@@ -230,6 +232,23 @@ return function(H, Gd, deps)
     return out, base, (nameOf(base))
   end
 
+  -- (a list's order and words, as src/dex.lua's)
+  local function finish(list)
+    table.sort(list, function(a, b)
+      if a.place ~= b.place then return a.place < b.place end
+      return (METHOD_ORDER[a.method] or 9) < (METHOD_ORDER[b.method] or 9)
+    end)
+    for _, r in ipairs(list) do
+      r.methodText = word("dex.where." .. r.method)
+      if r.when then r.methodText = r.methodText .. " · " .. word("dex.where." .. r.when) end
+      r.levels = r.lo == r.hi and word("dex.lv", r.lo) or word("dex.lvRange", r.lo, r.hi)
+      if r.rare then r.chanceText = word("dex.where.rare")
+      elseif r.chance > 0 and r.chance < 1 then r.chanceText = "<1%"
+      else r.chanceText = ("%d%%"):format(min(100, floor(r.chance + 0.5))) end
+    end
+    return list
+  end
+
   -- (where each species is found: one pass over the game's wild tables)
   local function where()
     if whereOf then return whereOf end
@@ -283,18 +302,39 @@ return function(H, Gd, deps)
         for _, sl in ipairs(list) do add(sl.species, mapId, "super", sl.level, floor(100 / max(1, n))) end
       end
     end
-    for _, list in pairs(whereOf) do
-      table.sort(list, function(a, b)
-        if a.place ~= b.place then return a.place < b.place end
-        return (METHOD_ORDER[a.method] or 9) < (METHOD_ORDER[b.method] or 9)
-      end)
-      for _, r in ipairs(list) do
-        r.methodText = word("dex.where." .. r.method)
-        r.levels = r.lo == r.hi and word("dex.lv", r.lo) or word("dex.lvRange", r.lo, r.hi)
-        r.chanceText = ("%d%%"):format(min(100, r.chance))
+    for _, list in pairs(whereOf) do finish(list) end
+    return whereOf
+  end
+
+  -- (with WoobleSpawns on: the cart's rows give way to its own -- it writes its species into the very
+  -- tables read above, but not the other species each slot can turn into, nor the rods' on Gold, Silver and
+  -- Crystal; one place under several maps one row, its best chance)
+  local function whereNow(sp)
+    local cart = where()[sp] or {}
+    local Sa = Dx.spawnArea
+    local rows = Sa and Sa.rows(sp)
+    if not rows then return cart end
+    local place = deps.place or function(m) return tostring(m) end
+    local list, byKey = {}, {}
+    for _, r in ipairs(cart) do
+      if not Sa.replaces(r.method) then list[#list + 1] = r end
+    end
+    for _, r in ipairs(rows) do
+      local p = place(r.mapId)
+      local key = p .. "|" .. r.method
+      local had = byKey[key]
+      if had then
+        had.lo, had.hi = min(had.lo, r.lo), max(had.hi, r.hi)
+        had.chance = max(had.chance, r.chance)
+        had.rare = had.rare and r.rare
+        if had.when ~= r.when then had.when = nil end
+      else
+        had = { place = p, method = r.method, lo = r.lo, hi = r.hi, chance = r.chance, rare = r.rare, when = r.when }
+        byKey[key] = had
+        list[#list + 1] = had
       end
     end
-    return whereOf
+    return finish(list)
   end
 
   local function info(def)
@@ -325,11 +365,19 @@ return function(H, Gd, deps)
 
   -- ------- the page
 
+  -- where it's found alone (one not seen yet: the window shows only this)
+  function Dx.where(e)
+    return e and e.sp and whereNow(e.sp) or {}
+  end
+
   function Dx.page(e)
     local sp = e and e.sp
     if not sp then return nil end
     local pg = pages[sp]
-    if pg then return pg end
+    if pg then
+      pg.where = whereNow(sp)
+      return pg
+    end
     local def = Gd.def(sp)
     if not def then return nil end
     local d = Gd.data()
@@ -384,7 +432,7 @@ return function(H, Gd, deps)
     pg.evolutions, pg.base, pg.baseName = evolutions(sp)
     pg.info = info(def)
     pg.moves = moves(sp)
-    pg.where = where()[sp] or {}
+    pg.where = whereNow(sp)
     pg.forms = {}
     pages[sp] = pg
     return pg

@@ -93,6 +93,7 @@ return function(mod)
   local makeOak, oakWindow = loadSibling(mod, "src/oak.lua"), loadSibling(mod, "src/apps/oak.lua")
   local makeDex, dexWindow = loadSibling(mod, "src/dex.lua"), loadSibling(mod, "src/apps/pokedex.lua")
   local dexView = loadSibling(mod, "src/apps/pokedex_view.lua")
+  local makeSpawnArea = loadSibling(mod, "src/spawn_area.lua")
   local makeDecorate, decorateWindow = loadSibling(mod, "src/decorate.lua"), loadSibling(mod, "src/apps/decorate.lua")
   local makePokenav = loadSibling(mod, "src/pokenav.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell) then return end
@@ -767,9 +768,52 @@ return function(mod)
   end
   -- (the mod's option: off, the game's own Pokédex everywhere and no app; read when asked, never per frame)
   env.dexOption = function() return option("pokedex", true) ~= false end
+  -- (WoobleSpawns, modern_spawns: the wild Pokémon it places, for the Where tab; its species by id, a
+  -- slot's id from the content registry, read once; a map's group and number from its encounter record)
+  local function registry(name)
+    local reg = mod.content and mod.content[name]
+    return type(reg) == "table" and reg or nil
+  end
+  local idOfSlot
+  local function speciesId(sp)
+    if not idOfSlot then
+      idOfSlot = {}
+      local reg = registry("pokemon")
+      local okE, it = pcall(function() return reg:each() end)
+      local ids = {}
+      if okE and type(it) == "function" then
+        for id in it do ids[#ids + 1] = id end
+      elseif okE and type(it) == "table" then
+        ids = it
+      end
+      for _, id in ipairs(ids) do
+        local okG, rec = pcall(reg.get, reg, id)
+        local index = okG and type(rec) == "table" and tonumber(rec.index)
+        if index and idOfSlot[index] == nil then idOfSlot[index] = id end
+      end
+    end
+    return idOfSlot[tonumber(sp)]
+  end
+  local function mapGroupNum(mapId)
+    local reg = registry("encounters")
+    local ok, rec = pcall(reg and reg.get or error, reg, mapId)
+    if ok and type(rec) == "table" and rec.mapGroup then return tonumber(rec.mapGroup), tonumber(rec.mapNum) end
+    reg = registry("maps")
+    ok, rec = pcall(reg and reg.get or error, reg, mapId)
+    if ok and type(rec) == "table" and rec.mapGroup then return tonumber(rec.mapGroup), tonumber(rec.mapNum) end
+    return nil
+  end
+  local spawnArea = makeSpawnArea and makeSpawnArea({
+    gen = 3,
+    spawns = function()
+      local m = mod.find("modern_spawns")
+      return m and m.exports or nil
+    end,
+  })
   if makeDex then
     env.dex = makeDex(engine, { T = T, typeName = env.typeName, placeName = placeName, itemName = env.itemName,
-                                wooble = wooble, gameId = gameId })
+                                wooble = wooble, gameId = gameId, spawnArea = spawnArea, speciesId = speciesId,
+                                mapGroupNum = mapGroupNum })
     local P = engine("src.core.game3.pokemon")
     if P and P.onReload then pcall(P.onReload, function() env.dex.reset() end, "woob_os_dex") end
     env.cry = function(sp)

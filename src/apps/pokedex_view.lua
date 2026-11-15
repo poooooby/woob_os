@@ -817,6 +817,18 @@ return function(K, env, T, st, A, KINDS)
       settle(c4)
       st.tabH = th + 2
       yy = ty + st.tabH + GAP
+    elseif st.hint then
+      -- (not seen yet: where to look for it, its one card)
+      local c1 = enter(clock, 0.06)
+      rise(c1, 7)
+      local ty = yy
+      local tabH = max(10, st.tabH or 30)
+      glass(K.R(x, ty, w, tabH), 4)
+      K.bold(word("dex.tab.where"), x + 3, ty + 3, 4.2, C.ink)
+      local ch = whereRows(x + 5, ty + 13, w - 10, st.hint, clock)
+      settle(c1)
+      st.tabH = ch + 18
+      yy = ty + st.tabH + GAP
     end
     st.detailH = yy + mv.page - y
     st.detailTop = max(0, min(st.detailTop, max(0, st.detailH - h)))

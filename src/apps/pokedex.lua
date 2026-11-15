@@ -78,6 +78,12 @@ return function(ctx, env, makeView)
     st.sel = i
     st.entry = st.list[i]
     st.page = st.entry.seen and Dx.page(st.entry) or nil
+    -- (one not seen yet: where to look for it, its name and the rest still hidden; nil where it isn't found)
+    st.hint = nil
+    if not st.entry.seen and Dx.where then
+      local rows = Dx.where(st.entry)
+      if rows and #rows > 0 then st.hint = { where = rows } end
+    end
     st.forms = st.entry.seen and Dx.forms and Dx.forms(st.entry, s) or {}
     setTabs(st.entry)
     st.follow = true
@@ -109,8 +115,10 @@ return function(ctx, env, makeView)
     choose(st.sel, true)
     se("SE_SELECT")
   end
+  -- (a page to open: seen, or where to look for one not seen yet)
+  local function hasPage() return st.entry ~= nil and (st.entry.seen or st.hint ~= nil) end
   local function openPage()
-    if not (st.entry and st.entry.seen) then return se("SE_FAILURE") end
+    if not hasPage() then return se("SE_FAILURE") end
     if st.narrow then st.detail = true end
     st.focus = "detail"
     cry()
@@ -174,10 +182,10 @@ return function(ctx, env, makeView)
     if type(arg) ~= "number" then return end
     if arg > A.CELL then
       local i = arg - A.CELL
-      if i == st.sel and st.entry and st.entry.seen then return openPage() end
+      if i == st.sel and hasPage() then return openPage() end
       choose(i)
       st.focus = "grid"
-      if st.narrow and st.entry and st.entry.seen then openPage() end
+      if st.narrow and hasPage() then openPage() end
       return
     end
     if arg > A.MODE and arg <= A.MODE + #book.modes then return setMode(arg - A.MODE) end
