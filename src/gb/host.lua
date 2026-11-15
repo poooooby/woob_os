@@ -259,6 +259,7 @@ return function(mod, deps)
       return
     end
     self.opened = true
+    H.carrierNow = self
     local opened = false
     if Sh then
       local ok, got = pcall(Sh.openDesktop, self.dopts, self.mode, nil)
@@ -286,14 +287,71 @@ return function(mod, deps)
   end
   H.carrier = carrier
 
+  -- ------- Gen 2's own screens, opened from an app (src/gb/main.lua): the room's decorations and the
+  -- Pokégear's phone. onClose: the desktop (or the pad) back
+
+  -- the bedroom's decorations: the game's menu; a moved one makes the bedroom script reload the room
+  -- once the PC closes (the carrier answers `changed`)
+  function H.decorate(onClose)
+    local game = H.game()
+    local Screens = engine("src.ui.Screens")
+    if not (game and Screens and gen == 2) then error("no decorations here") end
+    local c = H.carrierNow
+    Screens.push(game, "Gen2DecorationMenu", { save = game.save, events = game.world and game.world.events,
+                                               onDone = function(changed)
+                                                 if changed and c then c.changed = true end
+                                                 local stk = stack()
+                                                 if stk and stk:top() then pcall(stk.pop, stk) end
+                                                 onClose()
+                                               end })
+  end
+  -- the Pokégear's phone card (its contacts, the game's calls and their scripts)
+  local PHONE_FLAG, GEAR_FLAG = 2, 4
+  function H.hasPhone(s)
+    s = s or H.session()
+    if gen ~= 2 or type(s) ~= "table" then return false end
+    local f, e = s.pokegearFlags or {}, s.engineFlags or {}
+    local gear = e[GEAR_FLAG] == true or (s.inventory and (tonumber(s.inventory.POKEGEAR) or 0) > 0)
+      or s.pokegearReceived == true
+    return gear and (f.phone == true or e[PHONE_FLAG] == true)
+  end
+  function H.pokegear(onClose)
+    local game = H.game()
+    local Screens = engine("src.ui.Screens")
+    if not (game and Screens and gen == 2) then error("no Pokégear here") end
+    local lm = nil
+    if game.currentLandmark then
+      local ok, id = pcall(game.currentLandmark, game)
+      if ok then lm = id end
+    end
+    local gear
+    gear = Screens.push(game, "Gen2Pokegear", {
+      currentLandmark = lm,
+      onCall = game.runPokegearCall and function(call) return game:runPokegearCall(call) end or nil,
+      onClose = function()
+        local stk = stack()
+        if stk and stk:top() == gear then pcall(stk.pop, stk) end
+        onClose()
+      end,
+    })
+    -- (straight onto the phone card)
+    if type(gear) == "table" and type(gear.cards) == "table" then
+      for i, card in ipairs(gear.cards) do
+        if card.id == "phone" then gear.cardIndex, gear.mode = i, "card" end
+      end
+    end
+  end
+
   -- the game's own PC menu over the desktop (o.bedroom: the bedroom's)
   function H.original(o, opts, onClose)
     local game = H.game()
     if not game then error("no game") end
     if gen == 2 then
       local M = engine(o and o.bedroom and "src.ui.gen2.ItemPcMenu" or "src.ui.gen2.CenterPcMenu")
+      local c = H.carrierNow
       local menu = M.new(game, { save = game.save, house = o and o.bedroom or nil, events = game.world and
-                                 game.world.events, onClose = function()
+                                 game.world.events, onClose = function(changed)
+                                   if changed and c then c.changed = true end
                                    local stk = stack()
                                    if stk then pcall(stk.pop, stk) end
                                    onClose()
@@ -331,7 +389,8 @@ return function(mod, deps)
         return builtin("src.ui.gen2.ItemPcMenu", game, opts)
       end
       return carrier(game, "bedroom", function(changed)
-        H.sfx("Sfx_ShutDownPc")
+        -- (as the game's: no shutdown sound when the room is about to reload)
+        if not changed then H.sfx("Sfx_ShutDownPc") end
         if opts.onClose then opts.onClose(changed) end
       end, function() game.stack:push(builtin("src.ui.gen2.ItemPcMenu", game, opts)) end)
     end })

@@ -495,6 +495,7 @@ return {
     ["store.desc.pcgames"] = "I giochi della mod PC Games, su tutto il monitor.",
     ["map.flyTitle"] = "Volare dove?",
     ["map.region.kanto"] = "Kanto",
+    ["map.region.johto"] = "Johto",
     ["map.region.sevii123"] = "Isole Sevii 1-3",
     ["map.region.sevii45"] = "Isole Sevii 4-5",
     ["map.region.sevii67"] = "Isole Sevii 6-7",

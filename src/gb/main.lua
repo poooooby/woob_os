@@ -37,6 +37,10 @@ return function(mod, loadSibling)
   local makeNews, newsWindow = loadSibling(mod, "src/news.lua"), loadSibling(mod, "src/apps/news.lua")
   local makeDex, dexWindow = loadSibling(mod, "src/gb/dex.lua"), loadSibling(mod, "src/apps/pokedex.lua")
   local dexView = loadSibling(mod, "src/apps/pokedex_view.lua")
+  -- the 3D map: the Game Boy maps built to scale (src/gb/map3d.lua), drawn by Gen 3's renderer and window
+  local makeGbMap, makeWorld = loadSibling(mod, "src/gb/map3d.lua"), loadSibling(mod, "src/map3d/world.lua")
+  local makeMapRender, mapScene = loadSibling(mod, "src/map3d/render.lua"), loadSibling(mod, "src/map3d/scene.lua")
+  local makeTowns = loadSibling(mod, "src/map3d/towns.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell and makeHost) then return end
 
   local function warn(fmt, ...) mod.log:warn(fmt, ...) end
@@ -221,6 +225,26 @@ return function(mod, loadSibling)
                                                          bx = function() return env.bx end }) or nil
   local Play = Gd and makePlay and makePlay(Host, Gd) or nil
   env.port = Port
+  env.log = warn
+  -- (the Map app: its region built in the background once the player's been in the field a while)
+  if makeGbMap and makeWorld and makeMapRender and mapScene and Gd then
+    local Wd = makeWorld(function() return nil end, {})
+    local Towns = makeTowns and makeTowns() or nil
+    local Model = makeGbMap(Host, Gd, { world = Wd, log = warn, place = Play and Play.place or nil })
+    env.map3d = {
+      model = Model, towns = Towns,
+      render = makeMapRender({ log = warn, towns = Towns }),
+      clock = function()
+        local t = os.date("*t")
+        return t.hour, t.min
+      end,
+      flyCheck = function() return nil, "none" end,
+      fly = function() return false, "none" end,
+      invert = function()
+        return option("mapInvertX", false) == true, option("mapInvertY", false) == true
+      end,
+    }
+  end
   -- (the shared models' Gen 3 engine: nothing here, the port answers instead)
   local function noEngine() return nil end
   -- (this save's seed: the player's ID and name)
@@ -405,8 +429,21 @@ return function(mod, loadSibling)
     pokedexAvailable = env.dex and function(ctx)
       return env.dexOption() and env.dex.available(ctx.session or session())
     end or nil,
+    map = env.map3d and function(ctx, e) return mapScene(ctx, e, { mode = "app" }) end or nil,
     settings = T and Settings and settingsWindow or nil,
   })
+  -- Gen 2's own screens as apps: the bedroom's decorations (the room reloads after the PC when one
+  -- moved) and the Pokégear's phone (the game's calls, their scripts and all)
+  if gen == 2 then
+    Apps.register({ id = "decorate", labelKey = "app.decorate", label = "Decorate", glyph = "home",
+                    color = { 156, 112, 220 }, order = 50,
+                    available = function(ctx) return ctx.mode == "bedroom" end,
+                    open = function(ctx) ctx.over(function(back) Host.decorate(back) end) end })
+    Apps.register({ id = "phone", labelKey = "app.phone", label = "Phone", glyph = "phone",
+                    color = { 52, 199, 89 }, order = 31,
+                    available = function(ctx) return Host.hasPhone(ctx.session or session()) end,
+                    open = function(ctx) ctx.over(function(back) Host.pokegear(back) end) end })
+  end
   Nt = makeNotify and makeNotify({
     K = Kit, T = T, now = env.now, epoch = os.time, se = env.se, apps = Apps, monIcon = env.monIcon,
     glyph = function(...) if Desktop then return Desktop.glyph(...) end end,
@@ -474,8 +511,36 @@ return function(mod, loadSibling)
     if Play then pcall(Play.tick, s) end
   end
 
+  -- the 3D map's region built in the background, a few milliseconds a frame, once the player's been in
+  -- the field a few seconds (so the Map opens at once); which region, looked at once a second
+  local mapPrep = { at = nil, game = nil, want = nil, nextLook = 0, built = {} }
+  local function frame(game)
+    local m3 = env.map3d
+    if not m3 then return end
+    local g = gameId()
+    if mapPrep.game ~= g then mapPrep.game, mapPrep.at, mapPrep.want, mapPrep.built = g, nil, nil, {} end
+    local now = love and love.timer and love.timer.getTime() or 0
+    if not (Sh and Sh.free(game)) then return end
+    if not mapPrep.want then
+      if now < mapPrep.nextLook then return end
+      mapPrep.nextLook = now + 1
+      local okH, rid = pcall(m3.model.regionHere, session())
+      if not (okH and rid) or mapPrep.built[rid] then return end
+      mapPrep.want, mapPrep.at = rid, now + 4
+    end
+    if now < mapPrep.at then return end
+    local rid = mapPrep.want
+    m3.model.prepare(rid)
+    if m3.model.step(0.004) then return end
+    local region = m3.model.region(rid)
+    if region and region.world and love and love.graphics and m3.render.prepare(love.graphics, region, 0.004) then
+      return
+    end
+    mapPrep.built[rid], mapPrep.want = true, nil
+  end
+
   Sh = makeShell(mod, { require = require, log = mod.log, desktop = Desktop, apps = Apps, watch = Watch,
-                        notify = Nt, tick = tick, session = session, townmap = TownMap, host = Host,
+                        notify = Nt, tick = tick, session = session, townmap = TownMap, host = Host, frame = frame,
                         watchRow = function() return not Settings or Settings.get("watchRow", true) ~= false end,
                         watchLabel = function() return T and T("watch.start") or "WATCH" end })
   Sh.enabled = function() return option("desktop", true) ~= false end

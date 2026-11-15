@@ -496,6 +496,7 @@ return {
     ["store.desc.pcgames"] = "PC Games MODの ゲームを モニターいっぱいに。",
     ["map.flyTitle"] = "どこへ とぶ？",
     ["map.region.kanto"] = "カントー",
+    ["map.region.johto"] = "ジョウト",
     ["map.region.sevii123"] = "ナナシマ 1-3",
     ["map.region.sevii45"] = "ナナシマ 4-5",
     ["map.region.sevii67"] = "ナナシマ 6-7",

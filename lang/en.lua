@@ -507,6 +507,7 @@ return {
     ["store.desc.pcgames"] = "The PC Games mod's games, across the whole monitor.",
     ["map.flyTitle"] = "Fly to where?",
     ["map.region.kanto"] = "Kanto",
+    ["map.region.johto"] = "Johto",
     ["map.region.sevii123"] = "Sevii Islands 1-3",
     ["map.region.sevii45"] = "Sevii Islands 4-5",
     ["map.region.sevii67"] = "Sevii Islands 6-7",

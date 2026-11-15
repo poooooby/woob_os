@@ -41,6 +41,7 @@ if GEN == 2 then
     gen2Pokedex = loadLua("data/generated/pokedex.lua"), gen2Landmarks = loadLua("data/generated/landmarks.lua"),
     gen2Maps = loadLua("data/generated/maps.lua"), gen2Encounters = loadLua("data/generated/encounters.lua"),
     gen2Marts = loadLua("data/generated/marts.lua"), gen2Icons = loadLua("data/generated/icons.lua"),
+    gen2Tilesets = loadLua("data/generated/tilesets.lua"), gen2Palettes = loadLua("data/generated/palettes.lua"),
     audio = { sfx = {} },
   }
   require("src.core.GameVersion").set(GAME)
@@ -77,7 +78,7 @@ local input = {
   isDown = function() return false end,
 }
 local accepts = true
-local world = { acceptsMenuInput = function() return accepts end, events = {} }
+local world = { acceptsMenuInput = function() return accepts end, events = { get = function() return false end } }
 local overworld = setmetatable({ isOverworld = true, player = {}, update = function() end, draw = function() end },
   { __index = require("src.world.OverworldController") })
 local game = { data = data, save = save, stack = stack, input = input, phase = "play" }
@@ -136,14 +137,44 @@ if GEN == 2 then
   T.eq(#stack.states, base, "the stack as it was")
   -- (the bedroom PC)
   local bedClosed = false
-  Screens.push(game, "Gen2ItemPcMenu", { save = save, house = true, events = {}, onClose = function()
+  local bedChanged
+  Screens.push(game, "Gen2ItemPcMenu", { save = save, house = true, events = {}, onClose = function(changed)
     stack:pop()
-    bedClosed = true
+    bedClosed, bedChanged = true, changed
   end })
   frame(2)
   T.check(D.isOpen() and D.state().ctx.mode == "bedroom", "the bedroom PC: ours, the bedroom's desktop")
+  -- (Decorate: the game's menu over the desktop; a moved decoration answers `changed` at log off)
+  if D.skipBoot then D.skipBoot() end
+  frame(30)
+  T.check(D.launchApp("decorate"), "Decorate opens")
+  local deco = stack:top()
+  T.check(type(deco) == "table" and deco.categories ~= nil and not D.isOpen(), "the game's decoration menu")
+  if type(deco) == "table" and deco.finish then deco.changed = true; deco:finish() end
+  frame(3)
+  T.check(D.isOpen(), "the desktop back after it")
   logOff()
-  T.check(bedClosed and #stack.states == base, "log off: the bedroom script goes on")
+  T.check(bedClosed and bedChanged == true and #stack.states == base, "log off: the room reloads (changed)")
+  -- (the Pokégear's phone, once the Pokégear has its card)
+  save.engineFlags = save.engineFlags or {}
+  local phoneApp = X._test.apps and X._test.apps.byId("phone")
+  T.check(phoneApp and not phoneApp.available({ session = save }), "no Phone before the Pokégear's card")
+  save.engineFlags[4], save.engineFlags[2] = true, true
+  T.check(phoneApp and phoneApp.available({ session = save }), "the Phone with it")
+  local optsP = { save = save, events = {}, onClose = function() stack:pop() end }
+  Screens.push(game, "Gen2CenterPcMenu", optsP)
+  frame(2)
+  if D.skipBoot then D.skipBoot() end
+  frame(30)
+  T.check(D.launchApp("phone"), "the Phone opens")
+  local gear = stack:top()
+  local card = type(gear) == "table" and gear.card and gear:card()
+  T.check(card and card.id == "phone" and gear.mode == "card", "the Pokégear, on its phone card")
+  if type(gear) == "table" and gear.onClose then gear.onClose() end
+  frame(3)
+  T.check(D.isOpen(), "the desktop back after the Pokégear")
+  logOff()
+  T.eq(#stack.states, base, "the stack as it was")
   -- (the player's PC from the which-PC menu stays the game's)
   local plain = Screens.build(game, "Gen2ItemPcMenu", { save = save, events = {}, onClose = noop })
   T.check(plain and plain.dopts == nil, "the item PC from the which-PC menu: the game's own")
@@ -381,6 +412,52 @@ end
 local bc = Nw.build(save)
 T.check(bc and #bc.stories > 0, "the News: today's stories (" .. (bc and #bc.stories or 0) .. ")")
 
+-- ------- the 3D map: the outdoor maps built to scale
+local M3 = X._test.env.map3d
+T.check(M3 ~= nil and M3.model ~= nil, "the Map's model is made")
+if M3 then
+  local Mdl = M3.model
+  local first = Mdl.regions()[1].id
+  T.eq(first, GEN == 2 and "johto" or "kanto", "the first region")
+  local region = Mdl.region(first)
+  local W = region and region.world
+  T.check(W and #W.maps >= 30 and W.cols > 100, "built from its maps (" .. (W and #W.maps or 0) .. ")")
+  local overlap = 0
+  for i = 1, W and #W.maps or 0 do
+    for j = i + 1, #W.maps do
+      local a, b = W.maps[i], W.maps[j]
+      if a.x < b.x + b.w and b.x < a.x + a.w and a.y < b.y + b.h and b.y < a.y + a.h then overlap = overlap + 1 end
+    end
+  end
+  T.eq(overlap, 0, "no two maps on top of each other")
+  local feet, gyms, towns = 0, 0, 0
+  for _, d in ipairs(W and W.doors or {}) do if d.foot then feet = feet + 1 end end
+  for _, p in ipairs(region and region.places or {}) do
+    if p.kind == "town" then towns = towns + 1 end
+    if p.hasGym and p.badgeName then gyms = gyms + 1 end
+  end
+  T.check(feet >= 40, "its buildings, from their doors (" .. feet .. ")")
+  T.check(towns >= 9 and gyms >= 7, ("its towns (%d), their Gyms (%d)"):format(towns, gyms))
+  if GEN == 2 then
+    save.position = { map = "NEW_BARK_TOWN", x = 6, y = 4 }
+  else
+    save.player = save.player or {}
+    save.player.map, save.player.x, save.player.y = "PALLET_TOWN", 5, 6
+  end
+  local rid, px, pz = Mdl.player(save)
+  local home
+  for _, p in ipairs(region.places) do if p.sym == (GEN == 2 and "NEW_BARK_TOWN" or "PALLET_TOWN") then home = p end end
+  T.check(rid == first and home and px >= home.x0 and px <= home.x1 and pz >= home.z0 and pz <= home.z1,
+          "the player where they stand (" .. tostring(rid) .. ")")
+  Mdl.live(region, save)
+  T.check(Mdl.flyCheck() == nil, "no Fly from it")
+  if GEN == 2 then
+    local k = Mdl.region("kanto")
+    T.check(k and #k.world.maps >= 25, "Gold / Silver / Crystal's Kanto, a world of its own")
+    T.check(not Mdl.available(save, "kanto"), "Kanto shown once the player's been")
+  end
+end
+
 -- ------- the Pokédex
 local Dx = X._test.dex
 T.check(Dx ~= nil, "the Pokédex's model is made")
@@ -448,7 +525,7 @@ do
   if D.skipBoot then D.skipBoot() end
   frame(30)
   for _, id in ipairs({ "storage", "items", "mail", "hall", "oak", "settings", "mart", "bank", "auction", "slots",
-                        "gts", "errands", "challenges", "news", "pokedex" }) do
+                        "gts", "errands", "challenges", "news", "pokedex", "map" }) do
     if id ~= "mail" or GEN == 2 then
       local okO = D.openApp(id)
       T.check(okO, "the " .. id .. " app opens")
