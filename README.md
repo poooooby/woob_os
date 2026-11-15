@@ -6,9 +6,9 @@
 
 </div>
 
-A mod for [Gen1Recomp](https://github.com/bryanthaboi/gen1recomp)'s Generation 3 games: FireRed,
-LeafGreen, Ruby, Sapphire and Emerald. Every PC in a Pokémon Center, and the one in your bedroom,
-opens a desktop in a sleek monitor instead of a text menu.
+A mod for [Gen1Recomp](https://github.com/bryanthaboi/gen1recomp)'s games: Red, Blue and Yellow,
+Gold, Silver and Crystal, FireRed, LeafGreen, Ruby, Sapphire and Emerald. Every PC in a Pokémon
+Center, and the one in your bedroom, opens a desktop in a sleek monitor instead of a text menu.
 
 ## ✨ Features
 
@@ -112,6 +112,23 @@ opens a desktop in a sleek monitor instead of a text menu.
   open WoobPad on that app. With the PC or the pad open, it slides in over its screen instead,
   and on both, the notifications drawer pulls down from the top of the screen. Each app's
   notifications can be turned off in Settings.
+
+### On Red, Blue, Yellow, Gold, Silver and Crystal
+
+- 🕹️ **The same desktop and WoobPad:** the Pokémon Center's PC and your bedroom's open the desktop
+  (on Red, Blue and Yellow, the "Which PC?" menu too), and WoobPad is in the START menu.
+- 📱 **The apps there:** Boxes (12 boxes on Red, Blue and Yellow, 14 on Gold, Silver and Crystal,
+  with their names), Items (Red, Blue and Yellow's one Bag; Gold, Silver and Crystal's pockets),
+  Mail (Gold, Silver and Crystal), the Pokédex, the Hall of Fame, Oak's PC, Settings, the App Store,
+  and the Mart, the Bank, R-Bay, Slots, the GTS, Errands, Challenges and the News, each with that
+  game's own Pokémon, items, moves and types.
+- 🗺️ **The Map:** Kanto in 3D on Red, Blue and Yellow; Johto and Kanto on Gold, Silver and Crystal,
+  each built from the game's own towns and routes, their buildings, trees, cliffs and water (in the
+  game's own colours on Gold, Silver and Crystal). Kanto is there once you've been.
+- 📞 **Phone** (Gold, Silver and Crystal): your Pokégear's phone, straight to your contacts; calls
+  are the game's own.
+- 🛋️ **Decorate** (Gold, Silver and Crystal, at your bedroom PC): the game's decoration menu; your
+  room shows its new look when you turn the PC off.
 
 ### Apps
 
@@ -338,7 +355,7 @@ on. B or the red button closes it.
 ## 💾 Installation
 
 Install it from Gen1Recomp's mod manager, or unzip a release into the game's `mods` folder, then
-turn it on for your Generation 3 games.
+turn it on for your games.
 
 ## 🔗 Works With
 
@@ -388,6 +405,10 @@ turn it on for your Generation 3 games.
 - **WoobPad's apps:** Decorate stays at the PC. When an app opens
   one of the game's screens (a Pokémon's Summary, an evolution), the pad comes back on that app
   when it closes. WoobPad isn't in the START menu in a link room or the Safari Zone.
+- **On the Game Boy games:** shiny Pokémon on R-Bay and the GTS are shiny by the game's own rule on
+  Gold, Silver and Crystal, and there are none on Red, Blue and Yellow. The Map can't Fly and shows
+  no weather. Gold, Silver and Crystal's sixteen Badges count up to eight for the Mart's shelves.
+  Condition, Ribbons and the PokéNav's screens are Ruby, Sapphire and Emerald's only.
 - **Notifications** wait while a script, a battle or a menu is running, and show once you're free
   to move. They're kept until you turn the game off, not in your save.
 

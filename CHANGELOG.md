@@ -5,6 +5,19 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **Red, Blue, Yellow, Gold, Silver and Crystal:** WoobOS on the Game Boy games. The Pokémon Center's
+  PC and the bedroom's open the desktop (on Red, Blue and Yellow, the "Which PC?" menu too), and
+  WoobPad is in the START menu. Boxes, Items, Mail (Gold, Silver and Crystal), the Pokédex, the Hall
+  of Fame, Oak's PC, Settings, the App Store, the Mart, the Bank, R-Bay, Slots, the GTS, Errands,
+  Challenges and the News, each with that game's own Pokémon, items, moves and types.
+- **The Map on the Game Boy games:** Kanto in 3D on Red, Blue and Yellow, Johto and Kanto on Gold,
+  Silver and Crystal, built from the game's own towns and routes, their buildings, trees, cliffs and
+  water, in the game's own colours on Gold, Silver and Crystal.
+- **Phone and Decorate (Gold, Silver and Crystal):** the Pokégear's phone, straight to your
+  contacts; the bedroom's decorations from the bedroom PC's desktop, the room changing when the PC
+  turns off.
+
 ## [0.11.1] - 2026-11-14
 
 ### Fixed

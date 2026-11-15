@@ -57,6 +57,12 @@ For people working on the mod. Players want [README.md](README.md).
 | `src/oak.lua`, `src/apps/oak.lua` | Oak's PC (FireRed / LeafGreen): the Kanto counts and the game's rating |
 | `src/pokenav.lua` | The PokéNav takeover: stand-in screens for every feature, which open our apps |
 | `src/townmap.lua` | The third host: the 3D map full screen in place of the game's Town Map / Fly map |
+| `src/gb/main.lua` | The Game Boy games' wiring (Red / Blue / Yellow, Gold / Silver / Crystal): main.lua hands over to it on generation 1 or 2 |
+| `src/gb/host.lua` | Their host for the shell: the game's state stack, sounds, the free test, the PC takeover, the START rows, Gen 2's Pokégear and decorations |
+| `src/gb/data.lua`, `src/gb/art.lua` | Their facts (species, names, types, items, money, Badges) and pictures (icons and front pictures baked in colour once) |
+| `src/gb/boxes.lua`, `items.lua`, `mail.lua`, `hall.lua`, `mart.lua`, `dex.lua` | Their models, each with its Gen 3 counterpart's interface |
+| `src/gb/port.lua`, `src/gb/play.lua` | What the shared models (Bank, R-Bay, Slots, GTS, Errands, Challenges, the journal, the swarm, the News) ask of a game there; the swarm's routes and the events as the journal reads them |
+| `src/gb/map3d.lua` | The 3D map's model there: the outdoor maps built to scale |
 
 ## How the PC is taken over
 
@@ -984,6 +990,49 @@ the voxel diorama mod in the engine's checkout either (another author's).
     it closes; Trainer's Eyes only when the game's own list isn't empty.
   - Settings' `pokenavApps` off (or the Desktop option off): the game's screens.
 
+## The Game Boy games
+
+Red / Blue / Yellow (Gen 1) and Gold / Silver / Crystal (Gen 2) are Lua ports like Gen 3: screens are
+states on `game.stack`, the save is plain tables on `game.save`. `main.lua` returns into
+`src/gb/main.lua` on generation 1 or 2; Gen 3's code is never loaded there.
+
+- **The seam:** `src/shell.lua` takes `deps.host` (`src/gb/host.lua`): `push` / `pop` / `has` a state on
+  the game's stack (it updates on top; the shell's `render.hud` draws it), `free` (Gen 2: nothing on the
+  stack and the world taking menu input; Gen 1: the overworld on top, no warp, fly, script or text),
+  `se` (the Gen 3 sound names mapped to these games'), `hold(reopen)` / `tick` (a game screen opened
+  over the desktop: the desktop back once the stack is as deep as before), the START rows (the
+  `ui.start_menu.items` hook, before SAVE).
+- **The PC:** a carrier state the game pushes for its PC menu; its first update opens the desktop; log
+  off answers the game. Gen 2 through the screen registry (`Gen2CenterPcMenu`, `Gen2ItemPcMenu` with
+  `house`: the bedroom, whose `onClose(changed)` makes the script reload the room after decorations
+  moved); Gen 1 by wrapping `OverworldState.openPC` (the which-PC menu has no screen id) and the bedroom's
+  `PlayerPC` (`direct`). The game's own menu is a registry fallback when ours fails.
+- **Models:** `src/gb/*.lua` keep their Gen 3 counterparts' interfaces, so every window in
+  `src/apps/` is the same. The shared models (`src/bank.lua`, `auction.lua`, `slots.lua`, `gts.lua`,
+  `errands.lua`, `challenges.lua`, `journal.lua`, `swarm.lua`, `news.lua`) take `deps.port`
+  (`src/gb/port.lua`: money, items, species, making and giving a Pokémon, experience, trades) and fall back
+  to their Gen 3 code without it. Species, items and moves are the games' string ids; types are shown
+  as Gen 3's numbers (the pills' colours). Shiny: Gen 2 by DVs, never on Gen 1.
+- **Pictures:** `src/gb/art.lua` bakes each icon and front picture once into a canvas in colour (Gen 2
+  through `GbcPalette` and the species' palette, Gen 1 through the palette shader), padded to one box.
+- **The Pokédex:** the START menu's `PokedexMenu` / `Gen2PokedexMenu` registered as a carrier that opens
+  ours full screen (`Sh.openFull`).
+- **Gen 2's own screens as apps:** Phone pushes `Gen2Pokegear` on its phone card (calls run through
+  `Game2:runPokegearCall`); Decorate pushes `Gen2DecorationMenu` from the bedroom's desktop and marks the
+  carrier `changed`.
+- **The 3D map** (`src/gb/map3d.lua`): each region's outdoor maps (Gen 2 environment TOWN / ROUTE,
+  Gen 1 the OVERWORLD / PLATEAU tilesets) placed by their connections from its town (north / south:
+  `offset` blocks across; east / west: down), 16 px squares classed from Gen 2's collision bytes
+  (`src.world.gen2.Permissions`) and tile palettes (a block with roof tiles a building, green a tree,
+  Johto's brown big tree by its tiles, brown or grey rock, the rest low walls) or Gen 1's lower-left
+  tile (walkable list, grass, water, doors); buildings from the doors' fronts; colours from Gen 2's own
+  day palettes, Gen 1's our own. `src/map3d/world.lua` made with no engine lends the classes, the
+  heights' constants and the coarse terrain; render.lua and scene.lua draw it unchanged. Gen 2's Kanto
+  is a region of its own (no road joins it to Johto), shown once a Kanto town's been visited.
+- **In-engine:** Gen 2 runs rewrite the engine's `options.lua` (a seed): back it up and restore it. The
+  engine itself makes 30-120 KB of garbage a frame in the field and its own menus; measure ours as the
+  difference (the pad, the Map: none over the engine's).
+
 ## Words
 
 Every word WoobOS shows is a key of `lang/en.lua`: `T("app.items")` in code, or a key in a
@@ -1034,6 +1083,7 @@ luajit mods/woob_os/tests/desktop_test.lua [firered|leafgreen|ruby|sapphire|emer
 luajit mods/woob_os/tests/pad_test.lua [firered|leafgreen|ruby|sapphire|emerald]
 luajit mods/woob_os/tests/map3d_test.lua [firered|leafgreen|ruby|sapphire|emerald]
 luajit mods/woob_os/tests/pokenav_test.lua [firered|leafgreen|ruby|sapphire|emerald]
+luajit mods/woob_os/tests/gb_test.lua [red|blue|yellow|gold|silver|crystal]
 SHOT_DIR=<dir> POKEPORT_GAME=firered POKEPORT_VERSION=firered \
   POKEPORT_DRIVER=mods/woob_os/tests/drivers/desktop_probe.lua love .
 python tools/modkit.py lint mods/woob_os
