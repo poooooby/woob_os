@@ -148,8 +148,10 @@ Center, and the one in your bedroom, opens a desktop in a sleek monitor instead 
   abilities, and three tabs: **Moves** (by level, TM and HM, egg
   moves and tutors, with each move's type, power, accuracy and PP), **Where** (every place it's
   found in the wild, how, its levels and its chances) and **Info** (its evolutions and how, egg
-  groups, hatch steps, catch rate, base Exp., growth, EV yield, held items, base friendship). You
-  see it as the game would show it: the card and where to find it once seen, everything once
+  groups, hatch steps, catch rate, base Exp., growth, EV yield, held items, base friendship). A
+  Pokémon with alternate forms (WoobleDex's) has a fourth tab, **Forms**: every form with its
+  picture and name, the usual one first, a Poké Ball under each you've caught, and a silhouette for
+  those you haven't seen. You see it as the game would show it: the card and where to find it once seen, everything once
   caught. Your region's dex first, and the National dex beside it once you have it (SELECT). START
   opens the game's own Pokédex; Settings can keep the game's on START, and the Pokédex option turns
   it off altogether. It all moves smoothly: the highlight glides from Pokémon to Pokémon, the page
@@ -374,6 +376,8 @@ turn it on for your games.
   which can Gigantamax, and opens in place of its Pokédex too; its Register Owned still marks your
   party and PC caught when it opens.
 - **WoobleSpritePack:** the Pokédex shows its sprites, animated, for every Pokémon it has art for.
+  On Red, Blue, Yellow, Gold, Silver and Crystal, every window shows its party icons and its
+  pictures too.
 
 ## 📌 Good to Know
 

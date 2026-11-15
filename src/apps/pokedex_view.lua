@@ -713,21 +713,58 @@ return function(K, env, T, st, A, KINDS)
     return yy - y
   end
 
+  -- the forms (WoobleDex's), the base one first: a tile each, its picture (a silhouette until it's seen),
+  -- its name, a Poké Ball under it once it's caught
+  local function formRows(x, y, w, clock)
+    local list = st.forms
+    local cols = max(2, floor(w / 26))
+    local tw = w / cols
+    local th = 30
+    for i = 1, #list do
+      local f = list[i]
+      local col0, row = (i - 1) % cols, floor((i - 1) / cols)
+      local tx, ty = x + col0 * tw, y + row * th
+      local ein = rowIn(clock, i)
+      rise(ein, 3)
+      local tile = K.R(tx + 1, ty, tw - 2, th - 2)
+      K.col(C.white, (f.base and 0.55 or 0.32) * K.getFade())
+      K.box("fill", tile, 3)
+      local ps = 16
+      local px, py = tx + (tw - ps) / 2, ty + 1.5
+      if f.seen then
+        local drawn = env.monPic and env.monPic(f.sp, px, py, ps, K.getFade())
+        if not drawn and env.monIcon then env.monIcon(f.sp, px, py, ps, 0, 1, 1, 1, K.getFade()) end
+      elseif env.monIcon then
+        env.monIcon(f.sp, px, py, ps, 0, 0.12, 0.12, 0.16, 0.55 * K.getFade())
+      end
+      local name = f.seen and f.name or "???"
+      K.text(name, tx + 1, ty + ps + 2.5, K.fit(name, 3.3, tw - 4), f.seen and C.ink or C.soft, "center", tw - 2)
+      if f.caught then ballMark(tx + tw / 2, ty + ps + 9.6, 1.7) end
+      settle(ein)
+    end
+    return ceil(#list / cols) * th
+  end
+
+  local TAB_WORD = { moves = "dex.tab.moves", where = "dex.tab.where", info = "dex.tab.info", forms = "dex.info.forms" }
   local function tabs(x, y, w, e, pg, clock, dt)
     local yy = y
-    if e.caught then
+    local list = st.tabs
+    local n = #list
+    if n >= 2 then
       mv.tabX = approach(mv.tabX, st.tab, dt, 18)
-      K.glassSwitch(x, yy, w, 8, mv.tabX, "win", A.TAB + 1, word("dex.tab.moves"), A.TAB + 2, word("dex.tab.where"),
-        A.TAB + 3, word("dex.tab.info"), 4.3)
+      K.glassSwitch(x, yy, w, 8, mv.tabX, "win", A.TAB + 1, word(TAB_WORD[list[1]]), A.TAB + 2, word(TAB_WORD[list[2]]),
+        n >= 3 and A.TAB + 3 or nil, n >= 3 and word(TAB_WORD[list[3]]) or nil, 4.3,
+        n >= 4 and A.TAB + 4 or nil, n >= 4 and word(TAB_WORD[list[4]]) or nil)
       yy = yy + 11
     else
-      K.bold(word("dex.tab.where"), x + 1, yy + 1, 4.2, C.ink)
+      K.bold(word(TAB_WORD[list[1] or "where"]), x + 1, yy + 1, 4.2, C.ink)
       yy = yy + 8
     end
-    local tab = e.caught and st.tab or 2
+    local tab = list[st.tab] or "where"
     local ch
-    if tab == 1 then ch = moveRows(x + 3, yy + 3, w - 6, pg, clock, dt)
-    elseif tab == 2 then ch = whereRows(x + 3, yy + 3, w - 6, pg, clock)
+    if tab == "moves" then ch = moveRows(x + 3, yy + 3, w - 6, pg, clock, dt)
+    elseif tab == "where" then ch = whereRows(x + 3, yy + 3, w - 6, pg, clock)
+    elseif tab == "forms" then ch = formRows(x + 3, yy + 3, w - 6, clock)
     else ch = infoRows(x + 3, yy + 3, w - 6, e, pg, clock) end
     return yy - y + ch + 8
   end

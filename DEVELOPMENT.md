@@ -559,7 +559,12 @@ screenshots each. Settings changed by hand during it are the real ones.
   `Encounters.loadCacheFile`: land / water / rocks by the game's slot weights, fishing by rod, a map filed
   under two keys counted once, places through main.lua's `placeName`). The game's shouted words (BULBASAUR,
   POKéMON) in a sentence's case (`unshout`; HP PP TM HM kept). WoobleDex: `formsOf` + `formLabel`, `dynamax.gmaxMoveOf`.
-  `Dx.reset` on `Pokemon.onReload`.
+  `Dx.reset` on `Pokemon.onReload`. `Dx.forms(entry, s)` (made when one's chosen: who's caught changes):
+  the base, then each of WoobleDex's forms (a species of its own in the engine: its `slot`), seen / caught
+  by `Dex.isSeen` / `isCaught` on that slot; `Dx.wooble` is the tests' seam.
+- **Tabs** (`st.tabs`, ids per Pokémon, `st.tab` the index, `st.tabId` kept across Pokémon): caught Moves /
+  Where / Info, seen Where; "forms" after them while `#st.forms > 1` (the label is `dex.info.forms`).
+  `K.glassSwitch` takes a fourth segment after `size`.
 - **The window** (`src/apps/pokedex.lua` state and input, `src/apps/pokedex_view.lua` drawing; main.lua
   hands the view in as the window's third argument): wide (>= 190 units) the grid left and the page
   right, each scrolling; narrow the two take turns. Unseen: a silhouette (the icon drawn dark,

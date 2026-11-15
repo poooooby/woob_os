@@ -248,6 +248,47 @@ if okO and W then
   W.input(input({ "a" }), NONE)
   local kb2 = garbageOf(120, function() drawWin(W, false) end)
   T.check(kb2 < 0.5, string.format("a page: next to no garbage (%.3f KB/frame)", kb2))
+  -- (WoobleDex's forms: a Forms tab, each form's name, a Poké Ball under those caught; a stand-in whose
+  -- forms are other species the save has: one caught, one unseen)
+  local caughtSp, unseenSp
+  for _, e in ipairs(st.list) do
+    if e.caught and e ~= st.list[caughtAt] and not caughtSp then caughtSp = e.sp end
+    if not e.seen and not unseenSp then unseenSp = e.sp end
+  end
+  local baseNat = st.list[caughtAt].nat
+  local prevWooble = Dx.wooble
+  Dx.wooble = function()
+    return {
+      formsOf = function(nat)
+        if nat ~= baseNat then return {} end
+        return { { id = "A_FORM", slot = caughtSp or unseenSp, form = "ALOLA" },
+                 { id = "B_FORM", slot = unseenSp, form = "GALAR" } }
+      end,
+      formLabel = function(slot) return slot == unseenSp and "GALARIAN" or nil end,
+    }
+  end
+  W.input(input({ "b" }), NONE)
+  W.tap(W.A.CELL + (caughtAt == 1 and 2 or 1))
+  W.tap(W.A.CELL + caughtAt)
+  T.check(#st.forms == 3 and st.forms[1].base and st.forms[1].caught, "its forms, the base one first")
+  T.check(st.tabs[4] == "forms", "a Forms tab after Info")
+  T.check(st.forms[3].name == "Galarian" and not st.forms[3].seen and st.forms[2].name == (caughtSp and "Alola" or "Galarian"),
+          "each form's name (WoobleDex's, else its own)")
+  T.check(caughtSp == nil or st.forms[2].caught, "a caught form: its Poké Ball")
+  W.input(input({ "a" }), NONE)
+  W.tap(W.A.TAB + 4)
+  local okF, errF = pcall(drawWin, W, false)
+  T.check(okF and st.tabId == "forms", "the Forms tab draws (" .. tostring(errF) .. ")")
+  pcall(drawWin, W, true)
+  local kb3 = garbageOf(120, function() drawWin(W, false) end)
+  T.check(kb3 < 0.5, string.format("the Forms tab: next to no garbage (%.3f KB/frame)", kb3))
+  W.input(input({ "r" }), NONE)
+  T.eq(st.tabId, "moves", "R from Forms: round to Moves")
+  -- (a Pokémon without forms: three tabs)
+  W.input(input({ "b" }), NONE)
+  W.tap(W.A.CELL + (caughtAt == 1 and 2 or 1))
+  T.check(#st.forms == 0 and st.tabs[4] == nil, "no forms: no Forms tab")
+  Dx.wooble = prevWooble
 end
 
 -- ------- the START menu's Pokédex: ours, START the game's own, the setting off the game's

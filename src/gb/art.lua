@@ -3,17 +3,24 @@
 -- with the species' palette, Gen 2 GbcPalette with its colours), so each one is painted once, in colour, into
 -- a canvas of its own and kept: the windows then draw it like any picture, at any size, every frame without
 -- a shader or a table. A path goes through the engine's own Sprites seams, so another mod's art (a sprite
--- pack) is what's painted. Without canvases (headless) the grey art is kept as it is.
+-- pack) is what's painted. Without canvases (headless) the grey art is kept as it is. With WoobleSpritePack
+-- (g9-battle-sprites-gen3) its own art instead, for every Pokémon it has art for: its party icons (as its HD
+-- party screen shows them: our windows draw icons that big) and its front pictures (the windows its first
+-- frame, the Pokédex its animation).
 --
---   Art = art(host, Gd)
+--   Art = art(host, Gd, K, deps)   deps.pack() -> WoobleSpritePack's exports while it's active, else nil
 --   Art.icon(sp, mon) -> { image, frames, w = 16, h = 16, quads } | nil   (kept per species / egg)
---   Art.pic(sp, mon) -> { image, w, h } | nil  (kept per species and shininess)
+--   Art.pic(sp, mon) -> { image, w, h, box } | nil  (kept per species and shininess; drawn w x h at the
+--                       bottom middle of a box x box square)
+--   Art.livePic(sp) -> the same, the pack's animation now (asked 16 times a second) | nil without the pack
 --   Art.drawIcon(sp, x, y, size, frame, r, g, b, a, mon)   (units, through the kit)
 --   Art.drawPic(sp, x, y, size, a, mon) -> true when drawn
 --   Art.forget() (the data changed: everything painted again)
 
-return function(H, Gd, K)
-  local Art = {}
+return function(H, Gd, K, deps)
+  deps = deps or {}
+  -- (Art.pack: the tests' seam)
+  local Art = { pack = deps.pack }
   local engine = H.engine
   local floor = math.floor
 
@@ -146,8 +153,58 @@ return function(H, Gd, K)
     return got or nil
   end
 
+  -- ------- WoobleSpritePack's icons: both frames asked once per Pokémon (or species) and kept, asked
+  -- again a second later (the pack may have rebuilt its atlas); nil where it has none (an Egg)
+  local packByMon = setmetatable({}, { __mode = "k" })
+  local packBySp = {}
+  local REASK = 5
+  local function clock() return love and love.timer and love.timer.getTime() or 0 end
+  -- (the pack itself looked for once a second, for every icon)
+  local packEx, packAt, packFn = nil, -1, nil
+  local function packNow(now)
+    if packFn ~= Art.pack or now - packAt >= 1 then
+      packFn, packAt = Art.pack, now
+      local ok, ex = pcall(Art.pack or error)
+      packEx = ok and type(ex) == "table" and (ex.iconArt16 or ex.frontArt) and ex or nil
+    end
+    return packEx
+  end
+  local function packIcon(sp, mon)
+    if not Art.pack or Gd.isEgg(mon) then return nil end
+    local now = clock()
+    local ex = packNow(now)
+    if not ex then return nil end
+    local e
+    if mon then e = packByMon[mon] else e = packBySp[sp] end
+    if e and now - e.at < REASK then return e.ok and e or nil end
+    local fn = ex.iconArt16
+    e = e or {}
+    e.at, e.ok = now, false
+    if fn then
+      local who = mon or { species = sp }
+      local ok0, q0, img, cell = pcall(fn, who, 0)
+      local ok1, q1 = pcall(fn, who, 1)
+      if ok0 and type(q0) == "table" and q0.full and img and tonumber(cell) then
+        e.ok, e.image, e.cell = true, img, tonumber(cell)
+        e[0] = q0.full
+        e[1] = ok1 and type(q1) == "table" and q1.full or q0.full
+      end
+    end
+    if mon then packByMon[mon] = e else packBySp[sp] = e end
+    return e.ok and e or nil
+  end
+
   -- (units through the kit; r, g, b, a: a tint, the Pokédex's dark silhouettes)
   function Art.drawIcon(sp, x, y, size, frame, r, g, b, a, mon)
+    local p = packIcon(sp, mon)
+    if p then
+      -- (the pack's: a 32 px cell with a margin round it, as Gen 3's icons are)
+      local G = K.graphics()
+      G.setColor(r or 1, g or 1, b or 1, a or 1)
+      local k = size * K.sc / p.cell
+      G.draw(p.image, p[(frame or 0) % 2], K.X(x), K.Y(y), 0, k, k)
+      return
+    end
     local e = Art.icon(sp, mon)
     if not e then return end
     local q = e.quads[(frame or 0) % e.frames] or e.quads[0]
@@ -162,10 +219,64 @@ return function(H, Gd, K)
 
   -- ------- front pictures
 
+  -- WoobleSpritePack's: its first frame at 1:1, kept (asked again every few seconds, as its icons are);
+  -- its animation for the Pokédex, the frame playing now asked 16 times a second (each frame is a canvas
+  -- the pack keeps). A margin round the art, as the game's pictures have in their 56 px box
+  local PACK_MARGIN, PACK_EVERY = 1.25, 1 / 16
+  local stillByMon = setmetatable({}, { __mode = "k" })
+  local stillBySp = {}
+  local function packStill(sp, mon)
+    if not Art.pack or Gd.isEgg(mon) then return nil end
+    local now = clock()
+    local ex = packNow(now)
+    if not (ex and ex.frontArt) then return nil end
+    local e
+    if mon then e = stillByMon[mon] else e = stillBySp[sp] end
+    if e and now - e.at < REASK then return e.ok and e or nil end
+    e = e or {}
+    e.at, e.ok = now, false
+    local ok, img, w, h = pcall(ex.frontArt, mon or { species = sp })
+    if ok and img and tonumber(w) and tonumber(h) then
+      e.ok, e.image, e.w, e.h = true, img, tonumber(w), tonumber(h)
+      e.box = math.max(e.w, e.h) * PACK_MARGIN
+    end
+    if mon then stillByMon[mon] = e else stillBySp[sp] = e end
+    return e.ok and e or nil
+  end
+  local live = { sp = nil, at = -1, ctx = { natural = true, side = "front", mon = nil }, who = {},
+                 pic = { image = nil, w = 0, h = 0, box = 0 }, ok = false }
+  function Art.livePic(sp)
+    if not Art.pack then return nil end
+    local now = clock()
+    local ex = packNow(now)
+    if not ex then return nil end
+    if live.sp ~= sp or now - live.at >= PACK_EVERY then
+      live.sp, live.at, live.ok = sp, now, false
+      live.who.species = sp
+      live.ctx.mon = live.who
+      local img
+      if ex.monPic then
+        local ok, got = pcall(ex.monPic, live.ctx)
+        img = ok and got or nil
+      end
+      if img and img.getDimensions then
+        local w, h = img:getDimensions()
+        local pic = live.pic
+        pic.image, pic.w, pic.h, pic.box = img, w, h, math.max(w, h) * PACK_MARGIN
+        live.ok = true
+      end
+    end
+    if live.ok then return live.pic end
+    -- (its animation off: the first frame)
+    return packStill(sp, nil)
+  end
+
   function Art.pic(sp, mon)
     local shiny = mon ~= nil and Gd.shiny(mon) or false
     local egg = Gd.isEgg(mon)
     if egg then return nil end
+    local p = packStill(sp, mon)
+    if p then return p end
     local byShiny = pics[sp]
     if not byShiny then
       byShiny = {}
@@ -196,9 +307,9 @@ return function(H, Gd, K)
         if quad then G.draw(img, quad, ox, oy) else G.draw(img, ox, oy) end
       end)
       if painted then
-        got = { image = painted, w = box, h = box }
+        got = { image = painted, w = box, h = box, box = box }
       elseif not quad then
-        got = { image = img, w = s, h = s }
+        got = { image = img, w = s, h = s, box = s }
       end
     end
     byShiny[k] = got
@@ -209,9 +320,11 @@ return function(H, Gd, K)
     local pic = Art.pic(sp, mon)
     if not pic then return false end
     local G = K.graphics()
-    local k = size * K.sc / (pic.w or 56)
+    local box = pic.box or pic.w or 56
+    local k = size * K.sc / box
     G.setColor(1, 1, 1, a or 1)
-    G.draw(pic.image, K.X(x), K.Y(y), 0, k, k)
+    -- (at the bottom middle of the square)
+    G.draw(pic.image, K.X(x) + (box - pic.w) / 2 * k, K.Y(y) + (box - pic.h) * k, 0, k, k)
     return true
   end
 

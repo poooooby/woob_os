@@ -339,11 +339,15 @@ Gd.setMoney(save, 200000)
 -- (R-Bay: a listing of this game's Pokémon, a bid, the win delivered)
 local now0 = os.time()
 local ls = Au.listings(save, now0)
-local L = ls and ls[1]
+-- (the cheapest: which auctions are up depends on the hour, and a legendary's may cost more than the wallet)
+local L
+for _, l in ipairs(ls or {}) do
+  if not L or Au.minBid(l) < Au.minBid(L) then L = l end
+end
 T.check(L and type(L.sp) == "string" and Gd.def(L.sp) ~= nil, "R-Bay: a listing of this game's Pokémon (" .. tostring(L and L.sp) .. ")")
 if L then
   local before = money()
-  local okBid = Au.bid(save, L, Au.minBid(L) + 100000, now0)
+  local okBid = Au.bid(save, L, math.min(money(), Au.minBid(L) + 100000), now0)
   T.check(okBid and money() < before, "a bid holds the money")
   local partyN = #save.party
   local won = Au.settle(save, L.finish + 10)
@@ -411,6 +415,57 @@ end
 -- (the News)
 local bc = Nw.build(save)
 T.check(bc and #bc.stories > 0, "the News: today's stories (" .. (bc and #bc.stories or 0) .. ")")
+
+-- ------- WoobleSpritePack's party icons: its own in the windows, for every Pokémon it has one for
+do
+  local Art = X._test.art
+  local drawn, asked = {}, 0
+  local fakeImg = { getDimensions = function() return 64, 32 end }
+  local fakeQuad = { [0] = {}, [1] = {} }
+  local stillImg = { getDimensions = function() return 40, 30 end }
+  local liveImg = { getDimensions = function() return 48, 44 end }
+  local pack = { iconArt16 = function(mon, f)
+    asked = asked + 1
+    if mon.species == "MISSINGNO" then return nil end
+    return { full = fakeQuad[f] }, fakeImg, 32
+  end,
+  frontArt = function(mon) if mon.species ~= "MISSINGNO" then return stillImg, 40, 30 end end,
+  monPic = function(ctx) if ctx.natural and ctx.mon.species ~= "MISSINGNO" then return liveImg end end }
+  local prevPack, prevDraw = Art.pack, G.draw
+  Art.pack = function() return pack end
+  G.draw = function(img, q) drawn[#drawn + 1] = { img, q } end
+  local mon = newMon(GEN == 2 and "CYNDAQUIL" or "PIKACHU", 5)
+  X._test.env.monIconOf(mon, 0, 0, 20, 1, 1)
+  T.check(drawn[1] and drawn[1][1] == fakeImg and drawn[1][2] == fakeQuad[1], "a Pokémon's icon: the pack's, its frame")
+  local before = asked
+  for _ = 1, 30 do X._test.env.monIconOf(mon, 0, 0, 20, 0, 1) end
+  T.eq(asked, before, "asked once, then kept")
+  local n = #drawn
+  X._test.env.monIcon("MISSINGNO", 0, 0, 20, 0)
+  T.check(#drawn == n or drawn[#drawn][1] ~= fakeImg, "none from the pack: the game's own")
+  G.draw = noop
+  local kb = math.huge
+  for _ = 1, 3 do
+    collectgarbage("collect")
+    collectgarbage("stop")
+    local c0 = collectgarbage("count")
+    for _ = 1, 30 do X._test.env.monIconOf(mon, 0, 0, 20, 0, 1) end
+    kb = math.min(kb, (collectgarbage("count") - c0) / 30)
+    collectgarbage("restart")
+  end
+  T.check(kb < 0.05, ("the pack's icons: next to no garbage (%.3f KB)"):format(kb))
+  -- (its pictures: the windows its first frame, the Pokédex its animation)
+  local sp1 = GEN == 2 and "CYNDAQUIL" or "PIKACHU"
+  local still = Art.pic(sp1, mon)
+  T.check(still and still.image == stillImg and still.w == 40 and still.h == 30 and still.box > 40,
+          "a Pokémon's picture: the pack's, in a square with a margin")
+  local livePic = Art.livePic(sp1)
+  T.check(livePic and livePic.image == liveImg, "the Pokédex's: the pack's animation")
+  T.check((X._test.env.dexSprite.pack(sp1)), "the Pokédex says so")
+  local noPack = Art.pic("MISSINGNO")
+  T.check(noPack == nil or noPack.image ~= stillImg, "none from the pack: the game's own")
+  Art.pack, G.draw = prevPack, prevDraw
+end
 
 -- ------- the 3D map: the outdoor maps built to scale
 local M3 = X._test.env.map3d

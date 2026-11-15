@@ -15,6 +15,8 @@
 --       moves = { level = rows, tm = rows, egg = rows, tutor = rows },
 --       where = { { place, method, levels, chance } } }
 --     move row = { name, typeId, typeName, power, acc, pp, physical, tag (level / TM / blank) }
+--   Dx.forms(entry, s) -> { { sp, name, base, seen, caught }, ... } its forms (WoobleDex's), the base one first;
+--                        {} when it has none (made when it's chosen: who's caught changes)
 --   Dx.reset(): everything made let go (a game switch, the engine's species pack reloaded)
 
 local floor, max, min = math.floor, math.max, math.min
@@ -56,7 +58,8 @@ end
 return function(engine, deps)
   deps = deps or {}
   local T = deps.T
-  local Dx = {}
+  -- (Dx.wooble: WoobleDex's exports; the tests swap it)
+  local Dx = { wooble = deps.wooble }
 
   local function P() return engine("src.core.game3.pokemon") end
   local function word(key, ...)
@@ -472,7 +475,7 @@ return function(engine, deps)
     pg.where = w
     -- (WoobleDex: its forms, and whether it can Gigantamax)
     pg.forms = {}
-    local wd = deps.wooble and deps.wooble()
+    local wd = Dx.wooble and Dx.wooble()
     if wd then
       local okF, forms = pcall(wd.formsOf or error, entry.nat)
       for _, f in ipairs(okF and type(forms) == "table" and forms or {}) do
@@ -486,6 +489,37 @@ return function(engine, deps)
     if #pg.forms > 0 then pg.info[#pg.info + 1] = { label = word("dex.info.forms"), value = table.concat(pg.forms, ", ") } end
     pages[sp] = pg
     return pg
+  end
+
+  -- (each form a species of its own in the engine: its slot, caught and seen in the game's own Pokédex)
+  function Dx.forms(entry, s)
+    local out = {}
+    local wd = Dx.wooble and Dx.wooble()
+    if not (entry and wd and wd.formsOf) then return out end
+    local okF, forms = pcall(wd.formsOf, entry.nat)
+    if not (okF and type(forms) == "table" and #forms > 0) then return out end
+    local Pk, Dex = P(), engine("src.core.game3.dex")
+    local dex = dexOf(s) or {}
+    local function state(sp)
+      if not Dex then return false, false end
+      local okC, caught = pcall(Dex.isCaught, dex, sp)
+      local okS, seen = pcall(Dex.isSeen, dex, sp)
+      caught = okC and caught == true
+      return caught or (okS and seen == true), caught
+    end
+    local seen, caught = state(entry.sp)
+    out[1] = { sp = entry.sp, name = entry.name, base = true, seen = seen, caught = caught }
+    for _, f in ipairs(forms) do
+      local sp = tonumber(f.slot)
+      if sp then
+        local label = wd.formLabel and select(2, pcall(wd.formLabel, f.slot)) or nil
+        local name = type(label) == "string" and titled(label) or titled((tostring(f.form or "?"):gsub("_", " ")))
+        local fs, fc = state(sp)
+        out[#out + 1] = { sp = sp, name = name, seen = fs, caught = fc }
+      end
+    end
+    if #out < 2 then return {} end
+    return out
   end
 
   Dx.titled = titled

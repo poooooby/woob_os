@@ -2,9 +2,10 @@
 -- the dex's Pokémon (its number, its icon, its name; a silhouette until it's seen, a ball once it's
 -- caught); on the right the chosen one's page: its front picture (Emerald's own animation, a breathing
 -- idle elsewhere), name, category, types, height and weight, gender ratio, the dex's words, a radar of
--- its base stats, its abilities, and Moves / Where / Info. The game's rules: unseen nothing, seen the
--- card and where to find it, caught everything. Narrow (WoobPad upright), the grid and the page take
--- turns.
+-- its base stats, its abilities, and Moves / Where / Info, and Forms where it has any (WoobleDex's: each
+-- form's picture and name, a Poké Ball under those caught). The game's rules: unseen nothing, seen the
+-- card, where to find it and its forms, caught everything. Narrow (WoobPad upright), the grid and the page
+-- take turns.
 --   buttons  the D-pad moves in the grid, L / R a page, A the page (Up / Down scroll it, L / R its tab,
 --            Left / Right the moves' list, A its cry), SELECT the regional or National dex, B back,
 --            START the game's own Pokédex (when it was opened in its place)
@@ -40,13 +41,33 @@ return function(ctx, env, makeView)
     focus = "grid", detail = false, narrow = false,
     gridTop = 0, cols = 4, visRows = 3, follow = true,
     detailTop = 0, detailH = 0, detailVis = 80,
-    tab = 1, kind = 1, shown = { 0, 0, 0, 0, 0, 0 }, chosenAt = 0, lines = {},
+    -- (the page's tabs: ids, "moves" / "where" / "info" / "forms", for the one chosen; st.tab the index)
+    tab = 1, tabId = "moves", tabs = {}, forms = {},
+    kind = 1, shown = { 0, 0, 0, 0, 0, 0 }, chosenAt = 0, lines = {},
     modeWords = {},
   }
   W.state, W.A = st, A
   for i, m in ipairs(book.modes) do st.modeWords[i] = T("dex.mode." .. m) end
 
   local function now() return env.now and env.now() or 0 end
+
+  -- the chosen one's tabs: caught, Moves / Where / Info; seen, Where; and Forms after them where it has
+  -- forms. The same tab kept when it's there
+  local function setTabs(e)
+    local list = st.tabs
+    for i = #list, 1, -1 do list[i] = nil end
+    if e and e.caught then
+      list[1], list[2], list[3] = "moves", "where", "info"
+    elseif e then
+      list[1] = "where"
+    end
+    if #st.forms > 1 then list[#list + 1] = "forms" end
+    st.tab = 1
+    for i, id in ipairs(list) do
+      if id == st.tabId then st.tab = i end
+    end
+    st.tabId = list[st.tab] or "where"
+  end
 
   -- a Pokémon chosen: its page made (an action, never a draw), its picture's animation started
   local function choose(i, quiet)
@@ -57,6 +78,8 @@ return function(ctx, env, makeView)
     st.sel = i
     st.entry = st.list[i]
     st.page = st.entry.seen and Dx.page(st.entry) or nil
+    st.forms = st.entry.seen and Dx.forms and Dx.forms(st.entry, s) or {}
+    setTabs(st.entry)
     st.follow = true
     if moved then
       st.detailTop = 0
@@ -98,9 +121,10 @@ return function(ctx, env, makeView)
     se("SE_SELECT")
   end
   local function setTab(t)
-    local caught = st.entry and st.entry.caught
-    if not caught then return end
-    st.tab = (t - 1) % 3 + 1
+    local n = #st.tabs
+    if n < 2 then return end
+    st.tab = (t - 1) % n + 1
+    st.tabId = st.tabs[st.tab]
     st.detailTop = min(st.detailTop, max(0, st.detailH - st.detailVis))
     se("SE_SELECT")
   end
@@ -128,8 +152,8 @@ return function(ctx, env, makeView)
       elseif nav.down then st.detailTop = min(max(0, st.detailH - st.detailVis), st.detailTop + 12)
       elseif pressed("l") then setTab(st.tab - 1)
       elseif pressed("r") then setTab(st.tab + 1)
-      elseif st.tab == 1 and nav.left then setKind(st.kind - 1)
-      elseif st.tab == 1 and nav.right then setKind(st.kind + 1)
+      elseif st.tabId == "moves" and nav.left then setKind(st.kind - 1)
+      elseif st.tabId == "moves" and nav.right then setKind(st.kind + 1)
       elseif pressed("a") then cry() end
       return true
     end
@@ -157,7 +181,7 @@ return function(ctx, env, makeView)
       return
     end
     if arg > A.MODE and arg <= A.MODE + #book.modes then return setMode(arg - A.MODE) end
-    if arg > A.TAB and arg <= A.TAB + 3 then st.focus = "detail" return setTab(arg - A.TAB) end
+    if arg > A.TAB and arg <= A.TAB + #st.tabs then st.focus = "detail" return setTab(arg - A.TAB) end
     if arg > A.KIND and arg <= A.KIND + #KINDS then st.focus = "detail" return setKind(arg - A.KIND) end
     if arg == A.SPRITE then return cry() end
     if arg == A.BACK then return back() end

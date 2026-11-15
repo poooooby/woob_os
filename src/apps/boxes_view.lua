@@ -435,9 +435,12 @@ return function(K, env, T, Bx, st, A)
     G.circle("fill", K.X(px + ps / 2), K.Y(py + ps / 2), ps * 0.48 * K.sc)
     local pic = info.pic
     if pic and pic.image then
-      local k = ps * K.sc / (pic.w or 64)
+      -- (a picture smaller than its square -- WoobleSpritePack's on the Game Boy games -- at its bottom
+      -- middle)
+      local box = pic.box or pic.w or 64
+      local k = ps * K.sc / box
       G.setColor(1, 1, 1, 1)
-      G.draw(pic.image, K.X(px), K.Y(py), 0, k, k)
+      G.draw(pic.image, K.X(px) + (box - (pic.w or box)) / 2 * k, K.Y(py) + (box - (pic.h or box)) * k, 0, k, k)
     end
     if info.gmax then gmaxBadge(px + ps / 2, py + ps - 0.5) end
     local tx, ty, tw

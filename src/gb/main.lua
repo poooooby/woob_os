@@ -104,7 +104,14 @@ return function(mod, loadSibling)
   local session = Host.session
   -- the game's facts and its Pokémon's pictures (src/gb/data.lua, src/gb/art.lua)
   local Gd = makeData and makeData(Host) or nil
-  local Art = Gd and makeArt and makeArt(Host, Gd, Kit) or nil
+  -- (WoobleSpritePack, g9-battle-sprites-gen3, while it's active: its party icons)
+  local function spritePack()
+    local m = mod.find("g9-battle-sprites-gen3")
+    local ex = m and m.exports
+    local okA, on = pcall(ex and ex.isActive or error)
+    return okA and on == true and ex or nil
+  end
+  local Art = Gd and makeArt and makeArt(Host, Gd, Kit, { pack = spritePack }) or nil
 
   local Wall = makeWall and makeWall({
     K = Kit, gameId = gameId,
@@ -340,18 +347,27 @@ return function(mod, loadSibling)
       if g and g.data and Sound and Sound.playCry then pcall(Sound.playCry, g.data, sp) end
     end
     env.dexSprite = {
-      start = function() end, stop = function() end, pack = function() return false, nil end,
+      start = function() end, stop = function() end,
+      -- (WoobleSpritePack drawing it: true, its picture now)
+      pack = function(sp)
+        local pic = Art and sp and Art.livePic(sp)
+        return pic ~= nil, pic
+      end,
       draw = function(sp, cx, cy, size, clock, chosenAt, scale, alpha)
-        local pic = Art and Art.pic(sp)
+        -- (WoobleSpritePack's animation, else the game's picture breathing)
+        local packPic = Art and Art.livePic(sp)
+        local pic = packPic or (Art and Art.pic(sp))
         if not pic then return end
         local G = Kit.graphics()
-        local k0 = size * Kit.sc / pic.w
+        local box = pic.box or pic.w
+        local k0 = size * Kit.sc / box
         local k = k0 * (scale or 1)
         local t = clock - (chosenAt or -10)
         local hop = (t >= 0 and t < 0.45) and math.sin(t / 0.45 * math.pi) * 2.5 * Kit.sc or 0
-        local b = 1 + 0.022 * math.sin(clock * 2.3)
+        local b = packPic and 1 or 1 + 0.022 * math.sin(clock * 2.3)
         G.setColor(1, 1, 1, alpha or 1)
-        G.draw(pic.image, Kit.X(cx), Kit.Y(cy) + pic.h / 2 * k0 - hop, 0, k * (2 - b), k * b, pic.w / 2, pic.h)
+        -- (its feet on the box's bottom)
+        G.draw(pic.image, Kit.X(cx), Kit.Y(cy) + box / 2 * k0 - hop, 0, k * (2 - b), k * b, pic.w / 2, pic.h)
       end,
     }
   end
