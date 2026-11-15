@@ -7,6 +7,8 @@
   "profile": "overhaul",
   "category": "UI",
   "games": [
+    "gen1",
+    "gen2",
     "gen3"
   ],
   "game_version": ">=0.3.95",

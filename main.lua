@@ -1,4 +1,4 @@
--- WoobOS (woob_os): the Gen 3 PC as a modern desktop.
+-- WoobOS (woob_os): the PC as a modern desktop (Gen 3 here; the Game Boy games: src/gb/main.lua).
 --   src/ui_kit.lua   the drawing kit (layout on the window, cached gradients, pools, text, the W)
 --   src/apps.lua     the app registry (mod.exports.apps) and the built-in apps
 --   src/desktop.lua  the desktop: monitor, boot, menu bar, home grid, dock, sheets, input
@@ -49,7 +49,13 @@ local function loadSibling(mod, name)
 end
 
 return function(mod)
-  -- (Gen 1 / 2: nothing to do; the loader skips the mod there unless forced on)
+  -- (Red / Blue / Yellow, Gold / Silver / Crystal: the Game Boy games' own wiring, src/gb/main.lua -- the
+  -- same kit, desktop and windows over their own models and host)
+  if mod.generation == 1 or mod.generation == 2 then
+    local gb = loadSibling(mod, "src/gb/main.lua")
+    if gb then return gb(mod, loadSibling) end
+    return
+  end
   if mod.generation ~= nil and mod.generation ~= 3 then return end
   local makeKit, makeApps = loadSibling(mod, "src/ui_kit.lua"), loadSibling(mod, "src/apps.lua")
   local makeDesktop, makeShell = loadSibling(mod, "src/desktop.lua"), loadSibling(mod, "src/shell.lua")

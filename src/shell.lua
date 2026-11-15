@@ -41,6 +41,11 @@
 --   only with the player free in the field) ; Sh.gearOpen(appId) ; Sh.closeGear() ; Sh.showing(id) -> that
 --   app is up in a full-screen host or on the Gear's screen ;
 --   Sh.openTownMap(opts, orig, family) (the wrapped show()'s)
+--
+--   deps.host (Red / Blue / Yellow, Gold / Silver / Crystal: src/gb/host.lua): the game's own pieces
+--   for the Game Boy games, where the Gen 3 ones above don't exist -- the screen stack (push / pop /
+--   has), sounds, the free test, the PC takeover (host.ready(Sh) calls Sh.openDesktop), the START row.
+--   Without it, everything is the Gen 3 code here.
 
 return function(mod, deps)
   local req = deps.require or require
@@ -48,6 +53,8 @@ return function(mod, deps)
   local D, A, Wt, Nt, Tm = deps.desktop, deps.apps, deps.watch, deps.notify, deps.townmap
   local Sh = { LAYER_ID = "woob_os", WATCH_ID = "woob_pad", MAP_ID = "woob_map" }
   Sh.PAD_ID = Sh.WATCH_ID
+  local H = deps.host
+  Sh.hostGb = H
 
   local engineMods = {}
   local function engine(name)
@@ -62,6 +69,7 @@ return function(mod, deps)
   Sh.engine = engine
 
   local function se(name)
+    if H then return H.se(name) end
     local Ids, Audio = engine("src.core.game3.se_ids"), engine("src.core.game3.audio")
     local id = Ids and Ids[name]
     if id and Audio and Audio.playSe then pcall(Audio.playSe, id) end
@@ -70,6 +78,7 @@ return function(mod, deps)
   -- (a sound's first play is the engine making it from the game's music data, 8 to 45 ms; queued
   -- here it's made in the background, a little each frame, lower priority numbers first)
   function Sh.prewarm(names, priority)
+    if H then return H.prewarm and H.prewarm(names, priority) end
     local Ids, Audio = engine("src.core.game3.se_ids"), engine("src.core.game3.audio")
     if not (Ids and Audio and Audio.prewarmSe) then return end
     for _, name in ipairs(names) do
@@ -82,6 +91,7 @@ return function(mod, deps)
   -- it): off while the desktop is up (L / R are the desktop's pages and the boxes), back after
   local helpPrev, helpOff = nil, false
   local function help(hide)
+    if H then return end
     local Help = engine("src.ui.game3.help_system")
     if not Help then return end
     if hide then
@@ -146,6 +156,11 @@ return function(mod, deps)
   local FULL, OVER = { hideBelow = true, fullscreen = true }, { hideBelow = true, fullscreen = false }
   local function push(id, layer)
     id, layer = id or Sh.LAYER_ID, layer or Layer
+    if H then
+      if not H.push(id, layer, layer == WatchLayer) then return false end
+      pad(true)
+      return true
+    end
     local Stack = engine("src.ui.game3.stack")
     if not Stack then return false end
     local ok, err = pcall(Stack.push, id, layer, layer == WatchLayer and OVER or FULL)
@@ -158,6 +173,11 @@ return function(mod, deps)
   end
   local function pop(id)
     id = id or Sh.LAYER_ID
+    if H then
+      H.pop(id)
+      pad(false)
+      return
+    end
     local Stack = engine("src.ui.game3.stack")
     if Stack and Stack.has and Stack.has(id) then pcall(Stack.pop, id) end
     pad(false)
@@ -170,14 +190,17 @@ return function(mod, deps)
     return nil
   end
   Sh.host = host
+  function Sh.hostOpen() return host() ~= nil end
 
   local function familyOf(game)
+    if H then return H.family end
     game = tostring(game or "")
     if game:find("firered", 1, true) or game:find("leafgreen", 1, true) then return "frlg" end
     return "rse"
   end
   local GAMES = { "firered", "leafgreen", "ruby", "sapphire", "emerald" }
   local function gameId()
+    if H then return H.gameId() end
     local GV = engine("src.core.GameVersion")
     local g = GV and GV.current and tostring(GV.current) or ""
     for _, id in ipairs(GAMES) do
@@ -196,7 +219,9 @@ return function(mod, deps)
   local function openDesktop(opts, mode, original)
     local PcMenu = engine("src.ui.game3.pc_menu")
     local rows = {}
-    if mode == "select" and PcMenu and PcMenu._rootEntries then
+    if H then
+      if mode == "select" then rows = H.rows(opts) end
+    elseif mode == "select" and PcMenu and PcMenu._rootEntries then
       PcMenu._session = opts.session
       local ok, got = pcall(PcMenu._rootEntries)
       if ok and type(got) == "table" then rows = got end
@@ -246,6 +271,7 @@ return function(mod, deps)
         D.open(ctx)
         push()
       end
+      if H and H.hold then H.hold(reopen) end
       local ok, err = pcall(open, reopen)
       if not ok then
         if log then log:warn("the game's screen failed to open: %s", tostring(err)) end
@@ -255,6 +281,7 @@ return function(mod, deps)
     -- the game's own PC menu over the desktop
     function ctx.original(o)
       ctx.over(function(onClose)
+        if H then return H.original(o, opts, onClose) end
         original({ session = opts.session, startMode = o.startMode, bedroom = o.bedroom, closeOnExit = true,
                    silentClose = true, onClose = onClose })
       end)
@@ -271,6 +298,7 @@ return function(mod, deps)
     end
     return true
   end
+  Sh.openDesktop = openDesktop
 
   -- WoobPad: the apps (no PC rows: Oak, the Hall, Decorate and log off stay at the PC); putting it
   -- away goes back to what was under it (the START menu, or the field)
@@ -301,6 +329,7 @@ return function(mod, deps)
         Wt.open(ctx)
         push(Sh.WATCH_ID, WatchLayer)
       end
+      if H and H.hold then H.hold(reopen) end
       local ok, err = pcall(open, reopen)
       if not ok then
         if log then log:warn("the game's screen failed to open: %s", tostring(err)) end
@@ -580,6 +609,7 @@ return function(mod, deps)
   -- the player free to move in the field (the engine's own test for its quicksave): no script,
   -- no menu, no message, no battle
   function Sh.free(game)
+    if H then return H.free(game) end
     if not (type(game) == "table" and game.phase == "field") then return false end
     local Hud = engine("src.ui.game3.hud")
     if not (Hud and Hud.busy and Hud.startButtonAllowed) then return false end
@@ -591,6 +621,7 @@ return function(mod, deps)
 
   -- the wrap of pc_menu.show: once per process, calling this instance
   function Sh.ready()
+    if H then return H.ready(Sh) end
     local PcMenu = engine("src.ui.game3.pc_menu")
     if Tm then
       wrapMap("src.ui.game3.region_map", "frlg")
@@ -679,15 +710,19 @@ return function(mod, deps)
       local ok, err = pcall(deps.tick)
       if not ok and log then log:warn("the tick failed: %s", tostring(err)) end
     end
+    -- (the Game Boy games: a game screen opened over ours gone, ours back)
+    if H and H.tick then pcall(H.tick, game) end
     -- (and every frame: work done a slice at a time in the background, the map's build)
     if deps.frame then
       local ok, err = pcall(deps.frame, game)
       if not ok and log then log:warn("the frame's work failed: %s", tostring(err)) end
     end
     -- (the layer taken away under it, a reset: the desktop or the pad goes too)
-    local Stack = engine("src.ui.game3.stack")
+    local Stack = not H and engine("src.ui.game3.stack") or nil
     local h, id = host()
-    if h and Stack and Stack.has and not Stack.has(id) then
+    local gone
+    if H then gone = h ~= nil and not H.has(id) else gone = h and Stack and Stack.has and not Stack.has(id) end
+    if gone then
       h.close()
       pad(false)
       h = nil
@@ -729,6 +764,10 @@ return function(mod, deps)
     if not (Wt and type(list) == "table" and #list > 0) then return list end
     if Sh.enabled and not Sh.enabled() then return list end
     if deps.watchRow and not deps.watchRow() then return list end
+    if H then
+      local label = deps.watchLabel and deps.watchLabel() or "WATCH"
+      return H.startRows(list, { id = "woob_watch", label = label, onSelect = function() Sh.openWatch(nil) end })
+    end
     -- (the game's own START menu only: one with SAVE in it, not a link room's or the Safari Zone's)
     local at, normal, nav, bag = #list, false, nil, nil
     for i, e in ipairs(list) do
@@ -748,13 +787,13 @@ return function(mod, deps)
 
   -- the hooks (at load)
   function Sh.install()
-    mod.hooks:wrap("script.command", function(nxt, ctx, op, row, ...)
+    if not H then mod.hooks:wrap("script.command", function(nxt, ctx, op, row, ...)
       if (op == "message" or op == "waitmessage" or op == "callstd") and not (Sh.enabled and not Sh.enabled()) then
         local ok, skip = pcall(Sh.skips, type(ctx) == "table" and (ctx.runner or ctx.vm), op, row)
         if ok and skip then return false end
       end
       return nxt(ctx, op, row, ...)
-    end)
+    end) end
     mod.hooks:wrap("render.hud", function(nxt, game, viewport)
       curGame = game
       local res = nxt(game, viewport)
