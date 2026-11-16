@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-16
+
 ### Added
 - **The real shops.** Every shop counter opens the Mart full screen with that shop's own goods, at the
   game's prices and by its rules, on every game: Poké Marts, every department store floor (Celadon,
