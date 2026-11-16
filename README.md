@@ -21,6 +21,10 @@ Center, and the one in your bedroom, opens a desktop in a sleek monitor instead 
   app to a new place, from the home screen into the dock or back out again; with a controller,
   A picks it up, the D-pad carries it and A puts it down. The dock holds up to six. Done, B or a
   tap on an empty spot finishes, and every PC remembers the arrangement.
+- 🫧 **Frosted glass everywhere:** every app is drawn like a modern phone's, in glass panes over
+  soft lights that take the colours of what you're looking at (a Pokémon's types, an item's pocket,
+  a job or a story). Highlights glide, switches slide, and cards and rows rise in as they appear.
+  R-Bay and Slots keep their night-time look in smoked glass.
 - 📱 **WoobPad:** the PC as a tablet you carry. Choose WOOBPAD in the START menu, anywhere you can
   open it, and a pad comes up over the game with a big touch screen.
   - **Like the PC:** the same home screen and dock (arranged the same way), the menu bar with your
@@ -180,6 +184,43 @@ Center, and the one in your bedroom, opens a desktop in a sleek monitor instead 
   - 🚩 **Gameplay:** daily swarms on or off.
 - ℹ️ **About:** which version you're running, in the W menu at the top left.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
+
+## 📸 Gallery
+
+<table>
+  <tr>
+    <td align="center" width="50%"><img src="docs/screenshots/desktop.png" alt="The desktop"><br><sub>The desktop</sub></td>
+    <td align="center" width="50%"><img src="docs/screenshots/boxes.png" alt="Boxes"><br><sub>Boxes</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><img src="docs/screenshots/summary.png" alt="A Pokémon's Summary"><br><sub>A Pokémon's Summary</sub></td>
+    <td align="center" width="50%"><img src="docs/screenshots/pokedex.png" alt="The Pokédex"><br><sub>The Pokédex</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><img src="docs/screenshots/items.png" alt="Items"><br><sub>Items</sub></td>
+    <td align="center" width="50%"><img src="docs/screenshots/map.png" alt="The 3D map"><br><sub>The 3D map</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><img src="docs/screenshots/phone.png" alt="Phone"><br><sub>Phone</sub></td>
+    <td align="center" width="50%"><img src="docs/screenshots/ribbons.png" alt="Ribbons"><br><sub>Ribbons</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><img src="docs/screenshots/condition.png" alt="Condition"><br><sub>Condition</sub></td>
+    <td align="center" width="50%"><img src="docs/screenshots/mart.png" alt="Mart"><br><sub>Mart</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><img src="docs/screenshots/hall-of-fame.png" alt="Hall of Fame"><br><sub>Hall of Fame</sub></td>
+    <td align="center" width="50%"><img src="docs/screenshots/oaks-pc.png" alt="Oak's PC"><br><sub>Oak's PC</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><img src="docs/screenshots/gts.png" alt="GTS"><br><sub>GTS</sub></td>
+    <td align="center" width="50%"><img src="docs/screenshots/news.png" alt="News"><br><sub>News</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><img src="docs/screenshots/r-bay.png" alt="R-Bay"><br><sub>R-Bay</sub></td>
+    <td align="center" width="50%"><img src="docs/screenshots/slots.png" alt="Rocket Slots"><br><sub>Rocket Slots</sub></td>
+  </tr>
+</table>
 
 ## ⚙️ Options
 

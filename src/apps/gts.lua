@@ -11,6 +11,12 @@
 --   buttons  Up / Down choose, L / R the box (or the letter, choosing a species), A, B back / close,
 --            START the next tab
 --   touch    the tabs, a row, the buttons; drag (or the wheel) scrolls
+-- The look is the Pokédex's glass: the backdrop's lights turning to the shown Pokémon's types (your
+-- chosen one, a listing's, your deposit's, the newcomer's; the globe's teal and blue while it searches),
+-- glass panes, the chosen one popping up on a pane of its colour, type pills. Its motion, numbers only in
+-- `mv`: the tabs' thumb sliding, rows rising in one after another (from the side the box turned to), the
+-- highlight gliding and the lists scrolling smoothly, sheets popping up over a dim, the search fading in
+-- over the window, the newcomer springing up on a disc of its type with its card settling in under it.
 --
 --   window(ctx, env) -> win (src/apps.lua)
 
@@ -25,13 +31,23 @@ local ROW = 4000          -- + i (the picker's or the listings' rows)
 local LEVEL = 5000        -- + i
 
 local C = {
-  bg = { 10, 18, 34 }, card = { 20, 34, 60 }, cardTop = { 30, 52, 88 }, cardHi = { 44, 72, 116 },
-  line = { 255, 255, 255, 0.07 }, text = { 236, 242, 250 }, soft = { 150, 172, 204 }, faint = { 92, 110, 140 },
-  teal = { 40, 214, 204 }, blue = { 54, 144, 255 }, blueDeep = { 18, 64, 150 }, blueTop = { 80, 170, 255 },
-  sea = { 24, 96, 190 }, land = { 60, 190, 120 }, green = { 64, 204, 112 }, red = { 236, 64, 70 },
-  gold = { 250, 200, 60 }, goldTop = { 255, 232, 130 }, goldDark = { 176, 120, 16 }, shinyInk = { 74, 48, 0 }, white = { 255, 255, 255 }, black = { 0, 0, 0 },
-  shade = { 0, 0, 0, 0.55 }, pink = { 255, 110, 170 }, boy = { 70, 150, 255 }, girl = { 255, 100, 150 },
-  btnTop = { 60, 160, 255 }, btnFoot = { 20, 90, 200 }, okTop = { 80, 220, 140 }, okFoot = { 30, 150, 90 },
+  ink = { 28, 28, 30 }, soft = { 112, 112, 120 }, faint = { 160, 160, 170 }, accent = { 10, 132, 255 },
+  white = { 255, 255, 255 }, black = { 0, 0, 0 }, fill = { 118, 118, 128, 0.16 }, track = { 118, 118, 128, 0.16 },
+  teal = { 0, 160, 166 }, tealLit = { 40, 214, 204 }, sea = { 34, 118, 212 }, seaTop = { 120, 196, 255 },
+  land = { 70, 196, 120 }, green = { 52, 199, 89 }, red = { 255, 59, 48 }, gold = { 232, 170, 28 },
+  goldTop = { 255, 226, 120 }, goldDark = { 176, 120, 16 }, shinyInk = { 74, 48, 0 }, pink = { 255, 110, 170 },
+  boy = { 70, 150, 255 }, girl = { 255, 100, 150 }, slate = { 120, 132, 178 },
+  -- (the GTS's own lights: the globe's teal and blue, when no Pokémon is shown)
+  globeA = { 40, 196, 206 }, globeB = { 74, 134, 255 },
+}
+local SHADE_TOP, SHADE_FOOT = { 255, 255, 255, 0.28 }, { 0, 0, 0, 0.16 }
+-- the types' colours (the game's ids; 18 WoobleDex's Fairy)
+local TYPE = {
+  [0] = { 168, 168, 120 }, [1] = { 192, 48, 40 }, [2] = { 168, 144, 240 }, [3] = { 160, 64, 160 },
+  [4] = { 224, 192, 104 }, [5] = { 184, 160, 56 }, [6] = { 168, 184, 32 }, [7] = { 112, 88, 152 },
+  [8] = { 184, 184, 208 }, [9] = { 104, 160, 144 }, [10] = { 240, 128, 48 }, [11] = { 104, 144, 240 },
+  [12] = { 120, 200, 80 }, [13] = { 248, 208, 48 }, [14] = { 248, 88, 136 }, [15] = { 152, 216, 216 },
+  [16] = { 112, 56, 248 }, [17] = { 112, 88, 72 }, [18] = { 238, 153, 172 },
 }
 local TIER_C = {
   common = { 128, 128, 140 }, uncommon = { 52, 178, 92 }, rare = { 44, 124, 232 }, prized = { 152, 84, 224 },
@@ -42,7 +58,7 @@ local TIER_KEY = {
   prized = "auction.tier.prized", legendary = "auction.tier.legendary", mythical = "auction.tier.mythical",
 }
 local RANK = { common = 1, uncommon = 2, rare = 3, prized = 4, legendary = 5, mythical = 6 }
-local CONFETTI = { C.gold, C.teal, C.blue, C.pink, C.green, C.white, C.red }
+local CONFETTI = { C.gold, C.tealLit, C.accent, C.pink, C.green, C.sea, C.red }
 local TABS = { "wonder", "browse", "deposit" }
 local TAB_KEY = { "gts.wonder", "gts.browse", "gts.deposit" }
 
@@ -94,6 +110,30 @@ return function(ctx, env)
     return T.f("gts.agoM", mins)
   end)
   local function regionName(r) return T("gts.region." .. (Gx.REGIONS[r] or "kanto")) end
+  -- (a type's word, kept per type: made when a row is made, read while drawing)
+  local typeWords = {}
+  local function typeWord(id, fallback)
+    if id == nil then return nil end
+    local w = typeWords[id]
+    if w == nil then
+      w = env.typeName and env.typeName(id) or fallback or ""
+      typeWords[id] = w
+    end
+    return w
+  end
+  -- (o.t1 / o.t2 the types' ids, o.n1 / o.n2 their words: from a Pokémon's preview, or a species')
+  local function setTypes(o, info, sp)
+    local t1, t2
+    local ts = info and not info.egg and info.types
+    if ts and ts[1] then
+      t1, t2 = ts[1].id, ts[2] and ts[2].id or nil
+    elseif not info and sp ~= nil and Gx.types then
+      t1, t2 = Gx.types(sp)
+    end
+    o.t1, o.t2 = t1, t2
+    o.n1 = typeWord(t1, ts and ts[1] and ts[1].name)
+    o.n2 = typeWord(t2, ts and ts[2] and ts[2].name)
+  end
 
   local function toast(text, bad, sound)
     st.toast = { text = text, bad = bad, t = now() }
@@ -143,6 +183,8 @@ return function(ctx, env)
         r.addr, r.mon, r.ok, r.why = addr, mon, ok, (not ok) and why(reason) or nil
         r.name, r.level, r.party = info and info.name or "?", tonumber(mon.level) or 1, addr.loc == "party"
         r.sp = (tonumber(mon.species or mon.speciesId) or mon.species)
+        r.shiny = info and info.shiny == true
+        setTypes(r, info or false)
       end
     end
     for i = n + 1, #rows do rows[i] = nil end
@@ -169,6 +211,11 @@ return function(ctx, env)
               L.offerName, L.askName = Gx.name(L.sp), Gx.name(L.ask)
               L.whoText = L.who[1] .. " · " .. regionName(L.who[2])
             end
+            if not L.typed then
+              L.typed = true
+              setTypes(L, nil, L.sp)
+              L.a1 = Gx.types and (Gx.types(L.ask)) or nil
+            end
           end
         end
       end
@@ -189,6 +236,8 @@ return function(ctx, env)
       d.seek = T.f("gts.seeking", Gx.name(dep.species), rangeText(dep.levels))
       d.sp = (tonumber(dep.mon.species or dep.mon.speciesId) or dep.mon.species)
       d.level = tonumber(dep.mon.level) or 1
+      d.shiny = info and info.shiny == true
+      setTypes(d, info or false)
       if dep.received then
         d.traded = T.f("gts.traded", d.name)
         d.from = T.f("gts.found", dep.stranger[1], regionName(dep.stranger[2]))
@@ -227,7 +276,11 @@ return function(ctx, env)
       ivs = (mon.ivs and ((mon.ivs.hp or 0) + (mon.ivs.atk or 0) + (mon.ivs.def or 0) + (mon.ivs.spa or 0)
         + (mon.ivs.spd or 0) + (mon.ivs.spe or 0))) or 0,
       evolve = Gx.evolveTarget(s, mon), shiny = info and info.shiny == true,
+      sp = (tonumber(mon.species or mon.speciesId) or mon.species),
     }
+    setTypes(st.reveal, info or false)
+    -- (the newcomer animated as the Pokédex's, where the game has an animation)
+    if env.dexSprite then pcall(env.dexSprite.start, st.reveal.sp, st.reveal.shiny) end
     local rank = RANK[sh.tier] or 1
     -- (a shiny: the confetti and its own chime, whatever its tier)
     if rank >= 4 or st.reveal.shiny then confetti(50) end
@@ -567,45 +620,80 @@ return function(ctx, env)
     return T.list(HINTS.deposit)
   end
 
+  function W.close() if env.dexSprite then pcall(env.dexSprite.stop) end end
+
   -- ------- drawing (no tables made here)
 
-  local function G() return K.graphics() end
+  local G = nil               -- (the host's graphics, taken each frame)
+  local bodyNow = nil
+  -- the motion's numbers
+  local mv = {
+    lastT = nil, coloured = false, r = 0.16, g = 0.77, b = 0.81, r2 = 0.29, g2 = 0.53, b2 = 1,
+    tab = nil, tabX = 1, listAt = -10, listDir = 0, box = nil, picking = false, listings = nil,
+    curY = 1, curPrev = nil, top = 0, lcurY = 1, lcurPrev = nil, ltop = 0, scurY = 1, scurPrev = nil, stop = 0,
+    pickMon = nil, pickAt = -10, sheetKey = nil, sheetAt = -10, depKey = nil, depAt = -10,
+  }
+  W.motion = mv
+  local function rowIn(since, i) return K.stagger(since, i, 0.03, 0.26) end
+
   local function scaleAbout(cx, cy, k)
-    local g = G()
-    g.push()
-    g.translate(K.X(cx), K.Y(cy))
-    g.scale(k, k)
-    g.translate(-K.X(cx), -K.Y(cy))
+    G.push()
+    G.translate(K.X(cx), K.Y(cy))
+    G.scale(k, k)
+    G.translate(-K.X(cx), -K.Y(cy))
   end
   local function sparkle(cx, cy, s, c, a)
-    local g = G()
     K.col(c, a)
     -- (two thin diamonds crossed: love's filled polygons have to be convex)
     local x, y, r, q = K.X(cx), K.Y(cy), s * K.sc, s * K.sc * 0.3
-    g.polygon("fill", x, y - r, x + q, y, x, y + r, x - q, y)
-    g.polygon("fill", x - r, y, x, y - q, x + r, y, x, y + q)
+    G.polygon("fill", x, y - r, x + q, y, x, y + r, x - q, y)
+    G.polygon("fill", x - r, y, x, y - q, x + r, y, x, y + q)
   end
   local function rays(cx, cy, r, clock, c, a)
-    local g = G()
-    g.push()
-    g.translate(K.X(cx), K.Y(cy))
-    g.rotate(clock * 0.5)
+    G.push()
+    G.translate(K.X(cx), K.Y(cy))
+    G.rotate(clock * 0.5)
     K.col(c, a)
     local rr = r * K.sc
     for i = 0, 11 do
       local a0 = i * pi / 6
-      g.polygon("fill", 0, 0, cos(a0) * rr, sin(a0) * rr, cos(a0 + 0.24) * rr, sin(a0 + 0.24) * rr)
+      G.polygon("fill", 0, 0, cos(a0) * rr, sin(a0) * rr, cos(a0 + 0.24) * rr, sin(a0 + 0.24) * rr)
     end
-    g.pop()
+    G.pop()
   end
-  local function pill(text, x, y, size, c, a)
+  -- a coloured chip with white words (a tier, "Traded", "You have it!") -> its width
+  local function chip(text, x, y, size, c, a)
     local w = K.width(text, size) + 3
     K.col(c, a)
     K.box("fill", K.R(x, y, w, size * 1.35), size * 0.6)
     K.text(text, x, y + size * 0.12, size, C.white, "center", w, a)
     return w
   end
+  local function chipW(text, size) return K.width(text, size) + 3 end
+  -- a type's pill -> its width
+  local function typePill(id, name, x, y, h, size, a, ring)
+    local pw = K.width(name, size) + 5
+    local b = K.R(x, y, pw, h)
+    K.col(TYPE[id] or C.faint, a)
+    K.box("fill", b, h / 2)
+    if ring then K.ring(b, h / 2, C.white, 0.55 * (a or 1), 0.4) end
+    K.text(name, x, y + (h - size * 1.2) / 2, size, C.white, "center", pw, a)
+    return pw
+  end
+  local function pillsW(o, size)
+    if not o.t1 then return 0 end
+    local w = K.width(o.n1 or "", size) + 5
+    if o.t2 then w = w + 1.5 + K.width(o.n2 or "", size) + 5 end
+    return w
+  end
+  local function pills(o, x, y, h, size, a, ring)
+    if not o.t1 then return 0 end
+    local w = typePill(o.t1, o.n1 or "", x, y, h, size, a, ring)
+    if o.t2 then w = w + 1.5 + typePill(o.t2, o.n2 or "", x + w + 1.5, y, h, size, a, ring) end
+    return w
+  end
   -- the Shiny badge: gold, a star at its left -> its width
+  local function shinyW(size) return K.width(T("auction.shiny"), size) + size * 1.6 + 3 end
   local function shinyBadge(x, y, size, clock, a)
     local word = T("auction.shiny")
     local w = K.width(word, size) + size * 1.6 + 3
@@ -615,68 +703,124 @@ return function(ctx, env)
     K.bold(word, x + size * 1.6, y + size * 0.12, size, C.shinyInk, "center", w - size * 1.6 - 1, a)
     return w
   end
+  -- a capsule button: "go" (the accent, breathing), "ok" (green, breathing), "gray" (a grey fill, dark
+  -- words), "off" (can't: grey, faint words)
   local function button(b, label, focused, kind, clock)
-    local top, foot = C.btnTop, C.btnFoot
-    if kind == "ok" then top, foot = C.okTop, C.okFoot elseif kind == "off" then top, foot = C.cardHi, C.card end
-    if kind ~= "off" then
+    local fill = kind == "ok" and C.green or ((kind == "off" or kind == "gray") and C.fill or C.accent)
+    local rad = min(b[4] / 2, 3.2)
+    if kind == "go" or kind == "ok" then
       local p = 0.5 + 0.5 * sin(clock * 4)
-      K.col(top, 0.22 * p)
-      K.box("fill", K.R(b[1] - 1.4, b[2] - 1.4, b[3] + 2.8, b[4] + 2.8), 4.4)
+      K.col(fill, 0.2 * p)
+      K.box("fill", K.R(b[1] - 1.3, b[2] - 1.3, b[3] + 2.6, b[4] + 2.6), rad + 1.3)
     end
-    K.grad(b, 3.2, top, foot)
-    if focused then K.focusRing(b, 3.2) end
-    local fs = K.fit(label, 4.8, b[3] - 3)
-    K.bold(label, b[1], b[2] + (b[4] - fs * 1.2) / 2, fs, kind == "off" and C.faint or C.white, "center", b[3])
+    K.col(fill)
+    K.box("fill", b, rad)
+    if focused then K.focusRing(b, rad) end
+    local fs = K.fit(label, 4.6, b[3] - 3)
+    local ink = kind == "off" and C.faint or (kind == "gray" and C.ink or C.white)
+    K.bold(label, b[1], b[2] + (b[4] - fs * 1.2) / 2, fs, ink, "center", b[3])
+  end
+  -- a big Poké Ball's outline turning slowly (a pane's watermark)
+  local function ballMark(cx, cy, r, turn, a)
+    local pr = r * K.sc
+    G.push()
+    G.translate(K.X(cx), K.Y(cy))
+    G.rotate(turn)
+    K.col(C.white, a)
+    G.setLineWidth(max(1, r * 0.11 * K.sc))
+    G.circle("line", 0, 0, pr)
+    G.line(-pr, 0, -pr * 0.36, 0)
+    G.line(pr * 0.36, 0, pr, 0)
+    G.circle("line", 0, 0, pr * 0.3)
+    G.circle("fill", 0, 0, pr * 0.14)
+    G.pop()
+  end
+  -- a soft disc in a type's colour (the Boxes preview's): its halo, a light in it, a bright rim
+  local function disc(cx, cy, r, tid, a)
+    local c = TYPE[tid] or C.slate
+    local X, Y = K.X(cx), K.Y(cy)
+    K.col(c, 0.14 * a)
+    G.circle("fill", X, Y, r * 1.22 * K.sc)
+    K.col(c, 0.3 * a)
+    G.circle("fill", X, Y, r * K.sc)
+    K.glow(cx, cy, r * 0.95, r * 0.85, C.white, 0.32 * a)
+    K.col(C.white, 0.55 * a)
+    G.setLineWidth(max(1, 0.3 * K.sc))
+    G.circle("line", X, Y, r * K.sc)
+  end
+  -- a Pokémon's picture centred on cx, cy, `size` units, at `pop` of itself: the Pokédex's (the chosen
+  -- one animated, the rest breathing), else the still; its shadow under it
+  local function picture(sp, mon, cx, cy, size, clock, at, pop, a, shiny)
+    if sp == nil then return end
+    K.col(C.black, 0.16 * a)
+    G.ellipse("fill", K.X(cx), K.Y(cy + size * 0.44), size * 0.26 * pop * K.sc, size * 0.05 * K.sc)
+    if env.dexSprite then
+      env.dexSprite.draw(sp, cx, cy, size, clock, at, pop, a * K.getFade(), shiny, mon)
+    elseif env.monPic then
+      env.monPic(sp, cx - size / 2 * pop, cy - size / 2 * pop, size * pop, a * K.getFade(), mon)
+    end
+    K.rescissor()
+  end
+  -- a pane in the shown Pokémon's colour (the summary's hero): a light from the top, a Poké Ball turning
+  local function hero(b, clock)
+    K.shadow(b, 4, 1.2, 0.1)
+    G.setColor(mv.r, mv.g, mv.b, 0.74 * K.getFade())
+    K.box("fill", b, 4)
+    K.grad(b, 4, SHADE_TOP, SHADE_FOOT)
+    K.ring(b, 4, C.white, 0.6, 0.4)
+    G.intersectScissor(K.X(b[1]), K.Y(b[2]), b[3] * K.sc, b[4] * K.sc)
+    ballMark(b[1] + b[3] - b[4] * 0.32, b[2] + b[4] * 0.6, b[4] * 0.62, clock * 0.18, 0.14)
+    K.scissor(bodyNow)
   end
 
   -- the globe: a sea, meridians turning, parallels, a ring round it; pings while it searches
   local function globe(cx, cy, r, clock, searching)
-    local g = G()
     local X, Y, sc = K.X(cx), K.Y(cy), K.sc
     for k = 3, 1, -1 do
-      K.col(C.teal, 0.06 * k)
-      g.circle("fill", X, Y, r * (1 + 0.15 * (4 - k)) * sc)
+      K.col(C.tealLit, 0.07 * k)
+      G.circle("fill", X, Y, r * (1 + 0.15 * (4 - k)) * sc)
     end
     K.col(C.sea)
-    g.circle("fill", X, Y, r * sc)
-    K.col(C.blueTop, 0.35)
-    g.circle("fill", X - r * 0.3 * sc, Y - r * 0.3 * sc, r * 0.55 * sc)
+    G.circle("fill", X, Y, r * sc)
+    K.col(C.seaTop, 0.35)
+    G.circle("fill", X - r * 0.3 * sc, Y - r * 0.3 * sc, r * 0.55 * sc)
     -- (continents: blobs sliding across with the turn)
+    local speed = searching and 0.35 or 0.12
     for i = 0, 4 do
-      local ph = ((clock * (searching and 0.35 or 0.12) + i * 0.21) % 1) * 2 - 1
+      local ph = ((clock * speed + i * 0.21) % 1) * 2 - 1
       local px = cx + ph * r * 0.9
       local py = cy + sin(i * 2.3) * r * 0.45
       local w = (1 - ph * ph) * r * 0.32
       if w > 0.3 then
-        K.col(C.land, 0.85)
-        g.ellipse("fill", K.X(px), K.Y(py), w * sc, r * 0.18 * sc)
+        K.col(C.land, 0.9)
+        G.ellipse("fill", K.X(px), K.Y(py), w * sc, r * 0.18 * sc)
       end
     end
-    g.setLineWidth(max(1, 0.35 * sc))
+    G.setLineWidth(max(1, 0.35 * sc))
     for k = 0, 3 do
-      local ph = (clock * (searching and 0.35 or 0.12) + k / 4) % 1
+      local ph = (clock * speed + k / 4) % 1
       local rx = r * abs(cos(ph * pi))
-      K.col(C.teal, 0.45)
-      g.ellipse("line", X, Y, max(0.5, rx * sc), r * sc)
+      K.col(C.white, 0.4)
+      G.ellipse("line", X, Y, max(0.5, rx * sc), r * sc)
     end
-    K.col(C.teal, 0.35)
+    K.col(C.white, 0.3)
     for k = -1, 1 do
       local yy = k * r * 0.5
       local hw = r * sqrt(1 - (k * 0.5) ^ 2)
-      g.line(X - hw * sc, Y + yy * sc, X + hw * sc, Y + yy * sc)
+      G.line(X - hw * sc, Y + yy * sc, X + hw * sc, Y + yy * sc)
     end
-    K.col(C.teal, 0.9)
-    g.circle("line", X, Y, r * sc)
+    K.col(C.white, 0.9)
+    G.circle("line", X, Y, r * sc)
     -- (the ring)
-    g.push()
-    g.translate(X, Y)
-    g.rotate(-0.35)
-    K.col(C.gold, 0.55)
-    g.ellipse("line", 0, 0, r * 1.42 * sc, r * 0.36 * sc)
+    G.push()
+    G.translate(X, Y)
+    G.rotate(-0.35)
+    K.col(C.gold, 0.6)
+    G.ellipse("line", 0, 0, r * 1.42 * sc, r * 0.36 * sc)
     local ra = clock * (searching and 3 or 1)
     K.col(C.goldTop)
-    g.circle("fill", cos(ra) * r * 1.42 * sc, sin(ra) * r * 0.36 * sc, max(1, r * 0.08 * sc))
-    g.pop()
+    G.circle("fill", cos(ra) * r * 1.42 * sc, sin(ra) * r * 0.36 * sc, max(1, r * 0.08 * sc))
+    G.pop()
     if searching then
       for i = 0, 4 do
         local cyc = clock * 1.6 + i * 0.37
@@ -685,23 +829,21 @@ return function(ctx, env)
         local px = cx + sin(seed * 2.17) * r * 0.65
         local py = cy + cos(seed * 1.31) * r * 0.55
         K.col(C.goldTop, 1 - k)
-        g.circle("line", K.X(px), K.Y(py), (0.6 + k * 3.5) * sc)
-        g.circle("fill", K.X(px), K.Y(py), 0.6 * sc)
+        G.circle("line", K.X(px), K.Y(py), (0.6 + k * 3.5) * sc)
+        G.circle("fill", K.X(px), K.Y(py), 0.6 * sc)
       end
     end
   end
   -- a stranger's badge: their initial on a disc (blue or pink), a gold rim
   local function badge(cx, cy, r, initial, girl)
-    local g = G()
     K.col(C.gold)
-    g.circle("fill", K.X(cx), K.Y(cy), (r + 0.6) * K.sc)
+    G.circle("fill", K.X(cx), K.Y(cy), (r + 0.6) * K.sc)
     K.col(girl and C.girl or C.boy)
-    g.circle("fill", K.X(cx), K.Y(cy), r * K.sc)
+    G.circle("fill", K.X(cx), K.Y(cy), r * K.sc)
     K.bold(initial, cx - r, cy - r * 0.62, r * 1.25, C.white, "center", r * 2)
   end
 
   local function drawParticles(clock, body)
-    local g = G()
     K.scissor(body)
     for i = 1, PARTICLES do
       local p = P[i]
@@ -712,34 +854,44 @@ return function(ctx, env)
         elseif age >= 0 then
           local px, py = p.x + p.vx * age, p.y + p.vy * age + 55 * age * age
           local a = min(1, (p.life - age) / 0.4)
-          g.push()
-          g.translate(K.X(px), K.Y(py))
-          g.rotate(clock * 8 + p.spin * 6)
+          G.push()
+          G.translate(K.X(px), K.Y(py))
+          G.rotate(clock * 8 + p.spin * 6)
           K.col(p.c, a)
           local f = abs(cos(clock * 6 + p.spin * 4))
-          g.rectangle("fill", -1.2 * K.sc, -0.6 * K.sc * f - 0.2 * K.sc, 2.4 * K.sc, 1.2 * K.sc * f + 0.4 * K.sc)
-          g.pop()
+          G.rectangle("fill", -1.2 * K.sc, -0.6 * K.sc * f - 0.2 * K.sc, 2.4 * K.sc, 1.2 * K.sc * f + 0.4 * K.sc)
+          G.pop()
         end
       end
     end
     K.scissor(nil)
   end
 
+  -- a list's highlight gliding to row `at` (rows `rh` tall from `top`, scrolled `scroll`)
+  local function highlight(x, top, w, rh, y, rad)
+    local hb = K.R(x, top + (y - 1) * rh + 0.4, w, rh - 0.8)
+    K.col(C.accent, 0.13)
+    K.box("fill", hb, rad)
+    K.ring(hb, rad, C.accent, 0.85, 0.5)
+  end
+
   -- the picker's list: the box's name with its arrows on top (not when answering a listing)
-  local function drawPicker(x, y, w, h, clock)
-    K.grad(K.R(x, y, w, h), 4, C.cardTop, C.card)
+  local function drawPicker(x, y, w, h, clock, dt)
+    K.glass(K.R(x, y, w, h), 4)
     local accept = st.picking and st.picking.purpose == "accept"
     local top = y + 1
+    local since = clock - mv.listAt
     if not accept then
-      K.chevron(x + 5, y + 5.3, 4, C.teal, -1)
+      K.chevron(x + 5, y + 5.3, 4, C.accent, -1)
       K.addHit(K.R(x, y, 12, 10), "win", BOX_PREV)
-      K.chevron(x + w - 5, y + 5.3, 4, C.teal, 1)
+      K.chevron(x + w - 5, y + 5.3, 4, C.accent, 1)
       K.addHit(K.R(x + w - 12, y, 12, 10), "win", BOX_NEXT)
       local name = Bx.boxName(session(), st.box) or ""
       local ns = K.fit(name, 4.6, w - 26)
-      K.bold(name, x + 12, y + 2.7 + (4.6 - ns) * 0.5, ns, C.text, "center", w - 24)
-      K.col(C.line)
-      K.box("fill", K.R(x, y + 10, w, 0.25))
+      -- (the box's name sliding in from the side it turned to)
+      local e = mv.listDir ~= 0 and K.outCubic(since / 0.28) or 1
+      K.bold(name, x + 12 + (1 - e) * mv.listDir * 8, y + 2.7 + (4.6 - ns) * 0.5, ns, C.ink, "center", w - 24, e)
+      K.hairline(x + 2, y + 10, w - 4)
       top = y + 10.5
     end
     local lh = y + h - 1 - top
@@ -747,151 +899,207 @@ return function(ctx, env)
     if st.cursor > st.top + st.visible then st.top = st.cursor - st.visible end
     if st.cursor <= st.top then st.top = st.cursor - 1 end
     st.top = max(0, min(st.top, max(0, #st.rows - st.visible)))
+    mv.top = K.approach(mv.top, st.top, dt, 18)
     local clip = K.R(x, top, w, lh)
     K.scissor(clip)
-    local first = floor(st.top) + 1
+    if #st.rows > 0 then
+      if mv.curPrev == nil then mv.curY = st.cursor end
+      mv.curY, mv.curPrev = K.approach(mv.curY, st.cursor, dt, 22), st.cursor
+      highlight(x + 1.5, top, w - 3, ROW_H, mv.curY - mv.top, 2.5)
+    end
+    local first = floor(mv.top) + 1
+    local frame = floor(clock * 3) % 2
     for i = first, min(#st.rows, first + st.visible + 1) do
       local r = st.rows[i]
-      local ry = top + (i - 1 - st.top) * ROW_H
-      local rb = K.R(x + 1.5, ry + 0.4, w - 3, ROW_H - 0.8)
-      if i == st.cursor then
-        K.col(C.teal, 0.2)
-        K.box("fill", rb, 2.5)
-        K.ring(rb, 2.5, C.teal, 0.7, 0.5)
-      end
-      if env.monIconOf then pcall(env.monIconOf, r.mon, x + 3, ry + 0.5, 11, floor(clock * 3) % 2, r.ok and 1 or 0.4) end
+      local ry0 = top + (i - 1 - mv.top) * ROW_H
+      local e = rowIn(since, i - first)
+      local ry, dx = ry0 + (1 - e) * (mv.listDir == 0 and 3 or 0), (1 - e) * mv.listDir * 10
+      local f0 = K.getFade()
+      K.setFade(f0 * e)
+      local a = r.ok and 1 or 0.45
+      -- (its icon on a soft disc of its type's colour)
+      K.col(TYPE[r.t1] or C.slate, 0.24 * a)
+      G.circle("fill", K.X(x + 8.5 + dx), K.Y(ry + 6), 4.8 * K.sc)
+      if env.monIconOf then pcall(env.monIconOf, r.mon, x + 3 + dx, ry + 0.5, 11, i == st.cursor and frame or 0, a * f0 * e) end
       local ns = K.fit(r.name, 4.6, w - 40)
-      K.text(r.name, x + 15, ry + (r.why and 1.2 or 3.4), ns, r.ok and C.text or C.faint)
-      K.text(levelText(r.level), x + w - 4 - 20, ry + 3.4, 4, C.soft, "right", 20)
-      if r.why then K.text(r.why, x + 15, ry + 6.6, 3.2, C.red, "left", w - 40) end
+      K.text(r.name, x + 15 + dx, ry + (r.why and 1.2 or 3.4), ns, r.ok and C.ink or C.faint)
+      K.text(levelText(r.level), x + w - 4 - 20 + dx, ry + 3.4, 4, C.soft, "right", 20)
+      if r.why then K.text(r.why, x + 15 + dx, ry + 6.6, 3.2, C.red, "left", w - 40) end
       if r.party then
-        K.col(C.gold, 0.9)
-        G().circle("fill", K.X(x + w - 4 - 22 - 1.5), K.Y(ry + ROW_H / 2), 1 * K.sc)
+        K.col(C.gold, 0.95)
+        G.circle("fill", K.X(x + w - 4 - 22 - 1.5 + dx), K.Y(ry + ROW_H / 2), 1 * K.sc)
       end
-      K.addHit(rb, "win", ROW + i, clip)
+      if r.shiny then sparkle(x + 13.5 + dx, ry + 2.2, 1.4, C.gold, 0.9) end
+      K.setFade(f0)
+      K.addHit(K.R(x + 1.5, ry0 + 0.4, w - 3, ROW_H - 0.8), "win", ROW + i, clip)
     end
     if #st.rows == 0 then K.text(T("gts.emptyBox"), x, top + lh / 2 - 3, 4.4, C.faint, "center", w) end
-    K.scrollbar(x + w, top, lh, st.top, st.visible, #st.rows)
+    K.scrollbar(x + w, top, lh, mv.top, st.visible, #st.rows)
     K.scissor(nil)
+  end
+
+  -- the chosen one on a pane of its colour: its picture popping up, its name, level and types sliding in
+  local function drawChosen(r, x, y, w, h, clock)
+    local b = K.R(x, y, w, h)
+    hero(b, clock)
+    local t = clock - mv.pickAt
+    local pop = 0.82 + 0.18 * K.outBack(t / 0.38)
+    local fa = K.outCubic(t / 0.16)
+    local ps = min(h - 2, 30)
+    local pcx, pcy = x + 2 + ps / 2, y + h / 2
+    K.glow(pcx, pcy, ps * 0.6, ps * 0.55, C.white, 0.3 * fa)
+    picture(r.sp, r.mon, pcx, pcy, ps, clock, mv.pickAt, pop, fa * (r.ok and 1 or 0.55), r.shiny)
+    local tx = x + ps + 5
+    local tw = x + w - tx - 2
+    local e = K.outCubic((t - 0.05) / 0.3)
+    local ox = (1 - e) * 6
+    local ty = y + max(1.5, (h - (h >= 18 and 17 or 11)) / 2)
+    local ns = K.fit(r.name, 4.8, tw - 4)
+    K.label(r.name, tx + ox, ty, ns, C.white, nil, nil, e)
+    if r.shiny then sparkle(tx + ox + K.width(r.name, ns) + 2.5, ty + 2.6, 1.8 + 0.4 * sin(clock * 5), C.goldTop, e) end
+    K.label(levelText(r.level), tx + ox, ty + 6, 3.6, C.white, nil, nil, 0.9 * e)
+    if h >= 18 and r.t1 and pillsW(r, 3.2) <= tw then pills(r, tx + ox, ty + 11.5, 5, 3.2, e, true) end
   end
 
   -- the picker's right card: what's being done, the chosen Pokémon, the button
   local function drawPickCard(x, y, w, h, clock)
-    K.grad(K.R(x, y, w, h), 4, C.cardTop, C.card)
+    K.glass(K.R(x, y, w, h), 4)
     local purpose = st.picking and st.picking.purpose or "wonder"
     local r = st.rows[st.cursor]
-    local gy = y + 15
+    local headH
     if h < 74 then
       -- (a short card, a small window's: the title alone above the Pokémon and its button)
       local title = purpose == "wonder" and T("gts.wonder")
         or (purpose == "accept" and st.picking.listing.offerName or T("gts.depositTitle"))
       local fs = K.fit(title, 5.2, w - 8)
-      K.bold(title, x, y + 3 + (5.2 - fs) * 0.5, fs, C.text, "center", w)
-      if purpose == "accept" then K.text(T("gts.pickGive"), x + 4, y + 10, 3.6, C.teal, "center", w - 8) end
+      K.bold(title, x, y + 3 + (5.2 - fs) * 0.5, fs, C.ink, "center", w)
+      headH = 10
+      if purpose == "accept" then
+        K.text(T("gts.pickGive"), x + 4, y + 10, 3.6, C.teal, "center", w - 8)
+        headH = 15
+      end
     elseif purpose == "wonder" then
-      globe(x + w / 2, gy, 10, clock, false)
-      K.bold(T("gts.wonder"), x, y + 28, 5.4, C.text, "center", w)
-      K.text(T("gts.wonderBlurb"), x + 4, y + 35, 3.6, C.soft, "center", w - 8)
+      globe(x + w / 2, y + 13 + sin(clock * 1.6) * 0.6, 9, clock, false)
+      K.bold(T("gts.wonder"), x, y + 25, 5.2, C.ink, "center", w)
+      K.text(T("gts.wonderBlurb"), x + 4, y + 31.5, 3.4, C.soft, "center", w - 8)
+      headH = 46
     elseif purpose == "accept" then
       local L = st.picking.listing
-      if env.monIcon then pcall(env.monIcon, L.sp, x + w / 2 - 8, y + 3, 16) end
-      K.bold(L.offerName, x, y + 20, 5, C.text, "center", w)
-      K.text(L.whoText, x, y + 26.5, 3.8, C.soft, "center", w)
-      K.text(T("gts.pickGive"), x + 4, y + 33, 3.8, C.teal, "center", w - 8)
+      disc(x + w / 2, y + 11, 8, L.t1, 1)
+      if env.monIcon then pcall(env.monIcon, L.sp, x + w / 2 - 8, y + 3, 16, floor(clock * 3) % 2) end
+      K.bold(L.offerName, x, y + 21, 5, C.ink, "center", w)
+      K.text(L.whoText, x, y + 27.5, 3.8, C.soft, "center", w)
+      K.text(T("gts.pickGive"), x + 4, y + 34, 3.8, C.teal, "center", w - 8)
+      headH = 41
     else
-      K.bold(T("gts.depositTitle"), x, y + 4, 5, C.text, "center", w)
+      K.bold(T("gts.depositTitle"), x, y + 4, 5, C.ink, "center", w)
       K.text(T("gts.depositBlurb"), x + 4, y + 11, 3.6, C.soft, "center", w - 8)
+      headH = 30
     end
     if r then
-      local cy = y + h - 30
-      K.col(C.bg, 0.5)
-      K.box("fill", K.R(x + 3, cy - 2, w - 6, 15), 3)
-      local drawn = env.monPic and r.sp and env.monPic(r.sp, x + 4, cy - 1.5, 13, 1, r.mon)
-      if not drawn and env.monIconOf then pcall(env.monIconOf, r.mon, x + 4, cy - 1.5, 13, 0, 1) end
-      local ns = K.fit(r.name, 4.8, w - 24)
-      K.bold(r.name, x + 19, cy + 0.8, ns, C.text)
-      K.text(levelText(r.level), x + 19, cy + 6.6, 3.8, C.soft)
+      local mh = y + h - 15 - (y + headH)
+      if mh >= 10 then drawChosen(r, x + 3, y + headH, w - 6, mh, clock) end
       local label = T(purpose == "wonder" and "gts.send" or (purpose == "accept" and "gts.trade" or "gts.next"))
-      button(K.R(x + 4, y + h - 13, w - 8, 10), label, false, r.ok and "go" or "off", clock)
-      K.addHit(K.R(x + 4, y + h - 13, w - 8, 10), "win", GO)
+      local bb = K.R(x + 4, y + h - 13, w - 8, 10)
+      button(bb, label, false, r.ok and "go" or "off", clock)
+      K.addHit(bb, "win", GO)
     end
   end
 
   -- the strangers' listings: offer → want, the stranger; the ones you can answer glowing
-  local function drawListings(x, y, w, h, clock)
-    K.grad(K.R(x, y, w, h), 4, C.cardTop, C.card)
+  local function drawListings(x, y, w, h, clock, dt)
+    K.glass(K.R(x, y, w, h), 4)
     local lh = h - 2
     st.visible = max(1, floor(lh / LROW_H))
     if st.lcursor > st.ltop + st.visible then st.ltop = st.lcursor - st.visible end
     if st.lcursor <= st.ltop then st.ltop = st.lcursor - 1 end
     st.ltop = max(0, min(st.ltop, max(0, #st.listings - st.visible)))
-    local clip = K.R(x, y + 1, w, lh)
+    mv.ltop = K.approach(mv.ltop, st.ltop, dt, 18)
+    local top = y + 1
+    local clip = K.R(x, top, w, lh)
     K.scissor(clip)
-    local first = floor(st.ltop) + 1
+    if #st.listings > 0 then
+      if mv.lcurPrev == nil then mv.lcurY = st.lcursor end
+      mv.lcurY, mv.lcurPrev = K.approach(mv.lcurY, st.lcursor, dt, 22), st.lcursor
+      highlight(x + 1.5, top, w - 3, LROW_H, mv.lcurY - mv.ltop, 2.5)
+    end
+    local first = floor(mv.ltop) + 1
     local half = (w - 10) / 2
+    local since = clock - mv.listAt
+    local frame = floor(clock * 3) % 2
     for i = first, min(#st.listings, first + st.visible + 1) do
       local L = st.listings[i]
-      local ry = y + 1 + (i - 1 - st.ltop) * LROW_H
+      local ry0 = top + (i - 1 - mv.ltop) * LROW_H
+      local e = rowIn(since, i - first)
+      local ry = ry0 + (1 - e) * 4
+      local f0 = K.getFade()
+      K.setFade(f0 * e)
       local rb = K.R(x + 1.5, ry + 0.4, w - 3, LROW_H - 0.8)
       if L.canDo then
         K.col(C.green, 0.1 + 0.06 * sin(clock * 3 + i))
         K.box("fill", rb, 2.5)
       end
-      if i == st.lcursor then
-        K.col(C.teal, 0.18)
-        K.box("fill", rb, 2.5)
-        K.ring(rb, 2.5, C.teal, 0.8, 0.5)
-      end
       local a = L.done and 0.4 or 1
+      local ia = a * f0 * e
       local tc = TIER_C[L.tier] or TIER_C.common
       K.col(tc, a)
       K.box("fill", K.R(rb[1] + 0.6, rb[2] + 1.6, 1.1, rb[4] - 3.2), 0.5)
-      -- (what they offer)
-      if env.monIcon then pcall(env.monIcon, L.sp, x + 3.5, ry + 0.8, 11) end
+      -- (what they offer, on a disc of its type)
+      K.col(TYPE[L.t1] or C.slate, 0.26 * a)
+      G.circle("fill", K.X(x + 9), K.Y(ry + 6.3), 5.4 * K.sc)
+      if env.monIcon then pcall(env.monIcon, L.sp, x + 3.5, ry + 0.8, 11, i == st.lcursor and frame or 0, 1, 1, 1, ia) end
       local ns = K.fit(L.offerName, 4.6, half - 16)
-      K.bold(L.offerName, x + 15, ry + 1.6, ns, C.text, nil, nil, a)
-      local pw = pill(T(TIER_KEY[L.tier] or TIER_KEY.common), x + 15, ry + 7.2, 3.2, tc, a)
+      K.bold(L.offerName, x + 15, ry + 1.6, ns, C.ink, nil, nil, a)
+      local pw = chip(T(TIER_KEY[L.tier] or TIER_KEY.common), x + 15, ry + 7.2, 3.2, tc, a)
       K.text(levelText(L.level), x + 17 + pw, ry + 7.2, 3.6, C.soft, nil, nil, a)
       if L.shiny then shinyBadge(x + 15 + pw + 3 + K.width(levelText(L.level), 3.6), ry + 7.2, 3.2, clock, a) end
       K.text(L.whoText, x + 15, ry + 11.6, 3.2, C.faint, nil, nil, a)
       -- (the swap arrows, then what they want)
       local mx = x + 5 + half
-      K.chevron(mx - 0.5, ry + 5, 3.4, C.teal, 1, a)
-      K.chevron(mx + 1.5, ry + 9, 3.4, C.teal, -1, a)
+      K.chevron(mx - 0.5, ry + 5, 3.4, C.accent, 1, a)
+      K.chevron(mx + 1.5, ry + 9, 3.4, C.accent, -1, a)
       local ax = mx + 5
       K.text(T("gts.wants"), ax, ry + 0.8, 3.2, C.faint, nil, nil, a)
-      if env.monIcon then pcall(env.monIcon, L.ask, ax, ry + 4.5, 9) end
+      K.col(TYPE[L.a1] or C.slate, 0.24 * a)
+      G.circle("fill", K.X(ax + 4.5), K.Y(ry + 9), 4.4 * K.sc)
+      if env.monIcon then pcall(env.monIcon, L.ask, ax, ry + 4.5, 9, 0, 1, 1, 1, ia) end
       local ans = K.fit(L.askName, 4.2, x + w - ax - 14)
-      K.text(L.askName, ax + 11, ry + 5, ans, C.text, nil, nil, a)
+      K.text(L.askName, ax + 11, ry + 5, ans, C.ink, nil, nil, a)
       K.text(rangeText(L.levels), ax + 11, ry + 10.2, 3.4, C.soft, nil, nil, a)
       if L.done then
-        pill(T("gts.done"), x + w - 4 - 16, ry + 1.4, 3.2, C.faint)
+        local t = T("gts.done")
+        chip(t, x + w - 4 - chipW(t, 3.2), ry + 1.4, 3.2, C.faint)
       elseif L.canDo then
         local t = T("gts.haveIt")
-        local tw = K.width(t, 3.2) + 3
-        pill(t, x + w - 4 - tw, ry + 1.4, 3.2, C.green, 0.7 + 0.3 * abs(sin(clock * 4)))
+        chip(t, x + w - 4 - chipW(t, 3.2), ry + 1.4, 3.2, C.green, 0.7 + 0.3 * abs(sin(clock * 4)))
       end
-      if i ~= st.lcursor then
-        K.col(C.line)
-        K.box("fill", K.R(x + 15, ry + LROW_H - 0.2, w - 17, 0.25))
+      if i ~= st.lcursor and i + 1 ~= st.lcursor and i < #st.listings then
+        K.hairline(x + 15, ry + LROW_H - 0.2, w - 17)
       end
-      K.addHit(rb, "win", ROW + i, clip)
+      K.setFade(f0)
+      K.addHit(K.R(x + 1.5, ry0 + 0.4, w - 3, LROW_H - 0.8), "win", ROW + i, clip)
     end
     if #st.listings == 0 then K.text(T("gts.none"), x, y + h / 2 - 3, 4.4, C.faint, "center", w) end
-    K.scrollbar(x + w, y + 1, lh, st.ltop, st.visible, #st.listings)
+    K.scrollbar(x + w, top, lh, mv.ltop, st.visible, #st.listings)
     K.scissor(nil)
   end
 
   -- My Deposit: nothing posted (post one), waiting (yours on a pulsing ring), traded (collect)
   local function drawDeposit(x, y, w, h, clock)
     local dep = depositWords()
-    local b = K.R(x, y, w, h)
-    K.grad(b, 4, C.cardTop, C.card)
+    if mv.depKey ~= st.depKey then mv.depKey, mv.depAt = st.depKey, clock end
+    K.glass(K.R(x, y, w, h), 4)
+    local t = clock - mv.depAt
+    local pop = 0.82 + 0.18 * K.outBack(t / 0.42)
+    local fa = K.outCubic(t / 0.2)
+    local e1, e2 = K.outCubic((t - 0.08) / 0.32), K.outCubic((t - 0.16) / 0.32)
     local cx = x + w / 2
     if not dep then
-      globe(cx, y + h * 0.36, min(16, h * 0.2), clock, false)
-      K.bold(T("gts.depositTitle"), x, y + h * 0.62, 5.4, C.text, "center", w)
+      globe(cx, y + h * 0.34 + sin(clock * 1.6) * 0.8, min(16, h * 0.2) * pop, clock, false)
+      K.rise(e1, 4)
+      K.bold(T("gts.depositTitle"), x, y + h * 0.62, 5.4, C.ink, "center", w)
       K.text(T("gts.depositBlurb"), x + 8, y + h * 0.62 + 7, 3.8, C.soft, "center", w - 16)
+      K.settle(e1)
       local go = K.R(cx - 30, y + h - 14, 60, 10)
       button(go, T("gts.depositBtn"), false, "go", clock)
       K.addHit(go, "win", GO)
@@ -900,165 +1108,200 @@ return function(ctx, env)
     local d = st.dep
     local py = y + h * 0.34
     local r = min(17, h * 0.22)
-    local g = G()
     if dep.received then
-      rays(cx, py, r * 2.2, clock, C.gold, 0.16)
-      K.col(C.gold, 0.5 + 0.3 * sin(clock * 5))
-      g.circle("line", K.X(cx), K.Y(py), r * 1.05 * K.sc)
+      rays(cx, py, r * 2.2, clock, C.gold, 0.18 * fa)
+      K.col(C.gold, (0.5 + 0.3 * sin(clock * 5)) * fa)
+      G.setLineWidth(max(1, 0.4 * K.sc))
+      G.circle("line", K.X(cx), K.Y(py), r * 1.08 * K.sc)
     else
       -- (waiting: rings going out from it)
+      G.setLineWidth(max(1, 0.35 * K.sc))
       for k = 0, 2 do
         local f = (clock * 0.5 + k / 3) % 1
-        K.col(C.teal, 0.5 * (1 - f))
-        g.circle("line", K.X(cx), K.Y(py), r * (0.9 + f * 0.8) * K.sc)
+        K.col(TYPE[d.t1] or C.teal, 0.55 * (1 - f) * fa)
+        G.circle("line", K.X(cx), K.Y(py), r * (0.95 + f * 0.8) * K.sc)
       end
     end
-    K.col(C.bg, 0.6)
-    g.circle("fill", K.X(cx), K.Y(py), r * 0.95 * K.sc)
-    local depMon = Gx.posted() and Gx.posted().mon
-    if not (env.monPic and d.sp and env.monPic(d.sp, cx - r * 0.8, py - r * 0.8 + sin(clock * 2) * 0.6, r * 1.6, 1, depMon)) then
-      if env.monIcon and d.sp then pcall(env.monIcon, d.sp, cx - r * 0.6, py - r * 0.6, r * 1.2) end
-    end
+    disc(cx, py, r * 0.95, d.t1, fa)
+    local posted = Gx.posted()
+    picture(d.sp, posted and posted.mon, cx, py + sin(clock * 2) * 0.4, r * 1.6, clock, mv.depAt, pop, fa, d.shiny)
     local ty = py + r + 3
+    K.rise(e1, 4)
     if dep.received then
-      K.bold(d.traded, x, ty, 5, C.gold, "center", w)
+      K.bold(d.traded, x, ty, 5, C.goldDark, "center", w)
       K.text(d.from, x, ty + 7, 3.8, C.soft, "center", w)
-      sparkle(cx - r - 3, py - r * 0.5, 1.4 + 0.8 * abs(sin(clock * 3)), C.white, 0.9)
+      sparkle(cx - r - 3, py - r * 0.5, 1.4 + 0.8 * abs(sin(clock * 3)), C.gold, 0.9)
       sparkle(cx + r + 3, py + r * 0.4, 1.2 + 0.8 * abs(sin(clock * 4)), C.goldTop, 0.9)
-      local go = K.R(cx - 30, y + h - 14, 60, 10)
-      button(go, T("gts.collect"), false, "ok", clock)
-      K.addHit(go, "win", GO)
     else
-      K.bold(d.name, x, ty, 5, C.text, "center", w)
+      local nw = K.width(d.name, 5)
+      local pw = pillsW(d, 3.2)
+      if pw > 0 and nw + pw + 2 > w - 8 then pw = 0 end
+      local nx = cx - (nw + (pw > 0 and pw + 2 or 0)) / 2
+      K.bold(d.name, nx, ty, 5, C.ink)
+      if pw > 0 then pills(d, nx + nw + 2, ty + 0.4, 5, 3.2) end
       K.text(d.seek, x, ty + 6.5, 3.8, C.teal, "center", w)
+    end
+    K.settle(e1)
+    if not dep.received then
+      K.rise(e2, 4)
       local mins = floor(max(0, Gx.now() - (dep.at or 0)) / 60)
       local dots = floor(clock * 2) % 4
-      K.text(T("gts.waiting"), x, ty + 12, 3.6, C.soft, "center", w)
+      local wt = T("gts.waiting")
+      K.text(wt, x, ty + 12, 3.6, C.soft, "center", w)
+      K.col(C.soft)
       for k = 1, dots do
-        g.circle("fill", K.X(cx + K.width(T("gts.waiting"), 3.6) / 2 + k * 1.6), K.Y(ty + 15.6), 0.4 * K.sc)
+        G.circle("fill", K.X(cx + K.width(wt, 3.6) / 2 + k * 1.6), K.Y(ty + 15.6), 0.4 * K.sc)
       end
       K.text(agoText(mins), x, ty + 17, 3.4, C.faint, "center", w)
-      local go = K.R(cx - 30, y + h - 14, 60, 10)
-      button(go, T("gts.withdraw"), false, "off", clock)
-      K.addHit(go, "win", GO)
+      K.settle(e2)
     end
+    local go = K.R(cx - 30, y + h - 14, 60, 10)
+    if dep.received then button(go, T("gts.collect"), false, "ok", clock)
+    else button(go, T("gts.withdraw"), false, "gray", clock) end
+    K.addHit(go, "win", GO)
   end
 
-  -- the search: the globe spinning over the window, pings; then found: the stranger's badge
+  -- the search: the window fading to the globe's lights, the globe spinning, pings; then found: the
+  -- stranger's badge popping up
   local function drawSearch(x, y, w, h, clock)
     local sh = st.search
     local t = now()
-    K.col(C.bg, 0.92)
-    K.box("fill", K.R(x, y, w, h))
+    local e = K.outCubic((t - sh.t0) / 0.3)
+    local f0 = K.getFade()
+    K.setFade(f0 * e)
+    K.backdrop(bodyNow, clock, mv.r, mv.g, mv.b, mv.r2, mv.g2, mv.b2)
+    K.scissor(bodyNow)
     local cx, cy = x + w / 2, y + h * 0.42
     local r = min(w, h) * 0.22
+    local lb = K.R(x + w / 2 - min(w - 12, 110) / 2, cy + r + 4, min(w - 12, 110), 10)
     if not sh.found then
-      globe(cx, cy, r, clock, true)
+      globe(cx, cy, r * (0.85 + 0.15 * K.outBack((t - sh.t0) / 0.5)), clock, true)
+      K.glass(lb, 5, 0.55)
       local label = T("gts.searching")
-      K.bold(label, x, cy + r + 6, 5.2, C.text, "center", w)
+      local fs = K.fit(label, 5, lb[3] - 14)
+      local lw = K.width(label, fs)
+      K.bold(label, lb[1], lb[2] + (10 - fs * 1.2) / 2, fs, C.ink, "center", lb[3])
       local dots = floor(clock * 3) % 4
-      local lw = K.width(label, 5.2)
+      K.col(C.ink)
       for k = 1, dots do
-        G().circle("fill", K.X(cx + lw / 2 + 1 + k * 2), K.Y(cy + r + 10.3), 0.6 * K.sc)
+        G.circle("fill", K.X(cx + lw / 2 + 0.5 + k * 1.6), K.Y(lb[2] + 5 + fs * 0.4), 0.45 * K.sc)
       end
     else
-      local k = min(1, (t - sh.t0 - sh.dur) / 0.35)
-      local s = k < 1 and k * 1.15 or 1
-      globe(cx, cy, r * 0.8, clock, false)
-      scaleAbout(cx, cy, s)
+      local k = (t - sh.t0 - sh.dur) / 0.45
+      globe(cx, cy, r * (1 - 0.2 * K.outCubic(k)), clock, false)
+      scaleAbout(cx, cy - r * 0.15, K.outBack(k))
       badge(cx, cy - r * 0.15, r * 0.45, sh.initial, sh.girl)
-      G().pop()
-      K.bold(sh.text, x, cy + r + 6, 5, C.gold, "center", w)
+      G.pop()
+      local ek = K.outCubic(k)
+      K.rise(ek, 4)
+      K.glass(lb, 5, 0.6)
+      local fs = K.fit(sh.text, 4.6, lb[3] - 6)
+      K.bold(sh.text, lb[1], lb[2] + (10 - fs * 1.2) / 2, fs, C.goldDark, "center", lb[3])
+      K.settle(ek)
     end
+    K.setFade(f0)
   end
 
-  -- the reveal: the newcomer on a glow in its tier's colour (rays for the rare), springing in; its
-  -- name, level, tier, OT and home, what it holds, its IVs
+  -- the reveal: the newcomer springing up on a disc of its type (rays in its tier's colour for the rare),
+  -- the backdrop turning to its colours; its card settling in under it: name, types, tier, level, OT and
+  -- home, what it holds, its IVs
   local function drawReveal(x, y, w, h, clock)
     local rv = st.reveal
     local t = now()
-    K.col(C.bg, 0.92)
-    K.box("fill", K.R(x, y, w, h))
+    local age = t - rv.t0
+    K.backdrop(bodyNow, clock, mv.r, mv.g, mv.b, mv.r2, mv.g2, mv.b2)
+    K.scissor(bodyNow)
     local tc = TIER_C[rv.tier] or TIER_C.common
-    local cx, cy = x + w / 2, y + h * 0.36
+    local cx, cy = x + w / 2, y + h * 0.32
     local r = min(w, h) * 0.2
     burstAt.x, burstAt.y = cx, cy
-    if (RANK[rv.tier] or 1) >= 3 then rays(cx, cy, r * 2.6, clock, tc, 0.2) end
-    local g = G()
-    for k = 3, 1, -1 do
-      K.col(tc, 0.12 * k)
-      g.circle("fill", K.X(cx), K.Y(cy), r * (0.55 + 0.25 * (3 - k)) * K.sc)
-    end
-    local age = t - rv.t0
-    local s = age < 0.3 and (age / 0.3) * 1.2 or (age < 0.5 and 1.2 - (age - 0.3) or 1 + 0.03 * sin(clock * 3))
-    scaleAbout(cx, cy, s)
-    local sp = (tonumber(rv.mon.species or rv.mon.speciesId) or rv.mon.species)
-    -- (the Pokémon itself: shiny when it really is)
-    if not (env.monPic and env.monPic(sp, cx - r, cy - r, r * 2, 1, rv.mon)) and env.monIconOf then
-      pcall(env.monIconOf, rv.mon, cx - r * 0.8, cy - r * 0.8, r * 1.6, 0, 1)
-    end
-    g.pop()
-    sparkle(cx - r * 1.1, cy - r * 0.6, 1.5 + abs(sin(clock * 3)), C.white, 0.9)
-    sparkle(cx + r * 1.15, cy + r * 0.5, 1.3 + abs(sin(clock * 4 + 1)), tc, 0.9)
+    local fa = K.outCubic(age / 0.25)
+    if (RANK[rv.tier] or 1) >= 3 then rays(cx, cy, r * 2.6 * (0.6 + 0.4 * fa), clock, tc, 0.22 * fa) end
+    disc(cx, cy, r * 1.02 * (0.7 + 0.3 * K.outBack(age / 0.4)), rv.t1, fa)
+    K.glow(cx, cy, r * 1.3, r * 1.2, C.white, 0.35 * fa)
+    -- (the Pokémon itself: shiny when it really is; springing up past its size and settling, then breathing)
+    local pop = age < 0.6 and (0.3 + 0.7 * K.outBack(age / 0.5)) or 1
+    picture(rv.sp, rv.mon, cx, cy, r * 2, clock, rv.t0, pop, fa, rv.shiny)
+    sparkle(cx - r * 1.1, cy - r * 0.6, (1.5 + abs(sin(clock * 3))) * fa, C.white, 0.9)
+    sparkle(cx + r * 1.15, cy + r * 0.5, (1.3 + abs(sin(clock * 4 + 1))) * fa, tc, 0.9)
+    -- (its card)
+    local cw = min(w - 12, 150)
     local ty = cy + r + 3
-    local ns = K.fit(rv.name, 6, w - 20)
-    K.bold(rv.name, x, ty, ns, C.text, "center", w)
+    local ch = min(y + h - 3 - ty, 22 + (rv.item and 5 or 0) + (rv.evolve and 5 or 0) + 6)
+    local e = K.outCubic((age - 0.18) / 0.4)
+    K.rise(e, 6)
+    K.glass(K.R(cx - cw / 2, ty, cw, ch), 5, 0.6)
+    local yy = ty + 2.5
+    local ns = K.fit(rv.name, 6, cw - 8)
+    K.bold(rv.name, cx - cw / 2, yy, ns, C.ink, "center", cw)
+    yy = yy + 7.6
+    -- (its types, its tier, its level, Shiny: one line, centred; the types left out when it's too narrow)
     local tier = T(TIER_KEY[rv.tier] or TIER_KEY.common)
-    local pw = K.width(tier, 3.6) + 3
     local lv = levelText(rv.level)
+    local tw = chipW(tier, 3.6)
     local lw = K.width(lv, 4)
-    local shw = rv.shiny and (K.width(T("auction.shiny"), 3.6) + 3.6 * 1.6 + 3 + 2) or 0
-    local sx = cx - (pw + 2 + lw + shw) / 2
-    pill(tier, sx, ty + 7.4, 3.6, tc)
-    K.text(lv, sx + pw + 2, ty + 7.4, 4, C.soft)
-    if rv.shiny then shinyBadge(sx + pw + 4 + lw, ty + 7.4, 3.6, clock) end
-    K.text(rv.ot, x, ty + 13, 3.8, C.teal, "center", w)
-    local yy = ty + 18.5
+    local shw = rv.shiny and (shinyW(3.6) + 2) or 0
+    local pw = pillsW(rv, 3.4)
+    local total = tw + 2 + lw + shw
+    if pw > 0 and total + pw + 2 <= cw - 6 then total = total + pw + 2 else pw = 0 end
+    local sx = cx - total / 2
+    if pw > 0 then sx = sx + pills(rv, sx, yy - 0.2, 5.2, 3.4) + 2 end
+    chip(tier, sx, yy, 3.6, tc)
+    K.text(lv, sx + tw + 2, yy, 4, C.soft)
+    if rv.shiny then shinyBadge(sx + tw + 4 + lw, yy, 3.6, clock) end
+    yy = yy + 6.4
+    K.text(rv.ot, cx - cw / 2, yy, 3.8, C.teal, "center", cw)
+    yy = yy + 5.4
     if rv.item then
-      K.text(rv.item, x, yy, 3.6, C.gold, "center", w)
+      K.text(rv.item, cx - cw / 2, yy, 3.6, C.goldDark, "center", cw)
       yy = yy + 5
     end
-    K.text(ivTotal(rv.ivs), x, yy, 3.6, C.soft, "center", w)
-    if rv.evolve then K.text(T("gts.evolving"), x, yy + 5, 3.8, C.goldTop, "center", w, 0.6 + 0.4 * abs(sin(clock * 4))) end
+    K.text(ivTotal(rv.ivs), cx - cw / 2, yy, 3.6, C.soft, "center", cw)
+    if rv.evolve then
+      K.bold(T("gts.evolving"), cx - cw / 2, yy + 5, 3.8, C.goldDark, "center", cw, 0.6 + 0.4 * abs(sin(clock * 4)))
+    end
+    K.settle(e)
   end
 
   -- a sheet over the window: the species list (with its letters) or the level ranges
-  local function drawSheet(x, y, w, h, clock)
-    K.col(C.shade)
-    K.box("fill", K.R(x, y, w, h))
+  local function drawSheetCard(x, y, w, h, clock, dt)
     local sw, sh = min(w - 16, 130), min(h - 12, 92)
     local sx, sy = x + (w - sw) / 2, y + (h - sh) / 2
-    K.grad(K.R(sx, sy, sw, sh), 5, C.cardTop, C.card)
-    K.ring(K.R(sx, sy, sw, sh), 5, C.teal, 0.6, 0.6)
+    K.sheet(K.R(sx, sy, sw, sh), 6)
     if st.sheet == "species" then
-      K.bold(T("gts.pickSpecies"), sx, sy + 3, 4.8, C.text, "center", sw)
+      K.bold(T("gts.pickSpecies"), sx, sy + 3, 4.8, C.ink, "center", sw)
       local top = sy + 10
       local vis = floor((sh - 12) / ROW_H)
       if st.scursor > st.stop + vis then st.stop = st.scursor - vis end
       if st.scursor <= st.stop then st.stop = st.scursor - 1 end
       st.stop = max(0, min(st.stop, max(0, #st.species - vis)))
+      mv.stop = K.approach(mv.stop, st.stop, dt, 18)
+      K.hairline(sx, top - 0.6, sw)
       local clip = K.R(sx, top, sw, sh - 12)
       K.scissor(clip)
-      local first = floor(st.stop) + 1
+      if #st.species > 0 then
+        if mv.scurPrev == nil then mv.scurY = st.scursor end
+        mv.scurY, mv.scurPrev = K.approach(mv.scurY, st.scursor, dt, 22), st.scursor
+        highlight(sx + 2, top, sw - 4, ROW_H, mv.scurY - mv.stop, 2.5)
+      end
+      local first = floor(mv.stop) + 1
       for i = first, min(#st.species, first + vis + 1) do
         local sp = st.species[i]
-        local ry = top + (i - 1 - st.stop) * ROW_H
+        local ry = top + (i - 1 - mv.stop) * ROW_H
         local rb = K.R(sx + 2, ry + 0.4, sw - 4, ROW_H - 0.8)
-        if i == st.scursor then
-          K.col(C.teal, 0.22)
-          K.box("fill", rb, 2.5)
-        end
-        if env.monIcon then pcall(env.monIcon, sp, sx + 4, ry + 0.5, 11) end
-        K.text(Gx.name(sp), sx + 17, ry + 3.2, 4.6, C.text)
+        if env.monIcon then pcall(env.monIcon, sp, sx + 4, ry + 0.5, 11, 0, 1, 1, 1, K.getFade()) end
+        K.text(Gx.name(sp), sx + 17, ry + 3.2, 4.6, i == st.scursor and C.accent or C.ink)
         K.addHit(rb, "win", SHEET_ROW + i, clip)
       end
       if #st.species == 0 then K.text(T("gts.noneSeen"), sx, top + 20, 4, C.faint, "center", sw) end
-      K.scrollbar(sx + sw, top, sh - 12, st.stop, vis, #st.species)
-      K.scissor(nil)
+      K.scrollbar(sx + sw, top, sh - 12, mv.stop, vis, #st.species)
+      K.scissor(bodyNow)
     else
-      K.bold(T("gts.pickLevels"), sx, sy + 3, 4.8, C.text, "center", sw)
-      if env.monIcon then pcall(env.monIcon, st.request.species, sx + sw / 2 - 8, sy + 10, 16) end
-      K.text(Gx.name(st.request.species), sx, sy + 27, 4.4, C.teal, "center", sw)
+      K.bold(T("gts.pickLevels"), sx, sy + 3, 4.8, C.ink, "center", sw)
+      local a1 = Gx.types and (Gx.types(st.request.species)) or nil
+      disc(sx + sw / 2, sy + 18, 8, a1, 1)
+      if env.monIcon then pcall(env.monIcon, st.request.species, sx + sw / 2 - 8, sy + 10, 16, floor(clock * 3) % 2, 1, 1, 1, K.getFade()) end
+      K.text(Gx.name(st.request.species), sx, sy + 28, 4.4, C.teal, "center", sw)
       -- (the ranges as chips, two rows)
       local n = #Gx.LEVELS
       local per = 6
@@ -1067,10 +1310,11 @@ return function(ctx, env)
         local col, row = (i - 1) % per, floor((i - 1) / per)
         local cb = K.R(sx + 4 + col * cw + 0.5, sy + 36 + row * 10, cw - 1, 8.4)
         local on = i == st.levels
-        if on then K.grad(cb, 2.5, C.btnTop, C.btnFoot) else K.col(C.cardHi) K.box("fill", cb, 2.5) end
+        K.col(on and C.accent or C.fill)
+        K.box("fill", cb, 2.5)
         local label = rangeText(i)
         local fs = K.fit(label, 3.4, cb[3] - 1.5)
-        K.text(label, cb[1], cb[2] + 2.3, fs, on and C.white or C.soft, "center", cb[3])
+        K.text(label, cb[1], cb[2] + 2.3, fs, on and C.white or C.ink, "center", cb[3])
         K.addHit(cb, "win", LEVEL + i)
       end
       local go = K.R(sx + 6, sy + sh - 13, sw - 12, 10)
@@ -1078,77 +1322,152 @@ return function(ctx, env)
       K.addHit(go, "win", GO)
     end
   end
-  local function drawConfirm(x, y, w, h, clock)
+  local function drawConfirmCard(x, y, w, h, clock)
     local c = st.confirm
-    K.col(C.shade)
-    K.box("fill", K.R(x, y, w, h))
     local sw, sh = min(w - 20, 120), 34
     local sx, sy = x + (w - sw) / 2, y + (h - sh) / 2
-    K.grad(K.R(sx, sy, sw, sh), 5, C.cardTop, C.card)
-    K.ring(K.R(sx, sy, sw, sh), 5, C.teal, 0.6, 0.6)
-    K.text(c.text, sx + 4, sy + 4, 4.4, C.text, "center", sw - 8)
+    K.sheet(K.R(sx, sy, sw, sh), 6)
+    K.text(c.text, sx + 4, sy + 4, 4.4, C.ink, "center", sw - 8)
     local bw = (sw - 12) / 2
     local yb, nb = K.R(sx + 4, sy + sh - 13, bw, 10), K.R(sx + 8 + bw, sy + sh - 13, bw, 10)
-    button(nb, T("button.cancel"), not st.yes, "off", clock)
-    button(yb, T(c.kind == "withdraw" and "gts.withdraw" or "button.ok"), st.yes, c.kind == "withdraw" and "off" or "go", clock)
+    button(nb, T("button.cancel"), not st.yes, "gray", clock)
+    button(yb, T(c.kind == "withdraw" and "gts.withdraw" or "button.ok"), st.yes, "go", clock)
     K.addHit(yb, "win", YES)
     K.addHit(nb, "win", NO)
   end
-
-  -- the head: the globe, the three tabs (a count on My Deposit when a trade waits), the money
-  local function drawHead(x, y, w, clock)
-    globe(x + 4, y + 5, 3.4, clock, false)
-    local sx, sw = x + 11, min(120, w * 0.72)
-    K.col(C.card)
-    K.box("fill", K.R(sx, y + 1, sw, 8), 2.6)
-    local third = sw / 3
-    for i = 1, 3 do
-      local on = TABS[i] == st.tab
-      local b = K.R(sx + 0.5 + (i - 1) * third, y + 1.5, third - 1, 7)
-      if on then K.grad(b, 2.2, C.cardHi, C.card) end
-      local label = T(TAB_KEY[i])
-      local fs = K.fit(label, 4.2, third - 4)
-      if on then K.bold(label, b[1], b[2] + 1.3, fs, C.text, "center", b[3])
-      else K.text(label, b[1], b[2] + 1.3, fs, C.soft, "center", b[3]) end
-      K.addHit(b, "win", TAB + i)
+  -- (the dim, then the card popping up over it)
+  local function drawSheets(x, y, w, h, clock, dt)
+    if not (st.sheet or st.confirm) then return end
+    local e = K.outCubic((clock - mv.sheetAt) / 0.22)
+    K.dim(bodyNow, 0.24 * e)
+    local f0 = K.getFade()
+    K.rise(e, 6)
+    if st.sheet then drawSheetCard(x, y, w, h, clock, dt) end
+    if st.confirm then
+      if st.sheet then K.dim(bodyNow, 0.12) end
+      drawConfirmCard(x, y, w, h, clock)
     end
+    K.settle(e)
+    K.setFade(f0)
+  end
+
+  -- the head: the globe, the three tabs (a count on My Deposit when a trade waits)
+  local function drawHead(x, y, w, clock, dt)
+    globe(x + 4, y + 5, 3.4, clock, false)
+    local sx, sw = x + 11, min(150, w - 13)
+    local idx = st.tab == "wonder" and 1 or (st.tab == "browse" and 2 or 3)
+    mv.tabX = K.approach(mv.tabX, idx, dt, 18)
+    K.glassSwitch(sx, y + 1, sw, 8, mv.tabX, "win", TAB + 1, T(TAB_KEY[1]), TAB + 2, T(TAB_KEY[2]),
+      TAB + 3, T(TAB_KEY[3]), 4.2)
     if Gx.waiting() > 0 then
-      local g = G()
       local k = 1 + 0.15 * abs(sin(clock * 3))
       K.col(C.red)
-      g.circle("fill", K.X(sx + sw - 1.5), K.Y(y + 1.5), 2.4 * k * K.sc)
+      G.circle("fill", K.X(sx + sw - 1.5), K.Y(y + 1.5), 2.4 * k * K.sc)
       K.text("1", sx + sw - 4.5, y - 0.1, 3.2, C.white, "center", 6)
     end
   end
 
+  -- what changed since the last frame starts its motion; the lights turn to what's shown
+  local function notice(clock, dt)
+    if st.tab ~= mv.tab then
+      mv.listAt, mv.listDir = clock, 0
+      mv.tab, mv.curPrev, mv.lcurPrev = st.tab, nil, nil
+    end
+    if st.box ~= mv.box then
+      if mv.box ~= nil then
+        local d = st.box - mv.box
+        if abs(d) > (Bx.BOXES or 14) / 2 then d = -d end
+        mv.listAt, mv.listDir = clock, d > 0 and 1 or -1
+      end
+      mv.box = st.box
+    end
+    if (st.picking or false) ~= mv.picking then
+      mv.picking, mv.listAt, mv.listDir, mv.curPrev = st.picking or false, clock, 0, nil
+    end
+    if st.listingsAt ~= mv.listings then
+      if mv.listings ~= nil and st.tab == "browse" then mv.listAt, mv.listDir = clock, 0 end
+      mv.listings = st.listingsAt
+    end
+    local sk = st.confirm and "confirm" or st.sheet
+    if sk ~= mv.sheetKey then
+      if sk then mv.sheetAt = clock end
+      mv.sheetKey, mv.scurPrev = sk, nil
+    end
+    -- (the picker's chosen one: its picture pops up, animated as the Pokédex's)
+    local rv, r = st.reveal, nil
+    if not (rv or st.search) then
+      r = (st.tab == "wonder" or st.picking) and st.rows[st.cursor] or nil
+      local m = r and r.mon or nil
+      if m ~= mv.pickMon then
+        mv.pickMon, mv.pickAt = m, clock
+        if m and env.dexSprite then pcall(env.dexSprite.start, r.sp, r.shiny) end
+      end
+    end
+    -- (the lights: the newcomer's, the search's (the globe's), the chosen one's, a listing's, the deposit's)
+    local t1, t2
+    if rv then t1, t2 = rv.t1, rv.t2
+    elseif not st.search then
+      if st.tab == "wonder" or st.picking then
+        if r then t1, t2 = r.t1, r.t2
+        elseif st.picking and st.picking.listing then t1, t2 = st.picking.listing.t1, st.picking.listing.t2 end
+      elseif st.tab == "browse" then
+        local L = st.listings[st.lcursor]
+        if L then t1, t2 = L.t1, L.t2 end
+      elseif st.depKey ~= nil and st.depKey ~= "none" then
+        t1, t2 = st.dep.t1, st.dep.t2
+      end
+    end
+    local c1 = t1 and TYPE[t1] or nil
+    local c2
+    if c1 then c2 = t2 and TYPE[t2] or c1 else c1, c2 = C.globeA, C.globeB end
+    local rate = mv.coloured and 6 or 1000
+    mv.coloured = true
+    mv.r = K.approach(mv.r, c1[1] / 255, dt, rate)
+    mv.g = K.approach(mv.g, c1[2] / 255, dt, rate)
+    mv.b = K.approach(mv.b, c1[3] / 255, dt, rate)
+    local k2 = c2 == c1 and 0.35 or 0
+    mv.r2 = K.approach(mv.r2, (c2[1] + (255 - c2[1]) * k2) / 255, dt, rate)
+    mv.g2 = K.approach(mv.g2, (c2[2] + (255 - c2[2]) * k2) / 255, dt, rate)
+    mv.b2 = K.approach(mv.b2, (c2[3] + (255 - c2[3]) * k2) / 255, dt, rate)
+  end
+
   function W.draw(body, clock, portrait)
     local x, y, w, h = body[1], body[2], body[3], body[4]
+    G = K.graphics()
+    bodyNow = body
+    local dt = mv.lastT and max(0, min(0.1, clock - mv.lastT)) or 0
+    mv.lastT = clock
     advance(now())
-    K.col(C.bg)
-    K.box("fill", body)
-    drawHead(x + M, y + 1, w - M * 2, clock)
-    local top = y + HEAD_H + 1.5
-    local bodyH = y + h - M - top
-    if st.tab == "wonder" or st.picking then
-      if portrait then
-        local ch = min(78, bodyH * 0.5)
-        drawPicker(x + M, top, w - M * 2, bodyH - ch - M, clock)
-        K.scissor(body)
-        drawPickCard(x + M, top + bodyH - ch, w - M * 2, ch, clock)
+    notice(clock, dt)
+    K.backdrop(body, clock, mv.r, mv.g, mv.b, mv.r2, mv.g2, mv.b2)
+    K.scissor(body)
+    -- (under the search once it's faded in, and under the reveal, nothing else is drawn)
+    local covered = st.reveal or (st.search and now() - st.search.t0 >= 0.3)
+    if not covered then
+      drawHead(x + M, y + 1, w - M * 2, clock, dt)
+      local top = y + HEAD_H + 1.5
+      local bodyH = y + h - M - top
+      if st.tab == "wonder" or st.picking then
+        if portrait then
+          local ch = min(92, bodyH * 0.5)
+          drawPicker(x + M, top, w - M * 2, bodyH - ch - M, clock, dt)
+          K.scissor(body)
+          drawPickCard(x + M, top + bodyH - ch, w - M * 2, ch, clock)
+        else
+          local lw = floor((w - M * 3) * 0.52)
+          drawPicker(x + M, top, lw, bodyH, clock, dt)
+          K.scissor(body)
+          drawPickCard(x + M * 2 + lw, top, w - M * 3 - lw, bodyH, clock)
+        end
+      elseif st.tab == "browse" then
+        drawListings(x + M, top, w - M * 2, bodyH, clock, dt)
       else
-        local lw = floor((w - M * 3) * 0.52)
-        drawPicker(x + M, top, lw, bodyH, clock)
-        K.scissor(body)
-        drawPickCard(x + M * 2 + lw, top, w - M * 3 - lw, bodyH, clock)
+        drawDeposit(x + M, top, w - M * 2, bodyH, clock)
       end
-    elseif st.tab == "browse" then
-      drawListings(x + M, top, w - M * 2, bodyH, clock)
-    else
-      drawDeposit(x + M, top, w - M * 2, bodyH, clock)
+      K.scissor(body)
+      drawSheets(x, y, w, h, clock, dt)
     end
     K.scissor(body)
-    if st.sheet then drawSheet(x, y, w, h, clock) end
-    if st.confirm then drawConfirm(x, y, w, h, clock) end
     if st.search then drawSearch(x, y, w, h, clock) end
     if st.reveal then drawReveal(x, y, w, h, clock) end
     drawParticles(clock, body)

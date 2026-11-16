@@ -402,7 +402,10 @@ return function(engine)
         for i = 1, 2 do
           local t = tonumber(types[i])
           if t and (i == 1 or t ~= tonumber(types[1])) then
-            got.types[#got.types + 1] = { id = t, name = tostring(call(Types and Types.name, t) or "") }
+            -- (WoobOS's words for it, "type.<id>": the game keeps six capitals, "ELECTR")
+            local key = "type." .. t
+            local nm = T and T.has and T.has(key) and T(key) or tostring(call(Types and Types.name, t) or "")
+            got.types[#got.types + 1] = { id = t, name = nm }
           end
         end
       end

@@ -273,7 +273,7 @@ return function(K, env, T, st, A, TABS)
     local fs = K.fit(R.name, 7, tw - 8)
     K.label(R.name, tx + (1 - e1) * 8, y + 8, fs, C.white, nil, nil, fa1)
     local nx = tx + (1 - e1) * 8 + K.width(R.name, fs) + 1.2
-    if R.gender then sexMark(R.gender, nx, y + 9, 5, fa1) nx = nx + 5 end
+    if R.gender and not K.hasSign(R.name) then sexMark(R.gender, nx, y + 9, 5, fa1) nx = nx + 5 end
     if R.shiny then star(nx + 2.5, y + 11.5, 2.4 + 0.5 * sin(clock * 5), C.gold, fa1) end
     if not R.egg then
       local ox = (1 - e2) * 8

@@ -817,6 +817,21 @@ do
   I.set("en")
   draw(2)
 end
+-- ♀ / ♂: the fonts have neither, so the kit draws them as marks (R-Bay's and the GTS's NIDORAN♀)
+do
+  local Kt = X._test.kit
+  local f, m, plain = "NIDORAN\226\153\128", "NIDORAN\226\153\130", "NIDORAN"
+  T.check(Kt.hasSign(f) and Kt.hasSign(m) and not Kt.hasSign(plain) and not Kt.hasSign("\226\153\160"),
+          "the kit tells a name with a sign")
+  T.check(Kt.width(f, 5) > Kt.width(plain, 5) and math.abs(Kt.width(f, 5) - Kt.width(m, 5)) < 0.01,
+          "a sign takes its own room in a text's width")
+  local ok = pcall(function()
+    Kt.text(f, 0, 0, 5, Kt.UI.ink)
+    Kt.text("Your " .. m .. " sold!", 0, 0, 5, Kt.UI.ink, "center", 80)
+    Kt.text(f .. " " .. f .. " " .. f, 0, 0, 5, Kt.UI.ink, "left", 10)
+  end)
+  T.check(ok, "texts with signs draw: one line, centred, wrapped")
+end
 -- (headless the cart's font isn't there, and the engine's glyph draw tries loading it again on
 -- every call: a stand-in for the Pokédollar sign while measuring; the probe measures the real one)
 local FrlgFont = require("src.ui.game3.frlg_font")
@@ -1640,7 +1655,10 @@ do
   T.eq(hs.team, 2, "(the oldest)")
   press("r")
   T.eq(hs.team, 1, "R: the newer one")
-  draw(3)
+  -- (after the chosen one's animation has played: Emerald's MonAnim steps the engine's own code)
+  draw(240)
+  local kbHall = garbageOf(120)
+  T.check(kbHall < 0.5, ("the Hall of Fame draws next to no garbage (%.3f KB a frame)"):format(kbHall))
   VP.width, VP.height = 320, 480
   draw(3)
   T.check(not D.state().winFailed, "draws in portrait")
@@ -2533,7 +2551,12 @@ local Set2 = dofile(MOD .. "src/settings.lua")({ cache = cacheA, loadData = I18n
 T.eq(Set2.get("wallpaper"), "hills", "and read back")
 Set.set("wallpaper", "classic")
 T.eq(Wall.choices()[1].id, "classic", "the wallpapers: Classic first")
-T.eq(#Wall.choices(), 6, "then the five drawn ones (no pictures in wallpapers/)")
+-- (then the five drawn ones, then whatever pictures this installation keeps in wallpapers/)
+local nDrawn, nPics = 0, 0
+for _, c in ipairs(Wall.choices()) do
+  if Wall.isPicture(c.id) then nPics = nPics + 1 else nDrawn = nDrawn + 1 end
+end
+T.eq(nDrawn, 6, "then the five drawn ones (and " .. nPics .. " pictures from wallpapers/)")
 T.check(not Wall.draw("ribbon", 0, 0, 100, 60, 3), "headless (no canvases): the classic colours instead")
 
 -- ------- arranging the desktop (kept in the stand-in cache)

@@ -668,7 +668,9 @@ do
     if id ~= "mail" or GEN == 2 then
       local okO = D.openApp(id)
       T.check(okO, "the " .. id .. " app opens")
-      local okDr, errDr = pcall(function() frame(20) end)
+      -- (every window's cards and rows settle in for half a second in glass: frames past that, and past the
+      -- JIT compiling their traces, which lands on the heap once, before measuring)
+      local okDr, errDr = pcall(function() frame(150) end)
       T.check(okDr, "the " .. id .. " window draws (" .. tostring(errDr) .. ")")
       if okO and okDr then
         opened = opened + 1

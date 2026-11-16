@@ -624,6 +624,19 @@ screenshots each. Settings changed by hand during it are the real ones.
   sheen (`SHEEN_TOP` -> clear, the top 16 units) and a white edge. Cells and the switches' tracks are
   lighter panes; the sprite box is the type colour at 0.74. Nothing behind a pane is sharp, so no blur
   pass is needed.
+- **Every window's motion** uses the kit's helpers (numbers only, nothing made): `K.outCubic(t)`,
+  `K.outBack(t)`, `K.inOut(t)`, `K.approach(cur, target, dt, rate)` (a value followed at the same speed
+  whatever the frame rate), `K.rise(e, dy, dx)` / `K.settle(e)` (always paired with the same `e`: a push,
+  a translate and the fade at `e`; `K.frame` resets the depth), `K.stagger(since, i, each, dur)` (no
+  cutoff on `since`: a branch flipping inside a garbage measurement made LuaJIT compile a trace there).
+  R-Bay and Slots draw their own dark backdrops (soft lights over a night colour) and dark panes through
+  `K.glass(b, rad, a, tint, sheen, edge)` with a dark tint. `env.appIcon(app, x, y, size, a)` and
+  `Wall.draw(..., fit, a)` take an alpha; the icons' glyphs take the kit's fade themselves.
+- **Testing motion headless:** the windows' motion runs on the wall clock while headless frames outrun
+  it, the tests' stand-in graphics allocate on each `push`, and LuaJIT compiles the new motion's traces in
+  the first seconds (a one-off on the heap): garbage checks of a window draw for a while first (the Game
+  Boy test 150 frames, the summary 1.2 s of wall clock). The Mart, Bank and News avoid `K.rise` (offsets
+  and fades instead) for the Game Boy test's sake.
 - **The picture** (main.lua `env.dexSprite`): Emerald's own front animation (`MonAnim.newSprite` +
   `summary` when one's chosen, stepped 60 a second in the draw, its frames' pictures kept by species and
   frame, drawn from `sprite.x2 / y2 / matrix` without the engine's per-draw `transform` tables); done, or

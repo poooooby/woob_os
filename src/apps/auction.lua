@@ -5,7 +5,9 @@
 -- in, then how the ended ones went; A on one that ended tells it again, as eBay does: that it's
 -- over, the Pokémon, the winning bid, who won it, your maximum, what you paid or got back, where it
 -- went, the last bids). A new bid flashes its price up; taking the lead throws confetti; losing it
--- says so.
+-- says so. Dark glass: smoked panes over the Rocket dark, soft red lights drifting behind them and one in
+-- the shown Pokémon's type colour (eased as it changes); the chosen row's highlight glides, Browse | My
+-- Bids' thumb slides, the cards and rows rise in one after another as a tab (or a recap) opens.
 --   buttons  Up / Down the auction, SELECT the Hot Auction, A bid (then < > one step, ^ v ten,
 --            SELECT all you can, A place it, B back), L / R or START Browse | My Bids, B close;
 --            My Bids: A a running bid (to it in Browse) or an ended one (its recap; B back)
@@ -25,25 +27,37 @@ local HOT = 2020
 local RECAP_BACK = 2030
 local PARTICLES = 60
 
--- the Rocket look: a dark body, red accents; a colour per tier
+-- the Rocket look: a dark body (lit behind its glass), red accents; a colour per tier
 local C = {
-  bg = { 22, 22, 26 }, card = { 36, 36, 42 }, cardTop = { 46, 44, 52 }, cardHi = { 62, 62, 72 },
-  line = { 255, 255, 255, 0.07 }, text = { 238, 238, 242 }, soft = { 152, 152, 162 }, faint = { 104, 104, 114 },
-  red = { 226, 36, 48 }, redTop = { 240, 70, 72 }, redDeep = { 150, 18, 30 }, redSoft = { 226, 36, 48, 0.2 },
+  bg = { 16, 14, 19 },
+  line = { 255, 255, 255, 0.08 }, text = { 240, 238, 244 }, soft = { 160, 158, 170 }, faint = { 116, 114, 126 },
+  red = { 226, 36, 48 }, redTop = { 240, 70, 72 }, redDeep = { 150, 18, 30 },
   green = { 64, 204, 112 }, gold = { 244, 192, 40 }, goldTop = { 255, 230, 120 }, goldDark = { 176, 120, 16 },
   bar = { 255, 255, 255, 0.1 }, ivTop = { 250, 90, 90 }, ivFoot = { 190, 24, 40 }, white = { 255, 255, 255 },
-  heroTop = { 78, 18, 28 }, heroFoot = { 26, 12, 16 }, flameOut = { 255, 140, 30 }, flameIn = { 255, 230, 120 },
-  shinyInk = { 74, 48, 0 }, wonTop = { 84, 66, 20 }, blue = { 70, 150, 255 }, pink = { 255, 92, 170 }, cyan = { 80, 220, 230 },
+  heroTop = { 78, 18, 28 }, flameOut = { 255, 140, 30 }, flameIn = { 255, 230, 120 },
+  shinyInk = { 74, 48, 0 }, blue = { 70, 150, 255 }, pink = { 255, 92, 170 }, cyan = { 80, 220, 230 },
 }
 local CONFETTI = { C.gold, C.red, C.blue, C.pink, C.cyan, C.green, C.white, C.flameOut }
 local TIER_C = {
   common = { 128, 128, 140 }, uncommon = { 52, 178, 92 }, rare = { 44, 124, 232 }, prized = { 152, 84, 224 },
   legendary = { 232, 170, 28 }, mythical = { 232, 82, 164 },
 }
--- (each tier's colour, dark: the chosen one's header)
-local TIER_DARK = {
-  common = { 52, 52, 60 }, uncommon = { 22, 70, 40 }, rare = { 20, 50, 100 }, prized = { 60, 34, 96 },
-  legendary = { 96, 70, 12 }, mythical = { 96, 30, 70 },
+-- the glass: smoked panes over the backdrop's lights (Rocket reds and the shown Pokémon's type); each
+-- tier's colour washing down from the chosen one's header, a win's gold down its row; a pane's sheen
+local GLASS = { 12, 10, 14 }
+local TIER_WASH, TIER_CLEAR = {}, {}
+for k, c in pairs(TIER_C) do
+  TIER_WASH[k], TIER_CLEAR[k] = { c[1], c[2], c[3], 0.34 }, { c[1], c[2], c[3], 0 }
+end
+local WON_WASH, WON_CLEAR = { 244, 192, 40, 0.22 }, { 244, 192, 40, 0 }
+local SHEEN, SHEEN_END = { 255, 255, 255, 0.22 }, { 255, 255, 255, 0 }
+-- (a type's colour by the first three letters of the game's name for it: FIRE, FIGHT, PSYCHC ...)
+local TYPE_C = {
+  nor = { 168, 168, 120 }, fig = { 192, 48, 40 }, fly = { 168, 144, 240 }, poi = { 160, 64, 160 },
+  gro = { 224, 192, 104 }, roc = { 184, 160, 56 }, bug = { 168, 184, 32 }, gho = { 112, 88, 152 },
+  ste = { 184, 184, 208 }, fir = { 240, 128, 48 }, wat = { 104, 144, 240 }, gra = { 120, 200, 80 },
+  ele = { 248, 208, 48 }, psy = { 248, 88, 136 }, ice = { 152, 216, 216 }, dra = { 112, 56, 248 },
+  dar = { 112, 88, 72 }, fai = { 238, 153, 172 },
 }
 local TIER_RANK = { common = 1, uncommon = 2, rare = 3, prized = 4, legendary = 5, mythical = 6 }
 
@@ -75,6 +89,14 @@ return function(ctx, env)
     hotKey = nil, recap = nil, recapBurst = false,
   }
   W.state = st
+  -- the motion's numbers: the frame's dt, when the tab / the recap last changed (what rises in after
+  -- it), the gliding highlights (their rows, as offsets in the list), the switch's thumb, the backdrop's
+  -- light in the shown Pokémon's colour (eased; its numbers changed in place)
+  local mv = {
+    lastT = nil, clock = 0, dt = 0, tab = nil, tabAt = -10, recap = nil, recapAt = -10,
+    rowY = nil, rowTop = 0, mineY = nil, mineTop = 0, thumb = nil, lit = { 226, 36, 48 }, litOn = false,
+  }
+  W.motion = mv
   -- (opened from a notification: its tab, the auction it was about; a win or a loss opens its recap,
   -- below, once the rows are made)
   local resume = ctx.resume
@@ -467,7 +489,53 @@ return function(ctx, env)
     return w
   end
   local function monIcon(sp, x, y, s)
-    if env.monIcon then pcall(env.monIcon, sp, x, y, s) end
+    if env.monIcon then pcall(env.monIcon, sp, x, y, s, 0, 1, 1, 1, K.getFade()) end
+  end
+  local function monPic(sp, x, y, s, picMon)
+    local drawn = env.monPic and env.monPic(sp, x, y, s, K.getFade(), picMon)
+    K.rescissor()
+    return drawn
+  end
+  -- a pane of the smoked glass
+  local function pane(b, rad, a) K.glass(b, rad or 4, a or 0.52, GLASS, 0.14, 0.15) end
+  -- something rising in: drawn at `e` of itself -> the fade to put back
+  local function fadeTo(e)
+    local f = K.getFade()
+    K.setFade(f * e)
+    return f
+  end
+  -- a type's colour from the game's words for it ("FIRE / FLYING": the first), kept per words
+  local typeC = {}
+  local function typeColour(types)
+    if type(types) ~= "string" or types == "" then return nil end
+    local c = typeC[types]
+    if c == nil then
+      c = TYPE_C[types:sub(1, 3):lower()] or false
+      typeC[types] = c
+    end
+    return c or nil
+  end
+  -- the backdrop: the Rocket dark with soft lights drifting over it, two reds and the shown Pokémon's
+  local function backdrop(b, clock)
+    local x, y, w, h = b[1], b[2], b[3], b[4]
+    K.col(C.bg)
+    K.box("fill", b)
+    K.scissor(b)
+    K.glow(x + w * (0.8 + 0.06 * sin(clock * 0.11)), y + h * (0.16 + 0.08 * cos(clock * 0.09)), w * 0.55, h * 0.75,
+      C.red, 0.22)
+    K.glow(x + w * (0.2 + 0.08 * cos(clock * 0.07)), y + h * (0.86 + 0.06 * sin(clock * 0.1)), w * 0.5, h * 0.7,
+      mv.lit, 0.2)
+    K.glow(x + w * (0.48 + 0.1 * sin(clock * 0.05 + 1)), y + h * (0.5 + 0.1 * cos(clock * 0.06)), w * 0.34, h * 0.5,
+      C.redDeep, 0.3)
+    K.glow(x + w * (0.06 + 0.05 * cos(clock * 0.08)), y + h * (0.1 + 0.06 * sin(clock * 0.12)), w * 0.3, h * 0.45,
+      C.pink, 0.07)
+  end
+  -- a highlight's sheen and its edge (the chosen row, the switch's thumb)
+  local function lit(b, rad, c, a, ring)
+    K.col(c, a)
+    K.box("fill", b, rad)
+    K.grad(K.R(b[1], b[2], b[3], b[4] * 0.55), rad, SHEEN, SHEEN_END)
+    K.ring(b, rad, c, ring, 0.5)
   end
   local function scaleAbout(cx, cy, k)
     local g = G()
@@ -579,8 +647,8 @@ return function(ctx, env)
   local function drawHot(x, y, w, h, clock, t)
     local L = hotListing()
     local b = K.R(x, y, w, h)
-    K.shadow(b, 4, 0.8, 0.3)
-    K.grad(b, 4, C.heroTop, C.heroFoot)
+    -- (the Rocket's red in the glass, its tier's light behind the Pokémon)
+    K.glass(b, 4, 0.55, C.heroTop, 0.18, 0.16)
     if not L then return end
     watch(L, clock)
     local tc = TIER_C[L.tier]
@@ -588,13 +656,14 @@ return function(ctx, env)
     local ps = h - 6
     local ax, ay = x + 3 + ps / 2, y + h / 2
     rays(ax, ay, w * 0.7, clock, tc, 0.16)
+    K.glow(ax, ay, ps * 0.75, ps * 0.7, tc, 0.42)
     local g = G()
     for k = 3, 1, -1 do
-      K.col(tc, 0.12 * k)
+      K.col(tc, 0.08 * k)
       g.circle("fill", K.X(ax), K.Y(ay), ps * (0.2 + 0.12 * (3 - k)) * K.sc)
     end
     local bob = sin(clock * 2.2) * 0.8
-    if not (env.monPic and env.monPic(L.sp, ax - ps / 2, ay - ps / 2 + bob, ps, 1, L.picMon)) then
+    if not monPic(L.sp, ax - ps / 2, ay - ps / 2 + bob, ps, L.picMon) then
       monIcon(L.sp, ax - ps * 0.4, ay - ps * 0.4 + bob, ps * 0.8)
     end
     sparkle(ax - ps * 0.42, ay - ps * 0.3, 1 + 0.7 * abs(sin(clock * 3)), C.white, 0.9)
@@ -642,15 +711,11 @@ return function(ctx, env)
 
   -- one auction's row: the tier down its side, the icon, the name and its price (flashing up on a
   -- new bid); its tier, level, your standing, the time left (red and pulsing near the end)
-  local function drawRow(L, i, x, ry, w, on, focused, t, clip, clock)
+  -- (the chosen row's highlight is the list's, gliding under the rows)
+  local function drawRow(L, i, x, ry, w, on, t, clip, clock)
     watch(L, clock)
     local rb = K.R(x + 1.5, ry + 0.4, w - 3, ROW_H - 0.8)
     local tc = TIER_C[L.tier]
-    if on then
-      K.col(tc, focused and 0.24 or 0.14)
-      K.box("fill", rb, 2.5)
-      K.ring(rb, 2.5, tc, focused and 0.8 or 0.4, 0.5)
-    end
     K.col(tc)
     K.box("fill", K.R(rb[1] + 0.6, rb[2] + 1.6, 1.1, rb[4] - 3.2), 0.5)
     if L.tier == "legendary" or L.tier == "mythical" then
@@ -687,16 +752,34 @@ return function(ctx, env)
     K.addHit(rb, "win", i, clip)
   end
 
+  -- a list's highlight, gliding to the chosen row (`rel` its offset in the list; a scroll moves it with
+  -- the rows) -> its offset now
+  local function glide(cur, rel, top, lastTop)
+    if cur == nil then return rel end
+    return K.approach(cur - (top - lastTop) * ROW_H, rel, mv.dt, 24)
+  end
   local function drawBrowseList(x, y, w, h, focused, t, clock)
-    K.grad(K.R(x, y, w, h), 4, C.cardTop, C.card)
+    pane(K.R(x, y, w, h), 4)
     st.visible = max(1, floor((h - 2) / ROW_H))
     clampList()
     local clip = K.R(x, y + 1, w, h - 2)
     K.scissor(clip)
+    local C0 = st.rows[st.cursor]
+    if C0 then
+      mv.rowY = glide(mv.rowY, (st.cursor - 1 - st.top) * ROW_H, st.top, mv.rowTop)
+      local tc = TIER_C[C0.tier]
+      lit(K.R(x + 1.5, y + 1.4 + mv.rowY, w - 3, ROW_H - 0.8), 2.5, tc, focused and 0.24 or 0.14, focused and 0.8 or 0.4)
+    end
+    mv.rowTop = st.top
     local first = floor(st.top) + 1
     local last = min(#st.rows, first + st.visible + 1)
+    local since = mv.clock - mv.tabAt
     for i = first, last do
-      drawRow(st.rows[i], i, x, y + 1 + (i - 1 - st.top) * ROW_H, w, i == st.cursor, focused, t, clip, clock)
+      -- (the rows rising in one after another as the tab opens)
+      local e = K.stagger(since, i - first, 0.035, 0.28)
+      local f = fadeTo(e)
+      drawRow(st.rows[i], i, x, y + 1 + (i - 1 - st.top) * ROW_H + (1 - e) * 4, w, i == st.cursor, t, clip, clock)
+      K.setFade(f)
     end
     K.scrollbar(x + w, y + 1, h - 2, st.top, st.visible, #st.rows)
     K.scissor(nil)
@@ -730,22 +813,23 @@ return function(ctx, env)
   -- your maximum and Place Bid (breathing, a shine across it)
   local function drawDetail(L, x, y, w, h, t, compact, clock)
     local b = K.R(x, y, w, h)
-    K.grad(b, 4, C.cardTop, C.card)
+    pane(b, 4)
     if not L then return end
     local tc = TIER_C[L.tier]
     local ps = compact and 18 or 26
     local ax, ay = x + 3 + ps / 2, y + 3 + ps / 2
-    -- (the header tinted by the tier, rays behind the rare ones)
-    K.grad(K.R(x, y, w, ps + 6), 4, TIER_DARK[L.tier], C.card)
+    -- (the header washed in the tier's colour, its light behind the Pokémon, rays behind the rare ones)
+    K.grad(K.R(x, y, w, ps + 6), 4, TIER_WASH[L.tier], TIER_CLEAR[L.tier])
     K.scissor(K.R(x, y, w, ps + 6))
     if L.tier == "legendary" or L.tier == "mythical" or L.tier == "prized" then rays(ax, ay, ps * 1.1, clock, tc, 0.18) end
+    K.glow(ax, ay, ps * 0.7, ps * 0.65, tc, 0.4)
     local g = G()
     for k = 3, 1, -1 do
-      K.col(tc, 0.1 * k)
+      K.col(tc, 0.07 * k)
       g.circle("fill", K.X(ax), K.Y(ay), ps * (0.2 + 0.12 * (3 - k)) * K.sc)
     end
     K.scissor(nil)
-    local drawn = env.monPic and env.monPic(L.sp, x + 3, y + 3, ps, 1, L.picMon)
+    local drawn = monPic(L.sp, x + 3, y + 3, ps, L.picMon)
     if not drawn then monIcon(L.sp, x + 3 + ps * 0.1, y + 3 + ps * 0.1, ps * 0.8) end
     local tx = x + ps + 6
     local ns = K.fit(L.name, 5.4, w - (tx - x) - 3)
@@ -795,7 +879,7 @@ return function(ctx, env)
     -- (not stepping: your maximum while it leads, else the least you could bid)
     local amount = stepping and st.amount or (L.mine and L.leader == 0 and L.mine.max or Au.minBid(L))
     local sb = K.R(x + 4, y + h - 25, 22, 10)
-    K.grad(sb, 3.2, C.cardHi, C.card)
+    K.glass(sb, 3.2, 0.08, C.white, 0.7, 0.22)
     K.col(C.line)
     K.box("fill", K.R(sb[1] + 11, sb[2] + 2.2, 0.3, 5.6))
     K.text("-", sb[1], sb[2] + 1.4, 6, C.text, "center", 11)
@@ -808,13 +892,13 @@ return function(ctx, env)
     local go = K.R(x + 4, y + h - 13, w - 8, 10)
     local ended = left <= 30
     if ended then
-      K.col(C.cardHi)
-      K.box("fill", go, 3.2)
+      K.glass(go, 3.2, 0.06, C.white, 0.4, 0.14)
     else
       local p = 0.5 + 0.5 * sin(clock * 4)
-      K.col(C.red, 0.25 * p)
-      K.box("fill", K.R(go[1] - 1.5, go[2] - 1.5, go[3] + 3, go[4] + 3), 4.5)
+      K.glow(go[1] + go[3] / 2, go[2] + go[4] / 2, go[3] * 0.62, go[4] * 1.3, C.red, 0.16 + 0.14 * p)
       K.grad(go, 3.2, C.redTop, C.redDeep)
+      K.grad(K.R(go[1], go[2], go[3], go[4] * 0.5), 3.2, SHEEN, SHEEN_END)
+      K.ring(go, 3.2, C.white, 0.22, 0.35)
       K.scissor(go)
       shimmer(go, clock, 3.2, 0.3)
       K.scissor(nil)
@@ -830,7 +914,7 @@ return function(ctx, env)
   -- My Bids: the running ones (your max, winning or outbid, the time left), then the results (a win
   -- in gold, sparkling)
   local function drawMine(x, y, w, h, t, clock)
-    K.grad(K.R(x, y, w, h), 4, C.cardTop, C.card)
+    pane(K.R(x, y, w, h), 4)
     st.visible = max(1, floor((h - 2) / ROW_H))
     clampList()
     local clip = K.R(x, y + 1, w, h - 2)
@@ -838,23 +922,27 @@ return function(ctx, env)
     if st.mineN == 0 then
       K.text(T("auction.none"), x, y + h / 2 - 3, 4.6, C.faint, "center", w)
     end
+    if st.mineRows[st.mineCursor] then
+      mv.mineY = glide(mv.mineY, (st.mineCursor - 1 - st.mineTop) * ROW_H, st.mineTop, mv.mineTop)
+      lit(K.R(x + 1.5, y + 1.4 + mv.mineY, w - 3, ROW_H - 0.8), 2.5, C.red, 0.2, 0.45)
+    end
+    mv.mineTop = st.mineTop
     local first = floor(st.mineTop) + 1
     local last = min(st.mineN, first + st.visible + 1)
+    local since = mv.clock - mv.tabAt
     for i = first, last do
+      local e = K.stagger(since, i - first, 0.035, 0.28)
+      local f = fadeTo(e)
       local r = st.mineRows[i]
-      local ry = y + 1 + (i - 1 - st.mineTop) * ROW_H
+      local ry = y + 1 + (i - 1 - st.mineTop) * ROW_H + (1 - e) * 4
       local rb = K.R(x + 1.5, ry + 0.4, w - 3, ROW_H - 0.8)
       local running = i <= st.mineBids
       local L = running and listingOf(r.key) or nil
       local lead = L and L.leader == 0
       local stripe = running and (L and (lead and C.green or C.red) or C.faint) or (r.won and C.gold or C.faint)
       if r.won and not running then
-        K.grad(rb, 2.5, C.wonTop, C.card)
+        K.grad(rb, 2.5, WON_WASH, WON_CLEAR)
         sparkle(x + 12, ry + 2.5, 1 + 0.6 * abs(sin(clock * 4 + i)), C.goldTop, 0.9)
-      end
-      if i == st.mineCursor then
-        K.col(C.redSoft)
-        K.box("fill", rb, 2.5)
       end
       K.col(stripe, (running and not lead and L) and (0.55 + 0.45 * abs(sin(clock * 4))) or 1)
       K.box("fill", K.R(rb[1] + 0.6, rb[2] + 1.6, 1.1, rb[4] - 3.2), 0.5)
@@ -882,6 +970,7 @@ return function(ctx, env)
         K.box("fill", K.R(x + 15, ry + ROW_H - 0.2, w - 17, 0.25))
       end
       K.addHit(rb, "win", MINE + i, clip)
+      K.setFade(f)
     end
     K.scrollbar(x + w, y + 1, h - 2, st.mineTop, st.visible, st.mineN)
     K.scissor(nil)
@@ -892,7 +981,7 @@ return function(ctx, env)
   -- the note across the top: back, ENDED, the auction is over
   local function drawOver(x, y, w)
     local b = K.R(x, y, w, 9)
-    K.grad(b, 3, C.cardHi, C.card)
+    K.glass(b, 3, 0.5, GLASS, 0.22, 0.18)
     K.chevron(x + 4.5, y + 4.5, 4.4, C.text, -1)
     K.addHit(K.R(x, y, 14, 9), "win", RECAP_BACK)
     local pw = pill(T("auction.ended"), x + 9.5, y + 2.2, 3.4, C.redDeep)
@@ -903,20 +992,22 @@ return function(ctx, env)
   -- the Pokémon: its picture on its tier's glow, name, tier, level, shiny, types; the IVs when there's room
   local function drawRecapMon(R, x, y, w, h, clock)
     local b = K.R(x, y, w, h)
-    K.grad(b, 4, C.cardTop, C.card)
-    local tc = TIER_C[R.tier] or TIER_C.common
+    pane(b, 4)
+    local tier = TIER_C[R.tier] and R.tier or "common"
+    local tc = TIER_C[tier]
     local ps = min(26, h - 6)
     local ax, ay = x + 3 + ps / 2, y + 3 + ps / 2
-    K.grad(K.R(x, y, w, ps + 6), 4, TIER_DARK[R.tier] or TIER_DARK.common, C.card)
+    K.grad(K.R(x, y, w, ps + 6), 4, TIER_WASH[tier], TIER_CLEAR[tier])
     K.scissor(K.R(x, y, w, ps + 6))
     if R.tier == "legendary" or R.tier == "mythical" or R.tier == "prized" then rays(ax, ay, ps * 1.1, clock, tc, 0.18) end
+    K.glow(ax, ay, ps * 0.7, ps * 0.65, tc, 0.4)
     local g = G()
     for k = 3, 1, -1 do
-      K.col(tc, 0.1 * k)
+      K.col(tc, 0.07 * k)
       g.circle("fill", K.X(ax), K.Y(ay), ps * (0.2 + 0.12 * (3 - k)) * K.sc)
     end
     K.scissor(nil)
-    local drawn = env.monPic and env.monPic(R.sp, x + 3, y + 3, ps, 1, R.picMon)
+    local drawn = monPic(R.sp, x + 3, y + 3, ps, R.picMon)
     if not drawn then monIcon(R.sp, x + 3 + ps * 0.1, y + 3 + ps * 0.1, ps * 0.8) end
     local tx = x + ps + 6
     local name = R.name or "?"
@@ -939,7 +1030,8 @@ return function(ctx, env)
   -- or got back, where it went, how many bid; the last bids while there's room
   local function drawRecapResult(R, x, y, w, h, t, clock)
     local b = K.R(x, y, w, h)
-    if R.won then K.grad(b, 4, C.wonTop, C.card) else K.grad(b, 4, C.cardTop, C.card) end
+    pane(b, 4)
+    if R.won then K.grad(K.R(x, y, w, min(h, 40)), 4, WON_WASH, WON_CLEAR) end
     K.scissor(b)
     local yy = y + 3
     local head = T(R.won and "auction.recap.won" or "auction.recap.lost")
@@ -1007,19 +1099,33 @@ return function(ctx, env)
     end
     K.scissor(nil)
   end
+  -- (the note, the Pokémon's card and the result's rising in one after another as it opens)
   local function drawRecap(R, x, y, w, h, t, clock)
-    drawOver(x, y, w)
+    local since = mv.clock - mv.recapAt
+    local e = K.stagger(since, 0, 0.07, 0.3)
+    local f = fadeTo(e)
+    drawOver(x, y + (1 - e) * 4, w)
+    K.setFade(f)
     local top = y + 9 + M
     local bh = y + h - top
+    local e1, e2 = K.stagger(since, 1, 0.07, 0.32), K.stagger(since, 2, 0.07, 0.32)
     if w >= 150 and w > bh * 1.2 then
       local lw = floor((w - M) * 0.48)
-      drawRecapMon(R, x, top, lw, bh, clock)
-      drawRecapResult(R, x + lw + M, top, w - lw - M, bh, t, clock)
+      f = fadeTo(e1)
+      drawRecapMon(R, x, top + (1 - e1) * 6, lw, bh, clock)
+      K.setFade(f)
+      f = fadeTo(e2)
+      drawRecapResult(R, x + lw + M, top + (1 - e2) * 6, w - lw - M, bh, t, clock)
+      K.setFade(f)
     else
       -- (stacked: the Pokémon's card short, its IVs only when the result still has room)
       local mh = (bh >= 32 + 21 + 60) and 53 or 32
-      drawRecapMon(R, x, top, w, mh, clock)
-      drawRecapResult(R, x, top + mh + M, w, bh - mh - M, t, clock)
+      f = fadeTo(e1)
+      drawRecapMon(R, x, top + (1 - e1) * 6, w, mh, clock)
+      K.setFade(f)
+      f = fadeTo(e2)
+      drawRecapResult(R, x, top + mh + M + (1 - e2) * 6, w, bh - mh - M, t, clock)
+      K.setFade(f)
     end
   end
 
@@ -1027,17 +1133,20 @@ return function(ctx, env)
   local function drawHead(x, y, w, clock)
     K.grad(K.R(x, y + 1, 8, 8), 2, C.redTop, C.redDeep)
     K.bold("R", x, y + 1.9, 5.4, C.white, "center", 8)
+    -- (Browse | My Bids: a switch of the smoked glass, its red thumb sliding to the tab)
     local sx, sw = x + 11, min(70, w * 0.5)
-    K.col(C.card)
-    K.box("fill", K.R(sx, y + 1, sw, 8), 2.6)
+    local tb = K.R(sx, y + 1, sw, 8)
+    K.glass(tb, 4, 0.4, GLASS, 0.2, 0.2)
     local half = sw / 2
+    local want = st.tab == "browse" and 1 or 2
+    mv.thumb = mv.thumb and K.approach(mv.thumb, want, mv.dt, 16) or want
+    lit(K.R(sx + 0.5 + (mv.thumb - 1) * (half - 0.5), y + 1.5, half - 0.5, 7), 3.5, C.red, 0.42, 0.7)
     for i = 1, 2 do
-      local on = (i == 1) == (st.tab == "browse")
+      local on = abs(mv.thumb - i) < 0.5
       local b = K.R(sx + 0.5 + (i - 1) * half, y + 1.5, half - 1, 7)
-      if on then K.grad(b, 2.2, C.cardHi, C.card) end
       local label = T(i == 1 and "auction.browse" or "auction.mine")
       local fs = K.fit(label, 4.2, half - 4)
-      if on then K.bold(label, b[1], b[2] + 1.3, fs, C.text, "center", b[3])
+      if on then K.bold(label, b[1], b[2] + 1.3, fs, C.white, "center", b[3])
       else K.text(label, b[1], b[2] + 1.3, fs, C.soft, "center", b[3]) end
       K.addHit(b, "win", i == 1 and SEG_BROWSE or SEG_MINE)
     end
@@ -1058,14 +1167,44 @@ return function(ctx, env)
     local x, y, w, h = body[1], body[2], body[3], body[4]
     local t = clockNow()
     seTick(now())
-    K.col(C.bg)
-    K.box("fill", body)
+    -- (what changed since the last frame starts its motion)
+    local dt = mv.lastT and max(0, min(0.1, clock - mv.lastT)) or 0
+    mv.lastT, mv.clock, mv.dt = clock, clock, dt
+    if mv.tab ~= st.tab then
+      mv.tab, mv.tabAt, mv.rowY, mv.mineY = st.tab, clock, nil, nil
+    end
+    if mv.recap ~= st.recap then mv.recap, mv.recapAt = st.recap, clock end
     local L = current()
     pickHot(t)
     if st.tab == "mine" then rebuildMine(false) end
+    -- (the backdrop's light: the shown Pokémon's type, else its tier's colour; eased)
+    local shown, tier = nil, nil
+    if st.tab == "browse" then
+      if L then shown, tier = typeColour(L.types), L.tier end
+    elseif st.recap then
+      shown, tier = typeColour(st.recap.types), st.recap.tier
+    else
+      local r = st.mineRows[st.mineCursor]
+      if r then
+        local RL = st.mineCursor <= st.mineBids and listingOf(r.key) or nil
+        shown, tier = typeColour(RL and RL.types or r.types), r.tier
+      end
+    end
+    shown = shown or TIER_C[tier] or C.red
+    local lc = mv.lit
+    if mv.litOn then
+      lc[1], lc[2], lc[3] = K.approach(lc[1], shown[1], dt, 5), K.approach(lc[2], shown[2], dt, 5),
+        K.approach(lc[3], shown[3], dt, 5)
+    else
+      lc[1], lc[2], lc[3], mv.litOn = shown[1], shown[2], shown[3], true
+    end
+    backdrop(body, clock)
+    K.scissor(body)
     drawHead(x + M, y + 1, w - M * 2, clock)
     local top = y + HEAD_H + 1.5
     local bodyH = y + h - M - top
+    -- (the cards rising in, one after another, as the tab opens)
+    local since = clock - mv.tabAt
     if st.tab == "mine" and st.recap then
       drawRecap(st.recap, x + M, top, w - M * 2, bodyH, t, clock)
     elseif st.tab == "mine" then
@@ -1079,17 +1218,29 @@ return function(ctx, env)
       local gap = M
       if hh < 22 then hh, gap = 0, 0 end
       local lh = bodyH - dh - hh - gap - M
-      if hh > 0 then drawHot(x + M, top, w - M * 2, hh, clock, t) end
+      local e = K.stagger(since, 0, 0.08, 0.32)
+      local f = fadeTo(e)
+      if hh > 0 then drawHot(x + M, top + (1 - e) * 6, w - M * 2, hh, clock, t) end
+      K.setFade(f)
       drawBrowseList(x + M, top + hh + gap, w - M * 2, lh, st.focus == "list", t, clock)
       K.scissor(body)
-      drawDetail(L, x + M, top + hh + gap + lh + M, w - M * 2, dh, t, dh < 92, clock)
+      e = K.stagger(since, 2, 0.08, 0.32)
+      f = fadeTo(e)
+      drawDetail(L, x + M, top + hh + gap + lh + M + (1 - e) * 6, w - M * 2, dh, t, dh < 92, clock)
+      K.setFade(f)
     else
       local lw = floor((w - M * 3) * 0.52)
       local hh = min(34, bodyH * 0.38)
-      drawHot(x + M, top, lw, hh, clock, t)
+      local e = K.stagger(since, 0, 0.08, 0.32)
+      local f = fadeTo(e)
+      drawHot(x + M, top + (1 - e) * 6, lw, hh, clock, t)
+      K.setFade(f)
       drawBrowseList(x + M, top + hh + M, lw, bodyH - hh - M, st.focus == "list", t, clock)
       K.scissor(body)
-      drawDetail(L, x + M * 2 + lw, top, w - M * 3 - lw, bodyH, t, bodyH < 80, clock)
+      e = K.stagger(since, 1, 0.08, 0.32)
+      f = fadeTo(e)
+      drawDetail(L, x + M * 2 + lw, top + (1 - e) * 6, w - M * 3 - lw, bodyH, t, bodyH < 80, clock)
+      K.setFade(f)
     end
     drawParticles(clock, body)
     K.scissor(body)

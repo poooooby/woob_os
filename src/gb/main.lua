@@ -204,10 +204,13 @@ return function(mod, loadSibling)
     end
     local G = Kit.graphics()
     local b = Kit.R(x + size * 0.06, y + size * 0.06, size * 0.88, size * 0.88)
-    Kit.col(t.colour, a)
+    -- (`a` is the whole alpha, the kit's fade already in it, as the Gen 3 icons take it; none: the fade)
+    local al = a or Kit.getFade()
+    local c = t.colour
+    G.setColor(c[1] / 255, c[2] / 255, c[3] / 255, (c[4] or 1) * al)
     Kit.box("fill", b, size * 0.24)
     if Desktop and Desktop.glyph then
-      pcall(Desktop.glyph, G, t.glyph, Kit.X(x + size / 2), Kit.Y(y + size / 2), size * Kit.sc * 0.62, a or 1, t.colour)
+      pcall(Desktop.glyph, G, t.glyph, Kit.X(x + size / 2), Kit.Y(y + size / 2), size * Kit.sc * 0.62, al, t.colour)
     end
   end
   env.inv = Gd and makeInv and makeInv(Host, Gd) or nil
@@ -518,7 +521,7 @@ return function(mod, loadSibling)
     if Desktop.isOpen() then Desktop.padTransfer(id, dir, kind) end
   end }
   env.apps = Apps
-  env.appIcon = function(app, x, y, size) Desktop.appIcon(app, x, y, size) end
+  env.appIcon = function(app, x, y, size, a) Desktop.appIcon(app, x, y, size, nil, a) end
   env.glyph = Desktop.glyph
   env.amount = function(n, x, y, size, c, measure) return Desktop.amount(n, x, y, size, c, measure) end
 

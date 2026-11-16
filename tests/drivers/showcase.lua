@@ -9,7 +9,7 @@
 --   POKEPORT_DRIVER=mods/woob_os/tests/drivers/showcase.lua "/c/Program Files/LOVE/lovec.exe" .
 --
 -- SHOWCASE_AUTO=<dir> walks every scene by itself through the same keys, a screenshot of each in <dir>
--- and a log (driver.log), then quits.
+-- and a log (driver.log), then quits. SHOWCASE_BARE=1: no caption over the screenshots.
 
 local CENTER = { frlg = "VIRIDIAN_CITY_POKEMON_CENTER_1F", rse = "OLDALE_TOWN_POKEMON_CENTER_1F" }
 local HOUSE = "LITTLEROOT_TOWN_BRENDANS_HOUSE_2F"
@@ -71,14 +71,23 @@ local function body(game, log, auto)
   end
   local function seed()
     s0.money = 999999
-    s0.party = make({ 25, 6, 9, 3, 94, 143 }, 42)
+    s0.party = make({ 25, 6, 9, 3, 94, 29 }, 42)
     if s0.party[2] then s0.party[2].hp = math.floor((s0.party[2].maxHp or 10) * 0.4) end
     local stor = Storage.ensure(s0)
     for b = 1, 3 do stor.boxes[b].mons = {} end
-    local boxed = make({ 1, 4, 7, 133, 150, 151, 152, 155, 158, 175, 249, 250, 280, 380, 381 }, 20)
+    local boxed = make({ 32, 1, 4, 7, 133, 150, 151, 143, 158, 175, 249, 250, 280, 380, 381 }, 20)
     for i, m in ipairs(boxed) do stor.boxes[1].mons[i * 2 - 1] = m end
-    if boxed[4] then boxed[4].isShiny = true end
-    if boxed[6] then boxed[6].isShiny = true end
+    if boxed[5] then boxed[5].isShiny = true end
+    if boxed[7] then boxed[7].isShiny = true end
+    -- (the Pokédex given, everything lent here caught, every species seen)
+    setFlag("FLAG_SYS_POKEDEX_GET")
+    local Dex, dex = require("src.core.game3.dex"), s0.dex or s0.pokedex
+    if dex then
+      for n = 1, 386 do pcall(Dex.setSeen, dex, nat(n)) end
+      for _, list in ipairs({ s0.party, boxed }) do
+        for _, m in ipairs(list) do pcall(Dex.setCaught, dex, m.species) end
+      end
+    end
     stor.currentBox = 1
     stor.items = { { id = 13, qty = 5 }, { id = 2, qty = 12 }, { id = 68, qty = 3 } }
     s0.bag = Bag.new()
@@ -90,6 +99,14 @@ local function body(game, log, auto)
     Mail.clear(rec)
     rec.itemId, rec.playerName, rec.species = 121, "MOM", nat(25)
     rec.words[1], rec.words[2], rec.words[4] = 0x200, 0x201, 0x400
+    -- (three more letters, each its own stationery)
+    for i, m in ipairs({ { 123, "KAI", 133, 0x202, 0x401 }, { 126, "NOVA", 175, 0x203, 0x402 },
+                         { 130, "RIO", 258, 0x204, 0x403 } }) do
+      local r = Mail.pool(s0)[7 + i]
+      Mail.clear(r)
+      r.itemId, r.playerName, r.species = m[1], m[2], nat(m[3])
+      r.words[1], r.words[4] = m[4], m[5]
+    end
     local function fame(n, lv)
       return { species = nat(n), level = lv, nickname = n == 25 and "SPARKY" or Poke.name(nat(n)), trainerId = 4242, personality = n * 7 }
     end
@@ -194,8 +211,9 @@ local function body(game, log, auto)
 
   -- ------- the scenes
 
-  local function app(id, title, words, mode, after)
+  local function app(id, title, words, mode, after, before)
     return { title = title, words = words, enter = function()
+      if before then before() end
       desk(mode or "select")
       if not D.openApp(id) then error("no app " .. id) end
       if not waitFor(function() return D.window() ~= nil end, 240) then error(id .. " didn't open") end
@@ -245,13 +263,28 @@ local function body(game, log, auto)
     end },
 
     app("storage", "Boxes", "Party and every box, with Select, Swap and Drag. The Poke Ball on the shelf holds what you carry. Two shinies sparkle in the grid."),
+    app("storage", "Summary", "A Pokemon's own page, in the Boxes window: its stats, moves and where it came from.", nil, function(W)
+      W.summary({ loc = "party", slot = 2 })
+    end),
+    app("pokedex", "Pokedex", "The Pokedex as a modern app: the list beside the chosen one's page, animated."),
     app("items", "Items", "Your Bag and the PC's items side by side. The pad under the monitor shows them going across."),
     app("mail", "Mail", "An inbox for the PC's mailbox: read a letter, take it to the Bag, give it to a Pokemon."),
     app("mart", "Mart", "Buy and sell from the PC. More stock with each Gym Badge (all eight lent here).", nil, function(W)
       W.state.badges = 8
     end),
     app("gts", "GTS", "The Global Trade Station: Wonder Trade, listings, and your own deposits."),
-    app("auction", "R-Bay", "Team Rocket's auctions for Pokemon, with rival bidders and a Hot Auction."),
+    app("auction", "R-Bay", "Team Rocket's auctions for Pokemon, with rival bidders and a Hot Auction.", nil, function(W)
+      -- (two of the listings made Nidoran: the names' signs on show)
+      waitFor(function() return W.state.rows and #W.state.rows >= 4 end, 60)
+      -- (neither the Hot Auction nor the chosen one: their pictures are the listing's own)
+      local st, n = W.state, 0
+      for i, L in ipairs(st.rows or {}) do
+        if n < 2 and L.key ~= st.hotKey and i ~= st.cursor then
+          n = n + 1
+          L.sp, L.name = nat(n == 1 and 29 or 32), Poke.name(nat(n == 1 and 29 or 32))
+        end
+      end
+    end),
     app("slots", "Rocket Slots", "A five-reel video slot: wilds, free spins, Auto, and a prize corner."),
     app("phone", "Phone", "Match Call's contacts, recents and favourites (Trainer's Eyes on Ruby and Sapphire)."),
     app("condition", "Condition", "The contest conditions on a radar. Compare two Pokemon and feed them Pokeblocks."),
@@ -264,6 +297,34 @@ local function body(game, log, auto)
     app("pcgames", "PC Games", "The PC Games mod's games, crisp, across the monitor."),
     app("store", "App Store", "Take R-Bay, Slots, the GTS, the Mart or another mod's app off the home screen, or get it back."),
     app("settings", "Settings", "Language, wallpapers, and more. Careful: changes here are your real settings."),
+    app("bank", "Bank", "Savings with interest, and what the wallet can't hold."),
+    app("errands", "Errands", "Send a team out on a job; they come back with pay and EXP."),
+    app("challenges", "Challenges", "This week's challenges, from what you really do."),
+    app("news", "News", "The day's broadcast: Rookie Watch follows you, the World the region.", nil, nil, function()
+      -- (a week made up for the anchor: counts, a clean sweep, a catch, an evolution)
+      local Jr = T.journal
+      if not Jr then return end
+      local c = Jr.counts()
+      -- (small enough that no challenge completes and a banner covers the next scenes)
+      c.trainer, c.caught, c.steps = 2, 1, 420
+      local now = os.time()
+      local wins = Jr.wins()
+      if #wins == 0 then
+        wins[1] = { cls = "YOUNGSTER", name = "JOEY", map = s0.map, mine = { nat(25), nat(6) }, theirs = { nat(19) },
+                    me = 2, them = 0, turns = 4, at = now - 60 }
+      end
+      local log = Jr.log()
+      if #log == 0 then
+        log[1] = { k = "evolve", from = nat(4), sp = nat(5), at = now - 30 }
+        log[2] = { k = "catch", sp = nat(133), new = true, at = now - 90 }
+      end
+    end),
+    app("news", "News: a field report", "Rookie Watch tells the rest as the desk's reports, you by name.", nil, function(W)
+      local st = W.state
+      for i, story in ipairs(st and st.cast.stories or {}) do
+        if story.key == "challenges" then st.i, st.full, st.lines, st.top = i, true, nil, 0 end
+      end
+    end),
     { title = "Decorate", words = "A catalogue of your decorations, in the real bedroom. Place in Room hands you the game's cursor.", enter = function()
       if not (D.isOpen() and D.state().ctx.mode == "bedroom") then
         clearAll()
@@ -372,10 +433,11 @@ local function body(game, log, auto)
   local cur, trouble, shownAt = 0, nil, 0
   local titleFont, wordFont
   local drawWas = love.draw
+  local bare = os.getenv("SHOWCASE_BARE") == "1"
   love.draw = function(...)
     drawWas(...)
     local sc = scenes[cur]
-    if not sc then return end
+    if not sc or bare then return end
     local fade = trouble and 1 or math.max(0, 1 - math.max(0, love.timer.getTime() - shownAt - CAPTION_FOR) / CAPTION_FADE)
     if fade <= 0 then return end
     local G = love.graphics

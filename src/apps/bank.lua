@@ -162,16 +162,22 @@ return function(ctx, env)
 
   -- ------- drawing (no tables made here)
 
-  -- a private bank at night: deep green glass, mint light, gold
-  local BG_TOP, BG_FOOT = { 10, 44, 44 }, { 3, 14, 20 }
-  local CARD_TOP, CARD_FOOT = { 34, 190, 146 }, { 8, 78, 84 }
+  -- a private bank in the Pokédex's glass: mint and gold lights drifting behind; the card a pane of deep
+  -- green glass, the wallet, the amount, the chips and the activity on frosted panes, settling in one
+  -- after another as it opens
+  local CARD_TOP, CARD_FOOT = { 34, 190, 146 }, { 8, 98, 100 }
+  local CARD_SOFT = { 206, 242, 230 }
+  local SHEEN_TOP, SHEEN_FOOT = { 255, 255, 255, 0.32 }, { 255, 255, 255, 0 }
   local GOLD, GOLD_FOOT = { 255, 222, 128 }, { 196, 146, 44 }
-  local MINT, MINT_DEEP = { 110, 240, 196 }, { 24, 170, 130 }
-  local WHITE, SOFT, FAINT = { 255, 255, 255 }, { 196, 226, 218 }, { 118, 160, 152 }
-  local GLASS, EDGE = { 255, 255, 255, 0.06 }, { 255, 255, 255, 0.1 }
-  local IN_C, OUT_C, OVER_C, RATE_C = { 110, 240, 196 }, { 255, 150, 120 }, { 255, 214, 110 }, { 150, 190, 255 }
-  local BTN_TOP, BTN_FOOT, BTN_OFF = { 70, 230, 170 }, { 18, 150, 112 }, { 255, 255, 255, 0.08 }
+  local MINT, MINT_DEEP, MINT_INK = { 110, 240, 196 }, { 24, 170, 130 }, { 8, 124, 92 }
+  local WHITE, INK, SOFT, FAINT = { 255, 255, 255 }, { 28, 28, 30 }, { 112, 112, 120 }, { 160, 160, 170 }
+  local SHADE = { 0, 0, 0 }
+  local IN_C, OUT_C, OVER_C, RATE_C = { 20, 168, 124 }, { 236, 100, 70 }, { 214, 150, 20 }, { 72, 126, 240 }
+  local BTN_TOP, BTN_FOOT = { 52, 214, 160 }, { 14, 140, 104 }
   local COINS = 9
+  -- the motion's numbers (the view's own: st is the window's)
+  local mv = { lastT = nil, dt = 0, openAt = nil, sw = nil, first = nil, seen = false, slide = 0,
+               newAt = -10 }
 
   local function money(n, x, y, size, c, right)
     if not env.amount then return 0 end
@@ -185,34 +191,38 @@ return function(ctx, env)
     local ok, w = pcall(env.amount, n, 0, 0, size, WHITE, true)
     return ok and tonumber(w) or 0
   end
-  local function glass(b, rad)
-    K.col(GLASS)
-    K.box("fill", b, rad)
-    K.ring(b, rad, EDGE, 1, 0.4)
+  local ease = K.outCubic
+  -- (a pane settling in: the i-th, `since` seconds after the window opened -> how far in, 0..1; its
+  -- fade set, the old one returned)
+  local function enter(i)
+    local e = K.stagger(mv.since, i, 0.07, 0.42)
+    local f0 = K.getFade()
+    K.setFade(f0 * e)
+    return e, f0
   end
-  local function ease(k) k = min(1, max(0, k)) return 1 - (1 - k) * (1 - k) * (1 - k) end
 
-  -- the bank card: deep green, a sheen sweeping across now and then, the gold chip, contactless
+  -- the bank card: deep green glass, a sheen sweeping across now and then, the gold chip, contactless
   -- waves, the balance counting to what it is
   local function drawCard(x, y, w, h, clock)
     local G = K.graphics()
     local b = K.R(x, y, w, h)
-    K.glow(x + w / 2, y + h * 0.7, w * 0.6, h * 0.7, MINT_DEEP, 0.22)
-    K.shadow(b, 6, 2, 0.45)
-    K.grad(b, 6, CARD_TOP, CARD_FOOT)
+    K.shadow(b, 6, 1.6, 0.22)
+    K.grad(b, 6, CARD_TOP, CARD_FOOT, 0.94)
+    K.grad(K.R(x, y, w, min(h, 16)), 6, SHEEN_TOP, SHEEN_FOOT)
     -- (the card's pattern: two large soft circles; the sheen, a band across it every few seconds)
     K.scissor(b)
-    K.col(WHITE, 0.07)
+    K.col(WHITE, 0.08)
     G.circle("fill", K.X(x + w * 0.88), K.Y(y + h * 0.1), h * 0.75 * K.sc)
-    K.col(WHITE, 0.05)
+    K.col(WHITE, 0.06)
     G.circle("fill", K.X(x + w * 0.72), K.Y(y + h * 1.05), h * 0.6 * K.sc)
     local p = (clock * 0.28) % 1.6
     if p < 1 then
       local sx = x - w * 0.3 + p * w * 1.6
-      K.col(WHITE, 0.16 * math.sin(p * math.pi))
+      K.col(WHITE, 0.18 * math.sin(p * math.pi))
       G.polygon("fill", K.X(sx), K.Y(y), K.X(sx + w * 0.12), K.Y(y), K.X(sx - w * 0.06), K.Y(y + h), K.X(sx - w * 0.18), K.Y(y + h))
     end
     K.scissor(st.clip)
+    K.ring(b, 6, WHITE, 0.6, 0.4)
     -- (the chip, the waves)
     local cb = K.R(x + 5, y + 11, 10, 7)
     K.grad(cb, 1.8, GOLD, GOLD_FOOT)
@@ -225,12 +235,10 @@ return function(ctx, env)
       G.arc("line", "open", K.X(x + 17.5), K.Y(y + 14.5), (1.2 + i * 1.1) * K.sc, -0.7, 0.7, 10)
     end
     K.bold(T("bank.name"), x + 5, y + 4.5, 4.4, WHITE)
-    K.text(T("bank.balance"), x + 5, y + h - 15.5, 3.4, SOFT)
+    K.text(T("bank.balance"), x + 5, y + h - 15.5, 3.4, CARD_SOFT)
     -- (the balance, counting up to what it is)
     local target = Bk.balance()
-    local dt = st.lastT and min(0.1, max(0, now() - st.lastT)) or 0
-    st.lastT = now()
-    st.shown = st.shown and (st.shown + (target - st.shown) * min(1, dt * 6)) or target
+    st.shown = st.shown and K.approach(st.shown, target, mv.dt, 6) or target
     if math.abs(target - st.shown) < 1 then st.shown = target end
     local pulse = max(0, 1 - (now() - st.flash) / 0.6)
     local size = K.fit("000,000,000", 8, w - 10) * (1 + 0.08 * pulse)
@@ -242,50 +250,41 @@ return function(ctx, env)
   local function drawWallet(x, y, w, clock)
     local G = K.graphics()
     local b = K.R(x, y, w, 15)
-    glass(b, 4)
+    K.glass(b, 4, 0.55)
     local s = session()
     local m = (env.money and env.money(s) or max(0, floor(tonumber(s and s.money) or 0)))
     local cap = Bk.wallet()
     local k = min(1, m / max(1, cap))
     local cx, cy, r = x + 8, y + 7.5, 4.6
     G.setLineWidth(max(1, 1.3 * K.sc))
-    K.col(WHITE, 0.1)
+    K.col(SHADE, 0.08)
     G.circle("line", K.X(cx), K.Y(cy), r * K.sc)
-    K.col(k >= 1 and OVER_C or MINT)
+    K.col(k >= 1 and OVER_C or MINT_DEEP)
     if k > 0 then G.arc("line", "open", K.X(cx), K.Y(cy), r * K.sc, -math.pi / 2, -math.pi / 2 + 2 * math.pi * k, 32) end
     if k >= 1 then
-      K.col(OVER_C, 0.25 + 0.2 * math.sin(clock * 4))
+      K.col(OVER_C, 0.2 + 0.15 * math.sin(clock * 4))
       G.circle("fill", K.X(cx), K.Y(cy), (r - 1.4) * K.sc)
     end
-    K.text(T("bank.wallet"), x + 16, y + 2.4, 3.4, FAINT)
-    money(m, x + 16, y + 7, 4.8, WHITE)
+    K.text(T("bank.wallet"), x + 16, y + 2.4, 3.4, SOFT)
+    money(m, x + 16, y + 7, 4.8, INK)
     st.walletX, st.walletY = cx, cy
   end
 
-  -- Deposit | Withdraw: a pill, its light sliding to the chosen side
-  local function drawSwitch(x, y, w, h, clock)
-    local b = K.R(x, y, w, h)
-    K.col(WHITE, 0.07)
-    K.box("fill", b, h / 2)
-    local want = st.mode == "in" and 0 or 1
-    local dt = st.swT and min(0.1, max(0, now() - st.swT)) or 0
-    st.swT = now()
-    st.swK = (st.swK or want) + (want - (st.swK or want)) * min(1, dt * 12)
-    local half = (w - 1) / 2
-    local hb = K.R(x + 0.5 + half * st.swK, y + 0.5, half, h - 1)
-    K.grad(hb, (h - 1) / 2, BTN_TOP, BTN_FOOT)
-    local l1, l2 = T("bank.deposit"), T("bank.withdraw")
-    K.bold(l1, x, y + (h - 4.2 * 1.2) / 2, K.fit(l1, 4.2, half - 3), st.mode == "in" and BG_FOOT or SOFT, "center", half)
-    K.bold(l2, x + half, y + (h - 4.2 * 1.2) / 2, K.fit(l2, 4.2, half - 3), st.mode == "out" and BG_FOOT or SOFT, "center", half)
-    K.addHit(K.R(x, y, half, h), "win", TAB_IN)
-    K.addHit(K.R(x + half, y, half, h), "win", TAB_OUT)
+  -- Deposit | Withdraw: the glass switch, its thumb sliding to the chosen side, a line of mint (in) or
+  -- coral (out) under it
+  local function drawSwitch(x, y, w, h)
+    local want = st.mode == "in" and 1 or 2
+    mv.sw = mv.sw and K.approach(mv.sw, want, mv.dt, 16) or want
+    K.glassSwitch(x, y, w, h, mv.sw, "win", TAB_IN, T("bank.deposit"), TAB_OUT, T("bank.withdraw"), nil, nil, 4.2)
+    local sw = (w - 1) / 2
+    K.col(K.mix(IN_C, OUT_C, mv.sw - 1), 0.9)
+    K.box("fill", K.R(x + 0.5 + (mv.sw - 1) * sw + sw * 0.3, y + h - 1.9, sw * 0.4, 0.7), 0.35)
   end
 
   local function drawAmount(x, y, w, clock)
-    drawSwitch(x, y, w, 9, clock)
+    drawSwitch(x, y, w, 9)
     local ab = K.R(x, y + 11, w, 22)
-    glass(ab, 5)
-    K.glow(x + w / 2, y + 21, w * 0.45, 9, MINT_DEEP, 0.18)
+    K.glass(ab, 5, 0.6)
     local size = K.fit("000,000,000", 8.5, w - 18)
     -- (a change bumps it a little)
     if st.amount ~= st.lastAmount then st.lastAmount, st.bumpAt = st.amount, now() end
@@ -293,18 +292,18 @@ return function(ctx, env)
     local s2 = size * (1 + 0.07 * bump)
     local aw = measure(st.amount, s2)
     local ax = x + (w - aw) / 2
-    money(st.amount, ax, y + 14 - (s2 - size) * 0.6, s2, st.amount > 0 and WHITE or FAINT)
+    money(st.amount, ax, y + 14 - (s2 - size) * 0.6, s2, st.amount > 0 and INK or FAINT)
     st.amountX, st.amountY = x + w / 2, y + 20
     -- (the digit the buttons change: a glowing bar under it)
     if st.keys and env.amount then
       local sw = measure(0, size) - K.width("0", size)
       local digitW = K.width("0", size)
       local cx = ax + sw + placeAt(st.amount * 16 + st.place) * size / 10
-      K.col(MINT, 0.6 + 0.4 * sin(clock * 6))
+      K.col(MINT_DEEP, 0.6 + 0.4 * sin(clock * 6))
       K.box("fill", K.R(cx, y + 14 + size * 1.15, digitW, 0.8), 0.4)
     end
-    K.text(upToText(most()), x, y + 27.5, 3.4, FAINT, "center", w)
-    -- (the chips: +1,000 +10,000 +100,000 All, and Clear)
+    K.text(upToText(most()), x, y + 27.5, 3.4, SOFT, "center", w)
+    -- (the chips: +1,000 +10,000 +100,000 All, clear glass tinted mint, and Clear)
     local cy = y + 35
     local n = #CHIPS + 2
     local cw = (w - (n - 1) * 1.6) / n
@@ -312,36 +311,41 @@ return function(ctx, env)
       local cb = K.R(x + (i - 1) * (cw + 1.6), cy, cw, 8)
       local label = i <= #CHIPS and chipText[i] or (i == #CHIPS + 1 and T("hint.all") or T("bank.clear"))
       local last = i == n
-      K.col(last and WHITE or MINT, last and 0.06 or 0.12)
+      K.col(WHITE, 0.45)
       K.box("fill", cb, 4)
-      K.ring(cb, 4, last and EDGE or MINT, last and 1 or 0.45, 0.4)
+      if not last then
+        K.col(MINT, 0.26)
+        K.box("fill", cb, 4)
+      end
+      K.ring(cb, 4, WHITE, 0.8, 0.3)
       local fs = K.fit(label, 3.6, cw - 2)
-      K.text(label, cb[1], cb[2] + (8 - fs * 1.2) / 2, fs, last and SOFT or MINT, "center", cw)
+      K.text(label, cb[1], cb[2] + (8 - fs * 1.2) / 2, fs, last and SOFT or MINT_INK, "center", cw)
       K.addHit(cb, "win", last and CLEAR or CHIP + i)
     end
-    -- (the button: lit and breathing when there's something to move)
+    -- (the button: lit and breathing when there's something to move, clear glass when there isn't)
     local gb = K.R(x, cy + 10, w, 11)
     local on = st.amount > 0
     if on then
-      K.col(MINT, 0.18 + 0.12 * sin(clock * 3))
+      K.col(MINT_DEEP, 0.14 + 0.1 * sin(clock * 3))
       K.box("fill", K.R(gb[1] - 1, gb[2] - 1, gb[3] + 2, gb[4] + 2), 6.5)
       K.grad(gb, 5.5, BTN_TOP, BTN_FOOT)
+      K.ring(gb, 5.5, WHITE, 0.45, 0.35)
     else
-      K.col(BTN_OFF)
-      K.box("fill", gb, 5.5)
+      K.glass(gb, 5.5, 0.4)
     end
     if st.keys then K.focusRing(gb, 5.5) end
     local label = T(st.mode == "in" and "bank.deposit" or "bank.withdraw")
-    K.bold(label, gb[1], gb[2] + (11 - 5 * 1.2) / 2, K.fit(label, 5, w - 6), on and BG_FOOT or FAINT, "center", w)
+    K.bold(label, gb[1], gb[2] + (11 - 5 * 1.2) / 2, K.fit(label, 5, w - 6), on and WHITE or FAINT, "center", w)
     K.addHit(gb, "win", GO)
     return cy + 21 - y
   end
 
-  -- the activity: a line each, a coloured badge (in, out, overflow, interest), the amount
+  -- the activity: a line each, a coloured badge (in, out, overflow, interest), the amount; a new line
+  -- slides in at the top, pushing the rest down
   local function badge(kind, cx, cy, r)
     local G = K.graphics()
     local c = kind == "in" and IN_C or (kind == "out" and OUT_C or (kind == "over" and OVER_C or RATE_C))
-    K.col(c, 0.18)
+    K.col(c, 0.16)
     G.circle("fill", K.X(cx), K.Y(cy), r * K.sc)
     K.col(c)
     G.setLineWidth(max(1, r * 0.22 * K.sc))
@@ -361,16 +365,23 @@ return function(ctx, env)
       G.line(X + u * 0.7, Y - u * 0.7, X - u * 0.7, Y + u * 0.7)
     end
   end
-  local function drawActivity(x, y, w, h)
+  local function drawActivity(x, y, w, h, clock)
     if h < 14 then return end
     K.bold(T("bank.activity"), x + 1, y, 4.2, SOFT)
     local lb = K.R(x, y + 6.5, w, h - 6.5)
-    glass(lb, 5)
+    K.glass(lb, 5, 0.5)
     local log = Bk.log()
     st.visible = max(1, floor((lb[4] - 1) / ROW_H))
     st.top = max(0, min(st.top, max(0, #log - st.visible)))
+    -- (a new line at the top: it slides in)
+    local e1 = log[1]
+    if e1 ~= mv.first then
+      if mv.seen then mv.slide, mv.newAt = ROW_H, clock end
+      mv.first, mv.seen = e1, true
+    end
+    mv.slide = K.approach(mv.slide, 0, mv.dt, 10)
     if #log == 0 then
-      K.text(T("bank.none"), lb[1], lb[2] + lb[4] / 2 - 2.5, 4, FAINT, "center", lb[3])
+      K.text(T("bank.none"), lb[1], lb[2] + lb[4] / 2 - 2.5, 4, SOFT, "center", lb[3])
       return
     end
     local clip = K.R(lb[1], lb[2], lb[3], lb[4])
@@ -380,17 +391,26 @@ return function(ctx, env)
     for i = first, min(#log, first + st.visible) do
       local e = log[i]
       local ry = lb[2] + 0.5 + (i - 1 - st.top) * ROW_H
-      badge(e.kind, x + 7, ry + ROW_H / 2, 3.4)
-      K.text(T(KIND[e.kind] or "bank.kind.in"), x + 13, ry + 1.6, 4, WHITE)
-      K.text(agoText(max(0, floor((t - (e.at or t)) / 60))), x + 13, ry + 6.3, 3.1, FAINT)
-      local plus = e.kind ~= "out"
-      local c = e.kind == "in" and SOFT or (plus and IN_C or OUT_C)
-      local mw = money(e.amount, x + w - 4, ry + 3, 4.2, c, true)
-      K.text(e.kind == "in" and "" or (plus and "+" or "-"), x + w - 4 - mw - 3, ry + 3, 4.2, c)
-      if i > first then
-        K.col(WHITE, 0.06)
-        K.box("fill", K.R(x + 13, ry - 0.3, w - 17, 0.3))
+      -- (offsets and a fade, no transform: a push makes garbage in some stand-ins)
+      local k = K.stagger(mv.since, i - first + 3, 0.05, 0.3)
+      local rx = x
+      if i == 1 then
+        k = min(k, ease((clock - mv.newAt) / 0.4))
+        rx = x - (1 - k) * 6
+      else
+        ry = ry - mv.slide
       end
+      local f0 = K.getFade()
+      K.setFade(f0 * k)
+      if i > first then K.hairline(x + 13, ry - 0.3, w - 17) end
+      badge(e.kind, rx + 7, ry + ROW_H / 2, 3.4)
+      K.text(T(KIND[e.kind] or "bank.kind.in"), rx + 13, ry + 1.6, 4, INK)
+      K.text(agoText(max(0, floor((t - (e.at or t)) / 60))), rx + 13, ry + 6.3, 3.1, SOFT)
+      local plus = e.kind ~= "out"
+      local c = e.kind == "in" and INK or (plus and IN_C or OUT_C)
+      local mw = money(e.amount, rx + w - 4, ry + 3, 4.2, c, true)
+      K.text(e.kind == "in" and "" or (plus and "+" or "-"), rx + w - 4 - mw - 3, ry + 3, 4.2, c)
+      K.setFade(f0)
     end
     K.scrollbar(lb[1] + lb[3], lb[2], lb[4], st.top, st.visible, #log)
     K.scissor(st.clip)
@@ -424,25 +444,45 @@ return function(ctx, env)
 
   function W.draw(body, clock, portrait)
     local x, y, w, h = body[1], body[2], body[3], body[4]
+    mv.dt = mv.lastT and max(0, min(0.1, clock - mv.lastT)) or 0
+    mv.lastT = clock
+    mv.openAt = mv.openAt or clock
+    mv.since = clock - mv.openAt
     st.clip = body
     st.amount = min(st.amount, most())
-    -- (the room: deep green, two soft lights drifting)
-    K.grad(body, 0, BG_TOP, BG_FOOT)
-    K.glow(x + w * (0.2 + 0.05 * sin(clock * 0.3)), y + h * 0.2, w * 0.45, h * 0.5, MINT_DEEP, 0.16)
-    K.glow(x + w * (0.85 + 0.04 * sin(clock * 0.23 + 1)), y + h * 0.9, w * 0.4, h * 0.45, GOLD_FOOT, 0.1)
+    -- (the room: mint and gold lights drifting over a pale green wash)
+    K.backdrop(body, clock, 0.24, 0.8, 0.62, 1, 0.8, 0.36)
+    K.scissor(body)
+    local e, f0
     if not portrait and w >= 200 then
       local lw = floor((w - M * 3) * 0.48)
       local rx, rw = x + M * 2 + lw, w - lw - M * 3
-      drawCard(x + M, y + M, lw, 36, clock)
-      drawWallet(x + M, y + M + 39, lw, clock)
-      drawActivity(x + M, y + M + 57, lw, h - M * 2 - 57)
-      drawAmount(rx, y + M, rw, clock)
+      e, f0 = enter(0)
+      drawCard(x + M, y + M + (1 - e) * 5, lw, 36, clock)
+      K.setFade(f0)
+      e, f0 = enter(1)
+      drawWallet(x + M, y + M + 39 + (1 - e) * 5, lw, clock)
+      K.setFade(f0)
+      e, f0 = enter(2)
+      drawActivity(x + M, y + M + 57 + (1 - e) * 5, lw, h - M * 2 - 57, clock)
+      K.setFade(f0)
+      e, f0 = enter(1)
+      drawAmount(rx, y + M + (1 - e) * 5, rw, clock)
+      K.setFade(f0)
     else
       local cw = w - M * 2
-      drawCard(x + M, y + M, cw, 34, clock)
-      drawWallet(x + M, y + M + 37, cw, clock)
-      local used = drawAmount(x + M, y + M + 55, cw, clock)
-      drawActivity(x + M, y + M + 57 + used, cw, h - M * 2 - 57 - used)
+      e, f0 = enter(0)
+      drawCard(x + M, y + M + (1 - e) * 5, cw, 34, clock)
+      K.setFade(f0)
+      e, f0 = enter(1)
+      drawWallet(x + M, y + M + 37 + (1 - e) * 5, cw, clock)
+      K.setFade(f0)
+      e, f0 = enter(2)
+      local used = drawAmount(x + M, y + M + 55 + (1 - e) * 5, cw, clock)
+      K.setFade(f0)
+      e, f0 = enter(3)
+      drawActivity(x + M, y + M + 57 + used + (1 - e) * 5, cw, h - M * 2 - 57 - used, clock)
+      K.setFade(f0)
     end
     drawCoins(clock)
     K.scissor(body)

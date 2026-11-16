@@ -141,6 +141,47 @@ return function(deps)
   K.col = col
   function K.setFade(v) fade = v end
   function K.getFade() return fade end
+  -- motion (the glass windows'; numbers only, nothing made): eases of t in 0..1, a value followed
+  -- smoothly whatever the frame rate, something settling in (K.rise(e, dy, dx): `(1 - e) * dy` lower,
+  -- `dx` across, at `e` of itself, until K.settle(e)), the i-th of a group rising in `since` seconds after
+  -- it started (`each` apart, `dur` long)
+  local function clamp01(t) return t < 0 and 0 or (t > 1 and 1 or t) end
+  function K.outCubic(t)
+    t = clamp01(t)
+    local u = 1 - t
+    return 1 - u * u * u
+  end
+  function K.outBack(t)
+    t = clamp01(t)
+    local u = t - 1
+    return 1 + 2.70158 * u * u * u + 1.70158 * u * u
+  end
+  function K.inOut(t)
+    t = clamp01(t)
+    return t < 0.5 and 4 * t * t * t or 1 - (-2 * t + 2) ^ 3 / 2
+  end
+  function K.approach(cur, target, dt, rate)
+    local v = cur + (target - cur) * (1 - math.exp(-dt * rate))
+    if math.abs(target - v) < 0.002 then return target end
+    return v
+  end
+  local FADES, riseDepth = {}, 0
+  function K.rise(e, dy, dx)
+    if e >= 1 then return end
+    riseDepth = riseDepth + 1
+    FADES[riseDepth] = fade
+    fade = fade * (e > 0 and e or 0)
+    G.push()
+    G.translate((1 - e) * (dx or 0) * sc, (1 - e) * (dy or 0) * sc)
+  end
+  function K.settle(e)
+    if e >= 1 then return end
+    fade = FADES[riseDepth]
+    riseDepth = riseDepth - 1
+    G.pop()
+  end
+  -- (no cutoff on `since`: a branch flipping mid-measure made LuaJIT compile a trace inside a garbage check)
+  function K.stagger(since, i, each, dur) return K.outCubic((since - i * each) / dur) end
   local function box(mode, b, rad)
     G.rectangle(mode, X(b[1]), Y(b[2]), b[3] * sc, b[4] * sc, (rad or 0) * sc, (rad or 0) * sc)
   end
@@ -279,12 +320,119 @@ return function(deps)
   end
   function K.inside(q, x, y) return x >= q[1] and y >= q[2] and x < q[1] + q[3] and y < q[2] + q[4] end
 
-  local function width(s, size) return font(size * sc):getWidth(s) / sc end
+  -- ♀ / ♂: the fonts have neither (NIDORAN♀ drew a box), so a text with one is split once into runs and
+  -- signs (kept, bounded; false: no sign after all) and each sign drawn as a mark in the text's colour
+  local SIGN = "\226\153"
+  local SIGN_F, SIGN_M = { 255, 85, 140 }, { 60, 135, 255 }
+  local signCache, signCount = {}, 0
+  local function signsOf(s)
+    local p = signCache[s]
+    if p ~= nil then return p end
+    if signCount > 300 then signCache, signCount = {}, 0 end
+    local runs, sex, i, from = {}, {}, 1, 1
+    while true do
+      local at = s:find(SIGN, i, true)
+      if not at then break end
+      local b = s:byte(at + 2)
+      if b == 128 or b == 130 then
+        runs[#runs + 1] = s:sub(from, at - 1)
+        sex[#runs] = b == 128 and "F" or "M"
+        from = at + 3
+      end
+      i = at + 3
+    end
+    if #runs == 0 then
+      p = false
+    else
+      runs[#runs + 1] = s:sub(from)
+      p = { runs = runs, sex = sex, plain = table.concat(runs) }
+    end
+    signCache[s], signCount = p, signCount + 1
+    return p
+  end
+  local function signed(s)
+    if type(s) ~= "string" or not s:find(SIGN, 1, true) then return nil end
+    return signsOf(s) or nil
+  end
+  -- (a sign's width in a text of `size` units, its gap before included)
+  local function signW(size) return size * 0.7 end
+  -- a ♀ ("F") or ♂ ("M") s units tall, its top left at x, y, in the colour set
+  local function sexLines(sex, x, y, s)
+    G.setLineWidth(max(1, s * 0.15 * sc))
+    local r = s * 0.27
+    local cx = x + r + s * 0.06
+    if sex == "F" then
+      local cy = y + s * 0.34
+      G.circle("line", X(cx), Y(cy), r * sc)
+      G.line(X(cx), Y(cy + r), X(cx), Y(cy + r + s * 0.36))
+      G.line(X(cx - s * 0.15), Y(cy + r + s * 0.18), X(cx + s * 0.15), Y(cy + r + s * 0.18))
+    else
+      local cy = y + s * 0.62
+      local d = r * 0.72
+      local tx, ty = cx + d + s * 0.26, cy - d - s * 0.26
+      G.circle("line", X(cx), Y(cy), r * sc)
+      G.line(X(cx + d), Y(cy - d), X(tx), Y(ty))
+      G.line(X(tx), Y(ty), X(tx - s * 0.2), Y(ty))
+      G.line(X(tx), Y(ty), X(tx), Y(ty + s * 0.2))
+    end
+  end
+  -- a ♀ / ♂ mark ("F" | "M", either case) s units tall at x, y, in c (default the sign's own pink / blue)
+  function K.sexMark(sex, x, y, s, a, c)
+    local f = sex == "F" or sex == "f"
+    col(c or (f and SIGN_F or SIGN_M), a)
+    local lw = G.getLineWidth and G.getLineWidth() or 1
+    sexLines(f and "F" or "M", x, y, s)
+    G.setLineWidth(lw)
+  end
+  -- does s carry a ♀ / ♂ (a name that shows its own sign: no separate mark beside it, as the games do)
+  function K.hasSign(s) return signed(s) ~= nil end
+
+  local function width(s, size)
+    local p = signed(s)
+    if p then
+      local f, n = font(size * sc), 0
+      for i = 1, #p.runs do n = n + f:getWidth(p.runs[i]) end
+      return n / sc + #p.sex * signW(size)
+    end
+    return font(size * sc):getWidth(s) / sc
+  end
   K.width = width
+  -- (a text with signs: on one line, runs and marks in turn; a wrapped one without its signs)
+  local function signedText(p, f, x, y, size, align, w)
+    local tw = 0
+    for i = 1, #p.runs do tw = tw + f:getWidth(p.runs[i]) / sc end
+    tw = tw + #p.sex * signW(size)
+    if align and w and tw > w + 0.01 then
+      G.printf(p.plain, X(x), Y(y), w * sc, align)
+      return
+    end
+    local cx = x
+    if align == "center" then cx = x + (w - tw) / 2 elseif align == "right" then cx = x + w - tw end
+    local lw = G.getLineWidth and G.getLineWidth() or 1
+    local ms = size * 0.78
+    for i = 1, #p.runs do
+      local run = p.runs[i]
+      if run ~= "" then
+        G.print(run, X(cx), Y(y))
+        cx = cx + f:getWidth(run) / sc
+      end
+      local sx = p.sex[i]
+      if sx then
+        sexLines(sx, cx + size * 0.14, y + size * 0.16, ms)
+        cx = cx + signW(size)
+      end
+    end
+    G.setLineWidth(lw)
+  end
   local function text(s, x, y, size, c, align, w, a)
     local f = font(size * sc)
     G.setFont(f)
     col(c, a)
+    local p = signed(s)
+    if p then
+      signedText(p, f, x, y, size, align, w)
+      return f
+    end
     if align then
       G.printf(s, X(x), Y(y), w * sc, align)
     else
@@ -354,7 +502,7 @@ return function(deps)
   -- start a frame: the page laid out on the window's safe area -> pw, ph (units), portrait
   function K.frame(g, vp, page, clock)
     G = g
-    nRect, nHitRec, fade = 0, 0, 1
+    nRect, nHitRec, fade, riseDepth = 0, 0, 1, 0
     for i = #hits, 1, -1 do hits[i] = nil end
     local ww = tonumber(vp.width) or (tonumber(vp.gameX) or 0) * 2 + (tonumber(vp.gameWidth) or 240)
     local wh = tonumber(vp.height) or (tonumber(vp.gameY) or 0) * 2 + (tonumber(vp.gameHeight) or 160)

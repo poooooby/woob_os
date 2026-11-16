@@ -12,19 +12,30 @@
 --   buttons  Up / Down the setting (then the language, the wallpaper), A open / choose, Left or B
 --            back (from the list, B closes)
 --   touch    tap a setting, a language, a wallpaper; drag (or the wheel) scrolls the wallpapers
+-- The look is the Pokédex's glass: panes over a backdrop lit by the open section's colour. Its motion
+-- (numbers in `mv`, nothing made while it draws): the sidebar's rows sliding in as it opens and its
+-- highlight gliding from section to section, the chosen section's tile popping, the setting's title and
+-- card sliding in and its rows rising one after another when the section changes, the chosen row's
+-- highlight gliding, the switches' knobs sliding (stretching as they go) and their colour easing, a
+-- choice's value sliding in from the side it stepped to, the check popping onto a new language, the
+-- wallpapers popping in, the cursor's ring gliding over them, a badge popping onto the one chosen, the
+-- lists scrolling smoothly; in portrait the setting slides in over the list.
 --
 --   window(ctx, env) -> win (src/apps.lua); env: T, wall, language() / setLanguage(code),
 --   wallpaper() / setWallpaper(id), wallpaperFit() / setWallpaperFit(fit), gameId(),
 --   setting(key, default) / setSetting(key, value), notifications = { apps, setting } (src/notify.lua's
 --   Nt.APPS / Nt.SETTING), apps (src/apps.lua: byId, isInstalled), appIcon(app, x, y, size)
 
-local floor, max, min = math.floor, math.max, math.min
+local floor, max, min, abs, sin, pi = math.floor, math.max, math.min, math.abs, math.sin, math.pi
 
 -- the sections' tiles (the rest of the look is the kit's K.UI)
 local C = { langTile = { 10, 132, 255 }, wallTile = { 175, 82, 222 }, watchTile = { 255, 69, 58 },
             mapTile = { 46, 170, 120 }, navTile = { 255, 92, 160 }, gameTile = { 255, 149, 0 },
             notifyTile = { 255, 59, 48 },
-            switchOff = { 120, 120, 128, 0.28 } }
+            white = { 255, 255, 255 }, black = { 0, 0, 0 } }
+-- (a switch's track: off, a grey glass; on, green; eased between)
+local OFF_R, OFF_G, OFF_B, OFF_A = 120 / 255, 120 / 255, 128 / 255, 0.3
+local ON_R, ON_G, ON_B = 52 / 255, 199 / 255, 89 / 255
 -- the WoobPad, Map and PokéNav sections' rows: switches (the kept setting, its words, on by default) and a
 -- choice (the values A / a tap / Left / Right step through)
 local SOON_CHOICES = { 5, 10, 15, 30 }
@@ -43,7 +54,7 @@ local NAV_TOGGLES = {
 local DEX_TOGGLE, SWARM_TOGGLE = { key = "pokedexApp", label = "settings.pokedexApp" },
   { key = "swarms", label = "settings.swarms" }
 local GAME_TOGGLES = { DEX_TOGGLE, SWARM_TOGGLE }
-local SECTIONS = {
+local ALL_SECTIONS = {
   { id = "language", key = "settings.language", tile = C.langTile },
   { id = "wallpaper", key = "settings.wallpaper", tile = C.wallTile },
   { id = "notify", key = "settings.notifications", tile = C.notifyTile, toggles = NOTIFY_TOGGLES,
@@ -56,7 +67,8 @@ local SECTIONS = {
 }
 -- (a switch's hit: TOGGLE + its section's place * 20 + its row)
 local TOGGLE_SPAN = 20
-local ROW_H, LANG_H, TOGGLE_H = 13, 11, 13
+local M, GAP = 3, 2
+local ROW_H, LANG_H, TOGGLE_H, TITLE_H = 13, 11, 13, 12
 local SIDE, LANG, WALL, BACK, FIT, TOGGLE = 1, 100, 200, 300, 400, 500
 local FITS = { "fill", "stretch" }
 local HINTS = {
@@ -70,6 +82,11 @@ local NO_T = setmetatable({ list = function(l) return l end, f = string.format, 
 return function(ctx, env)
   local K, T, Wall = env.K, env.T or NO_T, env.wall
   local W = { title = "Settings" }
+  -- (the sections this game has: the PokéNav's only on Ruby / Sapphire / Emerald)
+  local SECTIONS = {}
+  for _, sec in ipairs(ALL_SECTIONS) do
+    if not (sec.family and ctx and ctx.family and ctx.family ~= sec.family) then SECTIONS[#SECTIONS + 1] = sec end
+  end
   local function se(name) if env.se then pcall(env.se, name) end end
 
   local st = {
@@ -172,6 +189,7 @@ return function(ctx, env)
     local _, j = choiceOf(t)
     j = (j - 1 + d) % #t.choices + 1
     env.setSetting(t.key, t.choices[j])
+    t.dir = d > 0 and 1 or -1
     se("SE_SELECT")
     return true
   end
@@ -309,12 +327,27 @@ return function(ctx, env)
     return T.list((section() == "wallpaper" and picture()) and HINTS.picture or HINTS.detail)
   end
 
-  -- ------- drawing (no tables made here)
+  -- ------- drawing (no tables, closures or strings made here)
+
+  local UI = K.UI
+  local G = nil
+  local outCubic, outBack, approach, rise, settle, stagger = K.outCubic, K.outBack, K.approach, K.rise, K.settle,
+    K.stagger
+  -- the motion's numbers: when the window opened, when the section last changed (its rows rise again),
+  -- the sidebar's highlight, the chosen row's, the cursor's ring over the wallpapers, the eased scrolls,
+  -- the Fill | Stretch thumb, the portrait page's slide, the backdrop's colours
+  local mv = { lastT = nil, openAt = nil, sec = nil, secAt = -10, reading = false, sideY = 1, rowY = 1, rowSec = nil,
+               focusK = 0, push = 0, ttop = 0, wtop = 0, wx = 0, wy = 0, wallSec = nil, fitX = 1, lang = nil,
+               langAt = -10, wall = nil, wallAt = -10, coloured = false,
+               r = 0.5, g = 0.5, b = 0.5, r2 = 0.5, g2 = 0.5, b2 = 0.5 }
+  W.motion = mv
+  -- (the portrait page's slide, units: the clips follow it; the body, the scissor put back)
+  local offX, bodyNow = 0, nil
+  local function clip(x, y, w, h) return K.R(x + offX, y, w, h) end
 
   local function tileGlyph(id, x, y, s)
-    local G = K.graphics()
     local cx, cy, u = K.X(x + s / 2), K.Y(y + s / 2), s * K.sc
-    G.setColor(1, 1, 1, 1)
+    K.col(C.white)
     G.setLineWidth(max(1, u * 0.08))
     if id == "language" then
       local r = u * 0.3
@@ -337,7 +370,7 @@ return function(ctx, env)
       G.polygon("fill", cx - u * 0.16, cy - u * 0.3, cx + u * 0.3, cy - u * 0.17, cx - u * 0.16, cy - u * 0.04)
     elseif id == "notify" then
       -- (a bell: its dome, its rim, the clapper)
-      G.arc("fill", "pie", cx, cy + u * 0.02, u * 0.22, math.pi, math.pi * 2, 16)
+      G.arc("fill", "pie", cx, cy + u * 0.02, u * 0.22, pi, pi * 2, 16)
       G.rectangle("fill", cx - u * 0.22, cy + u * 0.02, u * 0.44, u * 0.12)
       G.rectangle("fill", cx - u * 0.3, cy + u * 0.13, u * 0.6, u * 0.06, u * 0.03, u * 0.03)
       G.circle("fill", cx, cy + u * 0.26, u * 0.06)
@@ -346,7 +379,7 @@ return function(ctx, env)
       -- (a folded map, a pin on it)
       G.polygon("fill", cx - u * 0.3, cy - u * 0.16, cx - u * 0.1, cy - u * 0.1, cx - u * 0.1, cy + u * 0.24, cx - u * 0.3, cy + u * 0.18)
       G.polygon("fill", cx + u * 0.1, cy - u * 0.16, cx + u * 0.3, cy - u * 0.1, cx + u * 0.3, cy + u * 0.24, cx + u * 0.1, cy + u * 0.18)
-      G.setColor(1, 1, 1, 0.65)
+      K.col(C.white, 0.65)
       G.polygon("fill", cx - u * 0.1, cy - u * 0.1, cx + u * 0.1, cy - u * 0.16, cx + u * 0.1, cy + u * 0.18, cx - u * 0.1, cy + u * 0.24)
     else
       G.polygon("fill", cx - u * 0.32, cy + u * 0.22, cx - u * 0.08, cy - u * 0.12, cx + u * 0.12, cy + u * 0.22)
@@ -355,197 +388,428 @@ return function(ctx, env)
     end
   end
 
-  local UI = K.UI
-
-  -- the sidebar (System Settings'): a tile and a name per section, the chosen one highlighted
-  local function drawSide(x, y, w, h)
-    K.col(UI.sidebar)
-    K.box("fill", K.R(x, y, w, h))
-    for i, sec in ipairs(SECTIONS) do
-      local rb = K.R(x + 3, y + 3 + (i - 1) * (ROW_H + 1), w - 6, ROW_H)
-      local on = i == st.section
-      if on then K.selection(rb, st.focus == "side", 3) end
-      local tb = K.R(rb[1] + 2.5, rb[2] + 2, ROW_H - 4, ROW_H - 4)
-      K.col(sec.tile)
-      K.box("fill", tb, 2.2)
-      tileGlyph(sec.id, tb[1], tb[2], tb[3])
-      local label = T(sec.key)
-      local ink = (on and st.focus == "side") and K.WHITE or UI.label
-      local ls = K.fit(label, 4.8, rb[3] - ROW_H - 4)
-      K.text(label, rb[1] + ROW_H + 1, rb[2] + 3.4 + (4.8 - ls) * 0.5, ls, ink)
-      K.addHit(rb, "win", SIDE + i - 1)
-    end
+  -- (drawn `s` times its size round cx, cy (units) until unpop: something popping in)
+  local function pop(s, cx, cy)
+    if s == 1 then return false end
+    local px, py = K.X(cx), K.Y(cy)
+    G.push()
+    G.translate(px, py)
+    G.scale(max(0.001, s))
+    G.translate(-px, -py)
+    return true
   end
 
-  local function check(x, y, s, c)
-    local G = K.graphics()
-    K.col(c)
+  -- a check mark s units square at x, y
+  local function check(x, y, s, c, a)
+    K.col(c, a)
     G.setLineWidth(max(1, s * 0.16 * K.sc))
     G.line(K.X(x), K.Y(y + s * 0.5), K.X(x + s * 0.38), K.Y(y + s * 0.85), K.X(x + s), K.Y(y + s * 0.1))
   end
 
-  local function drawLanguage(x, y, w, h)
-    local n = #st.langs
-    local gb = K.R(x + 4, y + 13, w - 8, n * LANG_H)
-    K.card(gb, 4)
-    local code = env.language and env.language() or "en"
-    for i, l in ipairs(st.langs) do
-      local rb = K.R(gb[1], gb[2] + (i - 1) * LANG_H, gb[3], LANG_H)
-      local focused = st.focus == "detail"
-      local on = focused and i == st.langCursor
-      if on then
-        K.selection(K.R(rb[1] + 1, rb[2] + 0.5, rb[3] - 2, rb[4] - 1), true, 3)
-      elseif i > 1 and not (focused and i - 1 == st.langCursor) then
-        K.hairline(rb[1] + 5, rb[2], rb[3] - 5)
-      end
-      K.text(l.name, rb[1] + 5, rb[2] + 2.6, 5, on and K.WHITE or UI.label)
-      if l.code == code then check(rb[1] + rb[3] - 10, rb[2] + 3, 5, on and K.WHITE or UI.accent) end
-      K.addHit(rb, "win", LANG + i)
+  -- the chosen row's highlight, gliding (row `at`, 1-based, of rows `rh` tall from y) while the setting
+  -- has the focus
+  local function rowHighlight(x, y, w, rh, at)
+    if mv.focusK < 0.01 then return end
+    local hb = K.R(x + 1, y + (at - 1) * rh + 0.5, w - 2, rh - 1)
+    K.col(UI.accent, 0.13 * mv.focusK)
+    K.box("fill", hb, 3)
+    K.ring(hb, 3, UI.accent, 0.9 * mv.focusK, 0.6)
+  end
+  -- (the gliding row follows `target`; on another section it starts there)
+  local function glide(target, dt)
+    if mv.rowSec ~= st.section then
+      mv.rowSec, mv.rowY = st.section, target
+    else
+      mv.rowY = approach(mv.rowY, target, dt, 24)
     end
-    K.text(T("settings.languageNote"), x + 6, gb[2] + gb[4] + 3, 4.2, UI.secondary, "left", w - 12)
   end
 
-  local function drawWallpaper(x, y, w, h)
+  -- what a section is set to, for the portrait list (the language's name, the wallpaper's)
+  local function valueOf(id)
+    if id == "language" then
+      local code = env.language and env.language() or "en"
+      for i = 1, #st.langs do if st.langs[i].code == code then return st.langs[i].name end end
+    elseif id == "wallpaper" then
+      local current = env.wallpaper and env.wallpaper() or "classic"
+      for i = 1, #st.walls do
+        local wp = st.walls[i]
+        if wp.id == current then return wp.key and T(wp.key) or wp.name end
+      end
+    end
+    return nil
+  end
+
+  -- the sidebar (System Settings'): a pane of glass, a tile and a name per section, the chosen one's
+  -- highlight gliding to it (the accent while the list has the focus); in portrait the whole list, with
+  -- what each is set to and a chevron
+  local function drawSide(x, y, w, h, clock, dt, live, full)
+    local step = ROW_H + 1
+    -- (in portrait the pane as tall as its rows)
+    if full then h = min(h, 5 + #SECTIONS * step) end
+    K.glass(K.R(x, y, w, h), 5, 0.42)
+    local y0 = y + 3
+    mv.sideY = approach(mv.sideY, st.section, dt, 22)
+    local sideFocus = st.focus == "side"
+    local hb = K.R(x + 2.5, y0 + (mv.sideY - 1) * step, w - 5, ROW_H)
+    if sideFocus then
+      K.col(UI.accent, 0.92)
+      K.box("fill", hb, 3.5)
+    else
+      K.col(C.white, 0.72)
+      K.box("fill", hb, 3.5)
+      K.ring(hb, 3.5, C.white, 0.9, 0.35)
+    end
+    local since = clock - mv.openAt
+    local ts = ROW_H - 4
+    for i, sec in ipairs(SECTIONS) do
+      local e = stagger(since, i, 0.035, 0.3)
+      rise(e, 0, -6)
+      local rb = K.R(x + 2.5, y0 + (i - 1) * step, w - 5, ROW_H)
+      local lit = sideFocus and abs(mv.sideY - i) < 0.5
+      -- (its tile: the chosen one pops as it's chosen)
+      local tb = K.R(rb[1] + 2, rb[2] + 2, ts, ts)
+      local t = clock - mv.secAt
+      local popped = i == st.section and t < 0.34 and pop(0.78 + 0.22 * outBack(t / 0.34), tb[1] + ts / 2,
+        tb[2] + ts / 2)
+      K.grad(tb, 2.6, K.light(sec.tile, 0.16), K.dark(sec.tile, 0.08))
+      K.ring(tb, 2.6, C.white, 0.3, 0.3)
+      tileGlyph(sec.id, tb[1], tb[2], ts)
+      if popped then G.pop() end
+      local label = T(sec.key)
+      local lx = rb[1] + ts + 5
+      local right = full and 8 or 2
+      local value = full and valueOf(sec.id) or nil
+      local vw = value and min(K.width(value, 4.2), rb[3] * 0.4) or 0
+      local ls = K.fit(label, 4.8, rb[1] + rb[3] - lx - right - vw - (value and 3 or 0))
+      local ink = lit and C.white or UI.label
+      if i == st.section then K.bold(label, lx, rb[2] + 3.4 + (4.8 - ls) * 0.5, ls, ink)
+      else K.text(label, lx, rb[2] + 3.4 + (4.8 - ls) * 0.5, ls, ink) end
+      if value then
+        K.text(value, rb[1] + rb[3] - right - vw, rb[2] + 3.9, K.fit(value, 4.2, vw), lit and C.white or UI.secondary,
+          "right", vw, lit and 0.85 or 1)
+      end
+      if full then K.chevron(rb[1] + rb[3] - 4, rb[2] + ROW_H / 2, 3.4, lit and C.white or UI.tertiary, 1) end
+      settle(e)
+      if live then K.addHit(rb, "win", SIDE + i - 1) end
+    end
+  end
+
+  local function drawLanguage(x, y, w, h, clock, dt, live)
+    local n = #st.langs
+    local ce = outCubic((clock - mv.secAt - 0.03) / 0.32)
+    rise(ce, 6)
+    local gb = K.R(x, y + TITLE_H, w, n * LANG_H)
+    K.glass(gb, 4)
+    glide(st.langCursor, dt)
+    rowHighlight(gb[1], gb[2], gb[3], LANG_H, mv.rowY)
+    local code = env.language and env.language() or "en"
+    if code ~= mv.lang then
+      if mv.lang ~= nil then mv.langAt = clock end
+      mv.lang = code
+    end
+    local since = clock - mv.secAt
+    local focused = st.focus == "detail"
+    for i, l in ipairs(st.langs) do
+      local e = stagger(since, i, 0.03, 0.26)
+      rise(e, 3)
+      local rb = K.R(gb[1], gb[2] + (i - 1) * LANG_H, gb[3], LANG_H)
+      local on = focused and i == st.langCursor
+      if i > 1 and not (focused and (i == st.langCursor or i - 1 == st.langCursor)) then
+        K.hairline(rb[1] + 5, rb[2], rb[3] - 5)
+      end
+      if l.code == code then K.bold(l.name, rb[1] + 5, rb[2] + 2.6, 5, on and UI.accent or UI.label)
+      else K.text(l.name, rb[1] + 5, rb[2] + 2.6, 5, on and UI.accent or UI.label) end
+      if l.code == code then
+        -- (the check pops onto the language just chosen)
+        local t = clock - mv.langAt
+        local s = t < 0.36 and outBack(t / 0.36) or 1
+        local cs = 5 * s
+        check(rb[1] + rb[3] - 7.5 - cs / 2, rb[2] + 5.5 - cs / 2, cs, UI.accent)
+      end
+      settle(e)
+      if live then K.addHit(rb, "win", LANG + i) end
+    end
+    K.text(T("settings.languageNote"), x + 2, gb[2] + gb[4] + 3, 4.2, UI.secondary, "left", w - 4)
+    settle(ce)
+  end
+
+  local function drawWallpaper(x, y, w, h, clock, dt, live)
     local gap, noteH = 4, 12
-    local gridY, gridH = y + 13, h - 13 - noteH
+    local gridY, gridH = y + TITLE_H, h - TITLE_H - noteH
     -- (thumbnails small enough for two whole rows above the note)
-    local cols = max(2, floor((w - 8) / 44))
-    local th = min((w - 8 - (cols - 1) * gap) / cols * 0.62, gridH / 2 - 9)
-    cols = max(cols, floor((w - 8 + gap) / (th / 0.62 + gap)))
+    local cols = max(2, floor(w / 44))
+    local th = min((w - (cols - 1) * gap) / cols * 0.62, gridH / 2 - 9)
+    cols = max(cols, floor((w + gap) / (th / 0.62 + gap)))
     st.cols = cols
-    local tw = (w - 8 - (cols - 1) * gap) / cols
+    local tw = (w - (cols - 1) * gap) / cols
     th = min(tw * 0.62, gridH / 2 - 9)
     local cellH = th + 9
     st.wallRows = math.ceil(#st.walls / cols)
     st.wallVisible = max(1, floor(gridH / cellH))
-    local clip = K.R(x, gridY, w, gridH)
-    K.scissor(clip)
+    st.wallTop = max(0, min(st.wallTop, max(0, st.wallRows - st.wallVisible)))
+    -- (the scroll and the cursor's ring eased; snapped as the section opens)
+    local cr, cc = floor((st.wallCursor - 1) / cols), (st.wallCursor - 1) % cols
+    if mv.wallSec ~= st.section or mv.wallCols ~= cols then
+      mv.wallSec, mv.wallCols, mv.wtop, mv.wx, mv.wy = st.section, cols, st.wallTop, cc, cr
+    else
+      mv.wtop = approach(mv.wtop, st.wallTop, dt, 18)
+      mv.wx, mv.wy = approach(mv.wx, cc, dt, 24), approach(mv.wy, cr, dt, 24)
+    end
     local current = env.wallpaper and env.wallpaper() or "classic"
+    if current ~= mv.wall then
+      if mv.wall ~= nil then mv.wallAt = clock end
+      mv.wall = current
+    end
+    local area = clip(x - 3, gridY, w + 6, gridH)
+    K.scissor(area)
     local top, foot
     if Wall then top, foot = Wall.tint(env.gameId and env.gameId() or "") end
+    local since = clock - mv.secAt
     for i, wp in ipairs(st.walls) do
       local row, c = floor((i - 1) / cols), (i - 1) % cols
-      local ty = gridY + (row - st.wallTop) * cellH
+      local ty = gridY + (row - mv.wtop) * cellH
       if ty + cellH > gridY - cellH and ty < gridY + gridH + cellH then
-        local tb = K.R(x + 4 + c * (tw + gap), ty + 1.5, tw, th)
+        local tb = K.R(x + c * (tw + gap), ty + 1.5, tw, th)
+        -- (popping in one after another as the section opens; its name rising under it)
+        local pt = since < 2 and (since - i * 0.035) / 0.38 or 1
+        local e = outCubic(pt)
+        rise(e, 3)
+        local popped = pt < 1 and pop(max(0, outBack(pt)), tb[1] + tw / 2, tb[2] + th / 2)
+        K.shadow(tb, 2.5, 0.8, 0.16)
         local drawn = false
         if wp.id ~= "classic" and Wall then
           local ok, got = pcall(Wall.draw, wp.id, K.X(tb[1]), K.Y(tb[2]), tb[3] * K.sc, tb[4] * K.sc, 2.5 * K.sc,
-            fit())
+            fit(), K.getFade())
           drawn = ok and got
+          -- (a wallpaper painted just now drew into a canvas: the scissor set again)
+          K.rescissor()
         end
         if not drawn and top then K.grad(tb, 2.5, top, foot) end
+        K.ring(tb, 2.5, C.white, 0.85, 0.4)
         if wp.id == current then
           K.ring(K.R(tb[1] - 1.2, tb[2] - 1.2, tb[3] + 2.4, tb[4] + 2.4), 3.5, UI.accent, 1, 1)
+          -- (a badge popping onto the one just chosen)
+          local bt = clock - mv.wallAt
+          local s = bt < 0.4 and outBack(bt / 0.4) or 1
+          local bx, by, br = tb[1] + tw - 3.2, tb[2] + 3.2, 2.6 * s
+          K.col(UI.accent)
+          G.circle("fill", K.X(bx), K.Y(by), br * K.sc)
+          K.col(C.white, 0.9)
+          G.setLineWidth(max(1, 0.3 * K.sc))
+          G.circle("line", K.X(bx), K.Y(by), br * K.sc)
+          check(bx - br * 0.5, by - br * 0.42, br, C.white)
         end
-        if i == st.wallCursor and st.focus == "detail" then
-          K.focusRing(K.R(tb[1] - 1.4, tb[2] - 1.4, tb[3] + 2.8, tb[4] + 2.8), 3.6, K.pulse())
-        end
+        if popped then G.pop() end
         local name = wp.key and T(wp.key) or wp.name
         local ns = K.fit(name, 4.2, tw)
-        local ink = wp.id == current and UI.accent or UI.label
-        if wp.id == current then K.bold(name, tb[1], tb[2] + th + 1.5, ns, ink, "center", tw)
-        else K.text(name, tb[1], tb[2] + th + 1.5, ns, ink, "center", tw) end
-        K.addHit(K.R(tb[1], tb[2], tw, cellH - 1), "win", WALL + i, clip)
+        if wp.id == current then K.bold(name, tb[1], tb[2] + th + 1.5, ns, UI.accent, "center", tw)
+        else K.text(name, tb[1], tb[2] + th + 1.5, ns, UI.label, "center", tw) end
+        settle(e)
+        if live then K.addHit(K.R(tb[1], tb[2], tw, cellH - 1), "win", WALL + i, area) end
       end
     end
-    K.scissor(nil)
-    K.text(T("settings.wallpaperNote"), x + 6, y + h - noteH + 1, 4, UI.secondary, "left", w - 12)
+    -- (the cursor's ring, gliding from picture to picture)
+    if mv.focusK > 0.01 then
+      local rb = K.R(x + mv.wx * (tw + gap) - 2, gridY + (mv.wy - mv.wtop) * cellH - 0.5, tw + 4, th + 4)
+      K.ring(rb, 4, UI.accent, (0.45 + 0.4 * K.pulse()) * mv.focusK, 0.9)
+    end
+    K.scissor(bodyNow)
+    if st.wallRows > st.wallVisible then
+      K.scrollbar(x + w + 2.5, gridY, gridH, mv.wtop, st.wallVisible, st.wallRows)
+    end
+    K.text(T("settings.wallpaperNote"), x + 2, y + h - noteH + 1, 4, UI.secondary, "left", w - 4)
   end
 
   local minutesText = K.textCache(function(m) return T.f("settings.minutes", m) end)
-  -- an on / off switch (iOS's): green with the knob right when on
-  local function switch(x, y, on)
-    local G = K.graphics()
+  -- an on / off switch (iOS's) in glass: its knob sliding (stretching as it goes) and the track easing
+  -- from grey glass to green; t keeps where its knob is
+  local function switch(x, y, on, t, dt)
+    local target = on and 1 or 0
+    local k = t.knob
+    if k == nil then k = target else k = approach(k, target, dt, 16) end
+    t.knob = k
     local b = K.R(x, y, 14, 8)
-    K.col(on and UI.green or C.switchOff)
+    G.setColor(OFF_R + (ON_R - OFF_R) * k, OFF_G + (ON_G - OFF_G) * k, OFF_B + (ON_B - OFF_B) * k,
+      (OFF_A + (1 - OFF_A) * k) * K.getFade())
     K.box("fill", b, 4)
-    K.col(K.WHITE)
-    G.circle("fill", K.X(x + (on and 10 or 4)), K.Y(y + 4), 3.3 * K.sc)
+    K.ring(b, 4, C.white, 0.75 - 0.45 * k, 0.3)
+    local kw = 6.6 + 1.8 * sin(pi * k)
+    local kx = x + 0.7 + (14 - 1.4 - kw) * k
+    K.col(C.black, 0.14)
+    K.box("fill", K.R(kx, y + 1.1, kw, 6.6), 3.3)
+    K.col(C.white)
+    K.box("fill", K.R(kx, y + 0.7, kw, 6.6), 3.3)
   end
-  -- one row of switches: its words (an app's after its icon; a row under another set in line with
-  -- its words), then its switch or its value between < >
-  local function drawToggleRow(i, t, rb, clip)
+  -- one row of switches: its words (an app's after its icon, popping in; a row under another set in
+  -- line with its words), then its switch or its value between < > in a capsule
+  local function drawToggleRow(i, t, rb, area, e, clock, dt, live)
+    rise(e, 3)
     local on = st.focus == "detail" and i == st.toggleCursor
-    if on then K.selection(K.R(rb[1] + 1, rb[2] + 0.5, rb[3] - 2, rb[4] - 1), true, 3)
-    elseif i > 1 and not (st.focus == "detail" and i - 1 == st.toggleCursor) then
+    if i > 1 and not (st.focus == "detail" and (i == st.toggleCursor or i - 1 == st.toggleCursor)) then
       K.hairline(rb[1] + 5, rb[2], rb[3] - 5)
     end
     local lx = rb[1] + 5
     if t.app and env.appIcon then
-      pcall(env.appIcon, t.app, rb[1] + 4, rb[2] + 2, TOGGLE_H - 4)
+      local is = TOGGLE_H - 4
+      local popped = e < 1 and pop(outBack(e), rb[1] + 4 + is / 2, rb[2] + 2 + is / 2)
+      pcall(env.appIcon, t.app, rb[1] + 4, rb[2] + 2, is)
+      if popped then G.pop() end
       lx = rb[1] + TOGGLE_H + 3
     elseif t.under then
       lx = rb[1] + TOGGLE_H + 3
     end
     local label = T(t.label)
-    local ls = K.fit(label, 5, rb[1] + rb[3] - lx - (t.choices and 34 or 21))
-    K.text(label, lx, rb[2] + 3.4 + (5 - ls) * 0.5, ls, on and K.WHITE or (t.under and UI.secondary or UI.label))
+    local ls = K.fit(label, 5, rb[1] + rb[3] - lx - (t.choices and 37 or 21))
+    K.text(label, lx, rb[2] + 3.4 + (5 - ls) * 0.5, ls, on and UI.accent or (t.under and UI.secondary or UI.label))
     if t.choices then
       local v = choiceOf(t)
-      local ink = on and K.WHITE or UI.accent
-      local vx = rb[1] + rb[3] - 34
-      K.chevron(vx + 2, rb[2] + TOGGLE_H / 2, 3.6, ink, -1)
-      K.text(minutesText(v), vx + 4, rb[2] + 3.6, 4.6, ink, "center", 21)
-      K.chevron(vx + 27, rb[2] + TOGGLE_H / 2, 3.6, ink, 1)
+      if t.shown == nil then t.shown, t.at = v, -10
+      elseif t.shown ~= v then t.shown, t.at = v, clock end
+      local vb = K.R(rb[1] + rb[3] - 36, rb[2] + 2.5, 32, 8)
+      K.col(C.white, on and 0.85 or 0.55)
+      K.box("fill", vb, 4)
+      K.ring(vb, 4, on and UI.accent or C.white, on and 0.8 or 0.8, 0.35)
+      K.chevron(vb[1] + 3.5, vb[2] + 4, 3.4, UI.accent, -1)
+      K.chevron(vb[1] + vb[3] - 3.5, vb[2] + 4, 3.4, UI.accent, 1)
+      -- (the new value sliding in from the side it stepped to)
+      local ve = outCubic((clock - t.at) / 0.24)
+      rise(ve, 0, 3 * (t.dir or 1))
+      K.bold(minutesText(t.shown), vb[1] + 5, vb[2] + 1.4, 4.4, UI.accent, "center", vb[3] - 10)
+      settle(ve)
     else
-      switch(rb[1] + rb[3] - 19, rb[2] + 2.5, toggled(i))
+      switch(rb[1] + rb[3] - 19, rb[2] + 2.5, toggled(i), t, dt)
     end
-    K.addHit(rb, "win", TOGGLE + st.section * TOGGLE_SPAN + i - 1, clip)
+    settle(e)
+    if live then K.addHit(rb, "win", TOGGLE + st.section * TOGGLE_SPAN + i - 1, area) end
   end
-  local function drawToggles(x, y, w, h)
+  local function drawToggles(x, y, w, h, clock, dt, live)
     local sec = SECTIONS[st.section]
     local list = sec.toggles
     -- (as many rows as fit above the note; more scroll)
     local noteH = sec.note and 15 or 0
-    st.toggleVisible = max(1, floor((h - 15 - noteH) / TOGGLE_H))
+    st.toggleVisible = max(1, floor((h - TITLE_H - 2 - noteH) / TOGGLE_H))
     st.toggleTop = max(0, min(st.toggleTop, max(0, #list - st.toggleVisible)))
-    local gb = K.R(x + 4, y + 13, w - 8, min(#list, st.toggleVisible) * TOGGLE_H)
-    K.card(gb, 4)
-    K.scissor(gb)
+    if mv.rowSec ~= st.section then mv.ttop = st.toggleTop else mv.ttop = approach(mv.ttop, st.toggleTop, dt, 18) end
+    glide(st.toggleCursor, dt)
+    local ce = outCubic((clock - mv.secAt - 0.03) / 0.32)
+    rise(ce, 6)
+    local gb = K.R(x, y + TITLE_H, w, min(#list, st.toggleVisible) * TOGGLE_H)
+    K.glass(gb, 4)
+    local area = clip(gb[1], gb[2], gb[3], gb[4])
+    K.scissor(area)
+    rowHighlight(gb[1], gb[2] - mv.ttop * TOGGLE_H, gb[3], TOGGLE_H, mv.rowY)
+    local since = clock - mv.secAt
     for i, t in ipairs(list) do
-      local ry = gb[2] + (i - 1 - st.toggleTop) * TOGGLE_H
-      if ry + TOGGLE_H > gb[2] and ry < gb[2] + gb[4] then drawToggleRow(i, t, K.R(gb[1], ry, gb[3], TOGGLE_H), gb) end
+      local ry = gb[2] + (i - 1 - mv.ttop) * TOGGLE_H
+      if ry + TOGGLE_H > gb[2] and ry < gb[2] + gb[4] then
+        drawToggleRow(i, t, K.R(gb[1], ry, gb[3], TOGGLE_H), area, stagger(since, i - st.toggleTop, 0.035, 0.28),
+          clock, dt, live)
+      end
     end
-    K.scissor(nil)
-    if #list > st.toggleVisible then K.scrollbar(gb[1] + gb[3], gb[2], gb[4], st.toggleTop, st.toggleVisible, #list) end
-    if sec.note then K.text(T(sec.note), x + 6, gb[2] + gb[4] + 3, 4.2, UI.secondary, "left", w - 12) end
+    K.scissor(bodyNow)
+    if #list > st.toggleVisible then K.scrollbar(gb[1] + gb[3] + 2, gb[2], gb[4], mv.ttop, st.toggleVisible, #list) end
+    if sec.note then K.text(T(sec.note), x + 2, gb[2] + gb[4] + 3, 4.2, UI.secondary, "left", w - 4) end
+    settle(ce)
   end
 
-  local function drawDetail(x, y, w, h)
+  -- the open setting: its title sliding in, Fill | Stretch by it for a picture, then its card
+  local function drawDetail(x, y, w, h, clock, dt, live)
     local sec = SECTIONS[st.section]
-    K.bold(T(sec.key), x + 6, y + 3, 6.5, UI.label)
+    local te = outCubic((clock - mv.secAt) / 0.3)
+    rise(te, 0, 8)
+    K.bold(T(sec.key), x + 1.5, y + 1.5, 6.5, UI.label)
+    settle(te)
     -- a picture: Fill | Stretch, by the title
     if sec.id == "wallpaper" and picture() then
+      mv.fitX = approach(mv.fitX, fit() == "fill" and 1 or 2, dt, 18)
       local sw = min(64, w * 0.5)
-      K.segmented(x + w - sw - 5, y + 2.5, sw, 8, fit() == "fill" and 1 or 2, "win",
-        FIT, T("settings.fill"), FIT + 1, T("settings.stretch"))
+      K.glassSwitch(x + w - sw, y + 1, sw, 8, mv.fitX, "win", FIT, T("settings.fill"), FIT + 1, T("settings.stretch"),
+        nil, nil, 4.2)
+    else
+      mv.fitX = fit() == "fill" and 1 or 2
     end
-    if sec.id == "language" then drawLanguage(x, y, w, h)
-    elseif sec.toggles then drawToggles(x, y, w, h)
-    else drawWallpaper(x, y, w, h) end
+    if sec.id == "language" then drawLanguage(x, y, w, h, clock, dt, live)
+    elseif sec.toggles then drawToggles(x, y, w, h, clock, dt, live)
+    else drawWallpaper(x, y, w, h, clock, dt, live) end
   end
+
+  -- (portrait: back to the list, a capsule of glass)
+  local function drawBack(x, y, live)
+    local label = T("app.settings")
+    local bw = K.width(label, 4.4) + 10
+    local bb = K.R(x, y, bw, 9)
+    K.col(C.white, 0.5)
+    K.box("fill", bb, 4.5)
+    K.ring(bb, 4.5, C.white, 0.8, 0.3)
+    K.chevron(x + 3.6, y + 4.5, 3.8, UI.accent, -1)
+    K.text(label, x + 6.6, y + 2.1, 4.4, UI.accent)
+    if live then K.addHit(bb, "win", BACK) end
+  end
+
+  local function backdrop(body, clock) K.backdrop(body, clock, mv.r, mv.g, mv.b, mv.r2, mv.g2, mv.b2) end
 
   function W.draw(body, clock, portrait)
     st.portrait = portrait
+    G = K.graphics()
+    bodyNow = body
     local x, y, w, h = body[1], body[2], body[3], body[4]
+    local dt = mv.lastT and max(0, min(0.1, clock - mv.lastT)) or 0
+    mv.lastT = clock
+    if not mv.openAt then mv.openAt, mv.push = clock, st.reading and 1 or 0 end
+    -- (another section, or the setting opened over the list in portrait: its rows rise again)
+    if st.section ~= mv.sec or (portrait and st.reading and not mv.reading) then mv.sec, mv.secAt = st.section, clock end
+    mv.reading = st.reading
+    mv.focusK = approach(mv.focusK, st.focus == "detail" and 1 or 0, dt, 16)
+    -- (the backdrop's lights: the section's colour and a paler one, eased; snapped the first time)
+    local tile = SECTIONS[st.section].tile
+    local rate = mv.coloured and 7 or 1000
+    mv.coloured = true
+    mv.r, mv.g, mv.b = approach(mv.r, tile[1] / 255, dt, rate), approach(mv.g, tile[2] / 255, dt, rate),
+      approach(mv.b, tile[3] / 255, dt, rate)
+    mv.r2 = approach(mv.r2, (tile[1] + (255 - tile[1]) * 0.45) / 255, dt, rate)
+    mv.g2 = approach(mv.g2, (tile[2] + (255 - tile[2]) * 0.45) / 255, dt, rate)
+    mv.b2 = approach(mv.b2, (tile[3] + (255 - tile[3]) * 0.45) / 255, dt, rate)
+    backdrop(body, clock)
+    offX = 0
     if portrait then
-      if st.reading then
-        drawDetail(x, y + 10, w, h - 10)
-        K.scissor(body)
-        local label = T("nav.back")
-        K.chevron(x + 5, y + 5, 4, UI.accent, -1)
-        K.text(label, x + 8.5, y + 2.4, 4.6, UI.accent)
-        K.addHit(K.R(x + 2, y, K.width(label, 4.6) + 10, 10), "win", BACK)
-      else
-        drawSide(x, y, w, h)
+      -- (the setting slides in over the list, the list easing back under it)
+      mv.push = approach(mv.push, st.reading and 1 or 0, dt, 14)
+      local p = outCubic(mv.push)
+      if p < 0.999 then
+        local sh = p > 0.001
+        if sh then
+          G.push()
+          G.translate(-w * 0.3 * p * K.sc, 0)
+        end
+        drawSide(x + M, y + M, w - M * 2, h - M * 2, clock, dt, not st.reading, true)
+        if sh then
+          G.pop()
+          K.col(C.black, 0.12 * p)
+          K.box("fill", body)
+        end
       end
-    else
-      local sw = min(90, floor(w * 0.36))
-      drawSide(x, y, sw, h)
-      K.vline(x + sw, y, h)
-      drawDetail(x + sw + 0.6, y, w - sw - 0.6, h)
+      if p > 0.001 then
+        local sh = p < 0.999
+        if sh then
+          offX = w * (1 - p)
+          G.push()
+          G.translate(offX * K.sc, 0)
+          K.shadow(body, 0, 0, 0.2)
+        end
+        backdrop(body, clock)
+        K.scissor(body)
+        drawBack(x + M, y + M, st.reading)
+        drawDetail(x + M + 1, y + M + 11, w - M * 2 - 4, h - M * 2 - 11, clock, dt, st.reading)
+        if sh then G.pop() end
+        offX = 0
+      end
+      return
     end
+    mv.push = st.reading and 1 or 0
+    local sw = min(90, floor(w * 0.36))
+    drawSide(x + M, y + M, sw - M, h - M * 2, clock, dt, true, false)
+    local dx = x + sw + GAP + 1
+    drawDetail(dx, y + M, x + w - M - 3 - dx, h - M * 2, clock, dt, true)
   end
 
   refresh()

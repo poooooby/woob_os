@@ -4,7 +4,8 @@
 -- (more as the Gym Badges come in) are bought straight into the Bag, the item appearing on the
 -- shelf's pad; the Bag's items sold for half their price, off the pad. Tabs along the list's top; the
 -- chosen item on a lit stand beside it (its words, how many, the total); coins flying to and from the
--- till, the money counting.
+-- till, the money counting. In the Pokédex's glass: the shop's lights drifting behind (the second turning
+-- to the tab's colour), the bubble, the list and the stand on frosted panes, Buy | Sell a glass switch.
 --   buttons  Up / Down the item, L / R the tab (Buy: Balls, Medicine, Battle, Field; Sell: the
 --            Bag's pockets), START Buy | Sell, A the item (then < > one, ^ v ten, SELECT as many
 --            as there are / as money buys, A buy or sell, B back), B close
@@ -384,26 +385,28 @@ return function(ctx, env)
 
   -- ------- drawing (no tables made here)
 
-  -- a corner shop at dusk: Mart blue, a striped awning, shelves of goods behind the counter
-  local BG_TOP, BG_FOOT = { 34, 98, 196 }, { 9, 24, 66 }
+  -- a corner shop in the Pokédex's glass: soft lights drifting behind in Mart blue (the second turning
+  -- to the chosen tab's colour), shelves of goods, the striped awning and the counter in front of them;
+  -- the bubble, the list, the item's stand, the stepper and the money on panes of frosted glass
   local MART, MART_DEEP = { 56, 136, 250 }, { 22, 74, 196 }
-  local AWN_WHITE = { 244, 248, 255 }
-  local WHITE, SOFT, FAINT = { 255, 255, 255 }, { 204, 220, 248 }, { 128, 150, 198 }
-  local INK, BUBBLE_C = { 22, 36, 76 }, { 250, 252, 255 }
-  local GLASS, EDGE = { 255, 255, 255, 0.07 }, { 255, 255, 255, 0.13 }
-  local GOLD, GOLD_FOOT = { 255, 222, 128 }, { 196, 146, 44 }
-  local RED, RED_DEEP = { 255, 96, 108 }, { 176, 30, 52 }
-  local GREEN, GREEN_DEEP = { 86, 230, 152 }, { 18, 150, 96 }
-  local COUNTER_TOP, COUNTER_FOOT = { 250, 252, 255 }, { 190, 206, 236 }
+  local AWN_WHITE = { 250, 252, 255 }
+  local WHITE, INK, SOFT, FAINT = { 255, 255, 255 }, { 28, 28, 30 }, { 112, 112, 120 }, { 160, 160, 170 }
+  local GOLD, GOLD_FOOT, GOLD_INK = { 255, 222, 128 }, { 196, 146, 44 }, { 178, 122, 10 }
+  local RED, RED_DEEP = { 255, 72, 84 }, { 196, 30, 52 }
+  local GREEN, GREEN_DEEP = { 60, 206, 120 }, { 18, 150, 86 }
   local TILL_TOP, TILL_FOOT, LCD, LCD_INK = { 70, 84, 120 }, { 34, 42, 70 }, { 20, 52, 40 }, { 120, 255, 170 }
   local SHADE = { 0, 0, 0 }
-  local TAB_C = { { 255, 104, 104 }, { 96, 226, 170 }, { 255, 178, 74 }, { 124, 184, 255 } }
-  local POCKET_C = { ITEMS = { 124, 184, 255 }, POKE_BALLS = { 255, 104, 104 }, TM_CASE = { 255, 178, 74 },
-                     BERRY_POUCH = { 150, 222, 98 } }
-  local GOODS = { { 255, 104, 104 }, { 96, 226, 170 }, { 255, 178, 74 }, { 124, 184, 255 }, { 255, 222, 128 },
-                  { 200, 146, 255 } }
+  local TAB_C = { { 255, 104, 104 }, { 72, 206, 150 }, { 255, 168, 60 }, { 96, 164, 255 } }
+  local POCKET_C = { ITEMS = { 96, 164, 255 }, POKE_BALLS = { 255, 104, 104 }, TM_CASE = { 255, 168, 60 },
+                     BERRY_POUCH = { 130, 206, 80 } }
+  local GOODS = { { 255, 104, 104 }, { 72, 206, 150 }, { 255, 168, 60 }, { 96, 164, 255 }, { 240, 196, 80 },
+                  { 180, 126, 255 } }
+  -- the motion's numbers (the view's own: st is the window's)
+  local mv = { lastT = nil, dt = 0, coloured = false, r2 = 0.4, g2 = 0.64, b2 = 1, sw = nil, tabK = nil,
+               tabMode = nil, hl = nil, listKey = nil, listMode = nil, listAt = -10, itemId = nil, itemMode = nil,
+               itemAt = -10 }
 
-  local function ease(k) k = min(1, max(0, k)) return 1 - (1 - k) * (1 - k) * (1 - k) end
+  local ease = K.outCubic
   local function money(n, x, y, size, c, right)
     if not env.amount then return 0 end
     local ok, w = pcall(env.amount, n, 0, 0, size, c, true)
@@ -411,17 +414,14 @@ return function(ctx, env)
     pcall(env.amount, n, right and x - w or x, y, size, c)
     return w
   end
-  local function glass(b, rad)
-    K.col(GLASS)
-    K.box("fill", b, rad)
-    K.ring(b, rad, EDGE, 1, 0.4)
-  end
   local function tabColor(i)
     if st.mode == "buy" then return TAB_C[(i - 1) % #TAB_C + 1] end
     local p = st.pockets[i]
     return p and POCKET_C[p.id] or TAB_C[4]
   end
   local function curColor() return tabColor(st.mode == "buy" and st.tab or st.sellTab) end
+  -- (Buy's colour, Sell's)
+  local function actColor(sell) return sell and GREEN_DEEP or MART end
   -- a small padlock, `s` units tall, its top left at x, y
   local function padlock(x, y, s, c, a)
     local G = K.graphics()
@@ -438,29 +438,37 @@ return function(ctx, env)
     return w
   end
 
-  -- the shop behind everything: the room's light, the ceiling lamps, two shelves of goods
-  local function drawShop(x, y, w, h, clock)
-    K.grad(K.R(x, y, w, h), 0, BG_TOP, BG_FOOT)
-    for i = 0, 2 do
-      K.glow(x + w * (0.18 + i * 0.32), y + AW + 2, w * 0.16, BAND * 0.8, WHITE, 0.07 + 0.02 * sin(clock * 1.3 + i))
+  -- the shop behind everything: the lights drifting, the ceiling lamps, two glass shelves of goods
+  local function drawShop(body, clock)
+    local x, y, w = body[1], body[2], body[3]
+    local c = curColor()
+    if mv.coloured then
+      mv.r2 = K.approach(mv.r2, c[1] / 255, mv.dt, 5)
+      mv.g2 = K.approach(mv.g2, c[2] / 255, mv.dt, 5)
+      mv.b2 = K.approach(mv.b2, c[3] / 255, mv.dt, 5)
+    else
+      mv.r2, mv.g2, mv.b2, mv.coloured = c[1] / 255, c[2] / 255, c[3] / 255, true
     end
-    K.glow(x + w * 0.5, y + h, w * 0.6, h * 0.4, MART, 0.12)
+    K.backdrop(body, clock, 0.3, 0.56, 1, mv.r2, mv.g2, mv.b2)
+    for i = 0, 2 do
+      K.glow(x + w * (0.18 + i * 0.32), y + AW + 2, w * 0.16, BAND * 0.8, WHITE, 0.1 + 0.03 * sin(clock * 1.3 + i))
+    end
     for s = 0, 1 do
       local sy = y + AW + 10 + s * 10
       local gx, i = x + 1.5 + s * 1.7, s * 7
       while gx < x + w - 3 do
         local gw = 2.2 + (i * 7 % 5) * 0.45
         local gh = 2.8 + (i * 5 % 4) * 1.05
-        K.col(GOODS[i % #GOODS + 1], 0.3)
+        K.col(GOODS[i % #GOODS + 1], 0.42)
         K.box("fill", K.R(gx, sy - gh, gw, gh), 0.5)
-        K.col(WHITE, 0.08 + 0.07 * sin(clock * 1.7 + i * 1.3))
+        K.col(WHITE, 0.22 + 0.14 * sin(clock * 1.7 + i * 1.3))
         K.box("fill", K.R(gx + 0.4, sy - gh + 0.4, 0.45, gh - 0.8))
         gx = gx + gw + 0.9 + (i * 3 % 3) * 0.5
         i = i + 1
       end
-      K.col(WHITE, 0.14)
+      K.col(WHITE, 0.75)
       K.box("fill", K.R(x, sy, w, 0.7))
-      K.col(SHADE, 0.2)
+      K.col(SHADE, 0.06)
       K.box("fill", K.R(x, sy + 0.7, w, 0.8))
     end
   end
@@ -469,20 +477,22 @@ return function(ctx, env)
   local function drawAwning(x, y, w, clock)
     local G = K.graphics()
     local sw, d = 9, AW - 3.5
-    K.col(SHADE, 0.22)
+    K.col(SHADE, 0.1)
     K.box("fill", K.R(x, y + d, w, 3.5))
     local n = floor(w / sw) + 1
     for i = 0, n - 1 do
       local sx = x + i * sw
       local c = i % 2 == 0 and MART or AWN_WHITE
-      K.grad(K.R(sx, y, sw, d), 0, c, K.dark(c, 0.14))
-      K.col(K.dark(c, 0.14))
+      K.grad(K.R(sx, y, sw, d), 0, c, K.dark(c, 0.1))
+      K.col(K.dark(c, 0.1))
       G.arc("fill", "pie", K.X(sx + sw / 2), K.Y(y + d), (sw / 2) * K.sc, 0, pi, 14)
     end
+    K.col(WHITE, 0.6)
+    K.box("fill", K.R(x, y, w, 0.5))
     local p = (clock * 0.22) % 1.8
     if p < 1 then
       local gx = x - 12 + p * (w + 24)
-      K.col(WHITE, 0.3 * sin(p * pi))
+      K.col(WHITE, 0.35 * sin(p * pi))
       G.polygon("fill", K.X(gx), K.Y(y), K.X(gx + 5), K.Y(y), K.X(gx + 2), K.Y(y + d), K.X(gx - 3), K.Y(y + d))
     end
   end
@@ -523,22 +533,21 @@ return function(ctx, env)
     st.headY = foot - sh / K.sc * 0.78
   end
 
-  -- the counter, the clerk behind it (seen from the chest up), the till on it (its drawer out when
-  -- coins land)
+  -- the counter (a pane of glass with the Mart's blue band and the W), the clerk behind it (seen from
+  -- the chest up), the till on it (its drawer out when coins land)
   local function drawCounter(x, y, w, clock)
     local G = K.graphics()
     local top = y + BAND - 8
     local cx = x + 12
     st.headY = top - 14
-    K.glow(cx, top - 10, 14, 13, MART, 0.3)
+    K.glow(cx, top - 10, 14, 13, MART, 0.16)
     drawClerk(cx, top + 3, BAND - 8, clock)
     local cb = K.R(x, top, w, 8)
-    K.shadow(cb, 2, 1, 0.35)
-    K.grad(cb, 2, COUNTER_TOP, COUNTER_FOOT)
-    K.col(MART)
+    K.glass(cb, 2, 0.8)
+    K.col(MART, 0.92)
     K.box("fill", K.R(x, top + 2.8, w, 3.2))
-    K.col(WHITE, 0.7)
-    K.box("fill", K.R(x + 1.5, top + 0.5, w - 3, 0.5), 0.25)
+    K.col(WHITE, 0.35)
+    K.box("fill", K.R(x, top + 2.8, w, 0.4))
     if K.drawLogo then K.drawLogo(K.X(x + w / 2), K.Y(top + 4.4), 4.4 * K.sc, WHITE, 0.95) end
     -- (the till)
     local tw, th = 14, 9
@@ -549,6 +558,7 @@ return function(ctx, env)
     if open > 0 then
       K.grad(K.R(tx + 1, ty + th - 1 + open * 2.4, tw - 2, 2.6), 0.6, GOLD, GOLD_FOOT)
     end
+    K.shadow(K.R(tx, ty, tw, th), 1.4, 0.8, 0.18)
     K.grad(K.R(tx, ty, tw, th), 1.4, TILL_TOP, TILL_FOOT)
     K.col(LCD)
     local lb = K.R(tx + 1.2, ty + 1.1, tw - 2.4, 3.6)
@@ -605,7 +615,7 @@ return function(ctx, env)
     return out
   end
 
-  -- the speech bubble: it pops up with each line, its tail at the clerk, the words typed out
+  -- the speech bubble: a pane of glass popping up with each line, its tail at the clerk, the words typed out
   local function drawBubble(x, y, w, h, clock)
     local s = st.say
     if not s or w < 20 then return end
@@ -613,16 +623,17 @@ return function(ctx, env)
     local k = ease((now() - s.t) / 0.2)
     local by = y + (1 - k) * 2.5
     local b = K.R(x, by, w, h)
-    K.shadow(b, 4, 1.2, 0.4 * k)
-    K.col(BUBBLE_C, k)
-    K.box("fill", b, 4)
+    local f0 = K.getFade()
+    K.setFade(f0 * k)
+    K.glass(b, 4, 0.86)
+    K.col(WHITE, 0.86)
     local ty = min(max(st.headY or (y + h / 2), by + 4), by + h - 4)
     G.polygon("fill", K.X(x + 0.6), K.Y(ty - 2.6), K.X(x - 4.2), K.Y(ty + 0.4), K.X(x + 0.6), K.Y(ty + 2.6))
-    if s.bad then K.ring(b, 4, RED, 0.85 * k, 0.55) end
+    if s.bad then K.ring(b, 4, RED, 0.85, 0.55) end
     local nm = T("mart.clerk")
     local nw = K.width(nm, 3) + 5
     K.grad(K.R(x + 4, by - 2.4, nw, 4.8), 2.4, s.bad and RED or MART, s.bad and RED_DEEP or MART_DEEP)
-    K.bold(nm, x + 4, by - 1.7, 3, WHITE, "center", nw, k)
+    K.bold(nm, x + 4, by - 1.7, 3, WHITE, "center", nw)
     -- (the words: made again when they or the width change; smaller when they'd overflow)
     local tw = w - 8
     local L = st.lines
@@ -638,12 +649,12 @@ return function(ctx, env)
       if ly + L.line > by + h + 0.5 then break end
       local cnt = L.count[j]
       if left >= cnt then
-        K.text(L.lines[j], x + 4, ly, L.size, INK, nil, nil, k)
+        K.text(L.lines[j], x + 4, ly, L.size, INK)
         left = left - cnt
       else
         local cw = 0
         if left > 0 then
-          K.text(L.pre[j][left], x + 4, ly, L.size, INK, nil, nil, k)
+          K.text(L.pre[j][left], x + 4, ly, L.size, INK)
           cw = K.width(L.pre[j][left], L.size)
         end
         K.col(s.bad and RED or MART, 0.5 + 0.5 * abs(sin(clock * 8)))
@@ -652,75 +663,70 @@ return function(ctx, env)
       end
       ly = ly + L.line
     end
+    K.setFade(f0)
     K.addHit(b, "win", BUBBLE)
   end
 
-  -- Buy | Sell: a pill, its light sliding to the chosen side (blue to buy, green to sell)
+  -- Buy | Sell: the glass switch, its thumb sliding to the chosen side, a line of blue (to buy) or green
+  -- (to sell) under it
   local function drawSwitch(x, y, w, h)
-    local b = K.R(x, y, w, h)
-    K.col(WHITE, 0.1)
-    K.box("fill", b, h / 2)
-    local want = st.mode == "buy" and 0 or 1
-    local dt = st.swT and min(0.1, max(0, now() - st.swT)) or 0
-    st.swT = now()
-    st.swK = (st.swK or want) + (want - (st.swK or want)) * min(1, dt * 12)
-    local half = (w - 1) / 2
-    local hb = K.R(x + 0.5 + half * st.swK, y + 0.5, half, h - 1)
-    if st.mode == "buy" then K.grad(hb, (h - 1) / 2, MART, MART_DEEP) else K.grad(hb, (h - 1) / 2, GREEN, GREEN_DEEP) end
-    local l1, l2 = T("mart.buy"), T("mart.sell")
-    local fs = 4.2
-    K.bold(l1, x, y + (h - fs * 1.2) / 2, K.fit(l1, fs, half - 3), st.mode == "buy" and WHITE or SOFT, "center", half)
-    K.bold(l2, x + half, y + (h - fs * 1.2) / 2, K.fit(l2, fs, half - 3), st.mode == "sell" and WHITE or SOFT, "center", half)
-    K.addHit(K.R(x, y, half, h), "win", SEG_BUY)
-    K.addHit(K.R(x + half, y, half, h), "win", SEG_SELL)
+    local want = st.mode == "buy" and 1 or 2
+    mv.sw = mv.sw and K.approach(mv.sw, want, mv.dt, 16) or want
+    K.glassSwitch(x, y, w, h, mv.sw, "win", SEG_BUY, T("mart.buy"), SEG_SELL, T("mart.sell"), nil, nil, 4.2)
+    local sw = (w - 1) / 2
+    K.col(K.mix(MART, GREEN_DEEP, mv.sw - 1), 0.9)
+    K.box("fill", K.R(x + 0.5 + (mv.sw - 1) * sw + sw * 0.3, y + h - 1.9, sw * 0.4, 0.7), 0.35)
   end
 
   -- the money: a coin, the amount counting to what it is (red a moment when it falls short)
   local function drawMoney(x, y, w, h)
     local G = K.graphics()
     local b = K.R(x, y, w, h)
-    glass(b, h / 2)
+    K.glass(b, h / 2, 0.6)
     local cx, cy = x + h / 2 + 0.5, y + h / 2
     K.col(GOLD_FOOT)
     G.circle("fill", K.X(cx), K.Y(cy), (h / 2 - 1.6) * K.sc)
     K.col(GOLD)
     G.circle("fill", K.X(cx), K.Y(cy), (h / 2 - 2.3) * K.sc)
     local target = mart.money(session())
-    local dt = st.mT and min(0.1, max(0, now() - st.mT)) or 0
-    st.mT = now()
-    st.shownM = st.shownM and (st.shownM + (target - st.shownM) * min(1, dt * 5)) or target
+    st.shownM = st.shownM and K.approach(st.shownM, target, mv.dt, 5) or target
     if abs(target - st.shownM) < 1 then st.shownM = target end
     local flash = now() - st.flash < FLASH
     local size = K.fit("0000000", 4.6, w - h - 3)
-    money(floor(st.shownM + 0.5), x + w - h / 2, y + (h - size * 1.15) / 2, size, flash and RED or GOLD, true)
+    money(floor(st.shownM + 0.5), x + w - h / 2, y + (h - size * 1.15) / 2, size, flash and RED or GOLD_INK, true)
     st.moneyX, st.moneyY = cx, cy
   end
 
-  -- the tabs: one chip each, the light sliding to the chosen one in its colour
+  -- the tabs: one chip each, a pane of the chosen one's colour sliding to it
   local function drawTabs(x, y, w, h)
     local n = st.mode == "buy" and #st.tabs or #st.pockets
     if n == 0 then return end
     local cw = w / n
     local want = (st.mode == "buy" and st.tab or st.sellTab) - 1
-    local dt = st.tabT and min(0.1, max(0, now() - st.tabT)) or 0
-    st.tabT = now()
-    if st.tabMode ~= st.mode then st.tabK, st.tabMode = want, st.mode end
-    st.tabK = (st.tabK or want) + (want - (st.tabK or want)) * min(1, dt * 14)
+    if mv.tabMode ~= st.mode or not mv.tabK then mv.tabK, mv.tabMode = want, st.mode end
+    mv.tabK = K.approach(mv.tabK, want, mv.dt, 16)
     local c = curColor()
-    local hb = K.R(x + st.tabK * cw + 0.6, y + 0.6, cw - 1.2, h - 1.2)
-    K.col(c, 0.28)
+    local hb = K.R(x + mv.tabK * cw + 0.6, y + 0.6, cw - 1.2, h - 1.2)
+    K.col(SHADE, 0.08)
+    K.box("fill", K.R(hb[1], hb[2] + 0.4, hb[3], hb[4]), (h - 1.2) / 2)
+    K.col(c, 0.92)
     K.box("fill", hb, (h - 1.2) / 2)
-    K.ring(hb, (h - 1.2) / 2, c, 0.8, 0.45)
+    K.ring(hb, (h - 1.2) / 2, WHITE, 0.6, 0.35)
     for i = 1, n do
       local key = st.mode == "buy" and st.tabs[i].key or st.pocketKeys[i]
       local label = T(key)
-      local on = i - 1 == want
+      local on = abs(mv.tabK - (i - 1)) < 0.5
       local fs = K.fit(label, 3.6, cw - 3)
-      K.bold(label, x + (i - 1) * cw, y + (h - fs * 1.2) / 2, fs, on and WHITE or SOFT, "center", cw)
+      if on then
+        K.bold(label, x + (i - 1) * cw, y + (h - fs * 1.2) / 2, fs, WHITE, "center", cw)
+      else
+        K.text(label, x + (i - 1) * cw, y + (h - fs * 1.2) / 2, fs, SOFT, "center", cw)
+      end
       K.addHit(K.R(x + (i - 1) * cw, y, cw, h), "win", TAB_AT + i)
     end
   end
 
+  -- the rows: the highlight gliding to the chosen one, a tab's rows rising in one after another
   local function drawList(x, y, w, h, focused, clock)
     local G = K.graphics()
     local clip = K.R(x, y, w, h)
@@ -730,36 +736,49 @@ return function(ctx, env)
     local last = min(#st.rows, first + st.visible + 1)
     local sell = st.mode == "sell"
     local tc = curColor()
+    if st.tabKey ~= mv.listKey or st.mode ~= mv.listMode then
+      mv.listKey, mv.listMode, mv.listAt, mv.hl = st.tabKey, st.mode, clock, nil
+    end
+    local since = clock - mv.listAt
+    if #st.rows > 0 then
+      mv.hl = mv.hl and K.approach(mv.hl, st.cursor, mv.dt, 22) or st.cursor
+      local e = K.stagger(since, st.cursor - first, 0.035, 0.28)
+      local f0 = K.getFade()
+      K.setFade(f0 * max(0, e))
+      local hb = K.R(x + 1.5, y + (mv.hl - 1 - top) * ROW_H + 0.4, w - 3, ROW_H - 0.8)
+      K.col(tc, focused and (0.2 + 0.05 * sin(clock * 4)) or 0.1)
+      K.box("fill", hb, 3)
+      K.ring(hb, 3, tc, focused and 0.85 or 0.35, 0.45)
+      K.col(tc)
+      K.box("fill", K.R(hb[1] + 0.7, hb[2] + 2, 0.9, hb[4] - 4), 0.45)
+      K.setFade(f0)
+    end
     for i = first, last do
       local r = st.rows[i]
       local ry = y + (i - 1 - top) * ROW_H
       local rb = K.R(x + 1.5, ry + 0.4, w - 3, ROW_H - 0.8)
       local on = i == st.cursor
       local off = locked(r) or (sell and not r.price)
-      if on then
-        K.col(tc, focused and (0.26 + 0.06 * sin(clock * 4)) or 0.14)
-        K.box("fill", rb, 3)
-        K.ring(rb, 3, tc, focused and 0.75 or 0.3, 0.45)
-        K.col(tc)
-        K.box("fill", K.R(rb[1] + 0.7, rb[2] + 2, 0.9, rb[4] - 4), 0.45)
-      elseif i > first then
-        K.col(WHITE, 0.06)
-        K.box("fill", K.R(x + 14, ry, w - 17, 0.3))
-      end
-      K.col(tc, off and 0.07 or (on and 0.3 or 0.15))
+      -- (rising in: an offset and a fade, no transform -- a push makes garbage in some stand-ins)
+      local e = K.stagger(since, i - first, 0.035, 0.28)
+      local f0 = K.getFade()
+      K.setFade(f0 * e)
+      ry = ry + (1 - e) * 4
+      if i > first and not on and i - 1 ~= st.cursor then K.hairline(x + 14, ry, w - 17) end
+      K.col(tc, off and 0.1 or (on and 0.3 or 0.18))
       G.circle("fill", K.X(x + 8), K.Y(ry + ROW_H / 2), 4.1 * K.sc)
-      if env.itemIcon then pcall(env.itemIcon, r.id, x + 4, ry + 1, 8, off and 0.45 or 1) end
+      if env.itemIcon then pcall(env.itemIcon, r.id, x + 4, ry + 1, 8, (off and 0.45 or 1) * K.getFade()) end
       local rw = 0
       if locked(r) then
         local bt = badgeText(r.badges)
         rw = K.width(bt, 3.8) + 7
         local lb = K.R(x + w - 4 - rw, ry + 2.3, rw, 5.4)
-        K.col(WHITE, 0.08)
+        K.col(SHADE, 0.06)
         K.box("fill", lb, 2.7)
-        padlock(lb[1] + 1.4, lb[2] + 0.8, 3.6, FAINT)
-        K.text(bt, lb[1] + 5, lb[2] + 1, 3.8, FAINT)
+        padlock(lb[1] + 1.4, lb[2] + 0.8, 3.6, SOFT)
+        K.text(bt, lb[1] + 5, lb[2] + 1, 3.8, SOFT)
       elseif r.price then
-        rw = money(r.price, x + w - 4, ry + 2.7, 4.3, off and FAINT or GOLD, true)
+        rw = money(r.price, x + w - 4, ry + 2.7, 4.3, off and FAINT or GOLD_INK, true)
       end
       if sell then
         local qt = qtyText(r.qty)
@@ -770,19 +789,24 @@ return function(ctx, env)
       local nx = x + 14
       if isNew(r) then nx = nx + newTag(nx, ry + 2.9) + 1.5 end
       local ns = K.fit(r.name, 4.5, x + w - 6 - rw - nx)
-      K.text(r.name, nx, ry + 2.7 + (4.5 - ns) * 0.5, ns, off and FAINT or WHITE)
+      if on and focused then
+        K.bold(r.name, nx, ry + 2.7 + (4.5 - ns) * 0.5, ns, off and FAINT or INK)
+      else
+        K.text(r.name, nx, ry + 2.7 + (4.5 - ns) * 0.5, ns, off and FAINT or INK)
+      end
       K.addHit(rb, "win", i, clip)
+      K.setFade(f0)
     end
     if #st.rows == 0 then
-      K.text(T(sell and "items.emptyPocket" or "mart.soldOut"), x, y + h / 2 - 3, 4.4, FAINT, "center", w)
+      K.text(T(sell and "items.emptyPocket" or "mart.soldOut"), x, y + h / 2 - 3, 4.4, SOFT, "center", w)
     end
     K.scrollbar(x + w, y, h, top, st.visible, #st.rows)
     K.scissor(st.clip)
   end
 
-  -- the list's card: the tabs, the rows
+  -- the list's pane: the tabs, the rows
   local function drawListPane(x, y, w, h, focused, clock)
-    glass(K.R(x, y, w, h), 5)
+    K.glass(K.R(x, y, w, h), 5, 0.5)
     drawTabs(x + 1.5, y + 1.5, w - 3, TAB_H)
     local top = y + TAB_H + 3
     st.visible = max(1, floor((y + h - 1 - top) / ROW_H))
@@ -790,17 +814,17 @@ return function(ctx, env)
     drawList(x, top, w, y + h - 1 - top, focused, clock)
   end
 
-  -- the stepper: - and + either side of how many (bumping as it changes), the total on the right
+  -- the stepper: a glass pill, - and + either side of how many (bumping as it changes), the total on the right
   local function drawStepper(x, y, w, stepping, short, total)
     local G = K.graphics()
     local sb = K.R(x, y, 32, 10)
-    K.col(WHITE, 0.09)
-    K.box("fill", sb, 5)
+    K.glass(sb, 5, 0.62)
+    local ac = actColor(st.mode == "sell")
     for side = 0, 1 do
       local cx = side == 0 and sb[1] + 5 or sb[1] + sb[3] - 5
-      K.col(WHITE, 0.16)
+      K.col(ac, 0.14)
       G.circle("fill", K.X(cx), K.Y(sb[2] + 5), 3.7 * K.sc)
-      K.col(WHITE)
+      K.col(ac)
       K.box("fill", K.R(cx - 1.6, sb[2] + 4.65, 3.2, 0.7), 0.35)
       if side == 1 then K.box("fill", K.R(cx - 0.35, sb[2] + 3.4, 0.7, 3.2), 0.35) end
     end
@@ -809,64 +833,80 @@ return function(ctx, env)
     if st.qty ~= st.lastQty then st.lastQty, st.bumpAt = st.qty, now() end
     local bump = max(0, 1 - (now() - (st.bumpAt or -10)) / 0.22)
     local qs = 4.6 * (1 + 0.18 * bump)
-    K.bold(qtyText(st.qty), sb[1] + 9, sb[2] + (10 - qs * 1.2) / 2, qs, WHITE, "center", 14)
+    K.bold(qtyText(st.qty), sb[1] + 9, sb[2] + (10 - qs * 1.2) / 2, qs, INK, "center", 14)
     if stepping and st.keys then K.focusRing(sb, 5) end
     local sh = now() - st.shakeAt
     local dx = sh < 0.4 and sin(sh * 55) * 1.3 * (1 - sh / 0.4) or 0
-    money(total, x + w + dx, y + 2.4, 5.2, short and RED or GOLD, true)
+    money(total, x + w + dx, y + 2.4, 5.2, short and RED or GOLD_INK, true)
   end
 
-  -- the button: lit and breathing when it can be done
+  -- the button: lit and breathing when it can be done, clear glass when it can't
   local function drawGo(b, label, on, sell, stepping, clock)
     if on then
-      K.col(sell and GREEN or MART, 0.2 + 0.12 * sin(clock * 3))
+      local ac = actColor(sell)
+      K.col(ac, 0.14 + 0.1 * sin(clock * 3))
       K.box("fill", K.R(b[1] - 1, b[2] - 1, b[3] + 2, b[4] + 2), b[4] / 2 + 1)
       if sell then K.grad(b, b[4] / 2, GREEN, GREEN_DEEP) else K.grad(b, b[4] / 2, MART, MART_DEEP) end
+      K.ring(b, b[4] / 2, WHITE, 0.45, 0.35)
     else
-      K.col(WHITE, 0.08)
-      K.box("fill", b, b[4] / 2)
+      K.glass(b, b[4] / 2, 0.4)
     end
     if stepping and st.keys then K.focusRing(b, b[4] / 2) end
     K.bold(label, b[1], b[2] + (b[4] - 4.8 * 1.2) / 2, K.fit(label, 4.8, b[3] - 6), on and WHITE or FAINT, "center", b[3])
     K.addHit(b, "win", STEP_GO)
   end
 
-  -- the chosen item on its lit stand: the picture bobbing, its name, how many are in the Bag, its
-  -- words when there's room; how many, the total and Buy / Sell at the foot (or why it can't be had)
+  -- the chosen item on its lit stand: the picture popping up on it as it's chosen, then bobbing, its name
+  -- and how many are in the Bag sliding in after it, its words when there's room; how many, the total and
+  -- Buy / Sell at the foot (or why it can't be had)
   local function drawDetail(x, y, w, h, clock)
     local G = K.graphics()
-    glass(K.R(x, y, w, h), 5)
+    K.glass(K.R(x, y, w, h), 5, 0.5)
     local r = row()
     if not r then return end
+    if r.id ~= mv.itemId or st.mode ~= mv.itemMode then mv.itemId, mv.itemMode, mv.itemAt = r.id, st.mode, clock end
+    local pt = clock - mv.itemAt
     local tc = curColor()
     local big = h >= 60
     local is = big and 16 or 11
     local sx, sy = x + 4 + is / 2 + 1, y + 3 + is / 2 + 1
-    K.glow(sx, sy, is * 0.95, is * 0.8, tc, 0.32)
-    K.col(SHADE, 0.28)
-    G.ellipse("fill", K.X(sx), K.Y(sy + is * 0.55), is * 0.42 * K.sc, is * 0.1 * K.sc)
+    -- (the stand: a disc of the tab's colour, its lit top)
+    K.col(tc, 0.16)
+    G.circle("fill", K.X(sx), K.Y(sy), is * 0.64 * K.sc)
+    K.col(tc, 0.32)
+    G.ellipse("fill", K.X(sx), K.Y(sy + is * 0.55), is * 0.46 * K.sc, is * 0.12 * K.sc)
+    K.col(WHITE, 0.7)
+    G.ellipse("fill", K.X(sx), K.Y(sy + is * 0.52), is * 0.3 * K.sc, is * 0.06 * K.sc)
+    local pop = 0.7 + 0.3 * K.outBack(pt / 0.38)
+    local ps = is * pop
     local bob = sin(clock * 2.2) * 0.7
-    if env.itemIcon then pcall(env.itemIcon, r.id, sx - is / 2, sy - is / 2 + bob - 0.6, is) end
+    if env.itemIcon then pcall(env.itemIcon, r.id, sx - ps / 2, sy + is / 2 - ps + bob - 0.6, ps, K.getFade()) end
     st.standX, st.standY = sx, sy
-    local tx = x + is + 9
+    local e1 = ease((pt - 0.04) / 0.3)
+    local f0 = K.getFade()
+    K.setFade(f0 * e1)
+    local tx = x + is + 9 + (1 - e1) * 5
+    local ty = y + (1 - e1) * 1.5
     local nx = tx
-    if isNew(r) then nx = nx + newTag(nx, y + 4.6) + 1.5 end
+    if isNew(r) then nx = nx + newTag(nx, ty + 4.6) + 1.5 end
     local ns = K.fit(r.name, 5, x + w - 4 - nx)
-    K.bold(r.name, nx, y + 4 + (5 - ns) * 0.5, ns, WHITE)
+    K.bold(r.name, nx, ty + 4 + (5 - ns) * 0.5, ns, INK)
     -- (in the Bag: a little chip)
     local bt = inBagText(st.inBag)
     local bw = K.width(bt, 3.5) + 4
-    K.col(tc, 0.18)
-    K.box("fill", K.R(tx, y + 10.6, bw, 5), 2.5)
-    K.text(bt, tx + 2, y + 11.3, 3.5, SOFT)
+    K.col(tc, 0.2)
+    K.box("fill", K.R(tx, ty + 10.6, bw, 5), 2.5)
+    K.text(bt, tx + 2, ty + 11.3, 3.5, SOFT)
+    K.setFade(f0)
     if big and r.desc ~= "" then
       -- (the words, as many whole lines as fit above the stepper)
+      local e2 = ease((pt - 0.1) / 0.32)
       local dy = y + is + 8
       local lh = K.font(3.8 * K.sc):getHeight() / K.sc
       local n = floor((h - (dy - y) - 28) / lh)
       if n >= 1 then
         K.scissor(K.R(x, dy, w, n * lh + 0.2))
-        K.text(r.desc, x + 4, dy, 3.8, SOFT, "left", w - 8)
+        K.text(r.desc, x + 4, dy + (1 - e2) * 2, 3.8, SOFT, "left", w - 8, e2)
         K.scissor(st.clip)
       end
     end
@@ -876,18 +916,18 @@ return function(ctx, env)
     if locked(r) then
       -- (the Badges it needs: a padlock, the words, a pip for each of the eight)
       padlock(x + 4, y + h - 27, 4.4, RED)
-      K.text(needsText(r.badges), x + 10, y + h - 26.6, 3.8, RED, "left", w - 14)
+      K.text(needsText(r.badges), x + 10, y + h - 26.6, 3.8, RED_DEEP, "left", w - 14)
       for i = 1, 8 do
         local on = i <= st.badges
         local need = i <= r.badges
-        K.col(on and GOLD or (need and RED or WHITE), on and 1 or (need and 0.45 or 0.14))
+        K.col(on and GOLD_FOOT or (need and RED or SHADE), on and 1 or (need and 0.5 or 0.1))
         G.circle("fill", K.X(x + 6 + (i - 1) * 4), K.Y(y + h - 18.5), 1.3 * K.sc)
       end
       drawGo(go, T("mart.buy"), false, false, false, clock)
       return
     end
     if sell and not r.price then
-      K.text(T("reason.mart.cant_sell"), x + 4, y + h - 25.5, 3.8, FAINT, "left", w - 8)
+      K.text(T("reason.mart.cant_sell"), x + 4, y + h - 25.5, 3.8, SOFT, "left", w - 8)
       drawGo(go, T("mart.sell"), false, true, false, clock)
       return
     end
@@ -945,9 +985,11 @@ return function(ctx, env)
 
   function W.draw(body, clock, portrait)
     local x, y, w, h = body[1], body[2], body[3], body[4]
+    mv.dt = mv.lastT and max(0, min(0.1, clock - mv.lastT)) or 0
+    mv.lastT = clock
     st.clip = body
+    drawShop(body, clock)
     K.scissor(body)
-    drawShop(x, y, w, h, clock)
     local cw = 40
     drawCounter(x + M, y, cw, clock)
     -- (the awning in front: the clerk stands under it)

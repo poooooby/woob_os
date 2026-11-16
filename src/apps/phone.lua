@@ -6,16 +6,24 @@
 -- running timer, a waveform while they talk) over the game's own words as chat bubbles: a "..."
 -- bubble, then the words typed out; A shows the rest at once, then the next bubble; the older ones
 -- glide up and fade under the header. End: the round red button (B).
+-- The look is the Pokédex's glass: panes over a backdrop lit by the chosen contact's colour. Its motion
+-- (numbers only, in `mv`): the backdrop turning to the contact's colour, the tabs' thumb sliding, the
+-- rows rising in one after another when the tab or the filter changes, the chosen row's highlight
+-- gliding and the list scrolling smoothly, the card's picture popping up on its disc and its words
+-- sliding in, the check page's lines rising, the ★ popping as it's set, the card sliding over the list
+-- when the window is narrow; a call fading in, its picture popping up while it rings and moving into the
+-- header, each bubble popping up from its tail and widening as the words come.
 --   buttons  L / R the tab, Up / Down the row, A open (a card: Left / Right Call or ★, A press),
 --            SELECT the Rematch filter (Contacts), B back
---   touch    the tabs, a row, the card's buttons, End; drag (or the wheel) scrolls
+--   touch    the tabs, a row, the card's buttons (narrow: its back), End; drag (or the wheel) scrolls
 --
 --   window(ctx, env) -> win (src/apps.lua)
 
 local floor, max, min, abs, sin, pi = math.floor, math.max, math.min, math.abs, math.sin, math.pi
 
-local ROW_H, M = 15, 3
-local TAB_FAV, TAB_REC, TAB_CON, FILTER, CALL, FAV, END, NEXT = 2001, 2002, 2003, 2004, 2010, 2011, 2012, 2013
+local ROW_H, M, GAP = 15, 3, 2
+local TAB_FAV, TAB_REC, TAB_CON, FILTER, CALL, FAV, END, NEXT, BACK = 2001, 2002, 2003, 2004, 2010, 2011, 2012, 2013,
+  2014
 local DIAL = 0.9    -- seconds of "Calling ..."
 local TYPING = 0.45 -- seconds of the "..." bubble before each one
 local CPS = 46      -- letters a second, typed out
@@ -28,6 +36,17 @@ local HINTS = {
   typing = { { "A", "hint.skip" }, { "B", "phone.end" } },
 }
 local NO_T = setmetatable({ list = function(l) return l end, f = string.format }, { __call = function(_, k) return k end })
+
+local C = {
+  ink = { 28, 28, 30 }, soft = { 112, 112, 120 }, faint = { 160, 160, 170 }, accent = { 10, 132, 255 },
+  white = { 255, 255, 255 }, black = { 0, 0, 0 }, green = { 52, 199, 89 }, greenInk = { 30, 150, 64 },
+  amber = { 230, 140, 0 }, star = { 255, 196, 0 }, red = { 255, 59, 48 }, track = { 118, 118, 128, 0.16 },
+  slate = { 120, 132, 178 }, bubble = { 255, 255, 255, 0.8 },
+}
+local SHADE_TOP, SHADE_FOOT = { 255, 255, 255, 0.28 }, { 0, 0, 0, 0.16 }
+-- each contact's colour, by their name (iOS's: blue, orange, green, purple, pink, teal, indigo, amber)
+local TINTS = { { 10, 132, 255 }, { 255, 149, 0 }, { 52, 199, 89 }, { 175, 82, 222 }, { 255, 55, 95 },
+                { 48, 176, 199 }, { 88, 86, 214 }, { 230, 170, 30 } }
 
 return function(ctx, env)
   local K, Ph, T = env.K, env.phone, env.T or NO_T
@@ -231,6 +250,13 @@ return function(ctx, env)
     if arg == FAV then return fav() end
     if arg == END then return endCall() end
     if arg == NEXT then return nextPage() end
+    if arg == BACK then
+      if st.view == "card" then
+        st.view = "list"
+        se("SE_SELECT")
+      end
+      return
+    end
     if type(arg) == "number" and st.rows[arg] then
       if st.cursor == arg and st.view ~= "list" then return end
       st.cursor = arg
@@ -255,40 +281,74 @@ return function(ctx, env)
     return T.list(st.tab == 3 and HINTS.contacts or HINTS.list)
   end
 
-  -- ------- drawing (no tables made here)
+  -- ------- drawing (no tables, closures or strings made here, but a contact's colour and initial the
+  -- first time their name is drawn)
 
-  local GREEN, AMBER, STAR = { 52, 199, 89 }, { 255, 159, 10 }, { 255, 204, 0 }
-  local CALL_TOP, CALL_FOOT = { 34, 52, 64 }, { 12, 16, 22 }
-  local WHITE, SOFT = { 255, 255, 255 }, { 255, 255, 255, 0.7 }
-  local TILE = { 228, 230, 238 }
+  local G = nil
+  local outCubic, outBack, approach = K.outCubic, K.outBack, K.approach
+  -- the motion's numbers: when the window opened, when the rows last rose (another tab, the filter),
+  -- the tabs' thumb, the gliding highlight, the eased scroll, the contact shown and since when, the ★'s
+  -- pop, the filter's switch, the narrow card's slide, the call's fade, the backdrop's colours
+  local mv = { lastT = nil, openAt = nil, rowsAt = -10, tab = nil, filter = nil, tabX = 3, selY = nil, top = 0,
+               shown = nil, shownAt = -10, view = nil, favKey = nil, favOn = nil, favAt = -10, filterK = 0, push = 0,
+               call = nil, callAt = -10, coloured = false, r = 0.5, g = 0.5, b = 0.5, r2 = 0.5, g2 = 0.5, b2 = 0.5 }
+  W.motion = mv
 
-  -- the trainer's picture in a rounded tile (units); someone without one: their initial on a tint of
-  -- their own
-  local initialOf = setmetatable({}, { __mode = "k" })
-  local INITIAL = { { 120, 160, 230 }, { 230, 140, 110 }, { 120, 190, 140 }, { 190, 130, 210 }, { 220, 180, 90 } }
-  local function picture(pic, x, y, size, ring, name)
-    local G = K.graphics()
+  local tints, initials = {}, {}
+  local function tintOf(name)
+    name = name or "?"
+    local c = tints[name]
+    if not c then
+      local h = 0
+      for i = 1, #name do h = (h * 31 + name:byte(i)) % 65521 end
+      c = TINTS[h % #TINTS + 1]
+      tints[name] = c
+    end
+    return c
+  end
+  local function initialOf(name)
+    name = name or "?"
+    local s = initials[name]
+    if not s then
+      s = name:match("[%z\1-\127\194-\244][\128-\191]*") or "?"
+      s = s:upper()
+      initials[name] = s
+    end
+    return s
+  end
+
+  -- (the scissor there was, put back: the pictures clip themselves to their square)
+  local function clipTo(x, y, w, h)
+    local sx, sy, sw, sh
+    if G.getScissor then sx, sy, sw, sh = G.getScissor() end
+    G.intersectScissor(K.X(x), K.Y(y), max(0, w * K.sc), max(0, h * K.sc))
+    return sx, sy, sw, sh
+  end
+  local function unclip(sx, sy, sw, sh)
+    if sx then G.setScissor(sx, sy, sw, sh) else G.setScissor() end
+  end
+
+  -- someone's picture on a round disc (units), clipped to its square; someone without one: their initial on
+  -- a disc of their colour. `a` its alpha
+  local function avatar(pic, name, x, y, size, a)
     local img = Ph.picture(pic)
-    if not img and name then
-      local key = name
-      local c = INITIAL[(#key % #INITIAL) + 1]
-      K.col(c)
-      K.box("fill", K.R(x, y, size, size), size * 0.28)
-      K.bold(key:sub(1, 1), x, y + size * 0.2, size * 0.55, WHITE, "center", size)
-      if ring then K.ring(K.R(x, y, size, size), size * 0.28, ring, 0.9, 0.6) end
+    K.rescissor()
+    local tint = tintOf(name)
+    local cx, cy, r = K.X(x + size / 2), K.Y(y + size / 2), size / 2 * K.sc
+    if not img then
+      K.col(tint, a)
+      G.circle("fill", cx, cy, r)
+      K.bold(initialOf(name), x, y + size * 0.2, size * 0.55, C.white, "center", size, a)
       return
     end
-    K.col(TILE)
-    K.box("fill", K.R(x, y, size, size), size * 0.28)
-    if img then
-      local iw, ih = img:getDimensions()
-      local s = size * K.sc / max(iw, ih) * 1.05
-      G.setColor(1, 1, 1, 1)
-      K.scissor(K.R(x, y, size, size))
-      G.draw(img, K.X(x + size / 2), K.Y(y + size / 2), 0, s, s, iw / 2, ih / 2)
-      K.scissor(st.clip)
-    end
-    if ring then K.ring(K.R(x, y, size, size), size * 0.28, ring, 0.9, 0.6) end
+    K.col(K.light(tint, 0.62), a)
+    G.circle("fill", cx, cy, r)
+    local iw, ih = img:getDimensions()
+    local s = size * K.sc / max(iw, ih) * 1.08
+    local sx, sy, sw, sh = clipTo(x, y, size, size)
+    G.setColor(1, 1, 1, a * K.getFade())
+    G.draw(img, cx, cy + size * 0.04 * K.sc, 0, s, s, iw / 2, ih / 2)
+    unclip(sx, sy, sw, sh)
   end
 
   -- a five-pointed star: ten triangles from its middle (a filled polygon must be convex)
@@ -298,151 +358,332 @@ return function(ctx, env)
     local k = i % 2 == 0 and 1 or 0.42
     STAR_X[i], STAR_Y[i] = math.cos(a) * k, math.sin(a) * k
   end
-  local function star(cx, cy, r, c)
-    local G = K.graphics()
-    K.col(c)
+  local function star(cx, cy, r, c, a)
+    K.col(c, a)
     local x, y, s = K.X(cx), K.Y(cy), r * K.sc
     for i = 0, 9 do
       G.polygon("fill", x, y, x + STAR_X[i] * s, y + STAR_Y[i] * s, x + STAR_X[i + 1] * s, y + STAR_Y[i + 1] * s)
     end
   end
+  -- a handset, white, `s` units, centred on cx, cy, turned by `turn`
+  local function handset(cx, cy, s, a, turn)
+    if not env.glyph then return end
+    if turn and turn ~= 0 then
+      G.push()
+      G.translate(K.X(cx), K.Y(cy))
+      G.rotate(turn)
+      pcall(env.glyph, G, "phone", 0, 0, s * K.sc, a * K.getFade())
+      G.pop()
+    else
+      pcall(env.glyph, G, "phone", K.X(cx), K.Y(cy), s * K.sc, a * K.getFade())
+    end
+  end
+  -- a capsule with words -> where the next one goes
+  local function pill(x, y, words, fill, fillA, ink, size, a)
+    local w = K.width(words, size) + 5
+    K.col(fill, fillA * a)
+    K.box("fill", K.R(x, y, w, size + 2.6), (size + 2.6) / 2)
+    K.bold(words, x, y + 1.2, size, ink, "center", w, a)
+    return x + w + 1.5
+  end
 
-  local function drawRows(x, y, w, h, focused)
-    st.visible = max(1, floor(h / ROW_H))
+  -- ------- the list: the tabs' glass switch, the filter, the rows on a pane of glass
+
+  local function drawEmpty(x, y, w, h)
+    local key = st.tab == 1 and "phone.noFav" or (st.tab == 2 and "phone.noRecent" or "phone.noContacts")
+    local d = min(16, h * 0.4)
+    local cy = y + h / 2 - 4
+    if d >= 8 then
+      K.col(C.green, 0.85)
+      G.circle("fill", K.X(x + w / 2), K.Y(cy - d * 0.3), d / 2 * K.sc)
+      handset(x + w / 2, cy - d * 0.3, d * 0.8, 1)
+      cy = cy + d * 0.3
+    end
+    K.text(T(key), x + 4, cy + 1, 4.2, C.soft, "center", w - 8)
+  end
+
+  local function drawRows(x, y, w, h, focused, clock, dt, live)
+    st.visible = max(1, floor((h - 2) / ROW_H))
     clamp()
+    if h < 4 then return end
+    K.glass(K.R(x, y, w, h), 4, 0.55)
+    if #st.rows == 0 then return drawEmpty(x, y, w, h) end
     local s = session()
     local t = os.time()
     local refreshAgo = now() - st.agoAt >= 1
     if refreshAgo then st.agoAt = now() end
-    if #st.rows == 0 then
-      local key = st.tab == 1 and "phone.noFav" or (st.tab == 2 and "phone.noRecent" or "phone.noContacts")
-      K.text(T(key), x, y + h / 2 - 4, 4.6, UI.secondary, "center", w)
-      return
+    -- (smooth to where the D-pad sent it; scrolled by hand, right where the hand left it)
+    if st.free then mv.top = st.top else mv.top = approach(mv.top, st.top, dt, 20) end
+    local top = mv.top
+    local area = K.R(x, y + 1, w, h - 2)
+    local sx, sy, sw, sh = clipTo(x, y + 1, w, h - 2)
+    -- (the chosen row's highlight, gliding from row to row)
+    if mv.selY == nil then mv.selY = st.cursor else mv.selY = approach(mv.selY, st.cursor, dt, 24) end
+    local hb = K.R(x + 1.2, y + 1 + (mv.selY - 1 - top) * ROW_H + 0.4, w - 2.4, ROW_H - 0.8)
+    if focused then
+      K.col(C.accent)
+      K.box("fill", hb, 3.5)
+    else
+      K.col(C.white, 0.75)
+      K.box("fill", hb, 3.5)
+      K.ring(hb, 3.5, C.white, 0.9, 0.3)
     end
-    K.card(K.R(x, y, w, min(h, (#st.rows - st.top) * ROW_H)), 4)
-    -- (scrolled by hand, the top falls between rows: from the row it's in, clipped to the list; the
-    -- pictures put the clip back to st.clip)
-    local area = K.R(x, y, w, h)
-    local clip = st.clip
-    st.clip = area
-    K.scissor(area)
-    local first = floor(st.top) + 1
+    local since = clock - mv.rowsAt
+    local first = floor(top) + 1
+    local f0 = K.getFade()
     for i = first, min(#st.rows, first + st.visible) do
       local r = st.rows[i]
-      local ry = y + (i - 1 - st.top) * ROW_H
-      local rb = K.R(x, ry, w, ROW_H)
+      local e = K.stagger(since, i - first, 0.035, 0.28)
+      local ry = y + 1 + (i - 1 - top) * ROW_H
+      local oy = (1 - e) * 4
+      K.setFade(f0 * e)
       local on = i == st.cursor
-      if on then K.selection(K.R(x + 1, ry + 0.5, w - 2, ROW_H - 1), focused, 3) end
-      local ink = (on and focused) and WHITE or UI.label
-      local soft = (on and focused) and SOFT or UI.secondary
+      local lit = on and focused and abs(mv.selY - i) < 0.5
+      local ink = lit and C.white or C.ink
+      local soft = lit and C.white or C.soft
       local c = r.contact
       local name = c and c.name or (r.recent and r.recent.name) or "?"
-      picture(c and c.pic or (r.recent and r.recent.pic), x + 2.5, ry + 2, 11, nil, name)
+      avatar(c and c.pic or (r.recent and r.recent.pic), name, x + 2.5, ry + oy + 2, 11, 1)
       local tx = x + 16
       local nw = w - 16 - 14
-      K.bold(name, tx, ry + 2.2, K.fit(name, 5, nw), ink)
-      local sub
+      K.bold(name, tx, ry + oy + 2.2, K.fit(name, 4.8, nw), ink)
       if r.recent then
         if refreshAgo or not r.ago then r.ago = agoText(max(0, floor((t - (r.recent.at or t)) / 60))) end
-        sub = r.ago
         -- (in or out: a little arrow)
-        local G = K.graphics()
-        K.col(r.recent.incoming and GREEN or UI.accent)
-        local ax, ay = K.X(tx + 1.5), K.Y(ry + 10.2)
+        K.col(lit and C.white or (r.recent.incoming and C.green or C.accent))
+        local ax, ay = K.X(tx + 1.5), K.Y(ry + oy + 10.2)
         local u = 1.4 * K.sc
         if r.recent.incoming then G.polygon("fill", ax - u, ay - u, ax + u, ay + u, ax - u, ay + u)
         else G.polygon("fill", ax + u, ay + u, ax - u, ay - u, ax + u, ay - u) end
-        K.text(sub, tx + 4, ry + 8.3, 4, soft)
+        K.text(r.ago, tx + 4, ry + oy + 8.3, 3.8, soft, nil, nil, lit and 0.85 or 1)
       else
-        sub = c.place ~= "" and c.place or c.desc
-        K.text(sub, tx, ry + 8.3, K.fit(sub, 4, nw), soft)
+        local sub = c.place ~= "" and c.place or c.desc
+        K.text(sub, tx, ry + oy + 8.3, K.fit(sub, 3.8, nw), soft, nil, nil, lit and 0.85 or 1)
       end
       if c and c.rematch then
-        K.col(GREEN)
-        K.box("fill", K.R(x + w - 8, ry + ROW_H / 2 - 1.6, 3.2, 3.2), 1.6)
+        K.col(lit and C.white or C.green)
+        G.circle("fill", K.X(x + w - 6.4), K.Y(ry + oy + ROW_H / 2), 1.6 * K.sc)
       end
-      if c and Ph.isFav(s, c.key) then star(x + w - 12.5, ry + ROW_H / 2, 1.8, STAR) end
-      if i > first and not on and i - 1 ~= st.cursor then K.hairline(tx, ry, w - 16) end
-      K.addHit(rb, "win", i, area)
+      if c and Ph.isFav(s, c.key) then star(x + w - 11.5, ry + oy + ROW_H / 2, 1.9, lit and C.white or C.star) end
+      if i > first and not on and i - 1 ~= st.cursor then K.hairline(tx, ry, w - 18) end
+      if live then K.addHit(K.R(x, ry, w, ROW_H), "win", i, area) end
     end
-    st.clip = clip
-    K.scissor(clip)
-    K.scrollbar(x + w, y, h, st.top, st.visible, #st.rows)
+    K.setFade(f0)
+    unclip(sx, sy, sw, sh)
+    K.scrollbar(x + w, y + 1, h - 2, top, st.visible, #st.rows)
   end
 
-  -- a capsule with words
-  local function pill(x, y, words, fill, ink, size)
-    size = size or 4
-    local w = K.width(words, size) + 5
-    K.col(fill)
-    K.box("fill", K.R(x, y, w, size + 3), (size + 3) / 2)
-    K.text(words, x + 2.5, y + 1.4, size, ink)
-    return x + w + 2
+  -- the tabs, the filter (Contacts), the rows
+  local function drawList(x, y, w, h, focused, clock, dt, live)
+    K.glassSwitch(x, y, w, 8, mv.tabX, "win", TAB_FAV, T("phone.favourites"), TAB_REC, T("phone.recents"),
+      TAB_CON, T("phone.contacts"), 4.2)
+    local top = y + 10
+    if st.tab == 3 then
+      -- (a capsule that turns green while it's on, a dot sliding across its switch)
+      local fb = K.R(x, top, w, 7.5)
+      local k = mv.filterK
+      K.col(C.white, 0.4 * (1 - k))
+      K.box("fill", fb, 3.75)
+      K.col(C.green, 0.9 * k)
+      K.box("fill", fb, 3.75)
+      K.ring(fb, 3.75, C.white, 0.75, 0.3)
+      local sw2 = 9
+      local swb = K.R(x + w - sw2 - 1.5, top + 1.25, sw2, 5)
+      K.col(C.white, 0.35 + 0.4 * k)
+      K.box("fill", swb, 2.5)
+      K.col(k > 0.5 and C.white or C.faint)
+      G.circle("fill", K.X(swb[1] + 2.5 + (sw2 - 5) * k), K.Y(swb[2] + 2.5), 1.9 * K.sc)
+      local label = T("phone.rematchOnly")
+      local fs = K.fit(label, 4, w - sw2 - 8)
+      K.text(label, x + 3, top + (7.5 - fs * 1.2) / 2, fs, C.soft, nil, nil, 1 - k)
+      K.text(label, x + 3, top + (7.5 - fs * 1.2) / 2, fs, C.white, nil, nil, k)
+      if live then K.addHit(fb, "win", FILTER) end
+      top = top + 9
+    end
+    drawRows(x, top, w, y + h - top, focused, clock, dt, live)
   end
-  local GREEN_SOFT, AMBER_SOFT = { 52, 199, 89, 0.16 }, { 255, 159, 10, 0.16 }
 
-  local function drawCard(x, y, w, h)
-    local r = row()
-    local c = r and r.contact
-    if not c then return end
+  -- ------- a contact's card: their pane (the picture popping up on its disc), Call and ★, the check page
+
+  local function hero(c, x, y, w, h, t)
     local b = K.R(x, y, w, h)
-    K.card(b, 5)
-    local ps = min(36, w * 0.34, h * 0.4)
-    picture(c.pic, x + 4, y + 4, ps, UI.separator, c.name)
-    local tx = x + ps + 8
-    local nw = w - ps - 12
-    K.bold(c.name, tx, y + 5, K.fit(c.name, 7, nw), UI.label)
-    K.text(c.desc, tx, y + 14, K.fit(c.desc, 4.4, nw), UI.secondary)
-    if c.place ~= "" then K.text(c.place, tx, y + 20, K.fit(c.place, 4.4, nw), UI.tertiary) end
-    local py = y + 27
-    local px = tx
-    if c.rematch then px = pill(px, py, T("phone.wantsRematch"), GREEN_SOFT, GREEN) end
-    if c.nearby then pill(px, py, T("phone.nearby"), AMBER_SOFT, AMBER) end
-    -- (Call and ★)
-    local by = y + max(ps + 8, 36)
-    local bw = (w - 12) / 2
-    local cb, fb = K.R(x + 4, by, bw, 11), K.R(x + 8 + bw, by, bw, 11)
-    if c.canCall then
-      K.col(GREEN)
-      K.box("fill", cb, 5.5)
-      K.bold(T("phone.call"), cb[1], cb[2] + 2.8, 4.8, WHITE, "center", cb[3])
-    else
-      K.col(UI.fill)
-      K.box("fill", cb, 5.5)
-      K.text(T("phone.call"), cb[1], cb[2] + 2.8, 4.8, UI.tertiary, "center", cb[3])
+    local f0 = K.getFade()
+    K.shadow(b, 5, 1.4, 0.1)
+    G.setColor(mv.r, mv.g, mv.b, 0.78 * f0)
+    K.box("fill", b, 5)
+    K.grad(b, 5, SHADE_TOP, SHADE_FOOT)
+    K.ring(b, 5, C.white, 0.6, 0.4)
+    local sx, sy, sw, sh = clipTo(x, y, w, h)
+    -- (a call's rings spreading faintly from the corner)
+    for k = 0, 1 do
+      local p = (t * 0.25 + k * 0.5) % 1
+      K.col(C.white, 0.16 * (1 - p))
+      G.setLineWidth(max(1, 0.5 * K.sc))
+      G.circle("line", K.X(x + w - 8), K.Y(y + 8), (6 + p * h * 0.9) * K.sc)
     end
-    -- (the buttons' focus only once the card is open: A on a contact)
-    local carded = st.view == "card"
+    -- (the picture popping up on its disc, a light behind it)
+    local pop = 0.75 + 0.25 * outBack(t / 0.42)
+    local fa = outCubic(t / 0.18) * f0
+    local ps = max(8, min(h - 8, 30))
+    local pcx, pcy = x + 4 + ps / 2, y + h / 2
+    K.glow(pcx, pcy, ps * 0.8, ps * 0.7, C.white, 0.3 * fa)
+    K.col(C.white, 0.3 * fa)
+    G.circle("fill", K.X(pcx), K.Y(pcy), ps / 2 * pop * K.sc)
+    G.setLineWidth(max(1, 0.4 * K.sc))
+    K.col(C.white, 0.75 * fa)
+    G.circle("line", K.X(pcx), K.Y(pcy), ps / 2 * pop * K.sc)
+    local img = Ph.picture(c.pic)
+    K.rescissor()
+    if img then
+      local iw, ih = img:getDimensions()
+      local s = ps * pop * K.sc / max(iw, ih) * 1.12
+      G.setColor(1, 1, 1, fa)
+      G.draw(img, K.X(pcx), K.Y(pcy - ps * 0.06), 0, s, s, iw / 2, ih / 2)
+    else
+      -- (their initial in their colour on a white disc)
+      local ds = (ps - 5) * pop
+      K.col(C.white, 0.92 * fa / max(0.001, f0))
+      G.circle("fill", K.X(pcx), K.Y(pcy), ds / 2 * K.sc)
+      K.bold(initialOf(c.name), pcx - ds / 2, pcy - ds * 0.3, ds * 0.5, tintOf(c.name), "center", ds,
+        fa / max(0.001, f0))
+    end
+    unclip(sx, sy, sw, sh)
+    -- (the words sliding in after it)
+    local tx = x + ps + 9
+    local room = x + w - tx - 3
+    local e1, e2, e3 = outCubic((t - 0.05) / 0.32), outCubic((t - 0.1) / 0.32), outCubic((t - 0.16) / 0.32)
+    local ty = y + max(2, (h - 30) / 2)
+    K.label(c.name, tx + (1 - e1) * 8, ty, K.fit(c.name, 6.4, room), C.white, nil, nil, e1 * f0)
+    K.label(c.desc, tx + (1 - e2) * 8, ty + 8.5, K.fit(c.desc, 4, room), C.white, nil, nil, 0.9 * e2 * f0)
+    if c.place ~= "" then
+      K.label(c.place, tx + (1 - e2) * 8, ty + 14, K.fit(c.place, 3.6, room), C.white, nil, nil, 0.75 * e2 * f0)
+    end
+    local px = tx + (1 - e3) * 8
+    if c.rematch then px = pill(px, ty + 20.5, T("phone.wantsRematch"), C.white, 0.92, C.greenInk, 3.4, e3 * f0) end
+    if c.nearby then pill(px, ty + 20.5, T("phone.nearby"), C.white, 0.92, C.amber, 3.4, e3 * f0) end
+  end
+
+  -- Call (green, a handset) and ★ (glass, the star popping as it's set)
+  local function buttons(c, x, y, w, clock, carded)
+    local bw = (w - 3) / 2
+    local cb, fb = K.R(x, y, bw, 11), K.R(x + bw + 3, y, bw, 11)
+    local f0 = K.getFade()
+    local label = T("phone.call")
+    local fs = K.fit(label, 4.8, bw - 14)
+    local lw = K.width(label, fs)
+    local gx = cb[1] + (bw - lw - 7) / 2
+    if c.canCall then
+      K.shadow(cb, 5.5, 1, 0.12)
+      K.col(C.green)
+      K.box("fill", cb, 5.5)
+      K.col(C.white, 0.18)
+      K.box("fill", K.R(cb[1] + 1, cb[2] + 0.6, cb[3] - 2, 4.6), 2.3)
+      handset(gx + 2.5, cb[2] + 5.5, 8, 1)
+      K.bold(label, gx + 7, cb[2] + (11 - fs * 1.2) / 2, fs, C.white)
+    else
+      K.col(C.white, 0.35)
+      K.box("fill", cb, 5.5)
+      K.ring(cb, 5.5, C.white, 0.7, 0.3)
+      K.text(label, cb[1], cb[2] + (11 - fs * 1.2) / 2, fs, C.faint, "center", bw)
+    end
     if carded and st.button == 1 then K.focusRing(cb, 5.5) end
     local on = Ph.isFav(session(), c.key)
-    K.col(UI.fill)
+    if mv.favKey ~= c.key then
+      mv.favKey, mv.favOn = c.key, on
+    elseif mv.favOn ~= on then
+      mv.favOn, mv.favAt = on, clock
+    end
+    K.col(C.white, 0.6)
     K.box("fill", fb, 5.5)
-    star(fb[1] + 7, fb[2] + 5.5, 2.4, on and STAR or UI.tertiary)
-    K.text(T(on and "phone.favourite" or "phone.addFav"), fb[1] + 11, fb[2] + 2.8, K.fit(T("phone.addFav"), 4.6, bw - 13),
-      UI.label)
+    K.ring(fb, 5.5, C.white, 0.9, 0.35)
+    local pt = clock - mv.favAt
+    local k = 1
+    if pt >= 0 and pt < 0.4 then
+      k = 1 + 0.55 * sin(pt / 0.4 * pi)
+      if on then
+        -- (a ring bursting from it as it's set)
+        local p = pt / 0.4
+        K.col(C.star, 0.7 * (1 - p))
+        G.setLineWidth(max(1, 0.5 * K.sc))
+        G.circle("line", K.X(fb[1] + 7), K.Y(fb[2] + 5.5), (2.4 + p * 5) * K.sc)
+      end
+    end
+    star(fb[1] + 7, fb[2] + 5.5, 2.6 * k, on and C.star or C.faint)
+    local word = T(on and "phone.favourite" or "phone.addFav")
+    local ws = K.fit(T("phone.addFav"), 4.4, bw - 14)
+    K.text(word, fb[1] + 11, fb[2] + (11 - ws * 1.2) / 2, ws, C.ink)
     if carded and st.button == 2 then K.focusRing(fb, 5.5) end
+    K.setFade(f0)
     K.addHit(cb, "win", CALL)
     K.addHit(fb, "win", FAV)
-    -- (the check page / the profile)
-    local ly = by + 15
+  end
+
+  -- the check page's lines (the profile's headings in the accent) on glass, rising one after another
+  local function checkPage(c, x, y, w, h, t)
+    if h < 10 or #c.check == 0 then return end
+    -- (as tall as its lines, the room allowing)
+    local need = 4.5
+    for i = 1, #c.check do need = need + (c.headings and c.headings[i] and 5.4 or 6.2) end
+    h = min(h, need)
+    K.glass(K.R(x, y, w, h), 4, 0.55)
+    local f0 = K.getFade()
+    local ly = y + 3
     for i, line in ipairs(c.check) do
-      if ly + 5 > y + h - 2 then break end
       local head = c.headings and c.headings[i]
-      K.text(line, x + 5, ly, K.fit(line, head and 4.2 or 4.4, w - 10), head and UI.accent or UI.label)
-      ly = ly + (head and 5.6 or 6.4)
+      if ly + 5 > y + h - 1.5 then break end
+      local e = K.stagger(t - 0.12, i, 0.04, 0.28)
+      K.setFade(f0 * e)
+      K.text(line, x + 3.5, ly + (1 - e) * 3, K.fit(line, head and 4 or 4.3, w - 7), head and C.accent or C.ink)
+      ly = ly + (head and 5.4 or 6.2)
     end
+    K.setFade(f0)
+  end
+
+  local function drawCard(x, y, w, h, clock, carded)
+    local r = row()
+    local c = r and r.contact
+    if not c then
+      -- (nobody chosen: a hint on glass)
+      if h < 12 then return end
+      local f0 = K.getFade()
+      K.glass(K.R(x, y, w, h), 5, 0.35)
+      local d = min(18, h * 0.3)
+      local cx, cy = x + w / 2, y + h / 2 - 4
+      K.col(C.white, 0.6)
+      G.circle("fill", K.X(cx), K.Y(cy), d / 2 * K.sc)
+      K.col(C.green)
+      G.circle("fill", K.X(cx), K.Y(cy), d * 0.38 * K.sc)
+      handset(cx, cy, d * 0.7, 1)
+      K.text(T("phone.pick"), x + 4, cy + d / 2 + 2, 4.4, C.soft, "center", w - 8)
+      K.setFade(f0)
+      return
+    end
+    local t = clock - mv.shownAt
+    local f0 = K.getFade()
+    local heroH = min(36, h)
+    local e0 = outCubic(t / 0.35)
+    K.setFade(f0 * e0)
+    hero(c, x, y + (1 - e0) * 5, w, heroH, t)
+    K.setFade(f0)
+    local by = y + heroH + GAP + 1
+    if by + 11 > y + h then return end
+    local e1 = outCubic((t - 0.06) / 0.35)
+    K.setFade(f0 * e1)
+    buttons(c, x, by + (1 - e1) * 5, w, clock, carded)
+    K.setFade(f0)
+    local ly = by + 14
+    checkPage(c, x, ly, w, y + h - ly, t)
   end
 
   -- ------- the call
 
-  local BG_TOP, BG_FOOT, BUBBLE = { 24, 32, 48 }, { 6, 8, 14 }, { 50, 58, 76 }
-  local GREEN_TEXT = { 120, 230, 150 }
+  local LINE_TOP = { 255, 255, 255, 0.55 }
   local SIZE, LINE, PADX, PADY = 4.6, 6.1, 3.6, 2.4
   local UTF8 = "[%z\1-\127\194-\244][\128-\191]*"
 
   -- a bubble: its lines, each line's typed-out beginnings (made here, so the draw makes no strings)
   local function bubbleOf(lines)
-    local b = { lines = lines, pre = {}, count = {}, n = 0, tw = 0 }
+    local b = { lines = lines, pre = {}, count = {}, lw = {}, n = 0, tw = 0 }
     for j, line in ipairs(lines) do
       local pre, k, acc = {}, 0, ""
       for ch in line:gmatch(UTF8) do
@@ -451,7 +692,8 @@ return function(ctx, env)
         pre[k] = acc
       end
       b.pre[j], b.count[j], b.n = pre, k, b.n + k
-      b.tw = max(b.tw, K.width(line, SIZE))
+      b.lw[j] = K.width(line, SIZE)
+      b.tw = max(b.tw, b.lw[j])
     end
     b.h = #lines * LINE + PADY * 2 - 0.6
     return b
@@ -493,42 +735,49 @@ return function(ctx, env)
     end
     return max(1, n) * LINE + PADY * 2 - 0.6
   end
+  -- the widest line typed so far of a bubble, `left` letters into it
+  local function typedWidth(b, left)
+    local tw = 0
+    for j = 1, #b.lines do
+      if left <= 0 then break end
+      local n = b.count[j]
+      if left >= n then tw = max(tw, b.lw[j]) else tw = max(tw, K.width(b.pre[j][left], SIZE)) end
+      left = left - n
+    end
+    return tw
+  end
   local timeText = K.textCache(function(s) return string.format("%d:%02d", floor(s / 60), s % 60) end)
 
   -- the "..." bubble's dots, rising one after another
-  local function typingDots(bx, by, a, clock)
-    local G = K.graphics()
+  local function typingDots(bx, by, k, a, clock)
     for d = 0, 2 do
       local s = abs(sin(clock * 6 - d * 0.7))
-      K.col(WHITE, (0.4 + 0.6 * s) * a)
-      G.circle("fill", K.X(bx + 4.6 + d * 3.9), K.Y(by + 4.6 - s * 1.2), 1.05 * K.sc)
+      K.col(C.soft, (0.45 + 0.55 * s) * a)
+      G.circle("fill", K.X(bx + (4.6 + d * 3.9) * k), K.Y(by + (4.6 - s * 1.2) * k), 1.05 * k * K.sc)
     end
   end
 
-  -- a hang-up button: red, round, a handset lying across it
+  -- a hang-up button: red, round, a handset lying across it; a ring calling for it once all is said
   local function endButton(cx, cy, r, glow, clock)
-    local G = K.graphics()
     if glow then
       local p = (clock * 0.9) % 1
-      K.col(UI.red, 0.55 * (1 - p))
+      K.col(C.red, 0.55 * (1 - p))
       G.setLineWidth(max(1, 0.6 * K.sc))
       G.circle("line", K.X(cx), K.Y(cy), (r + p * 4) * K.sc)
     end
-    K.col(UI.red)
+    K.col(C.black, 0.14)
+    G.circle("fill", K.X(cx), K.Y(cy + 0.8), (r + 0.4) * K.sc)
+    K.col(C.red)
     G.circle("fill", K.X(cx), K.Y(cy), r * K.sc)
-    if env.glyph then
-      G.push()
-      G.translate(K.X(cx), K.Y(cy))
-      G.rotate(pi * 0.75)
-      pcall(env.glyph, G, "phone", 0, 0, r * 1.45 * K.sc, 1)
-      G.pop()
-    end
+    K.col(C.white, 0.2)
+    G.circle("fill", K.X(cx), K.Y(cy - r * 0.45), r * 0.55 * K.sc)
+    handset(cx, cy, r * 1.45, 1, pi * 0.75)
     K.addHit(K.R(cx - r - 1, cy - r - 1, r * 2 + 2, r * 2 + 2), "win", END)
   end
 
-  -- the bubbles, newest at the foot, between ay0 and ay1
+  -- the bubbles, newest at the foot, between ay0 and ay1: glass, the newest popping up from its tail and
+  -- widening as the words come
   local function drawBubbles(cl, x, ay0, ay1, w, a, t, clock)
-    local G = K.graphics()
     local tw = floor(min(w - 28, 170) - PADX * 2)
     local most = max(2, min(4, floor((ay1 - ay0 - PADY * 2) / LINE)))
     if not st.bubbles or st.bubW ~= tw or st.bubL ~= most then
@@ -547,169 +796,230 @@ return function(ctx, env)
     cl.lift = cl.lift * math.exp(-dt * 11)
     if cl.lift < 0.05 then cl.lift = 0 end
     local area = K.R(x, ay0, w, ay1 - ay0)
-    K.scissor(area)
-    local clip = st.clip
-    st.clip = area
-    local bub = K.mix(BUBBLE, INITIAL[(#(cl.name or "") % #INITIAL) + 1], 0.2)
+    local sx, sy, sw, sh = clipTo(x, ay0, w, ay1 - ay0)
     local bx = x + 14
     local by = ay1 + cl.lift
     for i = cl.idx, 1, -1 do
       local b = bubbles[i]
       local now_ = i == cl.idx
       local dots = now_ and typing
-      local bh, bw = heightOf(cl, b, i, t), dots and 17 or (b.tw + PADX * 2)
+      local bh = heightOf(cl, b, i, t)
+      local bw = b.tw + PADX * 2
+      local k = 1
+      if now_ and not cl.full then
+        local since = t - cl.at
+        -- (popping up from its tail, then widening from the dots' size as the words come)
+        k = 0.55 + 0.45 * outBack(since / 0.3)
+        if dots then bw = 17 else bw = max(17, typedWidth(b, shownOf(cl, b, t)) + PADX * 2) end
+      end
       by = by - bh
       if by + bh < ay0 then break end
       -- (fading in as it comes; the older ones fading out as they reach the header)
       local ba = a * min(1, max(0, (by - ay0 + 3) / 9))
-      if now_ and not cl.full then
-        ba = ba * min(1, dots and (t - cl.at) / 0.15 or (0.35 + (t - cl.at - TYPING) / 0.12))
-      end
-      K.col(bub, ba)
-      K.box("fill", K.R(bx, by, bw, bh), 4.4)
+      if now_ and not cl.full then ba = ba * min(1, (t - cl.at) / 0.15) end
+      local foot = by + bh
+      local kb = K.R(bx, foot - bh * k, bw * k, bh * k)
+      K.col(C.black, 0.06 * ba)
+      K.box("fill", K.R(kb[1], kb[2] + 0.7, kb[3], kb[4]), 4.4 * k)
+      K.col(C.bubble, ba)
+      K.box("fill", kb, 4.4 * k)
       if now_ then
         -- (the newest: a tail toward the picture beside it)
-        G.polygon("fill", K.X(bx + 0.6), K.Y(by + bh - 4.4), K.X(bx + 4.2), K.Y(by + bh), K.X(bx - 1.8), K.Y(by + bh + 0.5))
-        picture(cl.pic, x + 4.5, by + bh - 7.6, 7.6, nil, cl.name)
+        G.polygon("fill", K.X(bx + 0.6), K.Y(foot - 4.4 * k), K.X(bx + 4.2 * k), K.Y(foot), K.X(bx - 1.8 * k),
+          K.Y(foot + 0.5))
       end
+      K.col(LINE_TOP, ba)
+      K.box("fill", K.R(kb[1] + 2, kb[2] + 0.5, max(0, kb[3] - 4), 0.6 * k), 0.3)
+      K.ring(kb, 4.4 * k, C.white, 0.95 * ba, 0.3)
+      if now_ then avatar(cl.pic, cl.name, x + 4.5, foot - 7.6, 7.6, ba) end
       if dots then
-        typingDots(bx, by, ba, clock)
+        typingDots(bx, foot - 9.2 * k, k, ba, clock)
       else
         local left = now_ and shownOf(cl, b, t) or b.n
         local ly = by + PADY
         for j, line in ipairs(b.lines) do
           local n = b.count[j]
           if left >= n then
-            K.text(line, bx + PADX, ly, SIZE, WHITE, nil, nil, ba)
+            K.text(line, bx + PADX, ly, SIZE, C.ink, nil, nil, ba)
             left = left - n
           else
-            if left > 0 then K.text(b.pre[j][left], bx + PADX, ly, SIZE, WHITE, nil, nil, ba) end
+            if left > 0 then K.text(b.pre[j][left], bx + PADX, ly, SIZE, C.ink, nil, nil, ba) end
             break
           end
           ly = ly + LINE
         end
         if now_ and cl.idx < #bubbles and shownOf(cl, b, t) >= b.n then
-          K.chevron(bx + bw + 3.2, by + bh - 3, 1.8, WHITE, 2, K.pulse() * ba)
+          K.chevron(bx + bw + 3.2, by + bh - 3, 1.8, C.soft, 2, K.pulse() * ba)
         end
       end
       by = by - 2.2
     end
-    st.clip = clip
-    K.scissor(clip)
+    unclip(sx, sy, sw, sh)
     K.addHit(area, "win", NEXT)
   end
 
   local function drawCall(x, y, w, h, clock)
     local cl = st.call
     if not cl then return end
-    local G = K.graphics()
     local t = now()
     local since = t - cl.t0
-    local tint = INITIAL[(#(cl.name or "") % #INITIAL) + 1]
-    K.grad(K.R(x, y, w, h), 0, BG_TOP, BG_FOOT)
-    K.glow(x + w * (0.25 + 0.06 * sin(clock * 0.4)), y + h * 0.16, w * 0.55, h * 0.45, tint, 0.2)
-    K.glow(x + w * 0.85, y + h * (0.9 + 0.05 * sin(clock * 0.33)), w * 0.5, h * 0.4, GREEN, 0.08)
+    local f0 = K.getFade()
+    K.setFade(f0 * outCubic((clock - mv.callAt) / 0.25))
     -- (e: 0 while it rings, 1 once the picture is up in the header)
     local e = min(1, max(0, (since - DIAL) / SHRINK))
     e = e * e * (3 - 2 * e)
     local cx = x + w / 2
     local big = min(30, h * 0.26)
     local px0, py0 = cx - big / 2, y + max(6, h * 0.3 - big / 2)
-    local ps = big + (12 - big) * e
-    local px, py = px0 + (x + 5 - px0) * e, py0 + (y + 4 - py0) * e
+    local hs = 11
+    local ps = big + (hs - big) * e
+    local px, py = px0 + (x + M + 2.5 - px0) * e, py0 + (y + M + 2.5 - py0) * e
+    if e > 0 then
+      -- (the header's pane, coming as the picture moves up into it)
+      local fe = K.getFade()
+      K.setFade(fe * e)
+      K.glass(K.R(x + M, y + M, w - M * 2, 16), 5, 0.55)
+      K.setFade(fe)
+    end
     if since < DIAL then
-      -- (two rings spreading out of the picture while it rings)
+      -- (a light behind it, two rings spreading out of the picture while it rings)
+      K.glow(cx, py0 + big / 2, big * 0.95, big * 0.85, C.white, 0.35)
       for k = 0, 1 do
         local p = (clock * 1.2 + k * 0.5) % 1
-        K.col(GREEN, 0.55 * (1 - p))
+        K.col(C.green, 0.6 * (1 - p))
         G.setLineWidth(max(1, 0.5 * K.sc))
         G.circle("line", K.X(cx), K.Y(py0 + big / 2), (big / 2 + 1.5 + p * 9) * K.sc)
       end
     end
-    picture(cl.pic, px, py, ps, WHITE, cl.name)
+    -- (the picture popping up as it starts to ring, on its disc)
+    local pop = 0.6 + 0.4 * outBack(since / 0.45)
+    local s = ps * pop
+    local pcx, pcy = px + ps / 2, py + ps / 2
+    K.col(C.white, 0.5 * (1 - e))
+    G.circle("fill", K.X(pcx), K.Y(pcy), (s / 2 + 1.6) * K.sc)
+    avatar(cl.pic, cl.name, pcx - s / 2, pcy - s / 2, s, 1)
+    G.setLineWidth(max(1, 0.45 * K.sc))
+    K.col(C.white, 0.9)
+    G.circle("line", K.X(pcx), K.Y(pcy), s / 2 * K.sc)
     if e < 1 then
       local a = 1 - e
-      K.bold(cl.name, x, py0 + big + 4, 6, WHITE, "center", w, a)
+      local name = cl.name or "?"
+      K.bold(name, x + 4, py0 + big + 4, K.fit(name, 6.4, w - 8), C.ink, "center", w - 8, a)
       local word = T("phone.calling")
       local ww = K.width(word, 4.4)
-      K.text(word, x, py0 + big + 12, 4.4, SOFT, "center", w, a)
+      K.text(word, x, py0 + big + 12.5, 4.4, C.soft, "center", w, a)
       local dots = floor(since * 4) % 4
       for i = 1, dots do
-        K.col(SOFT, a)
-        G.circle("fill", K.X(cx + ww / 2 + i * 2), K.Y(py0 + big + 16), 0.5 * K.sc)
+        K.col(C.soft, a)
+        G.circle("fill", K.X(cx + ww / 2 + i * 2), K.Y(py0 + big + 16.5), 0.5 * K.sc)
       end
     end
     if since >= DIAL then
       -- (the header: the name, a green dot and the time on the call, a waveform while they talk)
-      local nx = x + 20
-      K.bold(cl.name, nx, y + 4.2, K.fit(cl.name, 5.2, w - 26), WHITE, nil, nil, e)
-      K.col(GREEN, e)
-      G.circle("fill", K.X(nx + 1), K.Y(y + 12.9), 0.95 * K.sc)
+      local nx = x + M + 17
+      local name = cl.name or "?"
+      local tint = tintOf(name)
+      K.bold(name, nx, y + M + 2.4, K.fit(name, 5, w - M * 2 - 34), C.ink, nil, nil, e)
+      K.col(C.green, e)
+      G.circle("fill", K.X(nx + 1), K.Y(y + M + 10.9), 0.95 * K.sc)
       local clockText = timeText(floor(max(0, since - DIAL)))
-      K.text(clockText, nx + 3, y + 10.8, 3.8, GREEN_TEXT, nil, nil, e)
+      K.text(clockText, nx + 3, y + M + 8.8, 3.8, C.greenInk, nil, nil, e)
       local b = st.bubbles and st.bubbles[cl.idx]
       local talking = b and not typingNow(cl, t) and shownOf(cl, b, t) < b.n
-      local wx = nx + 3 + K.width(clockText, 3.8) + 3
+      local wx = x + w - M - 13
       for i = 0, 4 do
         local amp = talking and (0.35 + 0.65 * abs(sin(clock * 9 + i * 1.7))) or 0.12
-        local bh = 0.7 + 2.8 * amp
-        K.col(WHITE, 0.75 * e)
-        K.box("fill", K.R(wx + i * 1.5, y + 12.9 - bh / 2, 0.8, bh), 0.4)
+        local bh = 0.8 + 6 * amp
+        K.col(tint, 0.85 * e)
+        K.box("fill", K.R(wx + i * 1.9, y + M + 8 - bh / 2, 1, bh), 0.5)
       end
-      K.hairline(x, y + 18, w, WHITE, 0.08 * e)
-      drawBubbles(cl, x, y + 19, y + h - 18, w, e, t, clock)
+      drawBubbles(cl, x, y + M + 17.5, y + h - 20, w, e, t, clock)
     end
     -- (End)
     local last = st.bubbles and cl.idx >= #st.bubbles and e >= 1
     local done = last and st.bubbles[cl.idx] and shownOf(cl, st.bubbles[cl.idx], t) >= st.bubbles[cl.idx].n
-    endButton(cx, y + h - 9, 6, done, clock)
+    endButton(cx, y + h - 10, 6, done, clock)
+    K.setFade(f0)
   end
 
-  local function drawTabs(x, y, w)
-    K.segmented(x, y, w, 9, st.tab, "win", TAB_FAV, T("phone.favourites"), TAB_REC, T("phone.recents"),
-      TAB_CON, T("phone.contacts"))
+  -- ------- the whole window
+
+  local function backdrop(body, clock) K.backdrop(body, clock, mv.r, mv.g, mv.b, mv.r2, mv.g2, mv.b2) end
+
+  -- (what changed since the last frame starts its motion; the backdrop turns to who's chosen)
+  local function follow(clock, dt)
+    if st.tab ~= mv.tab or st.rematchOnly ~= mv.filter then
+      if mv.tab ~= nil then mv.rowsAt = clock end
+      if mv.tab ~= st.tab then mv.selY, mv.top = nil, st.top end
+      mv.tab, mv.filter = st.tab, st.rematchOnly
+    end
+    mv.tabX = approach(mv.tabX, st.tab, dt, 18)
+    mv.filterK = approach(mv.filterK, st.rematchOnly and 1 or 0, dt, 18)
+    local r = row()
+    local shown = r and (r.contact and r.contact.key or r.recent) or nil
+    if shown ~= mv.shown then mv.shown, mv.shownAt = shown, clock end
+    -- (back from a call: the card settles in again)
+    if mv.view == "call" and st.view ~= "call" then mv.shownAt = clock end
+    mv.view = st.view
+    if st.call ~= mv.call then mv.call, mv.callAt = st.call, clock end
+    local name = st.call and st.call.name or (r and (r.contact and r.contact.name or (r.recent and r.recent.name)))
+    local c1 = name and tintOf(name) or C.slate
+    local rate = mv.coloured and 7 or 1000
+    mv.coloured = true
+    mv.r, mv.g, mv.b = approach(mv.r, c1[1] / 255, dt, rate), approach(mv.g, c1[2] / 255, dt, rate),
+      approach(mv.b, c1[3] / 255, dt, rate)
+    mv.r2 = approach(mv.r2, (c1[1] + (255 - c1[1]) * 0.45) / 255, dt, rate)
+    mv.g2 = approach(mv.g2, (c1[2] + (255 - c1[2]) * 0.45) / 255, dt, rate)
+    mv.b2 = approach(mv.b2, (c1[3] + (255 - c1[3]) * 0.45) / 255, dt, rate)
+  end
+
+  -- narrow: the list, and the card sliding in over it (a back button at its top)
+  local function drawNarrow(body, clock, dt)
+    local x, y, w, h = body[1], body[2], body[3], body[4]
+    mv.push = approach(mv.push, st.view == "card" and 1 or 0, dt, 14)
+    local p = outCubic(mv.push)
+    if p < 0.999 then
+      drawList(x + M - w * 0.3 * p, y + M, w - M * 2, h - M * 2, true, clock, dt, st.view == "list")
+      if p > 0.001 then
+        K.col(C.black, 0.12 * p)
+        K.box("fill", body)
+      end
+    end
+    if p > 0.001 then
+      local ox = w * (1 - p)
+      if p < 0.999 then
+        K.shadow(K.R(x + ox, y, w, h), 0, 0, 0.2)
+        backdrop(K.R(x + ox, y, w, h), clock)
+        K.scissor(body)
+      end
+      local bx = x + M + ox
+      local label = T("app.phone")
+      K.chevron(bx + 2, y + M + 4, 4.2, C.accent, -1)
+      K.text(label, bx + 4.8, y + M + 1.5, 4.2, C.accent)
+      if st.view == "card" then K.addHit(K.R(bx - 1, y + M - 1, K.width(label, 4.2) + 8, 10), "win", BACK) end
+      drawCard(bx, y + M + 10, w - M * 2, h - M * 2 - 10, clock, st.view == "card")
+    end
   end
 
   function W.draw(body, clock, portrait)
     local x, y, w, h = body[1], body[2], body[3], body[4]
+    G = K.graphics()
     st.clip = body
     st.wide = not portrait and w >= 200
+    local dt = mv.lastT and max(0, min(0.1, clock - mv.lastT)) or 0
+    mv.lastT = clock
+    if not mv.openAt then mv.openAt, mv.rowsAt = clock, clock end
+    follow(clock, dt)
+    backdrop(body, clock)
     if st.view == "call" then
       drawCall(x, y, w, h, clock)
     elseif st.wide then
-      local lw = floor((w - M * 3) * 0.48)
-      drawTabs(x + M, y + 2, lw)
-      local top = y + 13
-      if st.tab == 3 then
-        local fb = K.R(x + M, top, lw, 8)
-        K.col(st.rematchOnly and GREEN_SOFT or UI.fill)
-        K.box("fill", fb, 4)
-        K.text(T("phone.rematchOnly"), fb[1] + 3, fb[2] + 1.6, 4.2, st.rematchOnly and GREEN or UI.secondary)
-        K.addHit(fb, "win", FILTER)
-        top = top + 10
-      end
-      drawRows(x + M, top, lw, y + h - M - top, st.view == "list")
+      local lw = floor((w - M * 3) * 0.46)
+      drawList(x + M, y + M, lw, h - M * 2, st.view == "list", clock, dt, true)
       K.scissor(body)
-      local cx = x + M * 2 + lw
-      if row() and row().contact then
-        drawCard(cx, y + 2, w - lw - M * 3, h - 2 - M)
-      else
-        K.text(T("phone.pick"), cx, y + h / 2 - 3, 4.6, UI.tertiary, "center", w - lw - M * 3)
-      end
-    elseif st.view == "card" then
-      drawCard(x + M, y + 2, w - M * 2, h - 2 - M)
+      drawCard(x + M * 2 + lw, y + M, w - lw - M * 3, h - M * 2, clock, st.view == "card")
     else
-      drawTabs(x + M, y + 2, w - M * 2)
-      local top = y + 13
-      if st.tab == 3 then
-        local fb = K.R(x + M, top, w - M * 2, 8)
-        K.col(st.rematchOnly and GREEN_SOFT or UI.fill)
-        K.box("fill", fb, 4)
-        K.text(T("phone.rematchOnly"), fb[1] + 3, fb[2] + 1.6, 4.2, st.rematchOnly and GREEN or UI.secondary)
-        K.addHit(fb, "win", FILTER)
-        top = top + 10
-      end
-      drawRows(x + M, top, w - M * 2, y + h - M - top, true)
+      drawNarrow(body, clock, dt)
     end
     K.scissor(body)
     if st.toast and not K.toast(st.toast, clock, K.R(x, y, w, h), UI.red, UI.green, UI.hud) then st.toast = nil end
@@ -718,6 +1028,7 @@ return function(ctx, env)
   -- (opened on a tab: a notification's call opens Recents)
   local resume = ctx.resume and ctx.resume.app == ctx.app and ctx.resume.state
   if type(resume) == "table" and resume.tab == "recents" then st.tab = 2 end
+  mv.tabX = st.tab
   refresh()
   return W
 end

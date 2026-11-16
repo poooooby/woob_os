@@ -12,7 +12,7 @@
 --   Wall = wallpaper(deps)   deps: gameId() ; list(dir) ; image(path) -> a love Image ; log(fmt, ...)
 --   Wall.choices() -> { { id, key | name } } (built-ins, then the folder's pictures; listed anew)
 --   Wall.tint(game) -> top, foot (the game's colours) ; Wall.BUILTIN
---   Wall.draw(id, x, y, w, h, radius, fit) -> true when drawn (window pixels; fit for pictures)
+--   Wall.draw(id, x, y, w, h, radius, fit, a) -> true when drawn (window pixels; fit for pictures; a alpha)
 --   Wall.place(iw, ih, w, h, fit) -> x, y, sx, sy (where a picture goes) ; Wall.isPicture(id)
 
 local floor, max, min, sin, cos, pi = math.floor, math.max, math.min, math.sin, math.cos, math.pi
@@ -292,13 +292,13 @@ return function(deps)
     return c or nil
   end
 
-  function Wall.draw(id, x, y, w, h, radius, fit)
+  function Wall.draw(id, x, y, w, h, radius, fit, a)
     if not id or id == "classic" then return false end
     local g = love and love.graphics
     if not g then return false end
     local c = canvasFor(id, floor(w + 0.5), floor(h + 0.5), radius or 0, Wall.isPicture(id) and fit or nil)
     if not c then return false end
-    g.setColor(1, 1, 1, 1)
+    g.setColor(1, 1, 1, a or 1)
     g.draw(c, x, y)
     return true
   end

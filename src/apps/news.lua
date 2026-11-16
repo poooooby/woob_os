@@ -145,16 +145,19 @@ return function(ctx, env)
 
   -- ------- drawing (no tables made here)
 
-  local BG_TOP, BG_FOOT = { 20, 38, 88 }, { 5, 8, 24 }
+  -- the studio in the Pokédex's glass: its lights drifting behind (the first turning to the story's
+  -- colour: World blue, Your Story orange, breaking red), the camera's shot framed in glass, the story on a
+  -- frosted card, the ticker a strip of glass
   local RED, RED_DEEP, WHITE = { 236, 44, 56 }, { 150, 16, 28 }, { 255, 255, 255 }
-  local SOFT = { 196, 210, 236 }
-  local PANEL, PANEL_EDGE = { 12, 20, 46, 0.88 }, { 255, 255, 255, 0.14 }
+  local INK, BODY, SOFT = { 28, 28, 30 }, { 58, 58, 68 }, { 112, 112, 120 }
+  local SHADE = { 0, 0, 0 }
   local TAG_WORLD, TAG_YOU = { 40, 150, 255 }, { 255, 156, 40 }
   local SCREEN_TOP, SCREEN_FOOT = { 30, 80, 170 }, { 10, 26, 70 }
-  local TICKER = { 168, 20, 32 }
   local BREAKING = { swarm = true, outbreak = true, storm = true }
+  -- the motion's numbers (the view's own: st is the window's)
+  local mv = { lastT = nil, dt = 0, coloured = false, r = 0.16, g = 0.59, b = 1 }
 
-  local function ease(k) k = min(1, max(0, k)) return 1 - (1 - k) * (1 - k) * (1 - k) end
+  local ease = K.outCubic
   local function live(x, y, clock)
     local w = K.width(T("news.live"), 3.6) + 7
     K.col(RED, 0.3 + 0.25 * abs(sin(clock * 3)))
@@ -165,20 +168,33 @@ return function(ctx, env)
     K.bold(T("news.live"), x + 4.4, y + 0.9, 3.6, WHITE)
     return w
   end
-  -- the studio: night blue, beams sweeping, a big screen behind the anchor with the mark turning
-  local function studio(x, y, w, h, clock)
+  local function tagColor(story)
+    if not story then return TAG_WORLD end
+    if BREAKING[story.key] then return RED end
+    return story.tag == "world" and TAG_WORLD or TAG_YOU
+  end
+  -- the studio: its lights over a pale wash, beams of light sweeping, the floor's lights
+  local function studio(body, clock)
     local G = K.graphics()
-    K.grad(K.R(x, y, w, h), 0, BG_TOP, BG_FOOT)
+    local x, y, w, h = body[1], body[2], body[3], body[4]
+    local c = tagColor(cast.stories[st.i])
+    if mv.coloured then
+      mv.r = K.approach(mv.r, c[1] / 255, mv.dt, 4)
+      mv.g = K.approach(mv.g, c[2] / 255, mv.dt, 4)
+      mv.b = K.approach(mv.b, c[3] / 255, mv.dt, 4)
+    else
+      mv.r, mv.g, mv.b, mv.coloured = c[1] / 255, c[2] / 255, c[3] / 255, true
+    end
+    K.backdrop(body, clock, mv.r, mv.g, mv.b, 0.2, 0.34, 0.9)
     for i = 0, 2 do
       local p = (clock * 0.05 + i * 0.33) % 1
       local bx = x + w * (p * 1.4 - 0.2)
-      K.col(WHITE, 0.035)
+      K.col(WHITE, 0.22)
       G.polygon("fill", K.X(bx), K.Y(y), K.X(bx + w * 0.12), K.Y(y), K.X(bx + w * 0.02), K.Y(y + h), K.X(bx - w * 0.1), K.Y(y + h))
     end
-    K.glow(x + w * 0.22, y + h * 0.5, w * 0.35, h * 0.5, TAG_WORLD, 0.14)
     -- (the floor's lights)
     for i = 0, 7 do
-      K.col(TAG_WORLD, 0.12 + 0.08 * sin(clock * 2 + i))
+      K.col(c, 0.3 + 0.15 * sin(clock * 2 + i))
       G.circle("fill", K.X(x + w * (i + 0.5) / 8), K.Y(y + h - 10), 0.6 * K.sc)
     end
   end
@@ -202,13 +218,13 @@ return function(ctx, env)
     return 0
   end
 
-  -- the anchor's close-up: a camera shot of the studio (the mark large behind her, lights out of
-  -- focus drifting, scan lines), her bust at whole pixels as tall as the shot (frameOf), a flash for
-  -- the cut to a new story, the title on a lower third, the LIVE light
+  -- the anchor's close-up, framed in a pane of glass: a camera shot of the studio (the mark large behind
+  -- her, lights out of focus drifting, scan lines), her bust at whole pixels as tall as the shot
+  -- (frameOf), a flash for the cut to a new story, the title on a lower third, the LIVE light
   local function closeUp(x, y, w, h, clock)
     local G = K.graphics()
+    K.glass(K.R(x - 1.3, y - 1.3, w + 2.6, h + 2.6), 5.2, 0.55)
     local b = K.R(x, y, w, h)
-    K.shadow(b, 4, 1.5, 0.5)
     K.grad(b, 4, SCREEN_TOP, SCREEN_FOOT)
     K.scissor(b)
     if K.drawLogo then
@@ -230,7 +246,7 @@ return function(ctx, env)
       local frame = frameOf(art, mood)
       st.mood, st.frame = mood, frame
       local size = art.size * px
-      G.setColor(1, 1, 1, 1)
+      G.setColor(1, 1, 1, K.getFade())
       G.draw(art.image, art.quads[frame] or art.quads[0], floor(K.X(x + w / 2) - size / 2 + 0.5),
         floor(K.Y(y + h) - size + 0.5) + foot * px, 0, px, px)
     end
@@ -243,6 +259,8 @@ return function(ctx, env)
       K.col(WHITE, 0.55 * (1 - cut / 0.2))
       K.box("fill", b)
     end
+    -- (the screen's glass: a sheen down from its top)
+    K.grad(K.R(x, y, w, min(h, 16)), 4, K.fade(WHITE, 0.16), K.fade(WHITE, 0))
     -- (the lower third: the title on red, a light sweeping it now and then)
     local title = T("news.title")
     local fs = K.fit(title, 4.2, w - 12)
@@ -260,29 +278,30 @@ return function(ctx, env)
     end
     K.bold(title, lb[1] + 4, lb[2] + (lb[4] - fs * 1.2) / 2, fs, WHITE)
     K.scissor(st.clip)
-    K.ring(b, 4, PANEL_EDGE, 1, 0.5)
+    K.ring(b, 4, WHITE, 0.7, 0.45)
     live(x + 3, y + 3, clock)
   end
 
+  -- the story's card: a pane of frosted glass sliding in with each story (a light wiping across it), its
+  -- headline and picture settling in after it, the words typed out
   local function drawCard(x, y, w, h, clock)
     local G = K.graphics()
     local story = cast.stories[st.i]
     if not story then return end
-    -- (a new story: it slides in, a light wiping across)
-    local k = ease((now() - st.at) / 0.35)
+    local t = now() - st.at
+    local k = ease(t / 0.35)
     local slide = (1 - k) * 14
     local b = K.R(x + slide, y, w, h)
-    K.shadow(b, 5, 2, 0.5)
-    K.col(PANEL, k)
-    K.box("fill", b, 5)
-    K.ring(b, 5, PANEL_EDGE, k, 0.45)
     K.addHit(K.R(x, y, w, h), "win", CARD)
+    local f0 = K.getFade()
+    K.setFade(f0 * k)
+    K.glass(b, 5, 0.62)
     local tagC = story.tag == "world" and TAG_WORLD or TAG_YOU
     K.scissor(b)
-    K.grad(K.R(b[1], b[2], w, 3), 0, tagC, K.dark(tagC, 0.35))
+    K.grad(K.R(b[1] + 4, b[2] + 1, w - 8, 1.8), 0.9, tagC, K.dark(tagC, 0.25))
     if k < 1 then
       local wx = b[1] + w * k * 1.2 - 10
-      K.col(WHITE, 0.25 * (1 - k))
+      K.col(WHITE, 0.5 * (1 - k))
       G.polygon("fill", K.X(wx), K.Y(b[2]), K.X(wx + 8), K.Y(b[2]), K.X(wx - 4), K.Y(b[2] + h), K.X(wx - 12), K.Y(b[2] + h))
     end
     local cx = b[1]
@@ -303,33 +322,42 @@ return function(ctx, env)
     -- (the tag, the dots for where it is in the broadcast)
     local tag = T(story.tag == "world" and "news.world" or "news.you")
     local tw = K.width(tag, 3.3) + 5
-    K.col(tagC, k)
+    K.col(tagC)
     K.box("fill", K.R(cx + 4, top, tw, 5.4), 2.7)
-    K.bold(tag, cx + 4, top + 0.8, 3.3, WHITE, "center", tw, k)
+    K.bold(tag, cx + 4, top + 0.8, 3.3, WHITE, "center", tw)
     local n = #cast.stories
     local dx = cx + w - 4
     for d = n, 1, -1 do
       local on = d == st.i
       local dw = on and 4 or 1.4
       dx = dx - dw
-      K.col(WHITE, on and 0.95 or 0.3)
+      if on then K.col(tagC) else K.col(SHADE, 0.2) end
       K.box("fill", K.R(dx, top + 2, dw, 1.4), 0.7)
       dx = dx - 1
     end
-    -- (the picture in a spotlight)
+    -- (the picture in a spotlight, popping up after the card)
     local ps = min(26, h * 0.32)
     local px, py = cx + w - ps - 4, top + 7
-    K.glow(px + ps / 2, py + ps / 2, ps * 0.85, ps * 0.85, tagC, 0.3 * k)
+    local pk = K.outBack((t - 0.12) / 0.4)
+    local pa = ease((t - 0.12) / 0.2)
+    K.col(tagC, 0.16 * pa)
+    G.circle("fill", K.X(px + ps / 2), K.Y(py + ps / 2), ps * 0.62 * K.sc)
+    local pz = ps * (0.75 + 0.25 * pk)
+    local pzx, pzy = px + (ps - pz) / 2, py + (ps - pz) / 2
     if story.sp and env.monPic then
       local bob = sin(clock * 1.6) * 0.6
-      pcall(env.monPic, story.sp, px, py + bob, ps, k)
+      pcall(env.monPic, story.sp, pzx, pzy + bob, pz, pa * K.getFade())
     elseif story.glyph then
-      K.grad(K.R(px, py, ps, ps), ps * 0.26, K.light(story.color or TAG_YOU, 0.1), K.dark(story.color or TAG_YOU, 0.35))
-      if env.glyph then pcall(env.glyph, G, story.glyph, K.X(px + ps / 2), K.Y(py + ps / 2), ps * K.sc, k, story.color) end
+      local gc = story.color or TAG_YOU
+      K.setFade(f0 * k * pa)
+      K.grad(K.R(pzx, pzy, pz, pz), pz * 0.26, K.light(gc, 0.1), K.dark(gc, 0.35))
+      K.setFade(f0 * k)
+      if env.glyph then pcall(env.glyph, G, story.glyph, K.X(pzx + pz / 2), K.Y(pzy + pz / 2), pz * K.sc, pa * K.getFade(), gc) end
     end
-    -- (the headline, two lines at most)
+    -- (the headline, two lines at most, rising in)
     local hw = w - 8 - ps - 4
-    K.bold(story.head, cx + 4, top + 7, K.fit(story.head, 5.4, hw * 2), WHITE, "left", hw, k)
+    local he = ease((t - 0.06) / 0.32)
+    K.bold(story.head, cx + 4, top + 7 + (1 - he) * 3, K.fit(story.head, 5.4, hw * 2), INK, "left", hw, he)
     -- (the words, typed out)
     local tw2 = w - 8
     if not st.lines or st.linesW ~= floor(tw2) or st.linesI ~= st.i then
@@ -344,11 +372,11 @@ return function(ctx, env)
     -- (while typing, the line being typed kept in view; all there (A shows the rest), the last lines,
     -- then where they scroll it)
     if total < L.n then
-      local cur, k = 1, total
+      local cur, k2 = 1, total
       for j = 1, nl do
         cur = j
-        if k < L.count[j] then break end
-        k = k - L.count[j]
+        if k2 < L.count[j] then break end
+        k2 = k2 - L.count[j]
       end
       st.top, st.settled = max(0, cur - st.cap), false
     elseif not st.settled then
@@ -369,18 +397,18 @@ return function(ctx, env)
           -- (the beat's turn: a pill; a beat with none, a dot)
           if mk == "" then
             K.col(tagC, 0.9)
-            K.graphics().circle("fill", K.X(cx + 4 + MARK_W * 0.4), K.Y(ly + SIZE * 0.62), 0.9 * K.sc)
+            G.circle("fill", K.X(cx + 4 + MARK_W * 0.4), K.Y(ly + SIZE * 0.62), 0.9 * K.sc)
           else
-            K.col(tagC, 0.85)
+            K.col(tagC, 0.9)
             K.box("fill", K.R(cx + 4, ly + 0.3, MARK_W - 1.6, SIZE * 1.15), 1.6)
             K.bold(mk, cx + 4, ly + 0.3 + (SIZE * 1.15 - MARK_SIZE * 1.2) / 2, MARK_SIZE, WHITE, "center", MARK_W - 1.6)
           end
         end
         if left >= cnt then
-          K.text(L.lines[j], lx, ly, SIZE, SOFT)
+          K.text(L.lines[j], lx, ly, SIZE, BODY)
           left = left - cnt
         else
-          K.text(L.pre[j][left], lx, ly, SIZE, SOFT)
+          K.text(L.pre[j][left], lx, ly, SIZE, BODY)
           -- (the caret where the words are being typed)
           local cw = K.width(L.pre[j][left], SIZE)
           K.col(tagC, 0.5 + 0.5 * abs(sin(clock * 8)))
@@ -391,26 +419,31 @@ return function(ctx, env)
       end
     end
     if nl > st.cap then
-      -- (a light bar: the card is dark)
       local sh = st.cap * LINE
       local bh = max(4, sh * st.cap / nl)
-      K.col(WHITE, 0.3)
+      K.col(SHADE, 0.22)
       K.box("fill", K.R(b[1] + w - 2.2, y0 + (sh - bh) * (st.top / max(1, nl - st.cap)), 1, bh), 0.5)
     end
     if total >= L.n then K.chevron(cx + w - 6, b[2] + h - 5, 2, tagC, 1, K.pulse()) end
+    K.setFade(f0)
     K.scissor(st.clip)
   end
 
+  -- the ticker: a strip of glass, HEADLINES on red at its left, every headline crawling along it
   local function ticker(x, y, w, h, clock)
     local G = K.graphics()
-    K.grad(K.R(x, y, w, h), 0, TICKER, RED_DEEP)
+    local strip = K.R(x, y, w, h)
+    K.col(WHITE, 0.72)
+    K.box("fill", strip)
+    K.grad(K.R(x, y, w, h), 0, K.fade(WHITE, 0.5), K.fade(WHITE, 0))
+    K.col(WHITE)
+    K.box("fill", K.R(x, y, w, 0.35))
     local label = T("news.headlines")
     local lw = K.width(label, 3.8) + 6
-    K.col(WHITE)
-    K.box("fill", K.R(x, y, lw, h))
-    K.col(WHITE)
+    K.grad(K.R(x, y, lw, h), 0, RED, RED_DEEP)
+    K.col(RED_DEEP)
     G.polygon("fill", K.X(x + lw), K.Y(y), K.X(x + lw + 3), K.Y(y + h / 2), K.X(x + lw), K.Y(y + h))
-    K.bold(label, x, y + (h - 3.8 * 1.2) / 2, 3.8, TICKER, "center", lw)
+    K.bold(label, x, y + (h - 3.8 * 1.2) / 2, 3.8, WHITE, "center", lw)
     local text = cast.ticker
     local tw = K.width(text, 3.8) + 30
     local off = (clock * 14) % tw
@@ -418,15 +451,18 @@ return function(ctx, env)
     if G.getScissor then sx, sy, sw, sh = G.getScissor() end
     K.scissor(K.R(x + lw + 3, y, w - lw - 3, h))
     if sx and G.intersectScissor then G.intersectScissor(sx, sy, sw, sh) end
-    K.text(text, x + lw + 6 - off, y + (h - 3.8 * 1.2) / 2, 3.8, WHITE)
-    K.text(text, x + lw + 6 - off + tw, y + (h - 3.8 * 1.2) / 2, 3.8, WHITE)
+    K.text(text, x + lw + 6 - off, y + (h - 3.8 * 1.2) / 2, 3.8, INK)
+    K.text(text, x + lw + 6 - off + tw, y + (h - 3.8 * 1.2) / 2, 3.8, INK)
     if sx then G.setScissor(sx, sy, sw, sh) else G.setScissor() end
   end
 
   function W.draw(body, clock, portrait)
     local x, y, w, h = body[1], body[2], body[3], body[4]
+    mv.dt = mv.lastT and max(0, min(0.1, clock - mv.lastT)) or 0
+    mv.lastT = clock
     st.clip = body
-    studio(x, y, w, h, clock)
+    studio(body, clock)
+    K.scissor(body)
     local th = 8
     local ah = h - th
     if not portrait and w >= 200 then
@@ -438,6 +474,7 @@ return function(ctx, env)
       closeUp(x + M, y + M, w - M * 2, chH, clock)
       drawCard(x + M, y + M * 2 + chH, w - M * 2, ah - M * 3 - chH, clock)
     end
+    K.rescissor()
     ticker(x, y + h - th, w, th, clock)
     K.scissor(body)
   end

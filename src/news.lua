@@ -6,6 +6,8 @@
 -- (today's swarm, Ruby / Sapphire / Emerald's own TV outbreak, Emerald's storms, R-Bay's hottest
 -- auction), then what else the journal saw since they last watched (a shiny, a first for the
 -- Pokédex, hatches, evolutions), a GTS trade, a team out on an errand or back, the week's challenges.
+-- The rookie's stories are told as the desk's reports, the player by name ("Our field teams report ..."),
+-- never to them ("you").
 -- Nothing made up: the battles are the journal's box scores (src/journal.lua), the swarm is real
 -- (src/swarm.lua). The last time they watched is kept in the save (mod.save "news"), and the swarm's
 -- notification once a day. Each story has the anchor's mood for it: "cheer" for the rookie's big
@@ -184,7 +186,7 @@ return function(engine, deps)
       for _, st in ipairs(rookie(Jr, me)) do list[#list + 1] = st end
       local tr, ca, steps = Jr.count("trainer"), Jr.count("caught"), Jr.count("steps")
       if tr + ca + steps > 0 then
-        add("you", "week", T("news.week.head"), T.f("news.week.body", tr, ca, steps), { glyph = "chart", color = { 255, 55, 95 } })
+        add("you", "week", T.f("news.week.head", me), T.f("news.week.body", me, tr, ca, steps), { glyph = "chart", color = { 255, 55, 95 } })
       end
     end
     -- (the world)
@@ -261,7 +263,7 @@ return function(engine, deps)
       local t = okL and type(log) == "table" and log[1]
       if t and t.sp then
         local region = T("gts.region." .. tostring((deps.gts.REGIONS or {})[t.region or 1] or "kanto"))
-        add("you", "gts", T.f("news.gts.head", name(t.sp), region), T.f("news.gts.body", region, name(t.sp)),
+        add("you", "gts", T.f("news.gts.head", name(t.sp), region), T.f("news.gts.body", me, region, name(t.sp)),
           { sp = t.sp, glyph = "globe", color = { 30, 120, 220 } })
       end
     end
@@ -270,9 +272,9 @@ return function(engine, deps)
       for _, e in ipairs(deps.errands.out()) do
         local job = T("errands.job." .. e.job)
         if e.back then
-          add("you", "errandBack", T("news.errandBack.head"), T.f("news.errandBack.body", job), { glyph = "shoes", color = { 0, 150, 136 } })
+          add("you", "errandBack", T.f("news.errandBack.head", me), T.f("news.errandBack.body", me, job), { glyph = "shoes", color = { 0, 150, 136 } })
         else
-          add("you", "errand", T("news.errand.head"), T.f("news.errand.body", job), { glyph = "shoes", color = { 0, 150, 136 } })
+          add("you", "errand", T.f("news.errand.head", me), T.f("news.errand.body", me, job), { glyph = "shoes", color = { 0, 150, 136 } })
         end
         break
       end
@@ -283,11 +285,11 @@ return function(engine, deps)
       if okC and type(l) == "table" and #l > 0 then
         local done = 0
         for _, e in ipairs(l) do if deps.challenges.done(e) then done = done + 1 end end
-        add("you", "challenges", T.f("news.challenges.head", done, #l), T.f("news.challenges.body", done, #l),
+        add("you", "challenges", T.f("news.challenges.head", me, done, #l), T.f("news.challenges.body", me, done, #l),
           { glyph = "medal", color = { 255, 159, 10 }, mood = done >= #l and "cheer" or nil })
       end
     end
-    if #list == 0 then add("you", "quiet", T("news.quiet.head"), T("news.quiet.body"), { glyph = "mic", color = { 88, 86, 214 } }) end
+    if #list == 0 then add("you", "quiet", T("news.quiet.head"), T.f("news.quiet.body", me), { glyph = "mic", color = { 88, 86, 214 } }) end
     -- (the ticker: every headline, one after another)
     local heads = {}
     for i, st in ipairs(list) do

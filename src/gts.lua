@@ -21,7 +21,7 @@
 --   Gx.deposit(s, addr, species, levels, now) / Gx.withdraw(s) / Gx.settle(s, now) / Gx.collect(s)
 --   Gx.posted() -> the deposit { mon, species, levels, at, matchAt, received, stranger } | nil
 --   Gx.offers(s, now) -> the strangers' listings ; Gx.matching(s, L) -> { addr } ; Gx.accept(s, L, addr)
---   Gx.evolveTarget(s, mon) -> species | nil (a trade evolution) ; Gx.name(sp) ; Gx.seenSpecies(s)
+--   Gx.evolveTarget(s, mon) -> species | nil (a trade evolution) ; Gx.name(sp) ; Gx.types(sp) -> t1, t2 ; Gx.seenSpecies(s)
 --   Gx.waiting() -> 1 while a traded deposit waits to be collected
 --   reasons: "last" | "egg" | "national" | "mail" | "invalid" | "gone" | "busy" | "traded" |
 --       "no_room" | "wrong" (lang/*.lua "reason.gts.<reason>")
@@ -531,6 +531,26 @@ return function(engine, deps)
       names[sp] = n
     end
     return n
+  end
+  -- a species' types: their ids (the Gen 3 numbers the windows colour by), kept; nil when unknown
+  local typeA, typeB = {}, {}
+  function Gx.types(sp)
+    if sp == nil then return nil, nil end
+    local a = typeA[sp]
+    if a == nil then
+      local ok, t
+      if Port then
+        ok, t = pcall(Port.types or error, sp)
+      else
+        local Pk = P()
+        ok, t = pcall(Pk and Pk.types or error, sp)
+      end
+      t = ok and type(t) == "table" and t or nil
+      a = t and tonumber(t[1]) or false
+      local b = a and tonumber(t[2]) or false
+      typeA[sp], typeB[sp] = a, (b and b ~= a) and b or false
+    end
+    return a or nil, typeB[sp] or nil
   end
   function Gx.seenSpecies(s)
     local out = {}

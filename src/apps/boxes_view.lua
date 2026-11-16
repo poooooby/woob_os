@@ -562,7 +562,7 @@ return function(K, env, T, Bx, st, A)
       local lw = K.width(info.levelText, 4.2)
       local lx = horizontal and tx or tx + (tw - lw - 10) / 2
       K.text(info.levelText, lx, ty, 4.2, C.soft)
-      genderMark(G, info.gender, lx + lw + 2, ty + 0.4, 4)
+      if not K.hasSign(info.name) then genderMark(G, info.gender, lx + lw + 2, ty + 0.4, 4) end
       if info.shiny then sparkle(G, lx + lw + 7, ty - 0.3, 5) end
       ty = ty + 6
       -- the types

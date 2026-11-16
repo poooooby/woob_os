@@ -838,7 +838,12 @@ st.ctx.done()
   for _, id in ipairs({ "woob_slots", "woob_rbay" }) do
     T.check(byApp[id].open() and byApp[id].shown(), id .. " opens")
     FrlgFont.drawGlyph = function() return 7 end
-    frame()
+    -- (its glass settles in over the clock (this test's `clock`, stepped here), and the stand-in graphics
+    -- allocate on each push: a second and a half of frames, past that and the JIT's first traces, first)
+    for _ = 1, 90 do
+      clock = clock + 1 / 60
+      frame()
+    end
     local kb = garbageOf(60, nil, function() Gp.frame() end)
     FrlgFont.drawGlyph = realGlyph
     T.check(kb < 0.5, id .. (": next to no garbage (%.3f KB a frame)"):format(kb))

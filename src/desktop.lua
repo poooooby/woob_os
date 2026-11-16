@@ -1238,7 +1238,7 @@ return function(deps)
     K.grad(b, rad, light(app.color, 0.2), dark(app.color, 0.12), a)
     K.grad(K.R(x + 0.8, y + 0.6, s - 1.6, s * 0.48), rad * 0.85, C.gloss, C.clear, a)
     K.ring(b, rad, WHITE, 0.22 * (a or 1), 0.5)
-    glyph(G, app.glyph, K.X(x + s / 2), K.Y(y + s / 2), s * K.sc, a or 1, app.color)
+    glyph(G, app.glyph, K.X(x + s / 2), K.Y(y + s / 2), s * K.sc, (a or 1) * K.getFade(), app.color)
     -- (a count on the corner, as a phone shows one: R-Bay's ended auctions)
     local n = app.badgeN
     if n and n > 0 then

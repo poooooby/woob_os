@@ -1,29 +1,40 @@
 -- The Ribbons app: every Pokémon that wears a Ribbon (src/ribbons.lua), most first, as a display case
--- on a dark stage: the chosen one on a lit disc with its five contest ranks, its Ribbons each on a
--- light of their colour, and the chosen Ribbon swinging in the spotlight with what it's for in the
--- game's own words.
+-- in the Pokédex's glass: the list of them on the left (upright: below), and the chosen one on a pane of
+-- its type's colour (its picture popping up, animated as the Pokédex's, with a Poké Ball turning slowly
+-- behind it) with its five contest ranks, its Ribbons in a case of glass, and the chosen Ribbon swinging
+-- in the spotlight with what it's for in the game's own words.
+-- Its motion (numbers only, in `mv`): the backdrop turning to the chosen Ribbon's colour and the
+-- Pokémon's type, the rows rising in one after another as it opens, the list's highlight gliding and the
+-- list scrolling smoothly, the Ribbons rising into the case as a Pokémon is shown and its ranks lighting
+-- up, the case's highlight gliding from Ribbon to Ribbon, the chosen one bouncing and its words sliding in.
 --   buttons  Up / Down the Pokémon, A its Ribbons (the D-pad chooses, B back), B close
 --   touch    a row, a Ribbon
 --
---   window(ctx, env) -> win (src/apps.lua)   env.ribbons, env.bx
+--   window(ctx, env) -> win (src/apps.lua)   env.ribbons, env.bx, env.dexSprite
 
 local floor, max, min, sin, cos, pi = math.floor, math.max, math.min, math.sin, math.cos, math.pi
 
-local ROW_H, M, PER_ROW = 11, 3, 9
+local ROW_H, M, GAP, PER_ROW = 11, 3, 2, 9
 local RIBBON = 2000   -- + its place
 local POP = 0.22      -- a Ribbon chosen: its bounce
 local C = {
-  stageTop = { 66, 22, 70 }, stageFoot = { 14, 8, 28 },
-  panelTop = { 92, 50, 104, 0.82 }, panelFoot = { 40, 22, 60, 0.82 },
-  caseTop = { 10, 6, 22, 0.62 }, caseFoot = { 22, 12, 36, 0.62 },
-  onTop = { 138, 90, 150 }, onFoot = { 92, 54, 108 },
-  gold = { 252, 204, 60 }, goldTop = { 255, 232, 130 }, goldDark = { 170, 116, 16 },
-  text = { 246, 240, 250 }, soft = { 196, 180, 208 }, faint = { 120, 100, 136 }, ink = { 40, 22, 48 },
-  white = { 255, 255, 255 }, black = { 0, 0, 0 }, pipOff = { 255, 255, 255, 0.14 },
+  ink = { 28, 28, 30 }, soft = { 112, 112, 120 }, faint = { 160, 160, 170 }, accent = { 10, 132, 255 },
+  white = { 255, 255, 255 }, black = { 0, 0, 0 }, gold = { 252, 204, 60 }, goldTop = { 255, 228, 120 },
+  goldDark = { 214, 150, 20 }, goldInk = { 92, 60, 0 }, pipOff = { 255, 255, 255, 0.3 },
+  track = { 118, 118, 128, 0.16 }, slate = { 120, 132, 178 }, slate2 = { 150, 120, 190 },
 }
+local SHADE_TOP, SHADE_FOOT = { 255, 255, 255, 0.28 }, { 0, 0, 0, 0.16 }
 -- the contests' colours: Cool, Beauty, Cute, Smart, Tough
 local CAT = { { 240, 80, 60 }, { 70, 140, 255 }, { 255, 120, 190 }, { 70, 200, 110 }, { 255, 196, 40 } }
 local CAT_NAME = { "cond.cool", "cond.beauty", "cond.cute", "cond.smart", "cond.tough" }
+-- the types' colours (the game's ids; 18 WoobleDex's Fairy)
+local TYPE = {
+  [0] = { 168, 168, 120 }, [1] = { 192, 48, 40 }, [2] = { 168, 144, 240 }, [3] = { 160, 64, 160 },
+  [4] = { 224, 192, 104 }, [5] = { 184, 160, 56 }, [6] = { 168, 184, 32 }, [7] = { 112, 88, 152 },
+  [8] = { 184, 184, 208 }, [9] = { 104, 160, 144 }, [10] = { 240, 128, 48 }, [11] = { 104, 144, 240 },
+  [12] = { 120, 200, 80 }, [13] = { 248, 208, 48 }, [14] = { 248, 88, 136 }, [15] = { 152, 216, 216 },
+  [16] = { 112, 56, 248 }, [17] = { 112, 88, 72 }, [18] = { 238, 153, 172 },
+}
 local HINTS = {
   list = { { "^ v", "cond.hint.mon" }, { "A", "app.ribbons" }, { "B", "hint.close" } },
   grid = { { "+", "ribbons.hint.choose" }, { "B", "hint.back" } },
@@ -179,175 +190,317 @@ return function(ctx, env)
   end
 
   function W.hints() return T.list(HINTS[st.focus]) end
+  function W.close() if env.dexSprite then pcall(env.dexSprite.stop) end end
 
-  -- ------- drawing (no tables made here)
+  -- ------- drawing (no tables, closures or strings made here)
+
+  local G, bodyNow = nil, nil
+  -- the motion's numbers
+  local mv = { openAt = nil, lastT = nil, rec = nil, recAt = 0, pick = nil, pickAt = 0, selY = nil, top = 0,
+               gx = nil, gy = nil, gs = nil, coloured = false, r = 0.6, g = 0.6, b = 0.6, r2 = 0.6, g2 = 0.6, b2 = 0.6 }
+  W.motion = mv
 
   -- a Ribbon's picture centred on cx, cy, `size` units, turned by `turn` from its top
   local function drawIcon(id, cx, cy, size, big, turn)
     local img, q, px = Rb.icon(id, big)
     if not img then return end
-    local g = K.graphics()
     local k = size * K.sc / px
-    g.setColor(1, 1, 1, 1)
+    G.setColor(1, 1, 1, K.getFade())
     local hang = turn and px * 0.08 or px / 2
     local y = turn and cy - size / 2 + px * 0.08 * k / K.sc or cy
-    if q then g.draw(img, q, K.X(cx), K.Y(y), turn or 0, k, k, px / 2, hang)
-    else g.draw(img, K.X(cx), K.Y(y), turn or 0, k, k, px / 2, hang) end
+    if q then G.draw(img, q, K.X(cx), K.Y(y), turn or 0, k, k, px / 2, hang)
+    else G.draw(img, K.X(cx), K.Y(y), turn or 0, k, k, px / 2, hang) end
   end
-
-  local function panel(b, rad)
-    K.grad(b, rad, C.panelTop, C.panelFoot)
-    K.ring(b, rad, C.white, 0.1, 0.4)
+  -- a big Poké Ball's outline turning slowly (the pane's watermark)
+  local function ballMark(cx, cy, r, turn, a)
+    local pr = r * K.sc
+    G.push()
+    G.translate(K.X(cx), K.Y(cy))
+    G.rotate(turn)
+    K.col(C.white, a)
+    G.setLineWidth(max(1, r * 0.11 * K.sc))
+    G.circle("line", 0, 0, pr)
+    G.line(-pr, 0, -pr * 0.36, 0)
+    G.line(pr * 0.36, 0, pr, 0)
+    G.circle("line", 0, 0, pr * 0.3)
+    G.circle("fill", 0, 0, pr * 0.14)
+    G.pop()
   end
-
-  local function drawList(x, y, w, h)
-    st.visible = max(1, floor((h - 2) / ROW_H))
-    clamp()
-    panel(K.R(x, y, w, h), 4)
-    local focused = st.focus == "list"
-    -- (scrolled by hand, the top falls between rows: from the row it's in, clipped to the list)
-    local G = K.graphics()
-    local psx, psy, psw, psh
-    if G.getScissor then psx, psy, psw, psh = G.getScissor() end
-    local area = K.R(x, y + 1, w, h - 2)
-    K.scissor(area)
-    local first = floor(st.top) + 1
-    for i = first, min(#st.rows, first + st.visible) do
-      local r = fill(st.rows[i])
-      local ry = y + 1 + (i - 1 - st.top) * ROW_H
-      local on = i == st.cursor
-      local rb = K.R(x + 1.2, ry + 0.4, w - 2.4, ROW_H - 0.8)
-      if on then
-        K.grad(rb, 3, C.onTop, C.onFoot)
-        if focused then K.ring(rb, 3, C.gold, 0.9, 0.7) end
-      end
-      if env.monIconOf then pcall(env.monIconOf, r.mon, x + 1, ry - 0.5, 11) end
-      local count = numText(r.count)
-      local pw = max(7, K.width(count, 4) + 4)
-      local name = r.info and r.info.name or "?"
-      K.text(name, x + 13, ry + 3, K.fit(name, 4.6, w - 18 - pw), on and C.white or C.text)
-      local pill = K.R(x + w - pw - 3, ry + 2.3, pw, 6.4)
-      K.grad(pill, 3.2, C.goldTop, C.goldDark)
-      K.bold(count, pill[1], pill[2] + 0.9, 4, C.ink, "center", pw)
-      K.addHit(K.R(x, ry, w, ROW_H), "win", i, area)
-    end
-    if psx then G.setScissor(psx, psy, psw, psh) else G.setScissor() end
-    K.scrollbar(x + w, y + 1, h - 2, st.top, st.visible, #st.rows)
-  end
-
-  -- the five contests: a word and four pips, one for each rank won
-  local function drawTracks(r, x, y, w)
-    local rowH = 5.5
-    for i = 1, 5 do
-      local ry = y + (i - 1) * rowH
-      local word = T(CAT_NAME[i])
-      K.text(word, x, ry + 0.4, K.fit(word, 3.3, w * 0.52), C.soft)
-      local pw = 4.4
-      for p = 1, 4 do
-        local px = x + w - (5 - p) * (pw + 0.8)
-        if p <= r.contest[i] then K.col(CAT[i]) else K.col(C.pipOff) end
-        K.box("fill", K.R(px, ry + 1, pw, 2.8), 1.2)
-      end
-    end
-  end
-
   local function rays(cx, cy, r, clock, c, a)
-    local g = K.graphics()
-    g.push()
-    g.translate(K.X(cx), K.Y(cy))
-    g.rotate(clock * 0.5)
+    G.push()
+    G.translate(K.X(cx), K.Y(cy))
+    G.rotate(clock * 0.5)
     K.col(c, a)
     local rr = r * K.sc
     for i = 0, 7 do
       local t = i * pi / 4
-      g.polygon("fill", 0, 0, cos(t) * rr, sin(t) * rr, cos(t + 0.3) * rr, sin(t + 0.3) * rr)
+      G.polygon("fill", 0, 0, cos(t) * rr, sin(t) * rr, cos(t + 0.3) * rr, sin(t + 0.3) * rr)
     end
-    g.pop()
+    G.pop()
   end
 
-  local function drawDetail(x, y, w, h, clock)
-    local r = current()
-    if not r then return end
-    panel(K.R(x, y, w, h), 4)
-    local top = r.items[1] and colorOf(r.items[1]) or C.gold
-    -- the Pokémon, on a lit disc
-    local ps = 26
-    local px, py = x + 3, y + 3
-    local g = K.graphics()
-    K.glow(px + ps / 2, py + ps / 2, ps * 0.85, ps * 0.85, top, 0.5)
-    K.col(C.white, 0.1)
-    g.circle("fill", K.X(px + ps / 2), K.Y(py + ps / 2), ps * 0.5 * K.sc)
-    if r.info and env.monPic then pcall(env.monPic, r.info.species, px, py, ps, 1, r.mon) end
-    local tracksW = min(44, w * 0.38)
-    local tx = px + ps + 3
-    local room = w - (tx - x) - tracksW - 6
-    local name = r.info and r.info.name or "?"
-    K.bold(name, tx, y + 4, K.fit(name, 5.4, room), C.white)
-    K.text(r.whereText, tx, y + 11, 4.2, C.soft)
-    K.bold(r.countText, tx, y + 17.5, 4.8, C.goldTop)
-    drawTracks(r, x + w - tracksW - 3, y + 3.5, tracksW)
-    -- the case
-    local caseY = y + ps + 5
-    local descH = 20
-    local caseH = h - (caseY - y) - descH - 3
-    K.grad(K.R(x + 2.5, caseY, w - 5, caseH), 3, C.caseTop, C.caseFoot)
-    local gx = x + 4
-    local cs = min((w - 8) / PER_ROW, 14, (caseH - 3) / max(1, r.rows))
+  -- ------- the list: a pane of glass, the highlight gliding, the rows rising in as it opens
+  local function drawList(x, y, w, h, clock, dt)
+    st.visible = max(1, floor((h - 2) / ROW_H))
+    clamp()
+    K.glass(K.R(x, y, w, h), 4, 0.55)
+    local focused = st.focus == "list"
+    -- (smooth to where the D-pad sent it; scrolled by hand, right where the hand left it)
+    if st.free then mv.top = st.top else mv.top = K.approach(mv.top, st.top, dt, 20) end
+    local top = mv.top
+    local psx, psy, psw, psh
+    if G.getScissor then psx, psy, psw, psh = G.getScissor() end
+    local area = K.R(x, y + 1, w, h - 2)
+    K.scissor(area)
+    -- (the chosen row's highlight, gliding from row to row)
+    if mv.selY == nil then mv.selY = st.cursor else mv.selY = K.approach(mv.selY, st.cursor, dt, 24) end
+    local hb = K.R(x + 1.2, y + 1 + (mv.selY - 1 - top) * ROW_H + 0.4, w - 2.4, ROW_H - 0.8)
+    if focused then
+      K.col(C.accent)
+      K.box("fill", hb, 3)
+    else
+      K.col(C.white, 0.75)
+      K.box("fill", hb, 3)
+      K.ring(hb, 3, C.white, 0.9, 0.3)
+    end
+    local since = clock - mv.openAt
+    local first = floor(top) + 1
+    for i = first, min(#st.rows, first + st.visible) do
+      local r = fill(st.rows[i])
+      local ry = y + 1 + (i - 1 - top) * ROW_H
+      local on = i == st.cursor
+      local e = K.outCubic((since - (i - first) * 0.035) / 0.3)
+      K.rise(e, 4)
+      local ink = (on and focused) and C.white or C.ink
+      if env.monIconOf then pcall(env.monIconOf, r.mon, x + 1, ry - 0.5, 11, nil, K.getFade()) end
+      local count = numText(r.count)
+      local pw = max(7, K.width(count, 4) + 4)
+      local name = r.info and r.info.name or "?"
+      K.text(name, x + 13, ry + 3, K.fit(name, 4.6, w - 18 - pw), ink)
+      local pill = K.R(x + w - pw - 3, ry + 2.3, pw, 6.4)
+      K.grad(pill, 3.2, C.goldTop, C.goldDark)
+      K.ring(pill, 3.2, C.white, 0.6, 0.3)
+      K.bold(count, pill[1], pill[2] + 0.9, 4, C.goldInk, "center", pw)
+      if i > first and not on and i - 1 ~= st.cursor then K.hairline(x + 13, ry, w - 15) end
+      K.addHit(K.R(x, ry, w, ROW_H), "win", i, area)
+      K.settle(e)
+    end
+    if psx then G.setScissor(psx, psy, psw, psh) else G.setScissor() end
+    K.scrollbar(x + w, y + 1, h - 2, top, st.visible, #st.rows)
+  end
+
+  -- the five contests: a word and four pips, one for each rank won, lighting up one after another
+  local function drawTracks(r, x, y, w, rowH, since)
+    for i = 1, 5 do
+      local ry = y + (i - 1) * rowH
+      local word = T(CAT_NAME[i])
+      K.label(word, x, ry + 0.2, K.fit(word, 3.2, w * 0.5), C.white, nil, nil, 0.9 * K.getFade())
+      local pw = 4.2
+      for p = 1, 4 do
+        local px = x + w - (5 - p) * (pw + 0.8)
+        local pb = K.R(px, ry + 1, pw, 2.6)
+        K.col(C.pipOff)
+        K.box("fill", pb, 1.2)
+        if p <= r.contest[i] then
+          local e = K.outCubic((since - (i + p) * 0.04) / 0.22)
+          if e > 0 then
+            K.col(CAT[i], e)
+            K.box("fill", K.R(px, ry + 1, pw * e, 2.6), 1.2)
+          end
+        end
+      end
+    end
+  end
+
+  -- the chosen one: its pane, its picture, its words and ranks
+  local function hero(r, x, y, w, h, clock)
+    local b = K.R(x, y, w, h)
+    K.shadow(b, 5, 1.4, 0.1)
+    G.setColor(mv.r2, mv.g2, mv.b2, 0.74 * K.getFade())
+    K.box("fill", b, 5)
+    K.grad(b, 5, SHADE_TOP, SHADE_FOOT)
+    K.ring(b, 5, C.white, 0.6, 0.4)
+    G.intersectScissor(K.X(x), K.Y(y), w * K.sc, h * K.sc)
+    ballMark(x + w - h * 0.4, y + h * 0.62, h * 0.72, clock * 0.18, 0.13)
+    K.scissor(bodyNow)
+    local t = clock - mv.recAt
+    local pop = 0.8 + 0.2 * K.outBack(t / 0.42)
+    local fa = K.outCubic(t / 0.18) * K.getFade()
+    local ps = min(h - 4, 30)
+    local pcx, pcy = x + 2.5 + ps / 2, y + h / 2
+    K.glow(pcx, pcy, ps * 0.6, ps * 0.5, C.white, 0.24 * fa)
+    K.col(C.black, 0.2 * fa)
+    G.ellipse("fill", K.X(pcx), K.Y(pcy + ps * 0.43), ps * 0.27 * pop * K.sc, ps * 0.06 * K.sc)
+    local info = r.info
+    if info then
+      if info.egg or not env.dexSprite then
+        if env.monPic then pcall(env.monPic, info.species, pcx - ps / 2 * pop, pcy - ps / 2 * pop, ps * pop, fa, r.mon) end
+      else
+        pcall(env.dexSprite.draw, info.species, pcx, pcy, ps, clock, mv.recAt, pop, fa, info.shiny == true, r.mon)
+      end
+      K.rescissor()
+    end
+    -- (its words sliding in after it; the ranks at the right, room allowing)
+    local tracksW = w >= 96 and min(42, w * 0.34) or 0
+    local tx = x + ps + 5
+    local room = x + w - tx - tracksW - (tracksW > 0 and 5 or 3)
+    local f0 = K.getFade()
+    local e1 = K.outCubic((t - 0.04) / 0.32)
+    local e2 = K.outCubic((t - 0.1) / 0.32)
+    local name = info and info.name or "?"
+    local fs = K.fit(name, 5.4, room)
+    local ty = y + max(2, (h - 21) / 2)
+    K.label(name, tx + (1 - e1) * 8, ty, fs, C.white, nil, nil, e1 * f0)
+    K.label(r.whereText, tx + (1 - e2) * 8, ty + 7, K.fit(r.whereText, 3.8, room), C.white, nil, nil, 0.85 * e2 * f0)
+    -- (the count on a gold pill)
+    local cw = K.width(r.countText, 3.8) + 5
+    local cb = K.R(tx + (1 - e2) * 8, ty + 12.6, min(cw, room), 5.8)
+    K.setFade(f0 * e2)
+    K.grad(cb, 2.9, C.goldTop, C.goldDark)
+    K.ring(cb, 2.9, C.white, 0.6, 0.3)
+    K.bold(r.countText, cb[1], cb[2] + 0.6, K.fit(r.countText, 3.8, cb[3] - 3), C.goldInk, "center", cb[3])
+    K.setFade(f0)
+    if tracksW > 0 then
+      local rowH = min(5.5, (h - 4) / 5)
+      drawTracks(r, x + w - tracksW - 3, y + (h - rowH * 5) / 2, tracksW, rowH, t)
+    end
+  end
+
+  -- the case: the Ribbons on glass, rising in as the Pokémon is shown, the highlight gliding between them
+  local function drawCase(r, x, y, w, h, clock, dt)
+    K.glass(K.R(x, y, w, h), 4, 0.42)
+    local cs = min((w - 5) / PER_ROW, 14, (h - 3) / max(1, r.rows))
+    local gx = x + (w - cs * PER_ROW) / 2
+    local gy = y + 1.5
     if st.pick > #r.items then st.pick = 1 end
-    local since = clock - st.pickT
-    local gy = caseY + 1.5
+    local p = st.pick
+    -- (the chosen one's pane, gliding)
+    if r.items[p] then
+      local hx = gx + r.colOf[p] * cs
+      local hy = gy + r.rowOf[p] * cs + (r.rowOf[p] >= r.giftRow and 0.8 or 0)
+      if mv.gx == nil or mv.gs ~= cs then
+        mv.gx, mv.gy, mv.gs = hx, hy, cs
+      else
+        mv.gx, mv.gy = K.approach(mv.gx, hx, dt, 26), K.approach(mv.gy, hy, dt, 26)
+      end
+      local hb = K.R(mv.gx + 0.3, mv.gy + 0.3, cs - 0.6, cs - 0.6)
+      K.col(C.white, st.focus == "grid" and 0.8 or 0.5)
+      K.box("fill", hb, 2)
+      K.ring(hb, 2, st.focus == "grid" and C.accent or C.white, st.focus == "grid" and 0.6 + 0.4 * K.pulse() or 0.8, 0.6)
+    end
+    if r.giftRow < r.rows and r.giftRow > 0 then
+      K.hairline(x + 4, gy + r.giftRow * cs + 0.4, w - 8, C.white, 0.8)
+    end
+    local since = clock - mv.recAt
+    local pt = clock - mv.pickAt
     for i = 1, #r.items do
       local cx = gx + r.colOf[i] * cs + cs / 2
       local cy = gy + r.rowOf[i] * cs + cs / 2 + (r.rowOf[i] >= r.giftRow and 0.8 or 0)
       local id = r.items[i]
-      local on = i == st.pick
-      K.glow(cx, cy, cs * (on and 0.95 or 0.6), cs * (on and 0.95 or 0.6), colorOf(id), on and 0.7 or 0.3)
-      local k = 0.92
-      if on and since >= 0 and since < POP then k = 0.92 + 0.35 * sin(since / POP * pi) end
+      local on = i == p
+      local e = K.outCubic((since - i * 0.018) / 0.28)
+      K.rise(e, 3)
+      K.glow(cx, cy, cs * (on and 0.8 or 0.5), cs * (on and 0.8 or 0.5), colorOf(id), on and 0.32 or 0.14)
+      local k = 0.88
+      if on and pt >= 0 and pt < POP then k = 0.88 + 0.32 * sin(pt / POP * pi) end
       drawIcon(id, cx, cy, cs * k, false)
-      if on then
-        K.ring(K.R(cx - cs / 2 + 0.2, cy - cs / 2 + 0.2, cs - 0.4, cs - 0.4), 2, C.gold,
-          st.focus == "grid" and 0.75 + 0.25 * sin(clock * 5) or 0.35, 0.7)
-      end
       K.addHit(K.R(cx - cs / 2, cy - cs / 2, cs, cs), "win", RIBBON + i)
+      K.settle(e)
     end
-    -- the chosen one, in the spotlight
-    local dy = y + h - descH
+  end
+
+  -- the chosen Ribbon in the spotlight: swinging, its words sliding in
+  local function drawSpot(r, x, y, w, h, clock)
     local id = r.items[st.pick]
+    K.glass(K.R(x, y, w, h), 4, 0.6)
     if not id then return end
-    local cx, cy = x + 12, dy + descH / 2 - 0.5
+    local cx, cy = x + 11, y + h / 2
     local c = colorOf(id)
-    rays(cx, cy, 13, clock, c, 0.12)
-    K.glow(cx, cy, 13, 12, c, 0.65)
-    drawIcon(id, cx, cy, 16.5, true, sin(clock * 2.2) * 0.1)
-    K.text(r.descs[st.pick], x + 24, dy + 3, 4, C.text, "left", w - 28)
-    -- (a shine crossing the words now and then)
-    local k = (clock % 5) / 1.2
-    if k < 1 then
-      local sx = x + 20 + (w - 16) * k
-      K.col(C.white, 0.08)
-      K.box("fill", K.R(sx, dy + 1, 6, descH - 3), 1)
-    end
+    local t = clock - mv.pickAt
+    local e = K.outCubic(t / 0.3)
+    G.intersectScissor(K.X(x), K.Y(y), w * K.sc, h * K.sc)
+    rays(cx, cy, 13, clock, c, 0.2 * e)
+    K.glow(cx, cy, 12, 11, c, 0.45 * e)
+    local s = min(16.5, h - 3) * (0.8 + 0.2 * K.outBack(t / 0.4))
+    drawIcon(id, cx, cy, s, true, sin(clock * 2.2) * 0.1)
+    -- (a shine crossing the words now and then: the rest of the time it waits past the pane's edge, clipped)
+    K.col(C.white, 0.35)
+    K.box("fill", K.R(x + 20 + (w - 16) * min(1.1, (clock % 5) / 1.2), y + 1, 5, h - 2), 1)
+    K.scissor(bodyNow)
+    local f0 = K.getFade()
+    local fs = h < 18 and 3.4 or 3.8
+    K.text(r.descs[st.pick], x + 23 + (1 - e) * 6, y + 2.5, fs, C.ink, "left", w - 26, e * f0)
+  end
+
+  local function drawDetail(x, y, w, h, clock, dt)
+    local r = current()
+    if not r then return end
+    local heroH = h >= 90 and 34 or 26
+    local spotH = h >= 90 and 22 or 18
+    local open = K.outCubic((clock - mv.openAt) / 0.4)
+    K.rise(open, 6)
+    hero(r, x, y, w, heroH, clock)
+    K.settle(open)
+    local caseY = y + heroH + GAP
+    local caseH = h - heroH - spotH - GAP * 2
+    local o2 = K.outCubic((clock - mv.openAt - 0.06) / 0.4)
+    K.rise(o2, 7)
+    drawCase(r, x, caseY, w, caseH, clock, dt)
+    K.settle(o2)
+    local o3 = K.outCubic((clock - mv.openAt - 0.12) / 0.4)
+    K.rise(o3, 7)
+    drawSpot(r, x, caseY + caseH + GAP, w, spotH, clock)
+    K.settle(o3)
   end
 
   function W.draw(body, clock, portrait)
     local x, y, w, h = body[1], body[2], body[3], body[4]
-    K.grad(body, 0, C.stageTop, C.stageFoot)
-    K.glow(x + w * 0.75, y + h * 0.3, w * 0.55, h * 0.8, C.gold, 0.1)
+    G = K.graphics()
+    bodyNow = body
+    local dt = mv.lastT and max(0, min(0.1, clock - mv.lastT)) or 0
+    mv.lastT = clock
+    if not mv.openAt then mv.openAt = clock end
+    local r = current()
+    -- (what changed since the last frame starts its motion: another Pokémon, another Ribbon)
+    if r ~= mv.rec then
+      mv.rec, mv.recAt = r, clock
+      mv.gx = nil
+      if r and r.info and not r.info.egg and env.dexSprite then
+        pcall(env.dexSprite.start, r.info.species, r.info.shiny == true)
+      end
+    end
+    if st.pick ~= mv.pick or mv.pickAt < mv.recAt then mv.pick, mv.pickAt = st.pick, clock end
+    -- (the lights: the chosen Ribbon's colour and the Pokémon's type, slate while there's none; eased)
+    local id = r and r.items[st.pick]
+    local c1 = id and colorOf(id) or C.slate
+    local tp = r and r.info and r.info.types and r.info.types[1]
+    local c2 = tp and TYPE[tp.id] or C.slate2
+    local rate = mv.coloured and 8 or 1000
+    mv.coloured = true
+    mv.r, mv.g, mv.b = K.approach(mv.r, c1[1] / 255, dt, rate), K.approach(mv.g, c1[2] / 255, dt, rate),
+      K.approach(mv.b, c1[3] / 255, dt, rate)
+    mv.r2, mv.g2, mv.b2 = K.approach(mv.r2, c2[1] / 255, dt, rate), K.approach(mv.g2, c2[2] / 255, dt, rate),
+      K.approach(mv.b2, c2[3] / 255, dt, rate)
+    K.backdrop(body, clock, mv.r, mv.g, mv.b, mv.r2, mv.g2, mv.b2)
     if #st.rows == 0 then
-      K.glow(x + w / 2, y + h / 2, w * 0.4, h * 0.45, CAT[3], 0.3)
-      K.text(T("ribbons.none"), x, y + h / 2 - 3, 5, C.soft, "center", w)
+      ballMark(x + w / 2, y + h / 2 - 6, min(w, h) * 0.18, clock * 0.18, 0.5)
+      K.text(T("ribbons.none"), x + 6, y + h / 2 + min(w, h) * 0.18 - 2, 4.6, C.soft, "center", w - 12)
+      K.scissor(body)
       return
     end
     if portrait then
-      local dh = min(h * 0.58, 124)
-      drawDetail(x + M, y + M, w - M * 2, dh, clock)
-      drawList(x + M, y + M * 2 + dh, w - M * 2, h - dh - M * 3)
+      local dh = min(h * 0.62, 130)
+      drawDetail(x + M, y + M, w - M * 2, dh, clock, dt)
+      local o = K.outCubic((clock - mv.openAt - 0.16) / 0.4)
+      K.rise(o, 7)
+      drawList(x + M, y + M + dh + GAP, w - M * 2, h - dh - M * 2 - GAP, clock, dt)
+      K.settle(o)
     else
-      local lw = floor((w - M * 3) * 0.34)
-      drawList(x + M, y + M, lw, h - M * 2)
-      drawDetail(x + M * 2 + lw, y + M, w - M * 3 - lw, h - M * 2, clock)
+      local lw = floor((w - M * 3) * 0.36)
+      drawList(x + M, y + M, lw, h - M * 2, clock, dt)
+      drawDetail(x + M * 2 + lw, y + M, w - M * 3 - lw, h - M * 2, clock, dt)
     end
+    K.scissor(body)
   end
 
   return W

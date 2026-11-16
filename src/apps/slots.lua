@@ -2,8 +2,10 @@
 -- Five reels, 1 / 5 / 10 / 20 lines, Ditto wild, Bonus for free spins; the rarer wins pay Rocket
 -- Tickets too, and the Prizes tab trades the tickets for TMs, rare items and Pokémon (onto the pad).
 --
--- The show: a dark stage, the reels in a gold frame with lights running round it, a pay ladder at the
--- side, the round SPIN button and a BALANCE / WIN / BET bar. Two Bonus down hold the remaining reels
+-- The show: a casino under glass. A dark stage with soft lights drifting over it (gold, violet,
+-- magenta; gold and pink while free spins run), every panel a pane of frosted glass over them: the
+-- reels in a glass bezel with a gold line and lights running round it, a pay ladder at the side, the
+-- round SPIN button in a glass ring and a BALANCE / WIN / BET bar. Two Bonus down hold the remaining reels
 -- back (gold light, the notes climb). A small win shows above the reels and its line glows; BIG, MEGA
 -- and JACKPOT take the whole window (rays, a shower of coins, the payout counting up), the winning
 -- lines then shown one after another. Free spins run by themselves; so does Auto. The prize shop:
@@ -49,8 +51,10 @@ local PRIZE = 3000  -- + i
 local C = {
   bg = { 14, 9, 30 }, card = { 38, 28, 72 }, cardHi = { 68, 52, 116 }, line = { 255, 255, 255, 0.07 },
   stageTop = { 34, 16, 66 }, stageHot = { 74, 18, 58 }, stageFoot = { 9, 5, 22 },
-  reelTop = { 56, 38, 104 }, reelFoot = { 30, 20, 68 },
-  panelTop = { 52, 40, 96, 0.82 }, panelFoot = { 26, 18, 56, 0.82 },
+  reelTop = { 56, 38, 104, 0.9 }, reelFoot = { 30, 20, 68, 0.92 },
+  -- (the glass: a lavender pane over the lights, a darker smoke for the cards over everything, the
+  -- drums' curved front)
+  glass = { 206, 190, 255 }, smoke = { 30, 18, 58 }, sheen = { 255, 255, 255, 0.5 }, sheenClear = { 255, 255, 255, 0 },
   fadeDark = { 6, 3, 18, 0.72 }, fadeClear = { 6, 3, 18, 0 },
   violet = { 120, 70, 255 }, violetHi = { 150, 110, 255 },
   text = { 240, 236, 246 }, soft = { 168, 156, 196 }, faint = { 112, 100, 140 },
@@ -69,6 +73,10 @@ local SYM_GLOW = {
 -- the winning lines' colours, round and round
 local LINE_C = { C.gold, C.cyan, C.pink, C.green, C.purple }
 local glowMesh  -- (one soft light, kept)
+-- the stage's four lights, and how bright: as it is, and while free spins run (eased between)
+local LIGHTS = { { 252, 186, 60 }, { 124, 72, 255 }, { 236, 44, 120 }, { 255, 110, 200 } }
+local LIGHTS_HOT = { { 255, 214, 90 }, { 255, 160, 40 }, { 255, 70, 160 }, { 255, 200, 110 } }
+local LIGHT_A, LIGHT_A_HOT = { 0.24, 0.34, 0.24, 0.14 }, { 0.36, 0.3, 0.32, 0.24 }
 -- the prizes' rarity, by what they cost: its colour
 local RARITY = {
   { upto = 25, key = "slots.rarity1", c = { 120, 170, 210 } },
@@ -112,6 +120,13 @@ return function(ctx, env)
     bx = 0, by = 0, bw = 240,
   }
   W.state = st
+  -- the glass's motion (numbers only): the free spins' light eased in, the LINES chip, the tabs'
+  -- thumb and the prize highlight gliding, when the tab, the prize and the pay table last changed
+  local mv = {
+    lastT = nil, dt = 0, hot = 0, lines = nil, tab = 1, cur = nil, tabName = nil, tabAt = -10,
+    cursor = nil, curAt = -10, table = false, tableAt = -10,
+  }
+  local lightC = { { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 } }   -- (filled each frame: colours for col only)
 
   local numText = K.textCache(function(n) return tostring(n) end)
   local plusTickets = K.textCache(function(n) return T.f("slots.plusTickets", n) end)
@@ -629,7 +644,7 @@ return function(ctx, env)
       sparkle(cx, cy, r * 0.72, C.white, a)
       ribbon(T("slots.bonus"), x, y, s, C.purple, C.card, a)
     elseif sym.item then
-      if env.itemIcon then pcall(env.itemIcon, sym.item, x, y, s, a) end
+      if env.itemIcon then pcall(env.itemIcon, sym.item, x, y, s, a * K.getFade()) end
     else
       -- (the wild on a bright tile of its own)
       if sym.wild and s >= 12 then
@@ -637,7 +652,7 @@ return function(ctx, env)
         K.grad(K.R(x + s * 0.08, y + s * 0.08, s * 0.84, s * 0.84), s * 0.14, C.wildTop, C.wildFoot, a)
       end
       local sp = Sl.speciesOf(i)
-      if sp and env.monIcon then pcall(env.monIcon, sp, x - s * 0.05, y - s * 0.14, s * 1.1) end
+      if sp and env.monIcon then pcall(env.monIcon, sp, x - s * 0.05, y - s * 0.14, s * 1.1, nil, 1, 1, 1, K.getFade()) end
       if sym.wild then ribbon(T("slots.wild"), x, y, s, C.pink, C.redDeep, a) end
     end
   end
@@ -674,19 +689,66 @@ return function(ctx, env)
     return nil
   end
 
-  -- the stage behind it all: dark violet (hot while free spins run), two lights drifting, specks rising
+  -- what moved since the last frame: eased numbers, and when things changed
+  local function motion(clock)
+    local dt = mv.lastT and max(0, min(0.1, clock - mv.lastT)) or 0
+    mv.lastT, mv.dt = clock, dt
+    mv.hot = K.approach(mv.hot, inFree() and 1 or 0, dt, 2.5)
+    local played, at = linesPlayed(), nil
+    for i = 1, #Sl.LINE_SETS do if Sl.LINE_SETS[i] == played then at = i end end
+    if at then mv.lines = mv.lines and K.approach(mv.lines, at, dt, 16) or at end
+    mv.tab = K.approach(mv.tab, st.tab == "slots" and 1 or 2, dt, 16)
+    if st.tab ~= mv.tabName then mv.tabName, mv.tabAt = st.tab, clock end
+    if st.cursor ~= mv.cursor then
+      if mv.cursor then mv.curAt = clock end
+      mv.cursor = st.cursor
+    end
+    mv.cur = mv.cur and K.approach(mv.cur, st.cursor, dt, 18) or st.cursor
+    if st.table ~= mv.table then mv.table, mv.tableAt = st.table, clock end
+  end
+
+  -- a pane of frosted glass (lavender over the lights), and the sheen and bright edge alone over
+  -- something coloured (a button)
+  local function pane(b, rad, a, edge) K.glass(b, rad, a or 0.1, C.glass, 0.32, edge or 0.3) end
+  local function glaze(b, rad) K.glass(b, rad, 0, nil, 0.55, 0.45) end
+  -- a round pane: a lens of glass, a light across its top, its rim
+  local function glassDisc(cx, cy, r, a)
+    local g = G()
+    K.col(C.glass, a or 0.12)
+    g.circle("fill", K.X(cx), K.Y(cy), r * K.sc)
+    K.col(C.white, 0.1)
+    g.ellipse("fill", K.X(cx), K.Y(cy - r * 0.42), r * 0.66 * K.sc, r * 0.38 * K.sc)
+    K.col(C.white, 0.38)
+    g.setLineWidth(max(1, 0.35 * K.sc))
+    g.circle("line", K.X(cx), K.Y(cy), r * K.sc)
+  end
+
+  -- the stage behind it all: dark violet (magenta while free spins run), four soft lights drifting
+  -- (gold, violet, magenta, pink; gold and pink in the free spins), specks rising
+  local function lightOf(i, hot)
+    local a, b, c = LIGHTS[i], LIGHTS_HOT[i], lightC[i]
+    c[1], c[2], c[3] = a[1] + (b[1] - a[1]) * hot, a[2] + (b[2] - a[2]) * hot, a[3] + (b[3] - a[3]) * hot
+    return c, LIGHT_A[i] + (LIGHT_A_HOT[i] - LIGHT_A[i]) * hot
+  end
   local function drawStage(body, clock)
     local x, y, w, h = body[1], body[2], body[3], body[4]
-    local hot = inFree() ~= nil
-    K.grad(body, 0, hot and C.stageHot or C.stageTop, C.stageFoot)
+    local hot = mv.hot
+    K.grad(body, 0, C.stageTop, C.stageFoot)
+    if hot > 0.01 then K.grad(body, 0, C.stageHot, C.stageFoot, hot) end
     K.scissor(body)
-    glow(x + w * (0.3 + 0.1 * sin(clock * 0.31)), y + h * 0.45, w * 0.55, h * 0.8, hot and C.gold or C.violet, hot and 0.2 or 0.3)
-    glow(x + w * (0.7 + 0.1 * cos(clock * 0.27)), y + h * 0.55, w * 0.5, h * 0.75, C.red, 0.22)
+    local c, a = lightOf(1, hot)
+    glow(x + w * (0.2 + 0.09 * sin(clock * 0.21)), y + h * (0.3 + 0.1 * cos(clock * 0.17)), w * 0.5, h * 0.72, c, a)
+    c, a = lightOf(2, hot)
+    glow(x + w * (0.5 + 0.12 * cos(clock * 0.13)), y + h * (0.62 + 0.08 * sin(clock * 0.19)), w * 0.6, h * 0.85, c, a)
+    c, a = lightOf(3, hot)
+    glow(x + w * (0.82 + 0.07 * sin(clock * 0.16 + 1)), y + h * (0.38 + 0.12 * cos(clock * 0.14)), w * 0.46, h * 0.7, c, a)
+    c, a = lightOf(4, hot)
+    glow(x + w * (0.6 + 0.2 * sin(clock * 0.09 + 2)), y + h * (0.08 + 0.06 * cos(clock * 0.2)), w * 0.36, h * 0.4, c, a)
     for i = 1, 16 do
       local px = x + w * ((i * 0.618) % 1)
       local py = y + h - ((i * 37 + clock * (3 + i % 4)) % h)
       local r = 1.2 + (i % 3) * 0.9
-      glow(px, py, r, r, i % 3 == 0 and C.gold or C.violetHi, 0.18 + 0.14 * sin(clock * 1.3 + i))
+      glow(px, py, r, r, (i % 3 == 0 or hot > 0.5) and C.gold or C.violetHi, 0.18 + 0.14 * sin(clock * 1.3 + i))
     end
   end
 
@@ -818,6 +880,10 @@ return function(ctx, env)
     -- (the drum's curve: darker to the top and bottom)
     K.grad(K.R(x, y, cw, ch * 0.5), 0, C.fadeDark, C.fadeClear)
     K.grad(K.R(x, y + ch * 2.5, cw, ch * 0.5), 0, C.fadeClear, C.fadeDark)
+    -- (the glass in front of the drum: a light down from its top, a glint up its left side)
+    K.grad(K.R(x, y, cw, ch * 1.3), 2, C.sheen, C.sheenClear, 0.3)
+    K.col(C.white, 0.06)
+    K.box("fill", K.R(x + cw * 0.1, y, cw * 0.08, ch * 3))
     -- (landing: a light flash)
     local since = clock - st.landT[r]
     if since >= 0 and since < 0.22 then
@@ -904,9 +970,11 @@ return function(ctx, env)
     local only = lit and shownLine(clock) or 0
     local hot = st.teaseFrom and st.spinning
     glow(cx, cy, rw * 0.78, rh * 0.86, hot and C.gold or C.violetHi, hot and 0.5 or 0.34)
+    -- (the bezel: a pane of glass, a gold line round the window in it, the dark behind the drums)
+    K.glass(K.R(rx - 3.4, ry - 3.4, rw + 6.8, rh + 6.8), 4.6, 0.16, C.glass, 0.5, 0.5)
     local fb = K.R(rx - 2.2, ry - 2.2, rw + 4.4, rh + 4.4)
-    K.grad(fb, 3.6, C.goldTop, C.goldDark)
-    K.col(C.bg)
+    K.ring(fb, 3.6, hot and C.goldTop or C.gold, hot and 1 or 0.85, 0.6)
+    K.col(C.bg, 0.86)
     K.box("fill", K.R(rx - 1, ry - 1, rw + 2, rh + 2), 2.6)
     for r = 1, NREELS do drawReel(r, rx + (r - 1) * (cw + gap), ry, cw, ch, clock, lit, only) end
     lineAt.x, lineAt.y, lineAt.w = rx, cy, rw
@@ -927,14 +995,11 @@ return function(ctx, env)
   -- full table (one column at the side, two under the reels in portrait)
   local function drawLadder(x, y, w, h, clock, twoCol)
     local panel = K.R(x, y, w, h)
-    K.grad(panel, 3.5, C.panelTop, C.panelFoot)
-    K.ring(panel, 3.5, C.white, 0.09, 0.4)
+    pane(panel, 3.5)
     local title = T("slots.fiveKind")
     K.bold(title, x + 3, y + 2, K.fit(title, 3.6, w - 13), C.soft)
-    local g = G()
     local qx, qy = x + w - 4.6, y + 3.8
-    K.col(C.cardHi)
-    g.circle("fill", K.X(qx), K.Y(qy), 2.7 * K.sc)
+    glassDisc(qx, qy, 2.7, 0.18)
     K.bold("?", qx - 3, qy - 1.9, 3.6, C.gold, "center", 6)
     K.addHit(panel, "win", PAYTABLE)
     local cols = twoCol and 2 or 1
@@ -966,13 +1031,18 @@ return function(ctx, env)
     local since = clock - st.pressT
     local press = since >= 0 and since < PRESS and 1 - 0.09 * sin(since / PRESS * pi) or 1
     glow(cx, cy, d * 0.86, d * 0.86, C.red, idle and (0.32 + 0.3 * (0.5 + 0.5 * sin(clock * 3.4))) or 0.22)
+    -- (it sits in a ring of glass)
+    glassDisc(cx, cy, d / 2 + 1.6, 0.14)
     scaleAbout(cx, cy, press)
     local b = K.R(cx - d / 2, cy - d / 2, d, d)
     K.grad(b, d / 2, C.goldTop, C.goldDark)
     local inner = K.R(cx - d / 2 + 1.5, cy - d / 2 + 1.5, d - 3, d - 3)
     if idle then K.grad(inner, d / 2 - 1.5, C.redTop, C.redDeep) else K.grad(inner, d / 2 - 1.5, C.redDeep, C.redDark) end
-    K.col(C.white, 0.14)
+    -- (a glass dome: a light across its top, a small bright catch)
+    K.col(C.white, 0.18)
     g.ellipse("fill", K.X(cx), K.Y(cy - d * 0.2), d * 0.32 * K.sc, d * 0.2 * K.sc)
+    K.col(C.white, 0.4)
+    g.ellipse("fill", K.X(cx - d * 0.17), K.Y(cy - d * 0.27), d * 0.07 * K.sc, d * 0.04 * K.sc)
     local r = d * 0.37
     local turn = clock * (idle and 0.7 or 9)
     K.col(C.white, idle and 0.92 or 0.55)
@@ -997,18 +1067,22 @@ return function(ctx, env)
   -- LINES: 1, 5, 10 or 20, the one played lit; a tap goes on to the next
   local function drawLinesChoice(x, y, w)
     local b = K.R(x, y, w, 14)
-    K.grad(b, 3, C.panelTop, C.panelFoot)
-    K.ring(b, 3, C.white, 0.09, 0.4)
+    pane(b, 3)
     K.text(T("slots.lines"), x, y + 1, 3.2, C.soft, "center", w)
     local n = #Sl.LINE_SETS
     local cw = (w - 3) / n
-    local played = linesPlayed()
     local locked = st.spinning or Sl.freeState() ~= nil
+    -- (the gold chip glides to the lines played)
+    local at = mv.lines
+    if at then
+      local chip = K.R(x + 1.5 + (at - 1) * cw, y + 5.4, cw - 0.6, 7.2)
+      K.grad(chip, 2, C.goldTop, C.goldDark)
+      glaze(chip, 2)
+    end
     for i = 1, n do
       local c = K.R(x + 1.5 + (i - 1) * cw, y + 5.4, cw - 0.6, 7.2)
       local v = Sl.LINE_SETS[i]
-      if v == played then
-        K.grad(c, 2, C.goldTop, C.goldDark)
+      if at and abs(at - i) < 0.5 then
         K.bold(numText(v), c[1], c[2] + 1.4, 4, C.bg, "center", c[3])
       else
         K.text(numText(v), c[1], c[2] + 1.4, 4, locked and C.faint or C.text, "center", c[3])
@@ -1023,9 +1097,9 @@ return function(ctx, env)
     if st.auto then
       glow(x + w / 2, y + h / 2, w * 0.6, h * 1.2, C.green, 0.3 + 0.15 * sin(clock * 6))
       K.grad(b, 3, C.green, C.greenDark)
+      glaze(b, 3)
     else
-      K.grad(b, 3, C.panelTop, C.panelFoot)
-      K.ring(b, 3, C.white, 0.09, 0.4)
+      pane(b, 3)
     end
     local t = T("slots.auto")
     local fs = K.fit(t, 4, w - 3)
@@ -1036,8 +1110,7 @@ return function(ctx, env)
   -- the bar along the foot: BALANCE, WIN (counting up as it's paid), BET with its arrows
   local function drawHud(x, y, w, h, clock)
     local bar = K.R(x, y, w, h)
-    K.grad(bar, 3.5, C.panelTop, C.panelFoot)
-    K.ring(bar, 3.5, C.white, 0.1, 0.4)
+    pane(bar, 3.5, 0.12, 0.34)
     local third = w / 3
     K.vline(x + third, y + 2.5, h - 5, C.white, 0.14)
     K.vline(x + third * 2, y + 2.5, h - 5, C.white, 0.14)
@@ -1055,13 +1128,11 @@ return function(ctx, env)
     local w3 = x + third * 2
     K.text(T("slots.bet"), w3, y + 2, 3.2, C.soft, "center", third)
     money(Sl.BETS[betLevel()] * linesPlayed(), w3 + third / 2, y + 6.6, 5.6, C.goldTop, "center")
-    local g = G()
     local cy = y + h / 2
     local locked = st.spinning or Sl.freeState() ~= nil
     for k = -1, 1, 2 do
       local cx = k < 0 and w3 + 6 or w3 + third - 6
-      K.col(locked and C.card or C.cardHi)
-      g.circle("fill", K.X(cx), K.Y(cy), 4 * K.sc)
+      glassDisc(cx, cy, 4, locked and 0.06 or 0.2)
       K.chevron(cx + (k < 0 and -0.3 or 0.3), cy, 3.6, locked and C.faint or C.gold, k)
       K.addHit(K.R(cx - 5.5, y, 11, h), "win", k < 0 and BET_DOWN or BET_UP)
     end
@@ -1114,8 +1185,7 @@ return function(ctx, env)
       drawSpin(x + w / 2, spinY + spinH / 2, spinH, clock)
       -- (the pay table's button, for when there's no room for the ladder)
       local qb = K.R(x + w - sideW, spinY + 14, sideW, 14)
-      K.grad(qb, 3, C.panelTop, C.panelFoot)
-      K.ring(qb, 3, C.white, 0.09, 0.4)
+      pane(qb, 3)
       local t = T("slots.payTable")
       K.text(t, qb[1], qb[2] + 4.6, K.fit(t, 4, qb[3] - 3), st.spinning and C.faint or C.gold, "center", qb[3])
       K.addHit(qb, "win", PAYTABLE)
@@ -1210,6 +1280,14 @@ return function(ctx, env)
     local size = K.fit(label, 20, body[3] * 0.9)
     local top = cy - (size + 13) / 2 - 2
     scaleAbout(cx, cy, spring(age))
+    -- (on a card of smoked glass with a gold line round it, springing in with the words)
+    local cardW = min(body[3] - 10, max(K.width(label, size), 96) + 26)
+    local cb = K.R(cx - cardW / 2, top - 6, cardW, size * 1.28 + 24)
+    local f0 = K.getFade()
+    K.setFade(f0 * a)
+    K.glass(cb, 7, 0.62, C.smoke, 0.5, 0.55)
+    K.ring(K.R(cb[1] + 1.4, cb[2] + 1.4, cb[3] - 2.8, cb[4] - 2.8), 5.8, C.gold, 0.7, 0.5)
+    K.setFade(f0)
     outlined(label, body[1], top, size, C.goldTop, body[3], a, size * 0.05)
     local y2 = top + size * 1.28
     if intro then
@@ -1230,13 +1308,20 @@ return function(ctx, env)
 
   -- the pay table: three, four and five of each symbol (× the bet on a line, five's tickets), the
   -- wild and the Bonus underneath
-  local function drawTable(x, y, w, h)
+  local function drawTable(x, y, w, h, clock)
+    -- (it pops in: a card of smoked glass, a gold line round it, over the machine dimmed)
+    local age = clock - mv.tableAt
+    local f0 = K.getFade()
+    local fa = min(1, age / 0.16)
+    K.setFade(f0 * fa)
     K.col(C.shade)
     K.box("fill", K.R(x, y, w, h))
     local tw, th = min(w - 8, 164), min(h - 6, 112)
     local tx, ty = x + (w - tw) / 2, y + (h - th) / 2
-    K.grad(K.R(tx, ty, tw, th), 5, C.cardHi, C.card)
-    K.ring(K.R(tx, ty, tw, th), 5, C.gold, 0.6, 0.6)
+    local popped = age < 0.4
+    if popped then scaleAbout(tx + tw / 2, ty + th / 2, 0.88 + 0.12 * K.outBack(age / 0.3)) end
+    K.glass(K.R(tx, ty, tw, th), 6, 0.84, C.smoke, 0.45, 0.5)
+    K.ring(K.R(tx + 1.2, ty + 1.2, tw - 2.4, th - 2.4), 5, C.gold, 0.6, 0.5)
     K.bold(T("slots.payTable"), tx, ty + 2.5, 5, C.gold, "center", tw)
     K.text(T("slots.perLine"), tx + 4, ty + 3.4, 3.2, C.faint)
     K.text(T("slots.ticketNote"), tx + tw - 44, ty + 3.4, 3.2, C.faint, "right", 40)
@@ -1270,6 +1355,8 @@ return function(ctx, env)
     symbol(Sl.BONUS, tx + 4.5, ny + 8.2, 8, 1)
     local bn = bonusNote(1)
     K.text(bn, tx + 15, ny + 10.4, K.fit(bn, 3.9, tw - 19), C.text)
+    if popped then G().pop() end
+    K.setFade(f0)
   end
 
   -- the particles: coins tumbling, confetti, tickets flying to their counter
@@ -1326,24 +1413,36 @@ return function(ctx, env)
     local have = st.shownTickets or Sl.tickets()
     local lw = portrait and w or floor(w * 0.55)
     local lh = portrait and h - 46 - M or h
-    K.col(C.card)
-    K.box("fill", K.R(x, y, lw, lh), 4)
+    pane(K.R(x, y, lw, lh), 4)
     st.visible = max(1, floor((lh - 2) / ROW_H))
     clampList()
     local clip = K.R(x, y + 1, lw, lh - 2)
     K.scissor(clip)
     local first = floor(st.top) + 1
+    -- (the rows rise in, one after another, as the tab opens; the highlight glides to the chosen
+    -- prize, in its rarity's colour, rising with its row)
+    local since = clock - mv.tabAt
+    local chosen = list[st.cursor]
+    if chosen and mv.cur then
+      local hc = rarityOf(chosen).c
+      local eh = K.stagger(since, max(0, st.cursor - first), 0.035, 0.3)
+      K.rise(eh, 5)
+      local hb = K.R(x + 1.5, y + 1 + (mv.cur - 1 - st.top) * ROW_H + 0.4, lw - 3, ROW_H - 0.8)
+      K.col(hc, 0.24)
+      K.box("fill", hb, 2.5)
+      K.col(C.white, 0.08)
+      K.box("fill", K.R(hb[1], hb[2], hb[3], hb[4] * 0.45), 2.5)
+      K.ring(hb, 2.5, hc, 0.75, 0.5)
+      K.settle(eh)
+    end
     for i = first, min(#list, first + st.visible + 1) do
       local p = list[i]
       local rar = rarityOf(p)
       local ry = y + 1 + (i - 1 - st.top) * ROW_H
       local rb = K.R(x + 1.5, ry + 0.4, lw - 3, ROW_H - 0.8)
       local can = p.cost <= Sl.tickets()
-      if i == st.cursor then
-        K.col(rar.c, 0.22)
-        K.box("fill", rb, 2.5)
-        K.ring(rb, 2.5, rar.c, 0.7, 0.5)
-      end
+      local e = K.stagger(since, i - first, 0.035, 0.3)
+      K.rise(e, 5)
       K.col(rar.c, can and 1 or 0.4)
       K.box("fill", K.R(rb[1] + 0.6, rb[2] + 1.5, 1.1, rb[4] - 3), 0.5)
       -- (the best prizes: a shimmer sweeping across)
@@ -1359,9 +1458,9 @@ return function(ctx, env)
         end
       end
       if p.kind == "mon" then
-        if env.monIcon then pcall(env.monIcon, p.id, x + 3.5, ry + 1, 10) end
+        if env.monIcon then pcall(env.monIcon, p.id, x + 3.5, ry + 1, 10, nil, 1, 1, 1, K.getFade()) end
       elseif env.itemIcon then
-        pcall(env.itemIcon, p.id, x + 4, ry + 1.5, 9, can and 1 or 0.5)
+        pcall(env.itemIcon, p.id, x + 4, ry + 1.5, 9, (can and 1 or 0.5) * K.getFade())
       end
       local cw = K.width(numText(p.cost), 4.4) + 8
       local ns = K.fit(p.name, 4.6, lw - 22 - cw)
@@ -1369,6 +1468,7 @@ return function(ctx, env)
       ticket(x + lw - 4 - cw, ry + 4, 3.6, can and 1 or 0.5)
       K.text(numText(p.cost), x + lw - 4 - cw + 6.5, ry + 3.4, 4.4, can and C.gold or C.faint)
       if can then sparkle(x + lw - 4 - cw - 2, ry + 3, 1.1 + 0.5 * sin(clock * 6 + i), C.goldTop, 0.8) end
+      K.settle(e)
       K.addHit(rb, "win", PRIZE + i, clip)
     end
     K.scrollbar(x + lw, y + 1, lh - 2, st.top, st.visible, #list)
@@ -1377,20 +1477,23 @@ return function(ctx, env)
     local p = list[st.cursor]
     local dx, dy, dw, dh
     if portrait then dx, dy, dw, dh = x, y + lh + M, w, 46 else dx, dy, dw, dh = x + lw + M, y, w - lw - M, h end
-    K.grad(K.R(dx, dy, dw, dh), 4, C.cardHi, C.card)
+    pane(K.R(dx, dy, dw, dh), 4, 0.15, 0.4)
     if not p then return end
     local rar = rarityOf(p)
     local ps = portrait and 18 or 30
     local ax, ay = dx + 4 + ps / 2, dy + 4 + ps / 2
     detailAt.x, detailAt.y = ax, ay
-    -- (its art on a glow in its rarity's colour; rays behind the best; sparkles round it)
+    -- (its art on a glow in its rarity's colour; rays behind the best; sparkles round it. A new
+    -- choice pops in, its words rising after it)
     local g = G()
+    local chose = clock - mv.curAt
     if rar == RARITY[#RARITY] then rays(ax, ay, ps * 0.9, clock, rar.c, 0.18) end
+    glow(ax, ay, ps * 0.62, ps * 0.62, rar.c, 0.34)
     for k = 3, 1, -1 do
       K.col(rar.c, 0.1 * k)
       g.circle("fill", K.X(ax), K.Y(ay), ps * (0.22 + 0.12 * (3 - k)) * K.sc)
     end
-    local pop = 1
+    local pop = chose < 0.4 and 0.7 + 0.3 * K.outBack(chose / 0.32) or 1
     local since = clock - st.redeemT
     if st.redeemId == st.cursor and since >= 0 and since < 0.5 then pop = 1 + 0.35 * sin(since / 0.5 * pi) end
     scaleAbout(ax, ay, pop * (1 + 0.03 * sin(clock * 3)))
@@ -1398,10 +1501,13 @@ return function(ctx, env)
       if not (env.monPic and env.monPic(p.id, ax - ps / 2, ay - ps / 2, ps)) and env.monIcon then
         pcall(env.monIcon, p.id, ax - ps * 0.4, ay - ps * 0.4, ps * 0.8)
       end
+      K.rescissor()
     elseif env.itemIcon then
       pcall(env.itemIcon, p.id, ax - ps * 0.32, ay - ps * 0.32, ps * 0.64)
     end
     g.pop()
+    local e = chose < 0.5 and K.outCubic((chose - 0.04) / 0.28) or 1
+    K.rise(e, 0, 5)
     sparkle(ax - ps * 0.45, ay - ps * 0.35, 1.2 + 0.8 * abs(sin(clock * 3)), C.white, 0.9)
     sparkle(ax + ps * 0.42, ay + ps * 0.25, 1 + 0.7 * abs(sin(clock * 4 + 1)), rar.c, 0.9)
     local tx = dx + ps + 9
@@ -1428,6 +1534,7 @@ return function(ctx, env)
       K.text(p.desc, dx + 4, dy + ps + 10, 4, C.soft, "left", dw - 8)
       K.scissor(nil)
     end
+    K.settle(e)
     local go = K.R(dx + 4, dy + dh - 13, dw - 8, 10)
     local can = p.cost <= tickets
     if can then
@@ -1435,9 +1542,9 @@ return function(ctx, env)
       K.col(C.red, 0.3 * pp)
       K.box("fill", K.R(go[1] - 1.5, go[2] - 1.5, go[3] + 3, go[4] + 3), 4.5)
       K.grad(go, 3.2, C.redTop, C.redDeep)
+      glaze(go, 3.2)
     else
-      K.col(C.cardHi)
-      K.box("fill", go, 3.2)
+      pane(go, 3.2, 0.07, 0.22)
     end
     outlined(T("slots.redeem"), go[1], go[2] + 2.2, 4.8, can and C.white or C.faint, go[3])
     K.addHit(go, "win", REDEEM)
@@ -1448,14 +1555,20 @@ return function(ctx, env)
   local function drawHead(x, y, w, clock)
     K.grad(K.R(x, y + 1, 8, 8), 2, C.goldTop, C.goldDark)
     K.bold("R", x, y + 1.9, 5.4, C.red, "center", 8)
+    glaze(K.R(x, y + 1, 8, 8), 2)
     local sx, sw = x + 11, min(66, w * 0.45)
-    K.col(C.card)
-    K.box("fill", K.R(sx, y + 1, sw, 8), 2.6)
+    -- (a switch of glass, its brighter thumb sliding to the tab)
+    pane(K.R(sx, y + 1, sw, 8), 2.6, 0.1, 0.36)
     local half = sw / 2
+    local thumb = K.R(sx + 0.5 + (mv.tab - 1) * half, y + 1.5, half - 1, 7)
+    K.col(C.glass, 0.26)
+    K.box("fill", thumb, 2.2)
+    K.col(C.white, 0.12)
+    K.box("fill", K.R(thumb[1], thumb[2], thumb[3], 3), 2.2)
+    K.ring(thumb, 2.2, C.white, 0.55, 0.35)
     for i = 1, 2 do
-      local on = (i == 1) == (st.tab == "slots")
+      local on = abs(mv.tab - i) < 0.5
       local b = K.R(sx + 0.5 + (i - 1) * half, y + 1.5, half - 1, 7)
-      if on then K.grad(b, 2.2, C.cardHi, C.card) end
       local label = T(i == 1 and "slots.machine" or "slots.prizes")
       local fs = K.fit(label, 4.2, half - 4)
       if on then K.bold(label, b[1], b[2] + 1.3, fs, C.text, "center", b[3])
@@ -1500,6 +1613,7 @@ return function(ctx, env)
     local x, y, w, h = body[1], body[2], body[3], body[4]
     st.bx, st.by, st.bw = x, y, w
     advance(now())
+    motion(clock)
     drawStage(body, clock)
     drawHead(x + M, y + 1, w - M * 2, clock)
     local top = y + HEAD_H + 1.5
@@ -1518,7 +1632,7 @@ return function(ctx, env)
       drawParticles(clock, body)
     end
     K.scissor(body)
-    if st.table then drawTable(x, y, w, h) end
+    if st.table then drawTable(x, y, w, h, clock) end
     if st.toast and not K.toast(st.toast, clock, K.R(x, y, w, h), C.red, C.green, K.UI.hud) then
       st.toast = nil
     end

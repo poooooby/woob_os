@@ -1121,7 +1121,7 @@ return function(mod)
   end }
   -- (the App Store: the registry, and an app's icon in a window)
   env.apps = Apps
-  env.appIcon = function(app, x, y, size) Desktop.appIcon(app, x, y, size) end
+  env.appIcon = function(app, x, y, size, a) Desktop.appIcon(app, x, y, size, nil, a) end
   -- (a desktop glyph in window pixels, white: the Phone's handset)
   env.glyph = Desktop.glyph
   -- (money in a window, with the game's sign: the Mart)

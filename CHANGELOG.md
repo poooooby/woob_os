@@ -26,6 +26,47 @@ All notable changes to this mod are documented here, in
   behind glass panes; the cursor glides between cells, a box's Pokémon slide in from the side you
   turn to, the party and the box rise in as it opens, the modes' switch slides, the preview's picture
   pops up for each Pokémon, and menus pop in.
+- **Every window in frosted glass, like the Pokédex,** with soft lights drifting behind glass panes,
+  sliding switches, gliding highlights, and cards and rows that rise in:
+  - **Ribbons:** a glass display case; the chosen Pokémon animated on a pane of its type's colour, its
+    Ribbons rising into the case, the chosen Ribbon's words sliding in under the spotlight.
+  - **Hall of Fame:** the chosen Pokémon large and animated with its types; the team's six cards
+    rising in as you change team. Tap the picture to hear its cry.
+  - **Condition:** the chosen Pokémon's picture on the chart, numbers counting up at each corner, a
+    sheen bar that fills, the Pokéblock case popping up.
+  - **Settings:** a glass sidebar and cards, sliding switches, settings sliding in, wallpapers popping
+    in under a gliding cursor. The PokéNav section shows only on Ruby, Sapphire and Emerald.
+  - **App Store:** cards in each app's colour, app pages sliding in, GET and OPEN popping as apps
+    come and go.
+  - **Mail:** lights in the letter's stationery colours, Inbox | Held on a sliding switch, the
+    highlight gliding down the letters, the open letter rising onto a glass tray with its lines after
+    it, and the Pokémon to give it to on a glass sheet.
+  - **Items:** lights in the pocket's colour, the Bag's pockets on a sliding switch, the PC's room as a
+    bar, the chosen item's card popping up, How Many and the menu as sheets over the window.
+  - **Decorate:** each category in its own colour, the pieces rising in with a ring gliding between
+    them, the chosen piece popping up in its showroom.
+  - **GTS:** lights in the shown Pokémon's types, the chosen Pokémon popping up animated on a pane of
+    its colour, the search and the reveal fading and springing in.
+  - **Errands:** job cards rising in, Pokémon popping into the team, a strength bar, and each team's
+    ring filling with a sweeping second hand.
+  - **Challenges:** goals rising in, bars and the ring of claimed goals filling, a claimed goal popping
+    with a gold glow.
+  - **Phone:** contacts lit in their own colours, pictures popping up on their cards, a ★ that pops,
+    and calls as glass chat bubbles that pop up and grow as the words are typed.
+  - **R-Bay:** dark smoked glass over drifting Rocket-red lights tinted by the Pokémon you're looking at.
+  - **Slots:** frosted panes over casino lights that turn gold and pink during free spins, the reels in
+    a glass bezel.
+  - **Mart, Bank and News:** the Mart's shop lights behind frosted panes and a sliding Buy | Sell; the
+    Bank's mint and gold lights and a deep-green glass card; the News studio's lights turning to each
+    story's colour, the anchor's shot framed in glass, a glass ticker.
+- **News: Rookie Watch reads like the news.** Every story about you is the desk's report, with your
+  name: "Our field teams report RED has finished 3 of this week's 5 challenges!" Your week, your
+  catches, hatches, evolutions, GTS trades, teams out on errands and the week's challenges, in every
+  language.
+
+### Fixed
+- **♀ and ♂ show in names.** R-Bay and the GTS wrote Nidoran as "NIDORAN" and a box (the font has no
+  sign for either); every window now draws the sign, in lists, cards, notifications and messages.
 
 ## [0.13.0] - 2026-11-15
 
