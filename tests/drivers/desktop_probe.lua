@@ -301,29 +301,53 @@ local function body(game, log)
     D.draw = drawB
     log(("  the Boxes window's draw: %.3f KB per frame over %d frames"):format(kbB / math.max(1, nB), nB))
     check(kbB / math.max(1, nB) < 0.5, "the Boxes window makes next to no garbage")
-    -- Summary: the game's screen, then the window back as it was
+    -- Summary: our own page in the window (Info, Stats, Moves), then back to the box as it was; Galar
+    -- Rising stood in for (its Dynamax row, the G-Max Factor) so the wide page's left column is seen full
+    local galar0, dynamaxS0 = Bx.galar, Bx.dynamax
+    local DxS = { canDynamax = function() return true end, level = function() return 7 end,
+                  canGigantamax = function() return true end }
+    Bx.galar = function() return true end
+    Bx.dynamax = function() return DxS end
+    local function forgetBox()
+      local ms = Bx.boxMons(s0, bst.box)
+      for i = 1, 30 do if ms[i] then Bx.forget(ms[i]) end end
+    end
+    forgetBox()
     U.tap(game, "a"); U.wait(6)
     U.tap(game, "down"); U.wait(2)
-    U.tap(game, "a")
-    check(waitFor(function() return not D.isOpen() end, 120), "Summary: the game's own screen")
-    U.wait(40)
+    U.tap(game, "a"); U.wait(40)
+    local S = bst.sum
+    check(S ~= nil and S.rec ~= nil and D.window() == BW, "Summary: our own page, in the window")
     shot("d2i_summary")
-    -- (B only while the game's Summary is up: a B on the desktop coming back opens its Log Off sheet)
-    local back = waitFor(function()
-      if D.window() then return true end
-      if not D.isOpen() then
-        U.tap(game, "b")
-        U.wait(20)
+    U.tap(game, "r"); U.wait(40)
+    check(S and S.tab == 2, "R: Stats")
+    shot("d2i2_summary_stats")
+    U.tap(game, "r"); U.wait(20)
+    U.tap(game, "a"); U.wait(30)
+    check(S and S.tab == 3 and S.move == 1, "Moves, A: the first move's card")
+    shot("d2i3_summary_moves")
+    do
+      local drawS, kbS, nS = D.draw, 0, 0
+      D.draw = function(...)
+        local was = collectgarbage("isrunning")
+        collectgarbage("stop")
+        local kb0 = collectgarbage("count")
+        drawS(...)
+        kbS, nS = kbS + (collectgarbage("count") - kb0), nS + 1
+        if was then collectgarbage("restart") end
       end
-      return D.window() ~= nil
-    end, 30)
-    if D.isOpen() and D.state().sheet then
-      U.tap(game, "b")
-      U.wait(10)
+      U.wait(120)
+      D.draw = drawS
+      log(("  the summary's draw: %.3f KB per frame over %d frames"):format(kbS / math.max(1, nS), nS))
+      check(kbS / math.max(1, nS) < 0.5, "the summary makes next to no garbage")
     end
+    U.tap(game, "b"); U.wait(4)
+    U.tap(game, "b"); U.wait(10)
+    Bx.galar, Bx.dynamax = galar0, dynamaxS0
+    forgetBox()
     local BW2 = D.window()
-    check(back and BW2 and BW2.title == "Boxes" and BW2.state.box == 2 and BW2.state.mode == BW.SELECT,
-      "B: back into Boxes, box 2, Select")
+    check(bst.sum == nil and BW2 == BW and BW2.state.box == 2 and BW2.state.mode == BW.SELECT,
+      "B, B: back to the box, box 2, Select")
     U.wait(10)
     shot("d2j_boxes_back")
     check(D.ballState() == "on", "the Poké Ball still on the pad after the Summary")
@@ -632,6 +656,12 @@ local function body(game, log)
     shot("d12f_rbay_won")
     U.tap(game, "r"); U.wait(6)
     shot("d12g_rbay_result")
+    -- A on it: the recap (the auction over, the winning bid, the winner, the last bids)
+    U.tap(game, "a"); U.wait(30)
+    check(rs.recap ~= nil and rs.recap.won and rs.recap.winner == 0 and rs.recap.histN > 0, "A: the auction's recap")
+    shot("d12h_rbay_recap")
+    U.tap(game, "b"); U.wait(4)
+    check(rs.recap == nil and D.window() ~= nil, "B: back to My Bids")
     -- put back: the party, the money, the save's R-Bay data, the clock
     if #s0.party == party0 + 1 then s0.party[#s0.party] = nil end
     s0.money = money0

@@ -638,7 +638,8 @@ return function(engine, deps)
           if where then
             pay(s, heldOf(b) - price)
             table.insert(d.results, 1, { sp = b.sp, name = b.name, level = b.level, price = price, won = true,
-                                         where = where, at = b.finish, tier = b.tier, shiny = b.shiny })
+                                         where = where, at = b.finish, tier = b.tier, shiny = b.shiny,
+                                         k = b.k, n = b.n, max = b.max, steps = b.steps, ivs = b.ivs })
             d.bids[key] = nil
             won, lastSp = won + 1, b.sp
             d.unread = d.unread + 1
@@ -649,7 +650,8 @@ return function(engine, deps)
         else
           pay(s, heldOf(b))
           table.insert(d.results, 1, { sp = b.sp, name = b.name, level = b.level, price = price, won = false,
-                                       refund = b.max, at = b.finish, tier = b.tier, shiny = b.shiny })
+                                       refund = b.max, at = b.finish, tier = b.tier, shiny = b.shiny,
+                                       k = b.k, n = b.n, max = b.max, steps = b.steps, ivs = b.ivs })
           d.bids[key] = nil
           lost = lost + 1
           d.unread = d.unread + 1
@@ -663,6 +665,46 @@ return function(engine, deps)
       refreshedAt = -1
     end
     return won, lost, lastSp
+  end
+
+  -- an ended auction, told again (made when it's opened, not per frame): the auction rebuilt from the
+  -- seed and run to its end with the player's own bids (kept in the result) -> { sp, name, level,
+  -- tier, shiny, picMon, types, ivs, ivSum, won, where, price, max, at, nbids, nBidders, winner (0:
+  -- the player; a bidder's handle; nil: not known, an older result), histN, histWho (0 or a handle),
+  -- histAmt (newest first, up to five) }
+  function Au.recap(s, r)
+    if type(r) ~= "table" then return nil end
+    local out = { sp = r.sp, name = r.name, level = r.level or 1, tier = r.tier or "common", shiny = r.shiny,
+                  won = r.won == true, where = r.where, price = r.price or 0, max = r.max or r.refund, at = r.at,
+                  types = r.sp and typesText(r.sp) or "", histN = 0, histWho = {}, histAmt = {},
+                  winner = r.won and 0 or nil }
+    if r.shiny then out.picMon = { species = r.sp, isShiny = true } end
+    local L
+    if s and r.k and r.n then
+      local ok, got = pcall(generate, s, r.k, r.n, 0)
+      if ok and got and got.sp == r.sp then L = got end
+    end
+    if L then
+      local price, leader = sim(L, r.at or L.finish, { steps = r.steps or {} })
+      out.price = r.price or price
+      out.nbids, out.nBidders = L.nbids, #L.bidders + 1
+      if leader == 0 then out.winner = 0
+      elseif leader and L.bidders[leader] then out.winner = L.bidders[leader].name end
+      for j = 0, min(L.histN, 5) - 1 do
+        local i = (L.histN - 1 - j) % 5 + 1
+        local who = L.histWho[i]
+        out.histWho[j + 1] = who == 0 and 0 or (L.bidders[who] and L.bidders[who].name or "?")
+        out.histAmt[j + 1] = L.histAmt[i]
+      end
+      out.histN = min(L.histN, 5)
+    end
+    local ivs = r.ivs or (L and L.ivs)
+    if ivs then
+      local sum = 0
+      for _, key in ipairs(IV_KEYS) do sum = sum + (tonumber(ivs[key]) or 0) end
+      out.ivs, out.ivSum = ivs, sum
+    end
+    return out
   end
 
   return Au

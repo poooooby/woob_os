@@ -186,7 +186,7 @@ A window may also have:
 - `pad = true`, which lights the shelf's pad.
 
 `ctx.over(open, state)` opens one of the game's screens. When it closes, the window comes back at
-once, handed `ctx.resume = { app, state }`. Boxes uses this for Summary and Rename.
+once, handed `ctx.resume = { app, state }`. Boxes uses this for Rename (its Summary is its own).
 
 ## Kanto Gear
 
@@ -246,6 +246,24 @@ once. Each drop saves.
   the picture's foot. Nothing is written to the Pokémon.
 - **Help:** FireRed/LeafGreen's Help opens on L/R and stops the game's update. The shell sets
   `help_system.enabled = false` while the desktop is up, the same way as the touch pad.
+- **The look:** `src/apps/boxes_view.lua` draws in the Pokédex's glass (`K.backdrop` lit by the
+  previewed Pokémon's types, `K.glass` panes). Its motion lives in the view's `mv` (`V.motion`): the
+  cursor's highlight glides (`mv.gx/gy`, `mv.px/py`), cells rise in on open and when the box turns
+  (`mv.boxAt`, `mv.boxDir`: from the side it turned to), the modes' thumb slides (`mv.mode`), the
+  preview pops (`mv.monAt`), a sheet pops in (`mv.sheetAt`). The wallpaper's square corners sit under
+  the bezel's thick rounded ring (no stencil).
+- **Summary:** our own, in the window: `st.sum = { list, i, rec, tab, move, swap, party, top, ... }`
+  while it's up (input, taps, the wheel and drags go to it; `W.pointer` leaves the box alone).
+  `Bx.summary(s, mon, T)` makes the page once per Pokémon (cleared by `Bx.forget`): `info` rows (label,
+  value, tint), `rows` (each stat's value, IV, EV, the nature's +1 / -1), `radar` + `radarKeys` (the EVs
+  clockwise from HP), `moves` (PP, power, accuracy, `desc` from `SummaryData.moveDescription`, `contest`
+  from the engine's `rse.contest` `data()`), `memo` (met / hatched / traded, the map section's name
+  through `map_sections_extract`), `dmax` / `gmax` only while `Bx.galar()` (main.lua: Galar Rising,
+  `max_raids`, found). `Bx.swapMoves` uses the engine's `Pokemon.swapMoves` (PP with the move);
+  party only, as the game. The Game Boy model (`src/gb/boxes.lua`) makes the same page from DVs (`ivMax`
+  15, HP's from the others) and Stat Exp (`evMax` 65535, five radar corners, no total). The drawing is
+  `src/apps/boxes_summary.lua` (the window's fourth argument); its picture is `env.dexSprite` with
+  `shiny` (main.lua keeps a shiny's frames apart) and, on the Game Boy games, the Pokémon itself.
 
 ## The shelf
 
@@ -256,7 +274,7 @@ the screen keeps its size in units). In its middle is the pad, used for the Pok�
   second). `r.ballPhase` runs off -> `drop` (falls `D.BALL.height` units with a bounce,
   `SE_BALL_BOUNCE_1`) -> `on` (unlit; red, pulsing, while `win.moving()` is true -- Boxes carries
   a Pokémon --, then a green flash over `D.BALL.moved`) -> `done` when the window closes (a green flash, `SE_BALL_CLICK`) -> `lift` -> off.
-  Reopening during the flash goes straight back to `on`. Coming back from the game's Summary
+  Reopening during the flash goes straight back to `on`. Coming back from one of the game's screens
   (`ctx.resume`) sets `r.ballSkip`: the ball is already there. `D.ballState()` gives the phase and
   the glow ("moving" | "moved" | nil). While it sits there a `"ball"` `padTransfer` is dropped (no
   crossing: the glow tells it); elsewhere (GTS, R-Bay, Slots) a Pokémon crosses as a Poké Ball and

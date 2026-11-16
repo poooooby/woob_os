@@ -14,16 +14,6 @@ Center, and the one in your bedroom, opens a desktop in a sleek monitor instead 
 
 ### Core Mechanics
 
-- 🖥️ **A desktop in a monitor:** an aluminium screen with a black glass border, a home screen of
-  app icons, a dock along the bottom and a menu bar along the top showing your name, your money
-  and the time.
-- 🧲 **A shelf under the monitor:** a digitization pad in its middle. Open Boxes and a Poké Ball
-  drops onto the pad. Its button glows red while you carry a Pokémon and flashes green when you put
-  it down; close Boxes and it flashes green once more before the ball lifts off. The pad lights up while Items or the Mart is open. An item you send to the PC
-  (or sell) drops onto it and digitizes away, and an item you take out (or buy) digitizes onto it
-  before fading into your Bag.
-- ⚡ **A boot screen:** the PC starts up with the W logo and a loading bar before the desktop fades
-  in. Any button or a tap skips it, and it only plays when you first turn the PC on.
 - 🎮 **Made for controllers and touch:** move between icons with the D-pad, open with A, flip
   pages with L and R, and press START for the W menu. On a touch screen, tap an icon or swipe
   between pages. A mouse works too: click, hover and scroll.
@@ -31,87 +21,44 @@ Center, and the one in your bedroom, opens a desktop in a sleek monitor instead 
   app to a new place, from the home screen into the dock or back out again; with a controller,
   A picks it up, the D-pad carries it and A puts it down. The dock holds up to six. Done, B or a
   tap on an empty spot finishes, and every PC remembers the arrangement.
-- 📐 **Fits your screen:** wide windows, small windows and phones held upright all get a layout of
-  their own.
 - 📱 **WoobPad:** the PC as a tablet you carry. Choose WOOBPAD in the START menu, anywhere you can
-  open it, and a pad comes up over the game with a big touch screen. In Ruby, Sapphire and Emerald
-  it takes the POKéNAV row's place, and the pad's own apps do the PokéNav's jobs (Map, Phone,
-  Condition and Ribbons):
+  open it, and a pad comes up over the game with a big touch screen.
   - **Like the PC:** the same home screen and dock (arranged the same way), the menu bar with your
     money and the time, your wallpaper, and the same apps in the same windows: Boxes, Items, Mail,
     Map, Phone, Condition, Ribbons, GTS, Mart, R-Bay, Slots, the App Store and Settings, plus Oak's PC and the
     Hall of Fame once you've earned them.
-  - **Made for touch:** tap, swipe between pages, drag in windows; the buttons work just as well.
   - **Notifications:** pull down from the top of the screen (or choose Notifications in the W
     menu) and the drawer follows your finger down over frosted glass, the screen blurred behind
     it: the time, then a card for each notification, newest first. Tap one to open its app, swipe
     it left or right to clear it, or Clear to clear them all; push the handle back up (or B) to
     close it. On the buttons: Up / Down to choose, Left / Right to clear, SELECT to clear all.
-  - **Put it away:** B on the home screen, or its top button.
 - 🗺️ **A 3D Town Map:** the Town Map, the maps on the walls and the Fly map open the region as a
   little 3D model you can turn, tilt and zoom. The sea waves, clouds drift over it and it follows your
   device's clock: dawn, day, a warm dusk, and a starry night with the windows lit.
   - **Built to scale from your game's own maps:** every route and town where it really is and every
-    tile in its own colours, in the game's own pixel art as you zoom in: the paths, flowers, fences,
-    roofs and shop fronts as the overworld draws them. Forests stand as rounded canopies, mountains
-    rise in terraces as tall as the game draws their cliffs, and the land between the routes is the
-    forest, rock or sea the game shows past their edges. Every building stands where its door is, the
-    Centers, Marts, Gyms and houses each in their own art. Bridges cross the water on posts and the
-    caves open in the rock. The map of the region you're in is put together in the background shortly
-    after you start playing, so it opens at once, and it's kept: from then on it's ready moments
-    after you start. Opened before it's ready, a bar shows how far along it is.
-  - **Hoenn (Ruby, Sapphire, Emerald):** Mt. Chimney's summit the highest point, its crater smoking;
-    Sky Pillar, Lilycove's Department Store and the S.S. Tidal at the harbour, Mossdeep's rocket, the
-    Weather Institute's dish, Mirage Tower, the Abandoned Ship, the Pokémon League and the Battle
-    Tower. Pacifidlog floats on its logs and Fortree's houses sit up in its trees.
-  - **Kanto (FireRed, LeafGreen):** the mountain ranges round Mt. Moon and Rock Tunnel in terraces,
-    Silph Co. towering over Saffron, the Pokémon Tower in Lavender, Celadon's Department Store, the
-    S.S. Anne at Vermilion's dock and the Pokémon League up on Indigo Plateau.
-  - **The Sevii Islands (FireRed, LeafGreen):** each of the game's three island maps its own model,
-    the islands where the game's map puts them, a ship at each harbour, and Mt. Ember over One Island
-    the highest peak, its crater smoking. Where the game stops drawing partway across an island's
-    mountains or forests, they carry on and round off into the sea.
+    tile in its own colours.
   - **Legendary storms (Emerald):** after the Weather Institute tells you about abnormal weather, a
     rainstorm with lightning hangs over the route where Kyogre is rumoured, or a sandstorm over
     Groudon's. Ask again and it moves with the report. It clears once that Pokémon is caught or
     knocked out.
   - **Everyday weather (Ruby, Sapphire, Emerald):** the weather your game has, where it has it, gentler
-    than the legendary storms. Rain clouds over Route 120's north, a thunderstorm or rain over Route 119
-    and Route 123 on the days the game gives them, ash falling on Route 113 and above Mt. Chimney, a dust
-    haze blowing across Route 111's desert, fog around Mt. Pyre and a few white clouds south of Route
-    120. Petalburg Woods and Southern Island sit in shade. A place's card names its weather.
+    than the legendary storms.
   - **Where you are:** a red beacon stands on your spot.
-  - **The cursor:** the D-pad moves it freely over the land, the way the camera faces, as on the
-    game's own map; let go near a town or a landmark and it glides onto it. Whatever is under it,
-    routes too, gets a card: its name, whether you've been there, its Pokémon Center and Poké Mart,
-    and its Gym with that Gym's badge (ticked once you have it).
   - **Fly:** from the party menu, pick a town you've visited and press A (or tap Fly): you fly
     there as the game flies you.
   - **The camera:** L and R (or the right stick) turn it, the right stick tilts it, A steps through
-    its zooms (or the mouse wheel): the whole region, nearer, near, and a close-up of the town or
-    place under the cursor, framed above its card. On a touch screen, drag to turn and tilt, pinch to
-    zoom and tap a place to send the cursor there; tap it again to zoom in on it.
-  - **Flat or 3D:** SELECT (or the 2D / 3D button) swaps to the flat map, the region seen from
-    straight above, north up, down to every tile of the overworld as you zoom in, with the same
-    cursor, places and cards; L and R change the region there. The compass shows north; tap it to turn
-    north back up.
-  - **Glass:** the cards, the buttons and the hints float over the map on frosted glass.
+    its zooms (or the mouse wheel).
+  - **Flat or 3D:** SELECT (or the 2D / 3D button) swaps to the flat map.
   - **The islands:** in FireRed and LeafGreen, the region's name (or L and R on the flat map)
     switches to the Sevii Islands once your Town Map shows them.
   - **The classic map:** START opens the game's own map instead, and Settings can keep it for
     good.
 - 🛍️ **App Store:** choose what's on your home screen. R-Bay, Slots, the GTS, the Mart, the Bank, Errands,
   Challenges, the News, PC Games and
-  any app another mod adds can be removed and got back whenever you like, on the PC and WoobPad alike,
-  and anything they've saved stays. The game's own PC and PokéNav apps can't be removed.
-- 🔔 **Notifications:** WoobOS tells you when you're outbid on R-Bay (your money is already back),
-  when an auction you're in is about to end (10 minutes before, or 5, 15 or 30: your choice in
-  Settings), when you win or lose one, when your GTS deposit is traded, when a full wallet sends money
-  to the Bank, when a team is back from an errand, when a challenge is done, and when a new day's
-  swarm appears. A banner slides down over the game while you're free to walk around; tap it to
-  open WoobPad on that app. With the PC or the pad open, it slides in over its screen instead,
-  and on both, the notifications drawer pulls down from the top of the screen. Each app's
-  notifications can be turned off in Settings.
+  any app another mod adds can be removed and got back whenever you like. The game's own PC and PokéNav apps can't be removed.
+- 🔔 **Notifications:** WoobOS tells you when you're outbid on R-Bay,
+  when an auction you're in is about to end, when you win or lose one, when your GTS deposit is traded, when a full wallet sends money to the Bank, when a team is back from an errand, when a challenge is done, and when a new day's
+  swarm appears. Each app's notifications can be turned off in Settings.
 
 ### On Red, Blue, Yellow, Gold, Silver and Crystal
 
@@ -132,189 +79,86 @@ Center, and the one in your bedroom, opens a desktop in a sleek monitor instead 
 
 ### Apps
 
-- 🎒 **Items:** your Bag and your PC's item storage side by side. Pick an item and send it across:
-  choose how many (Left and Right one at a time, Up and Down ten at a time), or press SELECT to
-  move the whole stack. L and R flip through the Bag's pockets. START (or Sort on either side)
-  sorts the side you're on: the PC by name or pocket, or tosses an item from it; the Bag's pocket
-  by name or type (the TM Case and the Berries keep the game's own order). Important items stay in the Bag. Items other mods add (WoobDex's
-  candies and Max Mushrooms) show with their own pictures.
+- 🎒 **Items:** your Bag and your PC's item storage side by side.
 - 📕 **Pokédex:** a modern Pokédex in place of the game's, from the START menu and as an app on the
-  PC and WoobPad once you have one. On the left, every Pokémon in a grid with its number, icon and
-  name, tinted by its type: a dark silhouette until you've seen it, a Poké Ball once you've caught
-  it. It's all frosted glass over soft lights in the chosen Pokémon's type colours. On the right,
-  the one you pick, on glass tinted its type's colour: its picture (moving with
-  Emerald's own animations, breathing gently on the other games), name, category, types, height and
-  weight, gender ratio and the Pokédex's words, then its six base stats as a chart and as bars, its
-  abilities, and three tabs: **Moves** (by level, TM and HM, egg
-  moves and tutors, with each move's type, power, accuracy and PP), **Where** (every place it's
-  found in the wild, how, its levels and its chances) and **Info** (its evolutions and how, egg
-  groups, hatch steps, catch rate, base Exp., growth, EV yield, held items, base friendship). A
-  Pokémon with alternate forms (WoobleDex's) has a fourth tab, **Forms**: every form with its
-  picture and name, the usual one first, a Poké Ball under each you've caught, and a silhouette for
-  those you haven't seen. You see it as the game would show it: the card once seen, everything once
-  caught, and where to find it even before you've seen it (its name and the rest still hidden). Your region's dex first, and the National dex beside it once you have it (SELECT). START
-  opens the game's own Pokédex; Settings can keep the game's on START, and the Pokédex option turns
-  it off altogether. It all moves smoothly: the highlight glides from Pokémon to Pokémon, the page
-  settles in card by card, the backdrop's colour turns, the picture pops up, the chart reshapes and
-  the numbers count as you go.
+  PC and WoobPad once you have one.
 - 🗺️ **Map:** the 3D map of your region, from the PC or WoobPad, with the same places, cards and
-  camera as the Town Map. On WoobPad, out in the open with a Pokémon that knows Fly and the badge
-  that allows it, START (or Fly on a town's card) flies you to any town you've visited.
+  camera as the Town Map.
 - 📞 **Phone** (Ruby, Sapphire and Emerald, once you have the PokéNav): your PokéNav's contacts as
   a phone. Favourites, Recents and Contacts tabs; each contact's card shows their picture, class
   and where they are, a green dot when they want a rematch, and their profile.
   - **Emerald:** Call rings them up and they answer in the game's own words, just as a PokéNav
-    call does (a Trainer can ask for a rematch). The call reads like a chat: their picture, name
-    and a running call timer up top, and what they say in message bubbles that type themselves out
-    after a "…" bubble, with a little waveform moving while they talk. A shows the rest of a bubble
-    at once, then the next one; the round red button (or B) hangs up. The calls you get out in the field ring as a
-    notification and land in Recents. ★ pins a contact to Favourites.
+    call does (a Trainer can ask for a rematch).
   - **Ruby and Sapphire:** Trainer's Eyes' Trainers and Gym Leaders, their profiles and who's
     ready for a rematch (those games have no calls).
   - In the PokéNav, Match Call (Trainer's Eyes) opens the Phone, and B goes back to the PokéNav.
 - 🎀 **Condition** (Ruby, Sapphire and Emerald): your Pokémon's contest conditions (Cool,
   Beauty, Cute, Smart and Tough) as a glossy radar chart that glides from one Pokémon to the
-  next, with its sheen sparkling round it, its nature and ribbons. Search ranks every Pokémon in
-  your party and boxes by one condition. Compare lays a second Pokémon's outline over the
-  first. Pokéblocks feeds one from your case, with the game's own rules (natures that like or
-  dislike its flavour, a Pokémon that won't eat once its sheen is full), and the chart grows. It's
-  frosted glass over soft lights in the colours of the chosen Pokémon's best conditions, the chart
-  on smoked glass. In the PokéNav, Condition and its search open it.
+  next, with its sheen sparkling round it, its nature and ribbons.
 - 🎀 **Ribbons** (Ruby, Sapphire and Emerald, once you have the PokéNav): a display case of every
   Pokémon in your party and boxes that wears a Ribbon, most first, with its contest ranks at a
   glance, each Ribbon lit in its colour, and the one you pick swinging in the spotlight with what
-  it's for in the game's own words. In the PokéNav, Ribbons opens it.
+  it's for in the game's own words.
 - 🌐 **GTS:** trade with Trainers from around the world.
-  - **Wonder Trade:** pick any Pokémon from your party or a box and send it off. The globe spins
-    while it searches, a Trainer from somewhere (Yuki from Johto, Pierre from Kalos …) is found,
-    the Poké Balls swap on the pad, and you see who you got: usually something everyday, now and
-    then a rare one, very rarely a legend. About one in ten is shiny.
+  - **Wonder Trade:** pick any Pokémon from your party or a box and send it off.
   - **GTS listings:** Trainers' offers, refreshed every half hour, each saying what they want in
-    return. The ones you can answer light up, and about one in ten offers a shiny (a gold Shiny
-    badge). A deposit's answer is shiny about one time in ten too.
+    return.
   - **My Deposit:** put one of yours up and ask for a species you've seen, at a level range.
-    Someone answers in real time if the deal is fair (ask for a legend in exchange for a Pidgey
-    and you'll wait forever); collect your new Pokémon, or withdraw yours any time before.
+    Someone answers in real time if the deal is fair
   - **As in a real trade:** what you receive belongs to its original Trainer. It gains more EXP,
     a high-level one may not obey until you have the badges, and Pokémon that evolve by trading
-    (Kadabra, Machoke …) evolve as they arrive. The game's rules hold: you keep a Pokémon that can
-    battle, Eggs and mail holders stay, and without the National Pokédex FireRed and LeafGreen
-    trade only Kanto's 151.
+    (Kadabra, Machoke …) evolve as they arrive.
 - 🛒 **Mart:** a Poké Mart in your PC: a shopfront under a striped awning, with your game's own
-  Mart clerk behind the counter. The clerk talks to you in a speech bubble: a greeting for the time
-  of day, a word on everything you buy or sell, why not when you can't have something (and a nudge
-  to the Bank when it holds the money you're short of), what your latest Badge put on the shelves,
-  and a tip now and then. Tap the clerk to say hello. Buy Poké Balls, medicine, battle items and
-  Repels straight into your Bag: the coins fly into the till, the item hops onto its stand, and it
-  appears on the pad. The shelves fill up as you earn Gym Badges, as in the later games: Poké
-  Balls, Potions and the status heals from the start, Great Balls and Super Potions after your
-  first badge, all the way to Max Potions and Full Restores. Locked items show how many badges they
-  need, and what your latest Badge added wears a NEW tag. Pick how many (Left and Right one at a
-  time, Up and Down ten at a time, SELECT as many as your money buys). Ten Poké Balls at once come
-  with a free Premier Ball. Switch to Sell (START, or the switch at the top) to sell what's in your
-  Bag for half its price. Prices and item names are your game's own.
+  Mart clerk behind the counter.
 - 🚀 **R-Bay:** Team Rocket's auction house for Pokémon. Twelve auctions run at once, each for
   three hours, and a new one opens every fifteen minutes, on your device's clock, so the market
-  keeps moving while the game is off. Pokémon come in six tiers: Common (first stages), Uncommon,
-  Rare (fully evolved), Prized (starters, pseudo-legendaries, fossils, Eevee), Legendary and
-  Mythical, with WoobleDex's Pokémon in the mix when it's installed. Each listing shows the
-  Pokémon's level, which climbs with your badges, and its IVs, and better IVs draw more bidders
-  and higher prices. Rocket bidders compete, harder in the higher tiers, but never so hard that
-  you can't win. Set the most you'll pay and R-Bay bids for you, one step at a time, like eBay.
-  Your maximum is held while you lead. Outbid, and it all comes back at once, with the rival's
-  answer showing as the new top bid. Win and you pay only the final price, the rest comes back,
-  and the Pokémon joins your party (or the PC) with the IVs it was listed with. About one auction
-  in ten is for a shiny: it wears a gold Shiny badge, shows in its shiny colours, is worth far
-  more, draws more and keener bidders, and is almost always the Hot Auction. Win it and the
-  Pokémon you get is that shiny. The Hot Auction sits at the top of Browse: the most wanted Pokémon on sale right
-  now, with its price and countdown (SELECT jumps to it). Prices flash up as rival bids land, the
-  clock turns red in the last ten minutes, taking the lead throws confetti and losing it tells you
-  at once. My Bids shows where you stand, and a count on R-Bay's icon tells you an auction has
-  ended.
-- 🎰 **Slots:** Team Rocket's five-reel video slot, played with your money: ₽50, ₽100, ₽500 or
-  ₽1,000 a line, on 1, 5, 10 or 20 lines (each line costs its own bet). Three, four or five of a kind
-  from the left pay, from Poké Balls up to five Rocket R's (the 2,500× jackpot), and a pay ladder
-  beside the reels shows what five of each are worth at your bet. Ditto is wild and stands in for
-  any symbol except Bonus. Three or more Bonus coins anywhere pay on your whole bet and give 12, 18
-  or 30 free spins that keep your bet, triple their wins, can give more, and carry on if you close
-  the window. The rarer wins also drop Rocket Tickets, more for bigger bets. Press SPIN (or A) and
-  the reels roll; A stops them one by one, or let them land. Two Bonus down hold the remaining reels
-  back while the notes climb. Auto (SELECT) keeps spinning until you turn it off. A small win
-  lights its line and counts up over the reels; BIG WIN, MEGA WIN and JACKPOT take the whole window
-  with rays, a rain of coins and the payout counting up. START shows the full pay table. In the
-  Prizes tab, trade tickets for Nuggets, Rare Candies, PP Ups, TMs (Ice Beam, Thunderbolt,
-  Flamethrower, Earthquake, Hyper Beam), a Master Ball, or Abra, Clefairy, Scyther, Pinsir, Dratini
-  and Porygon, whose level grows with your badges. Prizes are sorted by rarity, a bar shows how
-  close you are to the one you've picked, the Prizes tab counts the ones you can afford, and a
-  redeemed prize bursts into confetti and appears on the pad.
+  keeps moving while the game is off.
+- 🎰 **Slots:** Team Rocket's five-reel video slot, played with your money.
 - 🏦 **Bank:** a savings account beside your wallet. Your wallet holds the game's ₽999,999; when it's
   full, any money you earn goes into the bank instead (prize money, the Mart, R-Bay, Slots, rewards),
-  up to ₽999,999,999, and a notification tells you how much. Deposit and withdraw any time: Left and
-  Right pick a digit and Up and Down change it, or tap +1,000, +10,000, +100,000 or All. What you keep
+  up to ₽999,999,999, and a notification tells you how much. What you keep
   earns a little interest each day (a tenth of a percent, up to ₽5,000 a day, for up to a week away).
-  The activity list shows every deposit, withdrawal, overflow and interest payment. It's a private
-  bank at night: a deep green card with a gold chip and a sheen sweeping across it, the balance
-  counting up, a ring for how full your wallet is, and coins flying between them as money moves.
 - 👟 **Errands:** send your Pokémon out to work. Three jobs are posted every six hours (a delivery
   round, a dig in the mine, Berry picking, a ferry escort, the power plant, a bakery, the library, a
   night patrol), each one, four or eight hours long. Pick a team of up to three from your party and
   boxes; they leave while they work and come back with money, an item, and EXP for each of them
-  (they level up and learn their moves, as at the Day Care). Each job favours some types and has a
-  level in mind: a star marks the Pokémon that suit it, and a team that fits earns a Great or Good
-  grade and more pay. Up to three teams can be out at once. A notification tells you when one is
-  back; Collect brings them home. Call Back brings a team home early with nothing. The board is a
-  dusk sky with drifting clouds; each job lights up in its own colour, its types in theirs, and a
-  team out walks its dotted route toward the flag, with a medal and confetti when they're back.
+  (they level up and learn their moves, as at the Day Care).
 - 🏅 **Challenges:** five goals every week (Monday to Sunday), counted from how you really play:
   beat trainers, win wild battles, catch Pokémon (of a type, new to your Pokédex, or from today's
   swarm), hatch an Egg, evolve, level up, use items, walk, visit places. Goals grow with your
-  badges. Each pays money or items, and claiming all five earns the week's bonus. A notification and
-  a count on the icon tell you when one's done. They sit under a twinkling night sky: a gold ring
-  fills as you claim them, the bars ease up and shimmer, a finished goal glows with a Claim button
-  that bursts into confetti, and the week's bonus is a treasure chest that opens when it's ready.
-- 📰 **News:** the day's stories, read live by the WoobOS News anchor in a TV close-up: she talks
-  as each story's words type out, with the LIVE light on, the title on a lower third and a camera
-  cut between stories, and the headlines crawl along the ticker. She reacts to the big ones: a fist
-  pump for a Gym won, a clean sweep, a first for your Pokédex, a hatch or an evolution, and her hands
-  on her head for breaking news, a shiny or a legendary up for auction. The News covers you the way sports
-  news covers a rookie taking the region by storm, newest first:
+  badges. Each pays money or items, and claiming all five earns the week's bonus.
+- 📰 **News:** the day's stories, read live by the WoobOS News anchor in a TV close-up:
   - **your latest Gym:** the score, the turns and a play-by-play: the leads, each knockout and the
     turn it came on, the setbacks, and the blow that won it;
   - **your last two trainers beaten:** the score ("Red 3, Youngster Joey 0"), where, both teams and
     the finisher, critical hits and super-effective blows included;
   - **your latest catch:** a signing, with where, the level and the Ball it took;
   - **your week:** trainers beaten, Pokémon caught and steps walked.
-
-  Then the world: today's swarm (a species appearing all over one route, for real: go there and
-  you'll find it, at that route's levels), Ruby, Sapphire and Emerald's own TV outbreaks, Emerald's
-  great storms, and R-Bay's hottest auction. Then what else happened since you last watched (new
-  Pokédex entries, a shiny, an Egg hatching, an evolution, a GTS trade), your teams on errands and
-  your challenges. Each story slides in on a dark broadcast panel with its picture in a spotlight,
-  the words typing out behind a caret; the swarm, outbreaks and storms come with a red BREAKING NEWS
-  banner. A shows the rest of a story, then the next; a story longer than its panel scrolls with
-  Up / Down, a drag or the wheel. A new swarm each day sends a notification that opens the News on it.
-- 🕹️ **PC Games:** with the PC Games mod installed, its games (Solitaire, Snake, Tetris, Blackjack,
-  Collapse, Minesweeper and PokePet) get an icon on the desktop and on WoobPad and fill the screen, sharp
-  at a whole-pixel size, with your buttons. Move the mouse or touch the screen for a close button;
-  close mid-game and it picks up where you left off.
-- ✉️ **Mail:** your mailbox as an inbox. Read each letter on its own stationery, move it to the
-  Bag, or give it to a Pokémon in your party. The Held folder shows the mail your Pokémon are
+- 🕹️ **PC Games integration:** with the PC Games mod installed, its games (Solitaire, Snake, Tetris, Blackjack,
+  Collapse, Minesweeper and PokePet) get an icon on the desktop and on WoobPad.
+- ✉️ **Mail:** your mailbox as an inbox. The Held folder shows the mail your Pokémon are
   carrying, and Take files a letter back in the inbox. Works in all five games.
-- 🔴 **Boxes:** the Pokémon Storage System in one window: your party on the left, a box in the
-  middle (L and R go through all 14, or all 40 with WoobleDex's Bigger PC), and the Pokémon under the cursor on the right, with its
-  picture, types, nature, ability, item and moves. With WoobleDex, its Dynamax Level shows as a
-  gauge of ten, and a G-Max badge marks a Pokémon with the Gigantamax Factor. A shiny has a gold sparkle
-  on its icon, in the box and in your party, so you can spot it without moving the cursor onto it. Three cursor modes, switched with SELECT or a
-  tap on their icons under the box:
+- 🔴 **Boxes:** the Pokémon Storage System in one window:
   - **Select** (red): A opens a Pokémon's options: Move, Summary, Item (take it to the Bag or give
     one) and Release. A on the box's name, or START, jumps to a box, renames it or changes its
     wallpaper.
+  - **Summary:** the Pokémon's own page, in the same glass. Its picture (animated as in the
+    Pokédex, a shiny in its shiny colours) with its number, name, level, gender, types and markings;
+    its HP and status, its EXP to the next level, its item and its friendship. Then three tabs:
+    **Info** (its OT, ID No., nature with the stats it raises and lowers, ability and what it does,
+    Poké Ball, where and at what level it was met, Pokérus, Ribbons), **Stats** (every stat with its
+    IV and EV, the nature's stats marked, and its EVs on a radar with their total out of 510) and
+    **Moves** (each with its type and PP; A on one shows its power, accuracy, category and what it
+    does, and on Ruby, Sapphire and Emerald its contest type, appeal and jam). Up and Down go to the
+    Pokémon before and after it, Left and Right (or L and R) change the tab, A plays its cry. A
+    party Pokémon's moves can be reordered as in the game: A on a move, then A on another. With
+    Galar Rising, its Dynamax Level and G-Max Factor show too. On the Game Boy games it shows the
+    games' own DVs and Stat Exp.
   - **Swap** (blue): A picks a Pokémon up and A puts it down; on another Pokémon, the two trade
     places. With the mouse or a finger, drag it onto its new place.
   - **Drag** (green): hold A and move to draw a rectangle (or drag one out), let go, and every
-    Pokémon in it moves together. They keep their shape in the new box.
+    Pokémon in it moves together. They keep their shape in the new box. Holding a carried Pokémon over the box's arrows turns the box.
 
-  Holding a carried Pokémon over the box's arrows turns the box.
 - 📟 **Oak's PC:** your Kanto Pokédex as a dashboard, once you have the Pokédex (FireRed and
   LeafGreen): a ring of how much you've caught, all 151 as a mosaic of caught, seen and missing, and
   Professor Oak's rating in his own words with how many more you need for the next one.
@@ -325,23 +169,17 @@ Center, and the one in your bedroom, opens a desktop in a sleek monitor instead 
   put them away, or throw out what you don't want.
 - ⚙️ **Settings:** like a phone's or a Mac's.
   - 🌐 **Language:** WoobOS in English, Français, Deutsch, Español, Italiano, 日本語 or
-    Português (Brasil). The game's own text, such as item names and mail, stays as it is.
+    Português (Brasil).
   - 🖼️ **Wallpaper:** the classic colours of your game, five drawn wallpapers (Ribbon, Hills,
     Coast, Waves and Bloom, each tinted to your game), or your own pictures.
   - 🔔 **Notifications:** banners on or off (off, notifications still wait in the list), then a
-    switch for each app that tells you things: R-Bay, the GTS, the Phone (Emerald), the Bank,
-    Errands, Challenges and the News. An app switched off sends nothing, not even to the list.
-    Under R-Bay, choose how long before an auction ends you're told: 5, 10, 15 or 30 minutes.
+    switch for each app that tells you things.
   - 📱 **WoobPad:** show WoobPad in the START menu or not.
   - 🗺️ **Map:** the 3D Town Map on or off. Off, the Town Map and Fly open the game's own map.
   - 📟 **PokéNav:** WoobOS's apps in the PokéNav, or its own screens.
   - 🚩 **Gameplay:** daily swarms on or off.
 - ℹ️ **About:** which version you're running, in the W menu at the top left.
 - ⏻ **Log Off:** turns the PC off. B, or the power button under the screen, asks first.
-
-Boxes, Items, Map, Phone, Condition, Ribbons, GTS, Mart, Bank, R-Bay, Slots, Errands, Challenges, News, Mail, Oak's PC, the Hall of Fame, Decorate, the App Store and Settings open in a window on the desktop, in the style of macOS and iOS:
-white cards on a soft grey, segmented switches, and a blue ring round whatever the controller is
-on. B or the red button closes it.
 
 ## ⚙️ Options
 
@@ -371,10 +209,11 @@ turn it on for your games.
 - **Kanto Gear:** Slots, R-Bay and the GTS are apps in its Silph Store. Turn them on there and they open on the Gear's own screen, with the game still playing above or beside them. They wait while you're in a battle, a menu or a conversation.
 - **WoobleDex:** Boxes shows every box of its Bigger PC (40 instead of 14). R-Bay auctions its Pokémon too, its legendaries and mythicals in their tiers. The
   Boxes preview shows a Pokémon's Dynamax Level and G-Max Factor (from
-  WoobleDex's Dynamax Candy and Max Soup, or Max Raids' dens), as the game's summary does. The
+  WoobleDex's Dynamax Candy and Max Soup, or Galar Rising's dens), as the game's summary does. The
   Pokédex shows all of its Pokémon with their own types (Fairy too), moves, abilities and forms, says
   which can Gigantamax, and opens in place of its Pokédex too; its Register Owned still marks your
   party and PC caught when it opens.
+- **Galar Rising:** the Boxes summary shows a Pokémon's Dynamax Level and its G-Max Factor.
 - **WoobleSpawns:** the Pokédex's Where tab shows where its wild Pokémon really are, on every game:
   every place each one turns up in grass, on the water and on the rods it changes, with its levels and
   chances (by day or at night when its Time of Day Spawns is on, and "Rare" where a legendary waits).
@@ -410,7 +249,7 @@ turn it on for your games.
 - **Fly from the Map app:** the game's own rules: the badge that allows Fly, a Pokémon in your party
   that knows it, and the open air. The PC is always indoors, so fly from WoobPad.
 - **WoobPad's apps:** Decorate stays at the PC. When an app opens
-  one of the game's screens (a Pokémon's Summary, an evolution), the pad comes back on that app
+  one of the game's screens (a box's naming screen, an evolution), the pad comes back on that app
   when it closes. WoobPad isn't in the START menu in a link room or the Safari Zone.
 - **On the Game Boy games:** shiny Pokémon on R-Bay and the GTS are shiny by the game's own rule on
   Gold, Silver and Crystal, and there are none on Red, Blue and Yellow. The Map can't Fly and shows

@@ -21,14 +21,16 @@
 --       until Bx.forget(mon)) ; Bx.shiny(mon) -> bool (kept per Pokémon: the grid's sparkle, every frame)
 --   Bx.dynamax = fn() -> WoobleDex's exports.dynamax | nil (main.lua): the preview's Dynamax Level
 --       (info.dmax 0..10, nil when it can't Dynamax) and Gigantamax Factor (info.gmax)
+--   Bx.galar = fn() -> true while Galar Rising (max_raids) is on (main.lua): the summary's Dynamax row
+--   Bx.summary(s, mon, T) -> the summary's page (kept per Pokémon until Bx.forget) ; Bx.swapMoves(mon, a, b)
 --   Bx.sendBox(s) the box caught Pokémon go to = the current one (as the game's own screen does on close)
---   Bx.openSummary(s, mons, index, context, onClose) ; Bx.openNaming(s, b, onDone)
+--   Bx.openNaming(s, b, onDone)
 --   reasons: "last_usable" | "mail" | "party_full" | "no_room" | "egg" | "gone" | "bag_full" | "holding" |
 --       "cant_hold" | "no_item" | "needed" ; the words are lang/*.lua's "reason.box.<reason>"
 
 return function(engine)
   local Bx = { SLOTS = 30, COLS = 6, ROWS = 5, PARTY = 6 }
-  local floor = math.floor
+  local floor, max = math.floor, math.max
 
   local function Storage() return engine("src.core.game3.storage") end
   local function Pokemon() return engine("src.core.game3.pokemon") end
@@ -442,6 +444,244 @@ return function(engine)
     return got
   end
 
+  -- ------- the summary (made when it's opened, kept per Pokémon until it changes)
+
+  -- (each stat's row: the words' key, the IV / EV key, its value on the Pokémon, its key in the
+  -- natures' table; the order HP, Attack, Defense, Sp. Atk, Sp. Def, Speed)
+  local STAT_ROWS = {
+    { key = "dex.stat.hp", iv = "hp", val = "maxHp" }, { key = "dex.stat.atk", iv = "atk", val = "attack", nat = "atk" },
+    { key = "dex.stat.def", iv = "def", val = "defense", nat = "def" },
+    { key = "dex.stat.spa", iv = "spa", val = "spAtk", nat = "spAtk" },
+    { key = "dex.stat.spd", iv = "spd", val = "spDef", nat = "spDef" },
+    { key = "dex.stat.spe", iv = "spe", val = "speed", nat = "spd" },
+  }
+  -- (the radar's corners: HP at the top, then clockwise Attack, Defense, Speed, Sp. Def, Sp. Atk)
+  local RADAR_ORDER = { 1, 2, 3, 6, 5, 4 }
+  -- (its labels short: it sits beside the table in a narrow card)
+  local RADAR_KEYS = { "auction.ivHp", "auction.ivAtk", "auction.ivDef", "auction.ivSpe", "auction.ivSpd", "auction.ivSpa" }
+  local STATUS = { [1] = "sum.status.psn", [2] = "sum.status.par", [3] = "sum.status.slp", [4] = "sum.status.frz",
+                   [5] = "sum.status.brn", [7] = "sum.status.fnt" }
+  local CONTEST = { [0] = "sum.contest.cool", "sum.contest.beauty", "sum.contest.cute", "sum.contest.smart",
+                    "sum.contest.tough" }
+  local sums = setmetatable({}, { __mode = "k" })
+  local forget0 = Bx.forget
+  function Bx.forget(mon)
+    forget0(mon)
+    if mon then sums[mon] = nil end
+  end
+  -- (a name the game keeps in capitals, as the Pokédex writes it: "Route 101", "Bold")
+  local function titled(s)
+    s = tostring(s or "")
+    if s:find("%l") then return s end
+    return (s:lower():gsub("(%a)([%w']*)", function(a, b) return a:upper() .. b end))
+  end
+  Bx.titled = titled
+  local function word(T, key, ...)
+    if not T then return key end
+    if select("#", ...) > 0 then return T.f(key, ...) end
+    return T(key)
+  end
+  -- a map section's name (where a Pokémon was met), the game's own
+  local function placeName(sec)
+    sec = tonumber(sec)
+    if not sec then return nil end
+    local MS = engine("src.import.gba.map_sections_extract")
+    local ok, info = pcall(MS and MS.getInfo or error, sec, nil, 0)
+    if ok and type(info) == "table" and info.resolved then
+      local n = info.rawName or info.name
+      if type(n) == "string" and n ~= "" then return titled(n) end
+    end
+    return nil
+  end
+  local contestData
+  local function contestOf(id)
+    if contestData == nil then
+      contestData = false
+      local GV = engine("src.core.GameVersion")
+      local okV, v = pcall(GV and GV.get or error)
+      if okV and (v == "ruby" or v == "sapphire" or v == "emerald") then
+        -- (the game's own contest data: each move's category and effect, each effect's appeal and jam)
+        local Contest = engine("src.core.game3.rse.contest")
+        local ok, c = pcall(Contest and Contest.data or error)
+        contestData = ok and type(c) == "table" and type(c.moves) == "table" and c or false
+      end
+    end
+    local c = contestData and contestData.moves[id]
+    if not c then return nil end
+    local e = contestData.effects and contestData.effects[c.effect]
+    local SD = engine("src.core.game3.summary_data")
+    local desc = e and call(SD and SD.contestEffectDescription, e) or ""
+    return { category = tonumber(c.category) or 0,
+             appeal = e and e.appeal ~= 0xFF and floor((tonumber(e.appeal) or 0) / 10) or 0,
+             jam = e and e.jam ~= 0xFF and floor((tonumber(e.jam) or 0) / 10) or 0,
+             desc = tostring(desc or "") }
+  end
+  -- the egg's words: how soon it hatches (by its cycles left)
+  local function eggWords(T, mon)
+    local SD = engine("src.core.game3.summary_data")
+    local c = tonumber(call(SD and SD.eggCycles, mon)) or tonumber(mon.friendship) or 40
+    if c <= 5 then return word(T, "sum.egg.soon") end
+    if c <= 10 then return word(T, "sum.egg.close") end
+    if c <= 40 then return word(T, "sum.egg.time") end
+    return word(T, "sum.egg.long")
+  end
+
+  -- one Pokémon's summary -> the page (words made here, never while it draws):
+  --   { mon, egg, sp, name, speciesName, dexText, level, levelText, gender ("M" | "F" | nil), shiny, types,
+  --     info = { { label, value, tint ("male" | "female" | nil) } }, abilityName, abilityDesc, memo, eggText,
+  --     hp, maxHp, status (a word | nil), exp, expNext, expPct, itemId, itemName, ballId, ballName,
+  --     markings, rows = { { key, value, iv, ev, nature (1 | -1 | nil) } }, ivMax, evMax, evTotal, evTotalMax,
+  --     radar = { 6 values in the rows' order }, friendship, moves = { { id, name, typeId, typeName, pp,
+  --     maxPp, powerText, accText, physical, status, desc, contest = { category, appeal, jam, desc } } },
+  --     dmax (0..10 | nil), gmax }
+  function Bx.summary(s, mon, T)
+    if not mon then return nil end
+    local got = sums[mon]
+    if got then return got end
+    local P = Pokemon()
+    local SD = engine("src.core.game3.summary_data")
+    local Types = engine("src.core.game3.battle.types")
+    local info = Bx.info(mon, T)
+    local sp = info.species
+    got = { mon = mon, egg = info.egg, sp = sp, name = info.name, level = info.level, levelText = info.levelText,
+            gender = info.gender, shiny = info.shiny, types = info.types, info = {}, rows = {}, radar = {},
+            moves = {}, ivMax = 31, evMax = 252, evTotalMax = tonumber(P and P.MAX_TOTAL_EVS) or 510,
+            hp = info.hp, maxHp = info.maxHp, itemId = info.item, itemName = info.itemName,
+            markings = tonumber(mon.markings) or 0 }
+    local spName = call(P and P.name, sp)
+    got.speciesName = titled(spName or info.name)
+    -- (not nicknamed: the species' name, as the Pokédex writes it)
+    if spName and tostring(spName) == info.name then got.name = got.speciesName end
+    local nat = tonumber(call(P and P.national, sp)) or 0
+    got.dexText = nat > 0 and ("No. %03d"):format(nat) or "No. ---"
+    local rows = got.info
+    local function row(label, value, tint) rows[#rows + 1] = { label = label, value = tostring(value or ""), tint = tint } end
+    -- (the OT: the trainer who caught it, in blue or red as the game writes it)
+    local ot = tostring(mon.otName or mon.ot or mon.originalTrainer or "")
+    local otFemale = (tonumber(mon.otGender) or 0) ~= 0
+    if got.egg then
+      got.eggText = eggWords(T, mon)
+      got.name = word(T, "sum.egg")
+      row(word(T, "sum.ot"), ot, otFemale and "female" or "male")
+      row(word(T, "sum.id"), ("%05d"):format((tonumber(mon.otId) or 0) % 65536))
+      sums[mon] = got
+      return got
+    end
+    row(word(T, "sum.species"), got.dexText .. "  " .. got.speciesName)
+    row(word(T, "sum.ot"), ot, otFemale and "female" or "male")
+    row(word(T, "sum.id"), ("%05d"):format((tonumber(mon.otId) or 0) % 65536))
+    -- (the nature, and the stats it raises and lowers)
+    local natureId, natureName = call(SD and SD.nature, mon)
+    local up, down
+    for i, r in ipairs(STAT_ROWS) do
+      if r.nat then
+        local k = tonumber(call(SD and SD.natureStatModifier, natureId, r.nat)) or 1
+        if k > 1 then up = i elseif k < 1 then down = i end
+      end
+    end
+    local nWord = titled(natureName or info.nature or "")
+    if up and down then
+      nWord = nWord .. "  (+" .. word(T, STAT_ROWS[up].key) .. "  −" .. word(T, STAT_ROWS[down].key) .. ")"
+    end
+    row(word(T, "sum.nature"), nWord)
+    -- (the ability and what it does)
+    local ability = tonumber(mon.ability or mon.abilityId)
+    if not ability then ability = tonumber(call(P and P.abilityId, sp, mon.personality)) end
+    got.abilityName = titled(info.ability or "")
+    got.abilityDesc = ability and tostring(call(SD and SD.abilityDescription, ability, got.abilityName) or "") or ""
+    row(word(T, "sum.item"), info.itemName or word(T, "boxes.noItem"))
+    local ball = tonumber(mon.pokeball or mon.ball)
+    if ball and ball > 0 then
+      local I = itemsData()
+      got.ballId = ball
+      got.ballName = titled(call(I and I.displayName, ball) or "")
+      row(word(T, "sum.ball"), got.ballName)
+    end
+    -- (where it came from: met at a level somewhere, hatched, or in a trade)
+    local metLevel = tonumber(mon.metLevel)
+    local where = mon.metLocationName or placeName(mon.metLocation)
+    local traded = call(P and P.isTradedMon, mon, s) == true
+    if (tonumber(mon.metLocation) or 0) == 0xFF then got.memo = word(T, "sum.fateful")
+    elseif traded and not where then got.memo = word(T, "sum.trade")
+    elseif metLevel == 0 then got.memo = where and word(T, "sum.hatchedAt", where) or word(T, "sum.hatched")
+    else
+      local lv = metLevel or 5
+      got.memo = where and word(T, "sum.metAt", lv, where) or word(T, "sum.met", lv)
+    end
+    if traded and where then got.memo = got.memo .. " " .. word(T, "sum.traded") end
+    row(word(T, "sum.origin"), got.memo)
+    -- (Pokérus: infected now, or had it and cured: the game's own two marks)
+    if call(P and P.hasPokerus, mon) then row(word(T, "sum.pokerus"), word(T, "sum.pokerus.now"))
+    elseif call(P and P.hasHadPokerus, mon) then row(word(T, "sum.pokerus"), word(T, "sum.pokerus.cured")) end
+    local R = engine("src.core.game3.rse.ribbons")
+    local nRib = tonumber(call(R and R.count, mon)) or 0
+    if nRib > 0 then row(word(T, "sum.ribbons"), nRib) end
+    got.friendship = tonumber(call(P and P.friendshipOf, mon))
+    local st = call(SD and SD.statusAilment, mon)
+    got.status = STATUS[tonumber(st) or 0] and word(T, STATUS[st]) or nil
+    -- (the stats: value, IV, EV, the nature's mark; the EVs read without touching the Pokémon)
+    local ivs = type(mon.ivs) == "table" and mon.ivs or {}
+    local evs = type(mon.evs) == "table" and mon.evs or {}
+    local stats = type(mon.stats) == "table" and mon.stats or {}
+    local total = 0
+    for i, r in ipairs(STAT_ROWS) do
+      local v = tonumber(mon[r.val] or stats[r.val] or stats[r.iv] or mon[r.iv]) or 0
+      if i == 1 then v = info.maxHp end
+      local ev = floor(max(0, tonumber(evs[r.iv]) or 0))
+      total = total + ev
+      got.rows[i] = { key = r.key, value = v, iv = floor(tonumber(ivs[r.iv]) or 0), ev = ev,
+                      nature = (i == up and 1) or (i == down and -1) or nil }
+    end
+    for j, i in ipairs(RADAR_ORDER) do got.radar[j] = got.rows[i].ev end
+    got.radarKeys = RADAR_KEYS
+    got.evTotal = total
+    -- (EXP: the total, how far to the next level)
+    local prog = call(SD and SD.expProgress, mon, call(P and P.growthRate, sp))
+    if type(prog) == "table" then
+      got.exp, got.expNext, got.expPct = prog.totalExp, prog.level < 100 and prog.expNeeded or 0, prog.progressPercent
+    end
+    -- (the moves: PP left of its most, power, accuracy, what it does; Ruby / Sapphire / Emerald's contest side)
+    for slot = 1, 4 do
+      local id = tonumber(call(P and P.moveIdAt, mon, slot))
+      if id and id ~= 0 then
+        local m = call(P and P.battleMove, id)
+        m = type(m) == "table" and m or {}
+        local entry = mon.moves[slot]
+        local maxPp = tonumber(type(entry) == "table" and entry.maxPp) or tonumber(mon.maxPp and mon.maxPp[slot])
+          or tonumber(m.pp) or 5
+        local pp = tonumber(type(entry) == "table" and entry.pp) or tonumber(mon.pp and mon.pp[slot]) or maxPp
+        local t = tonumber(m.type) or 0
+        local power, acc = tonumber(m.power) or 0, tonumber(m.accuracy) or 0
+        local name = tostring(call(P and P.moveName, id) or ("#" .. id))
+        got.moves[#got.moves + 1] = {
+          id = id, slot = slot, name = titled(name), typeId = t,
+          typeName = tostring(call(Types and Types.name, t) or ""), pp = pp, maxPp = maxPp,
+          ppText = ("%d/%d"):format(pp, maxPp), powerText = power > 1 and tostring(power) or "—",
+          accText = acc > 0 and (tostring(acc) .. "%") or "—", physical = call(Types and Types.isPhysical, t) == true,
+          status = power == 0, desc = tostring(call(SD and SD.moveDescription, id, name) or ""):gsub("%s+", " "),
+          contest = contestOf(id),
+        }
+        local c = got.moves[#got.moves].contest
+        if c then c.categoryName = word(T, CONTEST[c.category] or CONTEST[0]) end
+      end
+    end
+    -- (Galar Rising's Dynamax: the level and the G-Max Factor, kept by WoobleDex on the Pokémon)
+    if Bx.galar and call(Bx.galar) then
+      got.dmax, got.gmax = info.dmax, info.gmax
+    end
+    sums[mon] = got
+    return got
+  end
+  Bx.STAT_ROWS = STAT_ROWS
+
+  -- two of a Pokémon's moves trade places (its PP and PP Ups with them) -> true when done
+  function Bx.swapMoves(mon, a, b)
+    local P = Pokemon()
+    local ok = call(P and P.swapMoves, mon, a, b) == true
+    if ok then Bx.forget(mon) end
+    return ok
+  end
+
   -- ------- the game's own bits
 
   -- the box caught Pokémon go to: the one shown last (pokefirered's UpdateBoxToSendMons, as the
@@ -463,12 +703,6 @@ return function(engine)
     end)
   end
 
-  -- the game's summary screen over a list of Pokémon (onClose: when it closes)
-  function Bx.openSummary(s, mons, index, context, onClose)
-    local Summary = engine("src.ui.game3.summary_menu")
-    if not (Summary and Summary.openMenu) then error("the game has no summary screen") end
-    Summary.openMenu(mons, index, { session = s, context = context, onClose = onClose })
-  end
   -- the game's naming screen for a box's name (onDone(name | nil) when it closes)
   function Bx.openNaming(s, b, onDone)
     local Naming = engine("src.ui.game3.naming")

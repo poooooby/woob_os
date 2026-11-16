@@ -1135,6 +1135,51 @@ T.check(#Au.results() >= 1 and (auApp.badgeN or 0) >= 1, "it ends: settled, a co
 Au.seen()
 draw(70)
 T.eq(auApp.badgeN, 0, "seen: no count")
+-- an ended auction told again: A on its result in My Bids
+do
+  local at
+  for i, app in ipairs(st.grid) do if app.id == "auction" then at = i end end
+  D.launch("grid", at)
+  draw(30)
+  local RW2 = D.window()
+  local rs2 = RW2 and RW2.state
+  press("r")
+  draw(2)
+  local res = Au.results()[1]
+  T.check(rs2 and rs2.mineN >= 1 and rs2.mineBids == 0 and rs2.mineRows[1] == res, "the result in My Bids")
+  press("a")
+  draw(2)
+  local R = rs2 and rs2.recap
+  T.check(R ~= nil, "A on an ended auction: its recap")
+  if R then
+    T.check(R.price == res.price and R.won == res.won and R.sp == chosen.sp and R.level == chosen.level,
+      "the recap: its Pokémon, the result, the final price")
+    T.check(R.histN > 0 and R.histAmt[1] == res.price, "the last bid is the winning one (" .. tostring(R.histAmt[1]) .. ")")
+    T.check((R.won and R.winner == 0) or (not R.won and type(R.winner) == "string"), "who won it (" .. tostring(R.winner) .. ")")
+    T.check(R.max == fakeSave.data.auction.results[1].max and R.max ~= nil and R.ivSum == chosen.ivSum
+      and R.nBidders == #chosen.bidders + 1, "your maximum, the IVs, how many bid")
+    local FrlgFont3 = require("src.ui.game3.frlg_font")
+    local realGlyph3 = FrlgFont3.drawGlyph
+    FrlgFont3.drawGlyph = function() return 7 end
+    draw(60)
+    local perRecap = garbageOf(120)
+    FrlgFont3.drawGlyph = realGlyph3
+    T.check(perRecap < 0.3, ("the recap draws next to no garbage (%.3f KB a frame)"):format(perRecap))
+    for _, shape in ipairs({ { 480, 320 }, { 320, 480 }, { 900, 320 }, { 260, 200 } }) do
+      VP.width, VP.height = shape[1], shape[2]
+      draw(2)
+      T.check(not D.state().winFailed, "the recap draws " .. shape[1] .. "x" .. shape[2])
+    end
+    VP.width, VP.height = 480, 320
+  end
+  press("b")
+  T.check(D.window() ~= nil and rs2.recap == nil and rs2.tab == "mine", "B: back to My Bids, R-Bay still open")
+  -- (an older result, without the auction's numbers: told from what was kept)
+  local old = Au.recap(s, { sp = res.sp, name = res.name, level = 5, price = 1200, won = false, refund = 900, at = res.at })
+  T.check(old and old.winner == nil and old.histN == 0 and old.max == 900, "an older result: what was kept")
+  press("b")
+  T.check(D.window() == nil, "B closes R-Bay")
+end
 Au.store, Au.now = store0, now0
 
 -- ------- Rocket Slots: the machine's return, spins, the prize corner (src/slots.lua), its window
@@ -2212,7 +2257,119 @@ do
   Bx.setCurrent(s, b0)
   draw(2)
 end
--- one of the game's screens over it (the summary, naming): the window back as it was
+-- the summary: our own page in the window (Info | Stats | Moves), the Pokémon before and after, a party
+-- Pokémon's moves swapped
+do
+  local PkM = require("src.core.game3.pokemon")
+  -- (the first box with two Pokémon or more, its first one)
+  local fb, fi
+  for b = 1, Bx.BOXES do
+    if not fb and Bx.count(s, b) >= 2 then
+      for i = 1, Bx.SLOTS do if not fi and Bx.get(s, Bx.addr("box", i, b)) then fb, fi = b, i end end
+    end
+  end
+  bst.mode, bst.area, bst.bi = BW.SELECT, "box", fi
+  bst.box = fb
+  Bx.setCurrent(s, fb)
+  local first = Bx.get(s, Bx.addr("box", fi, fb))
+  first.ivs = { hp = 31, atk = 20, def = 10, spa = 5, spd = 0, spe = 31 }
+  first.evs = { hp = 252, atk = 0, def = 6, spa = 0, spd = 0, spe = 252 }
+  Bx.forget(first)
+  press("a")
+  bst.sheet.cursor = 2
+  press("a")
+  local S = bst.sum
+  T.check(S ~= nil and S.rec and S.rec.mon == first and D.window() == BW, "Summary: our own page, in the window")
+  if S then
+    local R = S.rec
+    T.check(#R.rows == 6 and R.rows[1].iv == 31 and R.rows[6].ev == 252 and R.evTotal == 510 and R.rows[2].iv == 20,
+      "each stat with its IV and EV, the EV total")
+    T.check(R.radar[1] == 252 and R.radar[4] == 252 and R.radar[6] == 0 and #R.radarKeys == 6,
+      "the radar: HP at the top, Speed fourth (clockwise)")
+    T.check(#R.info >= 5 and R.memo ~= nil and #R.moves >= 1 and R.moves[1].ppText:find("/", 1, true) ~= nil,
+      "Info's rows, where it was met, the moves with their PP")
+    T.eq(R.dmax, nil, "no Dynamax card without Galar Rising")
+    -- (Galar Rising on, WoobleDex's Dynamax a stand-in: the level and the G-Max Factor)
+    local dyn0, galar0 = Bx.dynamax, Bx.galar
+    Bx.dynamax = function()
+      return { canDynamax = function() return true end, level = function() return 7 end,
+               canGigantamax = function() return true end }
+    end
+    Bx.galar = function() return true end
+    Bx.forget(first)
+    S.rec = Bx.summary(s, first, X._test.i18n)
+    T.check(S.rec.dmax == 7 and S.rec.gmax == true, "Galar Rising: its Dynamax Level and G-Max Factor")
+    draw(3)
+    T.check(not D.state().winFailed, "and its card draws")
+    Bx.dynamax, Bx.galar = dyn0, galar0
+    Bx.forget(first)
+    S.rec = Bx.summary(s, first, X._test.i18n)
+    local n = #S.list
+    press("down")
+    T.check(n >= 2 and S.i == 2 and S.rec.mon == S.list[2], "Down: the next Pokémon in the box")
+    press("up")
+    T.eq(S.i, 1, "Up: back")
+    press("r")
+    T.eq(S.tab, 2, "R: Stats")
+    press("right")
+    T.eq(S.tab, 3, "Right: Moves")
+    press("a")
+    T.eq(S.move, 1, "A: the first move's card")
+    press("a")
+    T.eq(S.swap, nil, "a boxed Pokémon's moves stay as they are")
+    for _, shape in ipairs({ { 480, 320 }, { 320, 480 }, { 900, 320 }, { 260, 200 } }) do
+      VP.width, VP.height = shape[1], shape[2]
+      for tab = 1, 3 do
+        S.tab = tab
+        draw(2)
+        T.check(not D.state().winFailed, ("the summary draws %dx%d, tab %d"):format(shape[1], shape[2], tab))
+      end
+    end
+    VP.width, VP.height = 480, 320
+    for tab = 1, 3 do
+      S.tab = tab
+      -- (its rows settle in on the wall clock, which these frames outrun: frames until that's done)
+      local t0 = X._test.env.now()
+      repeat draw(1) until X._test.env.now() - t0 > 1.2
+      local per = garbageOf(120)
+      T.check(per < 0.3, ("the summary draws next to no garbage (tab %d: %.3f KB a frame)"):format(tab, per))
+    end
+    press("b")
+    T.eq(S.move, nil, "B: out of the moves")
+    press("b")
+    T.check(bst.sum == nil and D.window() == BW, "B: back to the box, Boxes still open")
+  end
+  -- a party Pokémon: A on a move picks it up, A on another swaps them (their PP with them)
+  local pm = s.party[1]
+  local m1, m2 = PkM.moveIdAt(pm, 1), PkM.moveIdAt(pm, 2)
+  if m1 and m2 and m1 ~= 0 and m2 ~= 0 then
+    local pp1, pp2 = pm.pp and pm.pp[1], pm.pp and pm.pp[2]
+    bst.area, bst.pi = "party", 1
+    press("a")
+    bst.sheet.cursor = 2
+    press("a")
+    S = bst.sum
+    press("r")
+    press("r")
+    press("a")
+    press("a")
+    T.eq(S.swap, 1, "a party Pokémon: A again picks the move up")
+    press("down")
+    press("a")
+    T.check(PkM.moveIdAt(pm, 1) == m2 and PkM.moveIdAt(pm, 2) == m1 and (not pp1 or (pm.pp[1] == pp2 and pm.pp[2] == pp1)),
+      "A on another: the two swap, their PP with them")
+    T.check(S.rec.moves[1].id == m2, "and the page shows it")
+    press("a")
+    press("up")
+    press("a")
+    T.check(PkM.moveIdAt(pm, 1) == m1 and PkM.moveIdAt(pm, 2) == m2, "(swapped back)")
+    press("b")
+    press("b")
+    T.eq(bst.sum, nil, "B, B: back to the box")
+  end
+  bst.area, bst.bi = "box", 1
+end
+-- one of the game's screens over it (the naming): the window back as it was
 bst.mode, bst.box = BW.SWAP, 2
 st.ctx.over(function(done) done() end, { mode = BW.SWAP, area = "box", pi = 1, bi = 1, box = 2 })
 st = D.state()

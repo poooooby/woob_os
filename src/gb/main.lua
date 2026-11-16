@@ -22,6 +22,7 @@ return function(mod, loadSibling)
   local makeBx, makeInv = loadSibling(mod, "src/gb/boxes.lua"), loadSibling(mod, "src/gb/items.lua")
   local makeMb, makeHall = loadSibling(mod, "src/gb/mail.lua"), loadSibling(mod, "src/gb/hall.lua")
   local boxesWindow, boxesView = loadSibling(mod, "src/apps/boxes.lua"), loadSibling(mod, "src/apps/boxes_view.lua")
+  local boxesSummary = loadSibling(mod, "src/apps/boxes_summary.lua")
   local itemsWindow, mailWindow = loadSibling(mod, "src/apps/items.lua"), loadSibling(mod, "src/apps/mail.lua")
   local hallWindow, oakWindow = loadSibling(mod, "src/apps/hall.lua"), loadSibling(mod, "src/apps/oak.lua")
   -- the play-tied apps: Gen 3's models over the Game Boy games' port (src/gb/port.lua) and play (src/gb/play.lua)
@@ -362,10 +363,11 @@ return function(mod, loadSibling)
         local pic = Art and sp and Art.livePic(sp)
         return pic ~= nil, pic
       end,
-      draw = function(sp, cx, cy, size, clock, chosenAt, scale, alpha)
-        -- (WoobleSpritePack's animation, else the game's picture breathing)
-        local packPic = Art and Art.livePic(sp)
-        local pic = packPic or (Art and Art.pic(sp))
+      draw = function(sp, cx, cy, size, clock, chosenAt, scale, alpha, shiny, mon)
+        -- (WoobleSpritePack's animation, else the game's picture breathing; `mon`: that Pokémon's own, a
+        -- shiny in its colours)
+        local packPic = Art and not shiny and Art.livePic(sp)
+        local pic = packPic or (Art and Art.pic(sp, mon))
         if not pic then return end
         local G = Kit.graphics()
         local box = pic.box or pic.w
@@ -430,7 +432,7 @@ return function(mod, loadSibling)
     removed = Settings and function() return Settings.get("removedApps", "") end or nil,
     saveRemoved = Settings and function(text) Settings.set("removedApps", text) end or nil,
     boxes = env.bx and boxesWindow and boxesView
-      and function(ctx, e) return boxesWindow(ctx, e, boxesView) end or nil,
+      and function(ctx, e) return boxesWindow(ctx, e, boxesView, boxesSummary) end or nil,
     items = env.inv and itemsWindow or nil,
     mail = env.mb and mailWindow or nil,
     hall = env.hall and hallWindow or nil,

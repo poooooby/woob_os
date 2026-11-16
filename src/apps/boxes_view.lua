@@ -1,12 +1,41 @@
 -- The Boxes window's drawing (src/apps/boxes.lua keeps the state and the input): the party column,
--- the box (its name, its wallpaper, 6 x 5 Pokémon), the mode chip and the count, the preview card,
+-- the box (its name, its wallpaper, 6 x 5 Pokémon), the modes' switch and the count, the preview card,
 -- the carried Pokémon (at the cursor or the pointer, where they'd land ringed green or red), and the
 -- sheets. Fills st.geo with the layout's numbers for the pointer. No tables made per frame.
+-- The Pokédex's glass: panes over a backdrop of soft lights in the previewed Pokémon's type colours
+-- (eased as it changes). Its motion, numbers kept here: the party and the box's Pokémon rise in one after
+-- another as it opens, and the box's when it turns (sliding in from the side it turned to, its name
+-- with them); the cursor's highlight glides from cell to cell; the modes' thumb slides; the preview's
+-- picture pops up and its words slide in as another Pokémon is shown; a sheet pops up.
 --
 --   view = boxesView(K, env, T, Bx, st, A) -> { draw(body, clock, portrait, previewMon, modeColor,
 --       modeName), modeColor = { select, swap, drag }, C }
 
-local floor, max, min, abs = math.floor, math.max, math.min, math.abs
+local floor, max, min, abs, exp, sin, pi = math.floor, math.max, math.min, math.abs, math.exp, math.sin, math.pi
+
+local function clamp01(t) return t < 0 and 0 or (t > 1 and 1 or t) end
+local function outCubic(t)
+  t = clamp01(t)
+  local u = 1 - t
+  return 1 - u * u * u
+end
+local function outBack(t)
+  t = clamp01(t)
+  local u = t - 1
+  return 1 + 2.70158 * u * u * u + 1.70158 * u * u
+end
+-- (the modes' switch: the k-th segment's left, the one in use `onW` wide, the others `offW`)
+local function segX(x, m, onW, offW, k)
+  local sx = x
+  for j = 1, k - 1 do sx = sx + (j == m and onW or offW) end
+  return sx
+end
+-- (a value followed smoothly, the same speed whatever the frame rate)
+local function approach(cur, target, dt, rate)
+  local v = cur + (target - cur) * (1 - exp(-dt * rate))
+  if abs(target - v) < 0.002 then return target end
+  return v
+end
 
 -- the sparkle's star, radius 1 round 0, 0: four points, the sides curving in between them
 -- (|x|^0.625 + |y|^0.625 = 1), and its three stars in a square of 1 (centre x, y, radius)
@@ -28,21 +57,20 @@ local C = {
   red = { 255, 69, 58 }, blue = { 10, 132, 255 }, green = { 52, 199, 89 },
   hpGood = { 52, 199, 89 }, hpMid = { 255, 204, 0 }, hpLow = { 255, 59, 48 }, hpBack = { 118, 118, 128, 0.2 },
   male = { 10, 132, 255 }, female = { 255, 55, 95 }, shiny = { 255, 190, 30 }, picBack = { 242, 242, 247 },
-  -- the window's grouped grey (the box's rounded corners are cut in it), the box's bezel
-  body = { 242, 242, 247 }, bezel = { 210, 210, 218 }, bezelIn = { 150, 150, 162 },
   -- Dynamax (WoobleDex's): the level's segments, the empty ones, the G-Max badge
-  dmax = { 255, 140, 24 }, dmaxEmpty = { 214, 218, 228 }, gmax = { 214, 28, 64 },
+  dmax = { 255, 140, 24 }, dmaxEmpty = { 118, 118, 128, 0.28 }, gmax = { 214, 28, 64 },
+  white = { 255, 255, 255 }, black = { 0, 0, 0 }, track = { 118, 118, 128, 0.16 },
+  slate = { 120, 132, 178 }, slate2 = { 150, 120, 190 },
 }
--- the box's corners (units); each corner: which side in x and y, its arc's start and end (half turns)
+-- the box's corners (units)
 local BOX_R = 3.5
-local CORNERS = { { -1, -1, 1, 1.5 }, { 1, -1, 1.5, 2 }, { 1, 1, 0, 0.5 }, { -1, 1, 0.5, 1 } }
 -- the type pills (the game's type ids)
 local TYPE = {
   [0] = { 168, 168, 120 }, [1] = { 192, 48, 40 }, [2] = { 168, 144, 240 }, [3] = { 160, 64, 160 },
   [4] = { 224, 192, 104 }, [5] = { 184, 160, 56 }, [6] = { 168, 184, 32 }, [7] = { 112, 88, 152 },
   [8] = { 184, 184, 208 }, [9] = { 104, 160, 144 }, [10] = { 240, 128, 48 }, [11] = { 104, 144, 240 },
   [12] = { 120, 200, 80 }, [13] = { 248, 208, 48 }, [14] = { 248, 88, 136 }, [15] = { 152, 216, 216 },
-  [16] = { 112, 56, 248 }, [17] = { 112, 88, 72 },
+  [16] = { 112, 56, 248 }, [17] = { 112, 88, 72 }, [18] = { 238, 153, 172 },
 }
 -- a wallpaper the game's pictures can't show: tints
 local WALL_TINT = {
@@ -60,10 +88,37 @@ return function(K, env, T, Bx, st, A)
   local countText = K.textCache(function(n) return tostring(n) .. "/" .. Bx.SLOTS end)
   local function session() return env.session and env.session() end
 
+  -- the motion's numbers (see the top)
+  local mv = {
+    openAt = nil, boxAt = -10, box = nil, boxDir = 0, gx = nil, gy = nil, px = nil, py = nil, mode = 1,
+    mon = nil, monAt = -10, sheet = nil, sheetAt = -10, lastT = nil, clock = 0, dt = 0,
+    r = 0.6, g = 0.6, b = 0.6, r2 = 0.6, g2 = 0.6, b2 = 0.6, coloured = false,
+  }
+  V.motion = mv
+  -- something settling in: `(1 - e) * dy` lower (`dx` across) and at `e` of itself; settle(e) after
+  local FADES, depth = {}, 0
+  local function rise(e, dy, dx)
+    if e >= 1 then return end
+    local G = K.graphics()
+    depth = depth + 1
+    FADES[depth] = K.getFade()
+    K.setFade(FADES[depth] * e)
+    G.push()
+    G.translate((1 - e) * (dx or 0) * K.sc, (1 - e) * dy * K.sc)
+  end
+  local function settle(e)
+    if e >= 1 then return end
+    K.setFade(FADES[depth])
+    depth = depth - 1
+    K.graphics().pop()
+  end
+  -- (the i-th of a group rising in, `since` seconds after it started)
+  local function stagger(since, i, each, dur) return since < 2 and outCubic((since - i * each) / dur) or 1 end
+
   local sparkle
   -- a Pokémon's icon, `size` units square
   local function icon(mon, x, y, size, frame, a)
-    if env.monIconOf then pcall(env.monIconOf, mon, x, y, size, frame, a) end
+    if env.monIconOf then pcall(env.monIconOf, mon, x, y, size, frame, (a or 1) * K.getFade()) end
   end
   -- a shiny's gold sparkle in the top right of its cell (bx, by, bs units square; the white edge
   -- included), the game's icons having no shiny colours
@@ -143,8 +198,22 @@ return function(K, env, T, Bx, st, A)
   local function drawParty(x, y, w, portrait, clock, color)
     local s, g = session(), st.geo
     local party = Bx.party(s)
-    if portrait then K.card(K.R(g.partyX, g.partyY, g.slotW * Bx.PARTY - 1, g.slotH - 1), 4)
-    else K.card(K.R(g.partyX, g.partyY, g.partyW, g.slotH * Bx.PARTY - 1), 4) end
+    if portrait then K.glass(K.R(g.partyX, g.partyY, g.slotW * Bx.PARTY - 1, g.slotH - 1), 4)
+    else K.glass(K.R(g.partyX, g.partyY, g.partyW, g.slotH * Bx.PARTY - 1), 4) end
+    -- (the cursor's highlight gliding along the party)
+    if st.area == "party" and not st.usePtr then
+      local tx = portrait and g.partyX + (st.pi - 1) * g.slotW or g.partyX
+      local ty = portrait and g.partyY or g.partyY + (st.pi - 1) * g.slotH
+      if mv.px == nil then mv.px, mv.py = tx, ty end
+      mv.px, mv.py = approach(mv.px, tx, mv.dt, 26), approach(mv.py, ty, mv.dt, 26)
+      local hb = portrait and K.R(mv.px, mv.py, g.slotW - 1, g.slotH - 1) or K.R(mv.px, mv.py, g.partyW, g.slotH - 1)
+      K.col(C.white, 0.7)
+      K.box("fill", hb, 2.5)
+      K.ring(hb, 2.5, color, 0.6 + 0.4 * K.pulse(), 0.9)
+    else
+      mv.px = nil
+    end
+    local since = clock - (mv.openAt or clock)
     for i = 1, Bx.PARTY do
       local sx, sy, sw, sh
       if portrait then
@@ -154,8 +223,10 @@ return function(K, env, T, Bx, st, A)
       end
       local rb = K.R(sx, sy, sw, sh)
       local mon = party[i]
-      if i > 1 and not portrait then K.hairline(sx + 2, sy - 0.5, sw - 4) end
-      if i > 1 and portrait then K.vline(sx - 0.5, sy + 2, sh - 4) end
+      if i > 1 and not portrait then K.hairline(sx + 2, sy - 0.5, sw - 4, C.white, 0.7) end
+      if i > 1 and portrait then K.vline(sx - 0.5, sy + 2, sh - 4, C.white, 0.7) end
+      local ein = stagger(since, i, 0.04, 0.32)
+      rise(ein, 5)
       if mon then
         local on = st.area == "party" and st.pi == i
         local frame = on and floor(clock * 4) % 2 or 0
@@ -174,7 +245,7 @@ return function(K, env, T, Bx, st, A)
           hpBar(mon, sx + is - 1, sy + sh - 3.2, sw - is - 1)
         end
       end
-      if st.area == "party" and st.pi == i and not st.usePtr then K.ring(rb, 2.5, color, K.pulse(), 0.9) end
+      settle(ein)
       K.addHit(rb, "win", A.PARTY + i)
     end
     if st.rect and st.rect.area == "party" then
@@ -196,7 +267,7 @@ return function(K, env, T, Bx, st, A)
   local function drawHead(x, y, w)
     local s, g = session(), st.geo
     local hb = K.R(x, y, w, HEAD_H)
-    K.card(hb, 3)
+    K.glass(hb, 3)
     if st.area == "head" and not st.usePtr then K.ring(hb, 2.5, V.modeColor[st.mode], K.pulse(), 0.9) end
     g.prev[1], g.prev[2], g.prev[3], g.prev[4] = x, y, 12, HEAD_H
     g.next[1], g.next[2], g.next[3], g.next[4] = x + w - 12, y, 12, HEAD_H
@@ -211,26 +282,23 @@ return function(K, env, T, Bx, st, A)
     end
     K.addHit(g.prev, "win", A.PREV)
     K.addHit(g.next, "win", A.NEXT)
+    -- (its name sliding in from the side the box turned to)
     local name = Bx.boxName(s, st.box)
     local ns = K.fit(name, 4.8, w - 26)
-    K.bold(name, x + 12, y + 2.4 + (4.8 - ns) * 0.5, ns, C.ink, "center", w - 24)
+    local e = outCubic((mv.clock - mv.boxAt) / 0.3)
+    local G = K.graphics()
+    G.push()
+    G.translate((1 - e) * mv.boxDir * 10 * K.sc, 0)
+    K.bold(name, x + 12, y + 2.4 + (4.8 - ns) * 0.5, ns, C.ink, "center", w - 24, e)
+    G.pop()
     K.addHit(K.R(x + 12, y, w - 24, HEAD_H), "win", A.NAME)
   end
 
-  -- the box's rounded corners (cut in the window's white over the wallpaper) and its bezel
+  -- the box's bezel: a pane of glass round the wallpaper (its corners under the glass's rounded edge)
   local function boxFrame(x, y, w, h)
-    local G = K.graphics()
-    local R = BOX_R * K.sc
-    G.setLineWidth(R * 0.7)
-    K.col(C.body)
-    for i = 1, 4 do
-      local a = CORNERS[i]
-      local cx = a[1] < 0 and x + BOX_R or x + w - BOX_R
-      local cy = a[2] < 0 and y + BOX_R or y + h - BOX_R
-      G.arc("line", "open", K.X(cx), K.Y(cy), R * 1.35, a[3] * math.pi - 0.08, a[4] * math.pi + 0.08)
-    end
-    K.ring(K.R(x - 1.1, y - 1.1, w + 2.2, h + 2.2), BOX_R + 1.1, C.bezel, 1, 1.6)
-    K.ring(K.R(x - 0.25, y - 0.25, w + 0.5, h + 0.5), BOX_R + 0.25, C.bezelIn, 0.9, 0.5)
+    K.ring(K.R(x - 1.2, y - 1.2, w + 2.4, h + 2.4), BOX_R + 1.2, C.white, 0.85, 2.2)
+    K.ring(K.R(x - 2.5, y - 2.5, w + 5, h + 5), BOX_R + 2.5, C.white, 0.5, 0.4)
+    K.ring(K.R(x - 0.1, y - 0.1, w + 0.2, h + 0.2), BOX_R, C.black, 0.12, 0.3)
     K.col(K.WHITE, 0.55)
     K.box("fill", K.R(x + BOX_R, y - 1.9, w - BOX_R * 2, 0.5), 0.25)
   end
@@ -242,19 +310,35 @@ return function(K, env, T, Bx, st, A)
     boxFrame(gx, gy, cell * Bx.COLS, cell * Bx.ROWS)
     local mons = Bx.boxMons(s, st.box) or {}
     local is = cell * 1.3
+    -- (the cursor's highlight: a pane of glass gliding from cell to cell, under the Pokémon)
+    if st.area == "box" and not st.usePtr then
+      local tx, ty = gx + (st.bi - 1) % Bx.COLS * cell, gy + floor((st.bi - 1) / Bx.COLS) * cell
+      if mv.gx == nil then mv.gx, mv.gy = tx, ty end
+      mv.gx, mv.gy = approach(mv.gx, tx, mv.dt, 28), approach(mv.gy, ty, mv.dt, 28)
+      local hb = K.R(mv.gx + 0.4, mv.gy + 0.4, cell - 0.8, cell - 0.8)
+      K.col(C.white, 0.42)
+      K.box("fill", hb, 2)
+      K.ring(hb, 2, color, 0.6 + 0.4 * K.pulse(), 0.9)
+    else
+      mv.gx = nil
+    end
+    -- (rising in one after another as the box opens or turns, from the side it turned to)
+    local since = clock - max(mv.boxAt, mv.openAt or clock)
     for i = 1, Bx.SLOTS do
       local c, r = (i - 1) % Bx.COLS, floor((i - 1) / Bx.COLS)
       local cx, cy = gx + c * cell, gy + r * cell
       local mon = mons[i]
       local on = st.area == "box" and st.bi == i
       if mon then
+        local order = mv.boxDir < 0 and (Bx.COLS - 1 - c) + r or c + r
+        local ein = stagger(since, order, 0.03, 0.3)
+        rise(ein, mv.boxDir == 0 and 5 or 0, mv.boxDir * 8)
         local hover = on or (st.usePtr and st.hoverArea == "box" and st.hoverIdx == i)
         icon(mon, cx + (cell - is) / 2, cy + (cell - is) / 2 - 1, is, hover and floor(clock * 4) % 2 or 0)
         mark(mon, cx, cy, cell)
+        settle(ein)
       end
-      local cb = K.R(cx, cy, cell, cell)
-      if on and not st.usePtr then K.ring(cb, 2, color, K.pulse(), 0.9) end
-      K.addHit(cb, "win", A.BOX + i)
+      K.addHit(K.R(cx, cy, cell, cell), "win", A.BOX + i)
     end
     if st.rect and st.rect.area == "box" then
       local c1, r1 = (st.rect.a - 1) % Bx.COLS, floor((st.rect.a - 1) / Bx.COLS)
@@ -306,26 +390,41 @@ return function(K, env, T, Bx, st, A)
   end
   V.modeIcon = modeIcon
 
-  -- the modes under the box: the one in use a pill (its icon and name; a tap goes on to the next),
-  -- the other two their icons (a tap picks one); the box's count on the right
+  -- the modes under the box: a glass switch of three, its thumb in the mode's colour sliding to the one
+  -- in use (its icon and name; a tap on it goes on to the next), the other two their icons (a tap picks
+  -- one); the box's count on the right
   local function drawFoot(x, y, w, color, modeName)
     local G = K.graphics()
     local m = st.mode
-    local lw = K.width(modeName, 4.4)
-    local cw = min(w * 0.55, lw + 15)
-    local cb = K.R(x, y, cw, 9)
-    K.col(color)
-    K.box("fill", cb, 4.5)
-    modeIcon(G, m, x + 5.2, y + 4.5, 6, K.WHITE, 1)
-    K.text(modeName, x + 10, y + 2.1, K.fit(modeName, 4.4, cw - 12), K.WHITE)
-    K.addHit(cb, "win", A.MODE + m % 3 + 1)
-    local ix = x + cw + 2
-    for k = 1, 2 do
-      local other = (m + k - 1) % 3 + 1
-      local ib = K.R(ix, y, 9, 9)
-      modeIcon(G, other, ix + 4.5, y + 4.5, 6.5, V.modeColor[other], 1)
-      K.addHit(ib, "win", A.MODE + other)
-      ix = ix + 10
+    mv.mode = approach(mv.mode, m, mv.dt, 18)
+    local lw = K.width(modeName, 4.2)
+    local onW = min(w * 0.42, lw + 14)
+    local offW = 10
+    local tw = onW + offW * 2
+    local tb = K.R(x, y, tw, 9)
+    K.col(C.white, 0.32)
+    K.box("fill", tb, 4.5)
+    K.ring(tb, 4.5, C.white, 0.7, 0.3)
+    -- (the thumb between the segments' places as it slides)
+    local k0 = max(1, min(3, floor(mv.mode)))
+    local k1 = min(3, k0 + 1)
+    local f = mv.mode - k0
+    local thX = segX(x, m, onW, offW, k0) + (segX(x, m, onW, offW, k1) - segX(x, m, onW, offW, k0)) * f
+    local mc = V.modeColor[m]
+    K.col(C.black, 0.1)
+    K.box("fill", K.R(thX + 0.5, y + 0.9, onW - 1, 8), 4)
+    K.col(mc)
+    K.box("fill", K.R(thX + 0.5, y + 0.5, onW - 1, 8), 4)
+    for k = 1, 3 do
+      local sx = segX(x, m, onW, offW, k)
+      if k == m then
+        modeIcon(G, k, sx + 5.2, y + 4.5, 5.6, K.WHITE, 1)
+        K.text(modeName, sx + 9.6, y + 2.2, K.fit(modeName, 4.2, onW - 11.5), K.WHITE)
+        K.addHit(K.R(sx, y, onW, 9), "win", A.MODE + m % 3 + 1)
+      else
+        modeIcon(G, k, sx + offW / 2, y + 4.5, 6, V.modeColor[k], 1)
+        K.addHit(K.R(sx, y, offW, 9), "win", A.MODE + k)
+      end
     end
     local n = Bx.count(session(), st.box)
     K.text(countText(n), x + w - 24, y + 2.2, 4.4, C.soft, "right", 24)
@@ -419,33 +518,43 @@ return function(K, env, T, Bx, st, A)
     K.text(word, b[1], b[2] + 1, 3.4, K.WHITE, "center", bw)
   end
 
-  local function drawPreview(mon, x, y, w, h, horizontal)
+  local function drawPreview(mon, x, y, w, h, horizontal, clock)
     local G = K.graphics()
     local card = K.R(x, y, w, h)
-    K.card(card, 5)
+    K.glass(card, 5)
     if not mon then
-      K.text(T("boxes.empty"), x, y + h / 2 - 3, 4.6, C.faint, "center", w)
+      K.text(T("boxes.empty"), x, y + h / 2 - 3, 4.6, C.soft, "center", w)
       return
     end
     local info = Bx.info(mon, T)
     K.scissor(card)
     local ps = horizontal and min(h - 6, 40) or min(w - 8, 40)
     local px, py = horizontal and x + 3 or x + (w - ps) / 2, y + 3
-    K.col(C.picBack)
-    G.circle("fill", K.X(px + ps / 2), K.Y(py + ps / 2), ps * 0.48 * K.sc)
+    -- (another Pokémon: its picture pops up on a light in its type's colour, its words slide in)
+    local t = clock - mv.monAt
+    local pop = 0.82 + 0.18 * outBack(t / 0.38)
+    local fa = outCubic(t / 0.16)
+    local pcx, pcy = px + ps / 2, py + ps / 2
+    G.setColor(mv.r, mv.g, mv.b, 0.32 * fa * K.getFade())
+    G.circle("fill", K.X(pcx), K.Y(pcy), ps * 0.48 * K.sc)
+    K.glow(pcx, pcy, ps * 0.5, ps * 0.45, C.white, 0.3 * fa)
+    K.col(C.black, 0.16 * fa)
+    G.ellipse("fill", K.X(pcx), K.Y(py + ps * 0.93), ps * 0.26 * pop * K.sc, ps * 0.05 * K.sc)
     local pic = info.pic
     if pic and pic.image then
       -- (a picture smaller than its square -- WoobleSpritePack's on the Game Boy games -- at its bottom
-      -- middle)
+      -- middle; popping up from its feet)
       local box = pic.box or pic.w or 64
-      local k = ps * K.sc / box
-      G.setColor(1, 1, 1, 1)
-      G.draw(pic.image, K.X(px) + (box - (pic.w or box)) / 2 * k, K.Y(py) + (box - (pic.h or box)) * k, 0, k, k)
+      local k = ps * K.sc / box * pop
+      G.setColor(1, 1, 1, fa * K.getFade())
+      G.draw(pic.image, K.X(pcx) - (pic.w or box) / 2 * k, K.Y(py + ps) - (pic.h or box) * k, 0, k, k)
     end
     if info.gmax then gmaxBadge(px + ps / 2, py + ps - 0.5) end
     local tx, ty, tw
     if horizontal then tx, ty, tw = px + ps + 4, y + 3, w - ps - 10
     else tx, ty, tw = x + 3, py + ps + 1, w - 6 end
+    local e1 = outCubic((t - 0.05) / 0.3)
+    rise(e1, horizontal and 0 or 4, horizontal and 6 or 0)
     local ns = K.fit(info.name, 5, tw - 8)
     K.bold(info.name, tx, ty, ns, C.ink, horizontal and "left" or "center", tw)
     ty = ty + 6.5
@@ -482,17 +591,14 @@ return function(K, env, T, Bx, st, A)
         ty = ty + 5.4
       end
     end
+    settle(e1)
     K.scissor(nil)
   end
 
   -- ------- the sheets
 
-  local function drawSheet(body)
-    local sh = st.sheet
-    if not sh then return end
+  local function drawSheetCard(body, sh)
     local x, y, w, h = body[1], body[2], body[3], body[4]
-    K.dim(body)
-    K.addHit(body, "win", A.DIM)
     local cw = min(w - 16, sh.kind == "wall" and 132 or 112)
     local title = sh.extra and sh.extra.title or ""
     if sh.kind == "release" then
@@ -564,6 +670,17 @@ return function(K, env, T, Bx, st, A)
     end
     K.scrollbar(cb[1] + cw, cb[2] + 12.5, vis * 10, sh.top, vis, n)
   end
+  -- (the dim, then the card popping up over it)
+  local function drawSheet(body)
+    local sh = st.sheet
+    if not sh then return end
+    local e = outCubic((mv.clock - mv.sheetAt) / 0.22)
+    K.dim(body, 0.22 * e)
+    K.addHit(body, "win", A.DIM)
+    rise(e, 6)
+    drawSheetCard(body, sh)
+    settle(e)
+  end
 
   -- ------- the whole window
 
@@ -571,6 +688,36 @@ return function(K, env, T, Bx, st, A)
     local x, y, w, h = body[1], body[2], body[3], body[4]
     local g = st.geo
     g.portrait = portrait
+    -- (what changed since the last frame starts its motion)
+    local dt = mv.lastT and max(0, min(0.1, clock - mv.lastT)) or 0
+    mv.lastT, mv.clock, mv.dt = clock, clock, dt
+    if not mv.openAt then mv.openAt = clock end
+    if mv.box ~= st.box then
+      if mv.box ~= nil then
+        local d = st.box - mv.box
+        if abs(d) > Bx.BOXES / 2 then d = -d end
+        mv.boxAt, mv.boxDir = clock, d > 0 and 1 or -1
+      end
+      mv.box = st.box
+    end
+    if mon ~= mv.mon then mv.mon, mv.monAt = mon, clock end
+    if st.sheet ~= mv.sheet then mv.sheet, mv.sheetAt = st.sheet, clock end
+    -- (the backdrop's lights: the previewed Pokémon's types, eased; kept while no Pokémon is shown)
+    local info = mon and Bx.info(mon, T)
+    if info or not mv.coloured then
+      local t1 = info and not info.egg and info.types[1] and TYPE[info.types[1].id] or nil
+      local t2 = t1 and (info.types[2] and TYPE[info.types[2].id] or t1) or C.slate2
+      t1 = t1 or C.slate
+      local rate = mv.coloured and 6 or 1000
+      mv.coloured = true
+      mv.r, mv.g, mv.b = approach(mv.r, t1[1] / 255, dt, rate), approach(mv.g, t1[2] / 255, dt, rate),
+        approach(mv.b, t1[3] / 255, dt, rate)
+      local k2 = t2 == t1 and 0.35 or 0
+      mv.r2 = approach(mv.r2, (t2[1] + (255 - t2[1]) * k2) / 255, dt, rate)
+      mv.g2 = approach(mv.g2, (t2[2] + (255 - t2[2]) * k2) / 255, dt, rate)
+      mv.b2 = approach(mv.b2, (t2[3] + (255 - t2[3]) * k2) / 255, dt, rate)
+    end
+    K.backdrop(body, clock, mv.r, mv.g, mv.b, mv.r2, mv.g2, mv.b2)
     if portrait then
       g.slotW = (w - 6) / Bx.PARTY
       g.slotH = min(20, g.slotW)
@@ -584,7 +731,7 @@ return function(K, env, T, Bx, st, A)
       local footY = g.gy + g.cell * Bx.ROWS + GAP
       drawFoot(g.gx, footY, g.cell * Bx.COLS, color, modeName)
       local py = footY + 11
-      if y + h - py > 20 then drawPreview(mon, x + 3, py, w - 6, y + h - py - 3, true) end
+      if y + h - py > 20 then drawPreview(mon, x + 3, py, w - 6, y + h - py - 3, true, clock) end
     else
       local partyW = 40
       local cell = max(11, min(16, floor((w - partyW - 62 - GAP * 2 - 2) / Bx.COLS)))
@@ -600,7 +747,7 @@ return function(K, env, T, Bx, st, A)
       drawGrid(clock, color)
       drawFoot(bx, g.gy + cell * Bx.ROWS + GAP, cell * Bx.COLS, color, modeName)
       local vx = bx + cell * Bx.COLS + GAP + 1
-      drawPreview(mon, vx, y + 1, x + w - vx - 1, h - 2, false)
+      drawPreview(mon, vx, y + 1, x + w - vx - 1, h - 2, false, clock)
     end
     K.scissor(body)
     drawHeld(clock)

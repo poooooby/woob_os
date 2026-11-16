@@ -401,25 +401,154 @@ return function(H, Gd, Art, deps)
     return got
   end
 
+  -- ------- the summary (the same page as src/boxes.lua's: DVs as the IVs, Stat Exp as the EVs)
+
+  -- (the rows: Gen 1 has one Special, Gen 2 two stats on the one Special DV and Stat Exp)
+  local ROWS1 = {
+    { key = "dex.stat.hp", stat = "hp" }, { key = "dex.stat.atk", stat = "attack" },
+    { key = "dex.stat.def", stat = "defense" }, { key = "sum.stat.spc", stat = "special", dv = "special" },
+    { key = "dex.stat.spe", stat = "speed" },
+  }
+  local ROWS2 = {
+    { key = "dex.stat.hp", stat = "hp" }, { key = "dex.stat.atk", stat = "attack" },
+    { key = "dex.stat.def", stat = "defense" }, { key = "dex.stat.spa", stat = "specialAttack", dv = "special" },
+    { key = "dex.stat.spd", stat = "specialDefense", dv = "special" }, { key = "dex.stat.spe", stat = "speed" },
+  }
+  -- (the radar: HP at the top, then clockwise Attack, Defense, Speed, Special)
+  local RADAR = { "hp", "attack", "defense", "speed", "special" }
+  local RADAR_KEYS = { "auction.ivHp", "auction.ivAtk", "auction.ivDef", "auction.ivSpe", "sum.stat.spc" }
+  local sums = setmetatable({}, { __mode = "k" })
+  local forget0 = Bx.forget
+  function Bx.forget(mon)
+    forget0(mon)
+    if mon then sums[mon] = nil end
+  end
+  local function word(T, key, ...)
+    if not T then return key end
+    if select("#", ...) > 0 then return T.f(key, ...) end
+    return T(key)
+  end
+  local function hpDv(dvs)
+    local function low(v) return (tonumber(v) or 0) % 2 end
+    return low(dvs.attack) * 8 + low(dvs.defense) * 4 + low(dvs.speed) * 2 + low(dvs.special)
+  end
+  local function expAt(def, level)
+    local d = data()
+    if gen == 2 then
+      local Mon = engine("src.battle.gen2.Mon")
+      local ok, v = pcall(function() return Mon.experienceForLevel(Mon.growthFor(d, def.growthRate), level) end)
+      return ok and tonumber(v) or nil
+    end
+    local Growth = engine("src.pokemon.Growth")
+    local ok, v = pcall(Growth and Growth.expForLevel or error, def.growthRate, level, d and d.growth_rates)
+    return ok and tonumber(v) or nil
+  end
+
+  function Bx.summary(s, mon, T)
+    if not mon then return nil end
+    local got = sums[mon]
+    if got then return got end
+    local info = Bx.info(mon, T)
+    local sp = mon.species
+    got = { mon = mon, egg = info.egg, sp = sp, name = info.name, level = info.level, levelText = info.levelText,
+            gender = info.gender, shiny = info.shiny, types = info.types, info = {}, rows = {}, radar = {},
+            radarKeys = RADAR_KEYS, moves = {}, ivMax = 15, evMax = 65535, hp = info.hp, maxHp = info.maxHp,
+            itemId = info.item, itemName = info.itemName, markings = 0 }
+    got.speciesName = Gd.speciesName(sp)
+    local nat = tonumber(Gd.dex(sp)) or 0
+    got.dexText = nat > 0 and ("No. %03d"):format(nat) or "No. ---"
+    local rows = got.info
+    local function row(label, value, tint) rows[#rows + 1] = { label = label, value = tostring(value or ""), tint = tint } end
+    local ot = tostring(mon.ot or mon.otName or "")
+    local idText = ("%05d"):format((tonumber(mon.otId or mon.id) or 0) % 65536)
+    if got.egg then
+      got.name = word(T, "sum.egg")
+      local c = tonumber(mon.eggCycles or mon.happiness) or 20
+      got.eggText = word(T, c <= 5 and "sum.egg.soon" or (c <= 10 and "sum.egg.close" or "sum.egg.time"))
+      row(word(T, "sum.ot"), ot, "male")
+      row(word(T, "sum.id"), idText)
+      sums[mon] = got
+      return got
+    end
+    row(word(T, "sum.species"), got.dexText .. "  " .. got.speciesName)
+    row(word(T, "sum.ot"), ot, mon.otGender == "female" and "female" or "male")
+    row(word(T, "sum.id"), idText)
+    if gen == 2 then row(word(T, "sum.item"), info.itemName or word(T, "boxes.noItem")) end
+    -- (Crystal keeps where and at what level it was caught)
+    local lv = tonumber(mon.caughtLevel)
+    if lv and lv > 0 then
+      got.memo = word(T, "sum.met", lv)
+      row(word(T, "sum.origin"), got.memo)
+    end
+    if gen == 2 and (tonumber(mon.pokerus) or 0) ~= 0 then
+      row(word(T, "sum.pokerus"), word(T, (tonumber(mon.pokerus) or 0) % 16 ~= 0 and "sum.pokerus.now" or "sum.pokerus.cured"))
+    end
+    if gen == 2 then got.friendship = tonumber(mon.happiness or mon.friendship) end
+    if (tonumber(mon.hp) or 1) <= 0 then got.status = word(T, "sum.status.fnt") end
+    -- (the stats, the DVs and Stat Exp)
+    local stats = type(mon.stats) == "table" and mon.stats or {}
+    local dvs = type(mon.dvs) == "table" and mon.dvs or {}
+    local se = type(mon.statExp) == "table" and mon.statExp or {}
+    for i, r in ipairs(gen == 2 and ROWS2 or ROWS1) do
+      local v = r.stat == "hp" and info.maxHp or tonumber(stats[r.stat] or (r.dv and stats.special)) or 0
+      local dv = r.stat == "hp" and hpDv(dvs) or tonumber(dvs[r.dv or r.stat]) or 0
+      local ev = floor(tonumber(se[r.dv or r.stat]) or 0)
+      got.rows[i] = { key = r.key, value = v, iv = dv, ev = ev }
+    end
+    local total = 0
+    for i, k in ipairs(RADAR) do
+      got.radar[i] = floor(tonumber(se[k]) or 0)
+      total = total + got.radar[i]
+    end
+    got.evTotal = total
+    -- (EXP: its total, how far to the next level)
+    local def = Gd.def(sp)
+    local exp = tonumber(mon.experience or mon.exp)
+    if def and exp then
+      local lvl = info.level
+      local here, nxt = expAt(def, lvl), lvl < 100 and expAt(def, lvl + 1) or nil
+      got.exp = exp
+      got.expNext = nxt and math.max(0, nxt - exp) or 0
+      got.expPct = (here and nxt and nxt > here) and math.max(0, math.min(1, (exp - here) / (nxt - here))) or 1
+    end
+    -- (the moves)
+    local d = data()
+    for slot, e in ipairs(mon.moves or {}) do
+      local id = type(e) == "table" and e.id or e
+      if id and id ~= "" and id ~= "NO_MOVE" then
+        local m = d and d.moves and d.moves[id] or {}
+        local base = tonumber(m.pp) or 0
+        local ups = tonumber(type(e) == "table" and e.ppUps) or 0
+        local maxPp = tonumber(type(e) == "table" and e.maxPp) or (base + ups * floor(base / 5))
+        local pp = tonumber(type(e) == "table" and e.pp) or maxPp
+        local t = m.type or "NORMAL"
+        local power, acc = tonumber(m.power) or 0, tonumber(m.accuracy) or 0
+        local desc = type(m.description) == "string" and m.description:gsub("<NEXT>", " "):gsub("%s+", " ") or ""
+        got.moves[#got.moves + 1] = {
+          id = id, slot = slot, name = Gd.moveName(id), typeId = Gd.typeId(t), typeName = Gd.typeName(t),
+          pp = pp, maxPp = maxPp, ppText = ("%d/%d"):format(pp, maxPp),
+          powerText = power > 1 and tostring(power) or "—", accText = acc > 0 and (tostring(floor(acc)) .. "%") or "—",
+          physical = Gd.typeId(t) < 9, status = power == 0, desc = desc,
+        }
+      end
+    end
+    sums[mon] = got
+    return got
+  end
+
+  -- two of a Pokémon's moves trade places (their PP and PP Ups with them)
+  function Bx.swapMoves(mon, a, b)
+    local mv = mon and mon.moves
+    if type(mv) ~= "table" or not (mv[a] and mv[b]) then return false end
+    mv[a], mv[b] = mv[b], mv[a]
+    Bx.forget(mon)
+    return true
+  end
+
   -- ------- the game's own bits
 
   -- (caught Pokémon go to the current box on both games: nothing to tell them)
   function Bx.sendBox() end
-
-  function Bx.openSummary(s, mons, index, context, onClose)
-    local game = H.game()
-    local Screens = engine("src.ui.Screens")
-    if not (game and Screens) then error("the game has no summary screen") end
-    if gen == 2 then
-      Screens.push(game, "Gen2SummaryMenu", { party = mons, index = index, save = s, onClose = function()
-        if game.stack and game.stack:top() then game.stack:pop() end
-        if onClose then onClose() end
-      end })
-      return
-    end
-    -- (Gen 1's closes itself; the host brings ours back once it's gone)
-    Screens.push(game, "SummaryMenu", mons[index])
-  end
   function Bx.openNaming(s, b, onDone)
     if gen ~= 2 then error("the game's boxes have no names") end
     local game = H.game()

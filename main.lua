@@ -16,7 +16,8 @@
 --   src/oak.lua, src/apps/oak.lua   the Oak's PC app
 --   src/dex.lua, src/apps/pokedex.lua, src/apps/pokedex_view.lua   the Pokédex (the game's own taken over)
 --   src/gts.lua, src/apps/gts.lua       the GTS: Wonder Trade and the Global Trade Station, its window
---   src/boxes.lua, src/apps/boxes.lua, src/apps/boxes_view.lua   the Pokémon model, the Boxes window
+--   src/boxes.lua, src/apps/boxes.lua, src/apps/boxes_view.lua, src/apps/boxes_summary.lua   the Pokémon
+--     model, the Boxes window and its summary
 --   src/i18n.lua, lang/*.lua            the words, by language ; src/settings.lua the kept choices
 --   src/wallpaper.lua                   the drawn wallpapers and the wallpapers/ folder's pictures
 --   WoobPad: src/desktop.lua again (deps.device "pad"), from the START menu
@@ -65,6 +66,7 @@ return function(mod)
   local makeWall, settingsWindow = loadSibling(mod, "src/wallpaper.lua"), loadSibling(mod, "src/apps/settings.lua")
   local makeBx, boxesWindow = loadSibling(mod, "src/boxes.lua"), loadSibling(mod, "src/apps/boxes.lua")
   local boxesView = loadSibling(mod, "src/apps/boxes_view.lua")
+  local boxesSummary = loadSibling(mod, "src/apps/boxes_summary.lua")
   local Arrange = loadSibling(mod, "src/arrange.lua")
   local makeMart, martWindow = loadSibling(mod, "src/mart.lua"), loadSibling(mod, "src/apps/mart.lua")
   local makeAuction, auctionWindow = loadSibling(mod, "src/auction.lua"), loadSibling(mod, "src/apps/auction.lua")
@@ -820,8 +822,9 @@ return function(mod)
       local Audio = engine("src.core.game3.audio")
       if Audio and Audio.playCry then pcall(Audio.playCry, sp) end
     end
-    local anim = { sp = nil, sprite = nil, acc = 0, last = nil, pack = false, packAt = -1, packPic = nil }
-    local stills, frames = {}, {}
+    local anim = { sp = nil, sprite = nil, acc = 0, last = nil, pack = false, packAt = -1, packPic = nil, shiny = false }
+    -- (the pictures kept per species, a shiny's apart: the Boxes' summary shows a shiny in its colours)
+    local stills, frames, stillsS, framesS = {}, {}, {}, {}
     -- (WoobleSpritePack, g9-battle-sprites-gen3: its art comes through the engine's frontPic, one frame
     -- of its animated sheet per call by a shared clock (8 a second); a species it draws is asked again
     -- while it's shown, 16 times a second, instead of kept)
@@ -832,27 +835,29 @@ return function(mod)
       local okA, on = pcall(ex and ex.isActive or error)
       return okA and on == true and ex or nil
     end
-    local function still(sp)
-      local e = stills[sp]
+    local function still(sp, shiny)
+      local kept = shiny and stillsS or stills
+      local e = kept[sp]
       if e == nil then
         local Pk = engine("src.core.game3.pokemon")
-        local ok, got = pcall(Pk and Pk.frontPic or error, sp, 0, false, 0, "dex")
+        local ok, got = pcall(Pk and Pk.frontPic or error, sp, 0, shiny == true, 0, "dex")
         Kit.rescissor()
         e = ok and type(got) == "table" and got.image and got or false
-        stills[sp] = e
+        kept[sp] = e
       end
       return e or nil
     end
-    local function framePic(sp, frame)
-      local f = frames[sp]
+    local function framePic(sp, frame, shiny)
+      local kept = shiny and framesS or frames
+      local f = kept[sp]
       if not f then
         f = {}
-        frames[sp] = f
+        kept[sp] = f
       end
       local e = f[frame]
       if e == nil then
         local MA = engine("src.core.game3.mon_anim")
-        local ok, got = pcall(MA and MA.framePic or error, sp, frame, false)
+        local ok, got = pcall(MA and MA.framePic or error, sp, frame, shiny == true)
         Kit.rescissor()
         e = ok and type(got) == "table" and got.image and got or false
         f[frame] = e
@@ -861,8 +866,8 @@ return function(mod)
     end
     env.dexSprite = {
       -- (chosen: the game's animation from the start, where the game has one)
-      start = function(sp)
-        anim.sp, anim.sprite, anim.acc, anim.last = sp, nil, 0, nil
+      start = function(sp, shiny)
+        anim.sp, anim.sprite, anim.acc, anim.last, anim.shiny = sp, nil, 0, nil, shiny == true
         anim.pack, anim.packAt, anim.packPic = false, -1, nil
         local ex = spritePack()
         if ex and ex.hasSprite then
@@ -889,21 +894,22 @@ return function(mod)
       -- (centred on cx, cy, size units: the animation stepped at the game's 60 a second, its frames'
       -- pictures kept here and drawn without the engine's per-draw tables; done, or none, the still
       -- picture breathing from its feet, with a hop just after it's chosen; `scale` and `alpha` the
-      -- Pokédex's pop as it's chosen)
-      draw = function(sp, cx, cy, size, clock, chosenAt, scale, alpha)
+      -- Pokédex's pop as it's chosen; `shiny` its shiny colours, as started)
+      draw = function(sp, cx, cy, size, clock, chosenAt, scale, alpha, shiny)
         local base
-        if anim.pack and anim.sp == sp then
+        shiny = shiny == true
+        if anim.pack and anim.sp == sp and anim.shiny == shiny then
           if not anim.packPic or clock - anim.packAt >= PACK_EVERY or clock < anim.packAt then
             local Pk = engine("src.core.game3.pokemon")
-            local ok, got = pcall(Pk and Pk.frontPic or error, sp, 0, false, 0, "dex")
+            local ok, got = pcall(Pk and Pk.frontPic or error, sp, 0, shiny, 0, "dex")
             -- (the pack makes a frame's canvas the first time it's shown: the scissor set again after it)
             Kit.rescissor()
             if ok and type(got) == "table" and got.image then anim.packPic = got end
             anim.packAt = clock
           end
-          base = anim.packPic or still(sp)
+          base = anim.packPic or still(sp, shiny)
         else
-          base = still(sp)
+          base = still(sp, shiny)
         end
         if not base then return end
         local G = Kit.graphics()
@@ -911,7 +917,7 @@ return function(mod)
         local k = k0 * (scale or 1)
         alpha = alpha or 1
         local px, py = Kit.X(cx), Kit.Y(cy)
-        local sprite = anim.sp == sp and anim.sprite or nil
+        local sprite = anim.sp == sp and anim.shiny == shiny and anim.sprite or nil
         if sprite then
           local MA = engine("src.core.game3.mon_anim")
           local dt = anim.last and math.max(0, math.min(0.1, clock - anim.last)) or 0
@@ -928,7 +934,7 @@ return function(mod)
           if anim.sprite and MA.done(sprite) then anim.sprite = nil end
           if anim.sprite then
             if sprite.invisible then return end
-            local pic = (tonumber(sprite.frame) or 0) ~= 0 and framePic(sp, sprite.frame) or base
+            local pic = (tonumber(sprite.frame) or 0) ~= 0 and framePic(sp, sprite.frame, shiny) or base
             local sx, sy, rot = 1, 1, 0
             local m = sprite.matrix
             if sprite.affineMode ~= "off" and m then
@@ -959,6 +965,8 @@ return function(mod)
       local nd = mod.find("national_dex_gen3")
       return nd and nd.exports and nd.exports.dynamax or nil
     end
+    -- (the summary's Dynamax row: while Galar Rising, the raids that hand the levels out, is on)
+    env.bx.galar = function() return mod.find("max_raids") ~= nil end
   end
   if makePcGames and pcGamesWindow then
     env.pcgames = makePcGames(engine, {
@@ -976,7 +984,7 @@ return function(mod)
     removed = Settings and function() return Settings.get("removedApps", "") end or nil,
     saveRemoved = Settings and function(text) Settings.set("removedApps", text) end or nil,
     boxes = env.bx and boxesWindow and boxesView
-      and function(ctx, e) return boxesWindow(ctx, e, boxesView) end or nil,
+      and function(ctx, e) return boxesWindow(ctx, e, boxesView, boxesSummary) end or nil,
     items = env.inv and itemsWindow or nil,
     mail = env.mb and mailWindow or nil,
     mart = env.mart and martWindow or nil,

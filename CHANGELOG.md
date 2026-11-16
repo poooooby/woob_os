@@ -5,6 +5,28 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **R-Bay: an ended auction's recap.** In My Bids, A on an ended auction (or a second tap) tells it
+  again, as eBay does: a note that the auction is over, the Pokémon (its picture, tier, level, types,
+  IVs), the winning bid and when it ended, who won it, your maximum, what you paid or got back, where
+  the Pokémon went, how many bid and the last bids. A win or loss notification opens straight to it.
+  Auctions that ended before this version show what was kept (no winner's name or bid history).
+- **Boxes: its own Summary.** Summary opens a page in the Boxes window in place of the game's screen,
+  in the Pokédex's glass: the Pokémon animated (a shiny in its colours) with its number, level,
+  gender, types and markings; HP and status, EXP to the next level, item, friendship; then Info (OT,
+  ID No., nature and the stats it changes, ability, Poké Ball, where it was met, Pokérus, Ribbons),
+  Stats (each stat with its IV and EV, the EVs on a radar, their total out of 510) and Moves (type and
+  PP; a move's power, accuracy, category and words; on Ruby, Sapphire and Emerald its contest type,
+  appeal and jam). Up and Down go through the party or the box, and a party Pokémon's moves reorder
+  as in the game. Galar Rising's Dynamax Level and G-Max Factor show while it's on. The Game Boy
+  games show their DVs and Stat Exp.
+
+### Changed
+- **Boxes is frosted glass, like the Pokédex:** lights in the shown Pokémon's type colours drift
+  behind glass panes; the cursor glides between cells, a box's Pokémon slide in from the side you
+  turn to, the party and the box rise in as it opens, the modes' switch slides, the preview's picture
+  pops up for each Pokémon, and menus pop in.
+
 ## [0.13.0] - 2026-11-15
 
 ### Added

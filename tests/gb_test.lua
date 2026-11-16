@@ -235,6 +235,25 @@ local okR = Bx.release(save, Bx.addr("box", 1, 2))
 T.check(okR and Bx.count(save, 2) == 0, "released")
 local info = Bx.info(p1, X._test.i18n)
 T.check(info and info.name == Gd.monName(p1) and #info.moves > 0 and #info.types > 0, "the preview's words")
+-- the summary's page: DVs as the IVs (HP's from the others), Stat Exp as the EVs, the moves' PP
+do
+  p1.dvs = { attack = 15, defense = 14, speed = 1, special = 0 }
+  p1.statExp = { hp = 1000, attack = 500, defense = 0, speed = 65535, special = 7 }
+  Bx.forget(p1)
+  local R = Bx.summary(save, p1, X._test.i18n)
+  T.check(R and #R.rows == (GEN == 2 and 6 or 5) and R.ivMax == 15 and R.rows[1].iv == 10 and R.rows[2].iv == 15,
+    "the summary: each stat with its DV (HP's 1010 = 10)")
+  T.check(#R.radar == 5 and R.radar[4] == 65535 and R.rows[1].ev == 1000 and R.evTotal == 67042,
+    "Stat Exp as the EVs, on a radar of five")
+  T.check(#R.moves > 0 and R.moves[1].ppText:find("/", 1, true) ~= nil and #R.info >= 3, "the moves with their PP, Info's rows")
+  local m1 = R.moves[1].id
+  if #R.moves >= 2 then
+    local m2 = R.moves[2].id
+    T.check(Bx.swapMoves(p1, 1, 2) and Bx.summary(save, p1, X._test.i18n).moves[1].id == m2, "two moves swapped")
+    Bx.swapMoves(p1, 1, 2)
+    T.eq(Bx.summary(save, p1, X._test.i18n).moves[1].id, m1, "and back")
+  end
+end
 if GEN == 2 then
   save.inventory = save.inventory or {}
   save.inventory.BERRY = 2
@@ -655,6 +674,24 @@ do
         opened = opened + 1
         local kb = garbageOf(30, function() frame() end)
         T.check(kb < 0.5, ("the %s window: next to no garbage (%.3f KB/frame)"):format(id, kb))
+      end
+      -- (Boxes: the summary's three tabs draw)
+      local W = id == "storage" and D.window()
+      if W and W.summary then
+        W.summary(Bx.addr("party", 1))
+        for tab = 1, 3 do
+          W.state.sum.tab = tab
+          -- (its cards settle in on the wall clock, which these frames outrun: frames until that's done --
+          -- the test's stand-in graphics make garbage of their own on each push the motion makes)
+          local now = X._test.env.now
+          local t0 = now()
+          local okS, errS = pcall(function() repeat frame(1) until now() - t0 > 1.2 end)
+          T.check(okS and not D.state().winFailed, "the summary draws, tab " .. tab .. " (" .. tostring(errS) .. ")")
+          -- (our draw alone: the game's own update makes garbage of its own here)
+          local kbS = garbageOf(30, function() Sh.frame(game, VP) end)
+          T.check(kbS < 0.5, ("the summary, tab %d: next to no garbage (%.3f KB/frame)"):format(tab, kbS))
+        end
+        W.state.sum = nil
       end
     end
   end

@@ -12,14 +12,24 @@
 --            they go; hold a carried Pokémon over < or > to turn the box; tap a mode's icon
 -- A Pokémon going between the party and a box crosses the shelf's pad as a Poké Ball. The model is
 -- src/boxes.lua (env.bx); the drawing src/apps/boxes_view.lua.
+-- Summary (from Select's options): our own page in the window, the Pokédex's glass: the Pokémon, Info
+-- (OT, ID, nature, ability, item, Ball, where it was met, Pokérus, Ribbons), Stats (each stat with its IV
+-- and EV, the EVs on a radar) and Moves (PP, power, accuracy, what it does; the contest side on Ruby /
+-- Sapphire / Emerald; a party Pokémon's moves reordered as the game does); Galar Rising's Dynamax.
+--   buttons  Up / Down the Pokémon before / after, Left / Right or L / R the tab, A its cry (Moves: the
+--            moves, then Up / Down, A picks one and A another swaps them), B back
+--   touch    the tabs, the arrows, a move (twice: swap), the picture (its cry), < back; drag scrolls
+-- Its drawing is src/apps/boxes_summary.lua.
 --
---   window(ctx, env, makeView) -> win (src/apps.lua)
+--   window(ctx, env, makeView, makeSummary) -> win (src/apps.lua)
 
 local floor, max, min, abs = math.floor, math.max, math.min, math.abs
 
 -- hit args
 local A = { PARTY = 100, BOX = 200, PREV = 301, NEXT = 302, NAME = 303, MODE = 310,
-            DIM = 399, NO = 390, YES = 391, ROW = 400, WALL = 500 }
+            DIM = 399, NO = 390, YES = 391, ROW = 400, WALL = 500,
+            SUM_BACK = 600, SUM_PREV = 601, SUM_NEXT = 602, SUM_PIC = 603, SUM_TAB = 610, SUM_MOVE = 620 }
+local SUM_TABS = { "sum.tab.info", "sum.tab.stats", "sum.tab.moves" }
 -- the modes
 local SELECT, SWAP, DRAG = 1, 2, 3
 local MODE_KEYS = { "boxes.select", "boxes.swap", "boxes.drag" }
@@ -31,6 +41,11 @@ local HINTS = {
   [DRAG] = { { "A", "hint.grab" }, { "SELECT", "hint.mode" }, { "L R", "hint.box" }, { "START", "hint.menu" } },
   held = { { "A", "hint.drop" }, { "B", "hint.cancel" }, { "L R", "hint.box" }, { "SELECT", "hint.mode" } },
   sheet = { { "A", "hint.choose" }, { "B", "hint.back" } },
+  sum = { { "^ v", "sum.hint.mon" }, { "L R", "hint.tab" }, { "A", "dex.hint.cry" }, { "B", "hint.back" } },
+  sumMoves = { { "^ v", "sum.hint.mon" }, { "L R", "hint.tab" }, { "A", "sum.hint.moves" }, { "B", "hint.back" } },
+  sumMove = { { "^ v", "sum.hint.move" }, { "B", "hint.back" } },
+  sumMoveSwap = { { "^ v", "sum.hint.move" }, { "A", "sum.hint.swap" }, { "B", "hint.back" } },
+  sumSwapping = { { "^ v", "sum.hint.move" }, { "A", "sum.hint.here" }, { "B", "hint.cancel" } },
 }
 local ACTIONS = { "boxes.move", "boxes.summary", "boxes.item", "boxes.release" }
 local ITEM_ACTIONS = { "boxes.take", "boxes.give" }
@@ -38,12 +53,14 @@ local BOX_ACTIONS = { "boxes.jump", "boxes.rename", "boxes.wallpaper" }
 local BUTTONS = { "a", "b", "l", "r", "start", "select" }
 local NO_T = setmetatable({ list = function(l) return l end, f = string.format }, { __call = function(_, k) return k end })
 
-return function(ctx, env, makeView)
+return function(ctx, env, makeView, makeSummary)
   local K, Bx, T = env.K, env.bx, env.T or NO_T
   local W = { title = "Boxes", pad = true, ball = true }
   local function session() return ctx.session or (env.session and env.session()) end
   local function se(name) if env.se then pcall(env.se, name) end end
   local function now() return env.now and env.now() or 0 end
+  local cur
+  local function pressed(k) return cur:wasPressed(k) end
 
   local st = {
     mode = SELECT, area = "box", pi = 1, bi = 1, box = Bx.current(session()),
@@ -215,13 +232,37 @@ return function(ctx, env, makeView)
     ctx.over(open, state())
   end
 
+  -- ------- the summary (st.sum while it's up)
+
+  local function cry(rec)
+    if not rec or rec.egg then return end
+    if env.dexSprite then env.dexSprite.start(rec.sp, rec.shiny) end
+    st.sum.at = now()
+    if env.cry then pcall(env.cry, rec.sp) end
+  end
+  -- the i-th of the list shown (its page made here, an action, never a draw), its cry
+  local function showSum(i, quiet)
+    local S = st.sum
+    local n = #S.list
+    if n == 0 then return end
+    i = (i - 1) % n + 1
+    S.i, S.move, S.swap, S.top = i, nil, nil, 0
+    S.rec = Bx.summary(session(), S.list[i], T)
+    S.at = now()
+    if not quiet then se("SE_SELECT") end
+    cry(S.rec)
+  end
   local function summary(addr)
     local s = session()
-    local list, index, context
+    local list, index
     if addr.loc == "party" then
-      list, index, context = Bx.party(s), addr.slot, "party"
+      list, index = {}, nil
+      for i, m in ipairs(Bx.party(s)) do
+        list[i] = m
+        if i == addr.slot then index = i end
+      end
     else
-      list, context = {}, "box"
+      list = {}
       local mons = Bx.boxMons(s, addr.boxId) or {}
       for i = 1, Bx.SLOTS do
         if mons[i] then
@@ -231,8 +272,93 @@ return function(ctx, env, makeView)
       end
     end
     if not index then return end
-    over(function(onClose) Bx.openSummary(s, list, index, context, onClose) end)
+    putBack()
+    st.sheet = nil
+    -- (the game reorders a party Pokémon's moves from its summary, never a boxed one's)
+    st.sum = { list = list, i = index, rec = nil, tab = 1, move = nil, swap = nil, party = addr.loc == "party",
+               top = 0, h = 0, vis = 0, at = now(), openAt = now(), lines = {}, shown = { 0, 0, 0, 0, 0, 0 } }
+    showSum(index, true)
   end
+  W.summary = summary
+  local function closeSum()
+    st.sum = nil
+    if env.dexSprite then env.dexSprite.stop() end
+    se("SE_SELECT")
+  end
+  local function sumTab(t)
+    local S = st.sum
+    t = (t - 1) % #SUM_TABS + 1
+    if t == S.tab then return end
+    S.tab, S.move, S.swap, S.top = t, nil, nil, 0
+    se("SE_SELECT")
+  end
+  -- a move chosen: the first time it's shown; again (a party Pokémon's), picked up to swap; another
+  -- picked while one is held: the two trade places
+  local function sumMove(k)
+    local S = st.sum
+    local moves = S.rec and S.rec.moves or {}
+    if not moves[k] then return end
+    if S.swap then
+      if S.swap ~= k then
+        local mon = S.list[S.i]
+        if Bx.swapMoves(mon, moves[S.swap].slot, moves[k].slot) then
+          S.rec = Bx.summary(session(), mon, T)
+        end
+      end
+      S.swap, S.move = nil, k
+      return se("SE_SELECT")
+    end
+    if S.move == k and S.party and #moves > 1 then S.swap = k
+    else S.move = k end
+    se("SE_SELECT")
+  end
+  local function sumInput(input, nav)
+    local S = st.sum
+    local moves = S.rec and S.rec.moves or {}
+    if S.move then
+      if nav.up then
+        if S.move > 1 then S.move = S.move - 1 se("SE_SELECT") end
+      elseif nav.down then
+        if S.move < #moves then S.move = S.move + 1 se("SE_SELECT") end
+      elseif pressed("a") then
+        if S.party and #moves > 1 then
+          if S.swap then sumMove(S.move)
+          else
+            S.swap = S.move
+            se("SE_SELECT")
+          end
+        end
+      elseif pressed("b") then
+        if S.swap then S.swap = nil else S.move = nil end
+        se("SE_SELECT")
+      end
+      return true
+    end
+    if pressed("b") then closeSum()
+    elseif pressed("l") or nav.left then sumTab(S.tab - 1)
+    elseif pressed("r") or nav.right then sumTab(S.tab + 1)
+    elseif nav.up then if #S.list > 1 then showSum(S.i - 1) end
+    elseif nav.down then if #S.list > 1 then showSum(S.i + 1) end
+    elseif pressed("a") then
+      if S.tab == 3 and #moves > 0 then
+        S.move = 1
+        se("SE_SELECT")
+      else
+        cry(S.rec)
+      end
+    end
+    return true
+  end
+  local function sumTap(arg)
+    local S = st.sum
+    if arg == A.SUM_BACK then return closeSum() end
+    if arg == A.SUM_PREV then return showSum(S.i - 1) end
+    if arg == A.SUM_NEXT then return showSum(S.i + 1) end
+    if arg == A.SUM_PIC then return cry(S.rec) end
+    if arg > A.SUM_TAB and arg <= A.SUM_TAB + #SUM_TABS then return sumTab(arg - A.SUM_TAB) end
+    if arg > A.SUM_MOVE and arg <= A.SUM_MOVE + 4 then return sumMove(arg - A.SUM_MOVE) end
+  end
+  W.SUM_TABS = SUM_TABS
   local function rename()
     local s, b = session(), st.box
     over(function(onClose)
@@ -413,10 +539,9 @@ return function(ctx, env, makeView)
     end
   end
 
-  local cur
-  local function pressed(k) return cur:wasPressed(k) end
   function W.input(input, nav)
     cur = input
+    if st.sum then return sumInput(input, nav) end
     local any = nav.up or nav.down or nav.left or nav.right
     for i = 1, #BUTTONS do
       if pressed(BUTTONS[i]) then any = true end
@@ -509,6 +634,11 @@ return function(ctx, env, makeView)
 
   function W.pointer(phase, x, y)
     local P = st.ptr
+    -- (the summary: taps through its hits, drags scroll it; the box under it untouched)
+    if st.sum then
+      P.down, P.dragging, P.rect = false, false, false
+      return false
+    end
     if phase == "hover" then
       st.usePtr = true
       track(x, y)
@@ -568,6 +698,7 @@ return function(ctx, env, makeView)
 
   function W.tap(arg)
     if type(arg) ~= "number" then return end
+    if st.sum then return sumTap(arg) end
     local sh = st.sheet
     if sh then
       if arg >= A.ROW and arg < A.ROW + 100 then return choose(arg - A.ROW + 1) end
@@ -596,11 +727,22 @@ return function(ctx, env, makeView)
 
   -- the wheel: the box
   function W.scroll(dy)
+    local S = st.sum
+    if S then
+      S.top = max(0, min(max(0, S.h - S.vis), S.top - dy))
+      return
+    end
     if st.sheet then return end
     if dy > 0 then setBox(st.box - 1) elseif dy < 0 then setBox(st.box + 1) end
   end
 
   function W.hints()
+    local S = st.sum
+    if S then
+      if S.swap then return T.list(HINTS.sumSwapping) end
+      if S.move then return T.list(S.party and HINTS.sumMoveSwap or HINTS.sumMove) end
+      return T.list(S.tab == 3 and HINTS.sumMoves or HINTS.sum)
+    end
     if st.sheet then return T.list(HINTS.sheet) end
     if st.held then return T.list(HINTS.held) end
     return T.list(HINTS[st.mode])
@@ -608,6 +750,8 @@ return function(ctx, env, makeView)
 
   -- B, log off, the desktop closing: nothing stays in the hand; caught Pokémon go to this box
   function W.close()
+    if st.sum and env.dexSprite then env.dexSprite.stop() end
+    st.sum = nil
     st.rect = nil
     if st.held then Bx.putBack(session(), st.held) end
     st.held = nil
@@ -617,8 +761,13 @@ return function(ctx, env, makeView)
   -- ------- drawing: src/apps/boxes_view.lua
 
   local view = makeView(K, env, T, Bx, st, A)
+  local sumView = makeSummary and makeSummary(K, env, T, st, A, SUM_TABS) or nil
   local modeColor = view.modeColor
   function W.draw(body, clock, portrait)
+    if st.sum and sumView then
+      sumView.draw(body, clock, portrait, st.sum)
+      return
+    end
     -- (carried over < or > for a moment: the box turns)
     if st.held and st.usePtr and st.arrow and clock - st.arrowSince > 0.5 then
       setBox(st.box + st.arrow)

@@ -2,12 +2,15 @@
 -- the twelve running auctions: the Hot Auction on its own card at the top (the most wanted running
 -- now), the list under it, the chosen one on the right (its picture on a glow in its tier's colour,
 -- level, IVs, the price, the time left, the last bids, your maximum); or My Bids (the auctions you're
--- in, then how the ended ones went). A new bid flashes its price up; taking the lead throws
--- confetti; losing it says so.
+-- in, then how the ended ones went; A on one that ended tells it again, as eBay does: that it's
+-- over, the Pokémon, the winning bid, who won it, your maximum, what you paid or got back, where it
+-- went, the last bids). A new bid flashes its price up; taking the lead throws confetti; losing it
+-- says so.
 --   buttons  Up / Down the auction, SELECT the Hot Auction, A bid (then < > one step, ^ v ten,
---            SELECT all you can, A place it, B back), L / R or START Browse | My Bids, B close
+--            SELECT all you can, A place it, B back), L / R or START Browse | My Bids, B close;
+--            My Bids: A a running bid (to it in Browse) or an ended one (its recap; B back)
 --   touch    tap an auction (or the Hot Auction), its - / + and Place Bid; the Browse | My Bids
---            switch; drag (or the wheel) scrolls the list
+--            switch; a row of My Bids twice; the recap's < ; drag (or the wheel) scrolls the list
 --
 --   window(ctx, env) -> win (src/apps.lua)
 
@@ -19,6 +22,7 @@ local MINE = 3000
 local SEG_BROWSE, SEG_MINE = 2001, 2002
 local STEP_MINUS, STEP_PLUS, STEP_GO = 2010, 2011, 2012
 local HOT = 2020
+local RECAP_BACK = 2030
 local PARTICLES = 60
 
 -- the Rocket look: a dark body, red accents; a colour per tier
@@ -48,6 +52,7 @@ local HINTS = {
   list = { { "A", "hint.bid" }, { "SELECT", "hint.hot" }, { "L R", "hint.tab" }, { "B", "hint.close" } },
   step = { { "< >", "hint.step" }, { "^ v", "hint.ten" }, { "A", "hint.bid" }, { "B", "hint.back" } },
   mine = { { "A", "hint.open" }, { "L R", "hint.tab" }, { "B", "hint.close" } },
+  recap = { { "B", "hint.back" }, { "L R", "hint.tab" } },
 }
 local TIER_KEY = {
   common = "auction.tier.common", uncommon = "auction.tier.uncommon", rare = "auction.tier.rare",
@@ -67,15 +72,20 @@ return function(ctx, env)
   local st = {
     tab = "browse", focus = "list", cursor = 1, top = 0, visible = 6, key = nil, amount = 0,
     mineCursor = 1, mineTop = 0, rows = {}, mineRows = {}, mineN = 0, mineBids = 0, mineAt = -1, toast = nil,
-    hotKey = nil,
+    hotKey = nil, recap = nil, recapBurst = false,
   }
   W.state = st
-  -- (opened from a notification: its tab, the auction it was about)
+  -- (opened from a notification: its tab, the auction it was about; a win or a loss opens its recap,
+  -- below, once the rows are made)
   local resume = ctx.resume
+  local resumeKey
   if resume and resume.app == ctx.app and type(resume.state) == "table" then
     st.tab = resume.state.tab == "mine" and "mine" or "browse"
     st.key = resume.state.key
-    if st.tab == "mine" and Au.seen then Au.seen() end
+    if st.tab == "mine" then
+      resumeKey = st.key
+      if Au.seen then Au.seen() end
+    end
   end
   ctx.resume = nil
 
@@ -114,6 +124,19 @@ return function(ctx, env)
   end
   W.state.particles = P
 
+  -- how long ago an auction ended: by the minute, the hour, the day
+  local agoText = K.textCache(function(m)
+    if m < 1 then return T("auction.ago.now") end
+    if m < 60 then return T.f("auction.ago.m", m) end
+    if m < 1440 then return T.f("auction.ago.h", floor(m / 60)) end
+    return T.f("auction.ago.d", floor(m / 1440))
+  end)
+  local function agoKey(secs)
+    local m = floor(max(0, secs) / 60)
+    if m < 60 then return m end
+    if m < 1440 then return floor(m / 60) * 60 end
+    return floor(m / 1440) * 1440
+  end
   local levelText = K.textCache(function(n) return T.f("boxes.level", n) end)
   local bidsText = K.textCache(function(n) return n == 1 and T("auction.bid1") or T.f("auction.bids", n) end)
   local ivTotal = K.textCache(function(n) return T.f("auction.ivTotal", n) end)
@@ -228,9 +251,25 @@ return function(ctx, env)
     local have = (env.money and env.money(s) or max(0, floor(tonumber(s and s.money) or 0)))
     return have + (L.mine and Au.heldOf(L.mine) or 0)
   end
+  -- an ended auction's recap (a result row of My Bids), and back
+  local function openRecap(i)
+    local r = st.mineRows[i]
+    if not r or i <= st.mineBids then return false end
+    st.mineCursor = i
+    st.recap = Au.recap and Au.recap(session(), r) or nil
+    if not st.recap then return false end
+    st.recapBurst = st.recap.won
+    se(st.recap.won and "SE_SHOP" or "SE_SELECT")
+    if st.recap.won then seLater("SE_SHINY", 0.3) end
+    return true
+  end
+  local function closeRecap()
+    st.recap = nil
+    se("SE_SELECT")
+  end
   local function setTab(tab)
     if st.tab == tab then return end
-    st.tab, st.focus = tab, "list"
+    st.tab, st.focus, st.recap = tab, "list", nil
     if tab == "mine" then
       rebuildMine(true)
       Au.seen()
@@ -298,6 +337,11 @@ return function(ctx, env)
       end
       return true
     end
+    if st.recap then
+      if pressed("b") or pressed("a") then closeRecap()
+      elseif pressed("l") or pressed("r") or pressed("start") then setTab("browse") end
+      return true
+    end
     if pressed("b") then return false end
     if pressed("l") or pressed("r") or pressed("start") then
       setTab(st.tab == "browse" and "mine" or "browse")
@@ -326,13 +370,15 @@ return function(ctx, env)
           se("SE_SELECT")
         end
       elseif pressed("a") then
-        -- (a running bid: to it in Browse, to raise it)
+        -- (a running bid: to it in Browse, to raise it; an ended one: its recap)
         local r = st.mineRows[st.mineCursor]
         if r and st.mineCursor <= st.mineBids and listingOf(r.key) then
           st.key, st.tab = r.key, "browse"
           current()
           clampList(true)
           se("SE_SELECT")
+        elseif r then
+          openRecap(st.mineCursor)
         end
       end
     end
@@ -342,7 +388,12 @@ return function(ctx, env)
   function W.tap(arg)
     if type(arg) ~= "number" then return end
     if arg == SEG_BROWSE then return setTab("browse") end
-    if arg == SEG_MINE then return setTab("mine") end
+    if arg == SEG_MINE then
+      if st.recap and st.tab == "mine" then return closeRecap() end
+      return setTab("mine")
+    end
+    if arg == RECAP_BACK then return closeRecap() end
+    if st.recap then return end
     if arg == STEP_MINUS or arg == STEP_PLUS then
       if st.focus ~= "step" then begin() end
       if st.focus == "step" then stepBy(arg == STEP_PLUS and 1 or -1) end
@@ -361,7 +412,8 @@ return function(ctx, env)
     if arg > MINE then
       local i = arg - MINE
       if st.mineRows[i] then
-        if st.mineCursor == i and i <= st.mineBids and listingOf(st.mineRows[i].key) then
+        if st.mineCursor == i and i > st.mineBids then return openRecap(i) end
+        if st.mineCursor == i and listingOf(st.mineRows[i].key) then
           st.key, st.tab = st.mineRows[i].key, "browse"
           current()
           clampList(true)
@@ -382,6 +434,7 @@ return function(ctx, env)
   end
 
   function W.scroll(dy)
+    if st.recap then return end
     st.free = true
     if st.tab == "browse" then
       st.top = max(0, min(max(0, #st.rows - st.visible), st.top - dy / ROW_H))
@@ -392,6 +445,7 @@ return function(ctx, env)
 
   function W.hints()
     if st.focus == "step" then return T.list(HINTS.step) end
+    if st.recap then return T.list(HINTS.recap) end
     return T.list(st.tab == "browse" and HINTS.list or HINTS.mine)
   end
 
@@ -833,6 +887,142 @@ return function(ctx, env)
     K.scissor(nil)
   end
 
+  -- ------- an ended auction's recap
+
+  -- the note across the top: back, ENDED, the auction is over
+  local function drawOver(x, y, w)
+    local b = K.R(x, y, w, 9)
+    K.grad(b, 3, C.cardHi, C.card)
+    K.chevron(x + 4.5, y + 4.5, 4.4, C.text, -1)
+    K.addHit(K.R(x, y, 14, 9), "win", RECAP_BACK)
+    local pw = pill(T("auction.ended"), x + 9.5, y + 2.2, 3.4, C.redDeep)
+    local note = T("auction.over")
+    local tw = w - (pw + 13) - 3
+    K.bold(note, x + 12 + pw, y + 2.4, K.fit(note, 4.2, tw), C.text)
+  end
+  -- the Pokémon: its picture on its tier's glow, name, tier, level, shiny, types; the IVs when there's room
+  local function drawRecapMon(R, x, y, w, h, clock)
+    local b = K.R(x, y, w, h)
+    K.grad(b, 4, C.cardTop, C.card)
+    local tc = TIER_C[R.tier] or TIER_C.common
+    local ps = min(26, h - 6)
+    local ax, ay = x + 3 + ps / 2, y + 3 + ps / 2
+    K.grad(K.R(x, y, w, ps + 6), 4, TIER_DARK[R.tier] or TIER_DARK.common, C.card)
+    K.scissor(K.R(x, y, w, ps + 6))
+    if R.tier == "legendary" or R.tier == "mythical" or R.tier == "prized" then rays(ax, ay, ps * 1.1, clock, tc, 0.18) end
+    local g = G()
+    for k = 3, 1, -1 do
+      K.col(tc, 0.1 * k)
+      g.circle("fill", K.X(ax), K.Y(ay), ps * (0.2 + 0.12 * (3 - k)) * K.sc)
+    end
+    K.scissor(nil)
+    local drawn = env.monPic and env.monPic(R.sp, x + 3, y + 3, ps, 1, R.picMon)
+    if not drawn then monIcon(R.sp, x + 3 + ps * 0.1, y + 3 + ps * 0.1, ps * 0.8) end
+    local tx = x + ps + 6
+    local name = R.name or "?"
+    local ns = K.fit(name, 5.4, w - (tx - x) - 3)
+    K.bold(name, tx, y + 3.5 + (5.4 - ns) * 0.5, ns, C.text)
+    local pw = pill(T(TIER_KEY[R.tier] or TIER_KEY.common), tx, y + 10.3, 3.6, tc)
+    K.text(levelText(R.level), tx + pw + 2, y + 10.4, 4, C.soft)
+    if R.shiny then shinyBadge(tx + pw + 4 + K.width(levelText(R.level), 4), y + 10.3, 3.6, clock) end
+    if R.types ~= "" and ps >= 22 then K.text(R.types, tx, y + 16, 3.8, C.faint, "left", w - (tx - x) - 3) end
+    if R.ivs and y + h - (y + ps + 6) >= 20 then drawIvs(R, x + 4, y + ps + 6, w - 8, clock) end
+  end
+  -- one line of the result: its label at the left, a hairline under it -> where its value goes
+  local function fact(label, x, y, w)
+    K.text(label, x + 4, y, 3.8, C.soft)
+    K.col(C.line)
+    K.box("fill", K.R(x + 4, y + 4.9, w - 8, 0.25))
+    return y + 5.6
+  end
+  -- how it ended: won or outbid, the winning bid (and when), the winner, your maximum, what you paid
+  -- or got back, where it went, how many bid; the last bids while there's room
+  local function drawRecapResult(R, x, y, w, h, t, clock)
+    local b = K.R(x, y, w, h)
+    if R.won then K.grad(b, 4, C.wonTop, C.card) else K.grad(b, 4, C.cardTop, C.card) end
+    K.scissor(b)
+    local yy = y + 3
+    local head = T(R.won and "auction.recap.won" or "auction.recap.lost")
+    local hs = K.fit(head, 5, w - 12)
+    K.bold(head, x + 4, yy, hs, R.won and C.gold or C.red)
+    if R.won then
+      local hw = K.width(head, hs)
+      sparkle(x + 6.5 + hw, yy + 1.2, 1.2 + 0.6 * abs(sin(clock * 4)), C.goldTop, 0.9)
+      if st.recapBurst then
+        st.recapBurst = false
+        confetti(x + 4 + hw / 2, yy + 3, 40)
+      end
+    end
+    yy = yy + 7.5
+    K.text(T("auction.recap.final"), x + 4, yy, 3.8, C.soft)
+    if R.at then K.text(agoText(agoKey(t - R.at)), x + 4, yy, 3.6, C.faint, "right", w - 8) end
+    yy = yy + 4.6
+    local mw = money(R.price, x + 4, yy, 6.5, R.won and C.gold or C.text)
+    if R.nbids then K.text(bidsText(R.nbids), x + 6 + mw, yy + 1.9, 3.8, C.soft) end
+    yy = yy + 9.5
+    local vx, vw = x + 4, w - 8
+    -- (the winner: you, a bidder's handle, or not known for an older result)
+    local who = R.winner == 0 and T("auction.you") or R.winner or T("auction.recap.someone")
+    local vy = yy
+    yy = fact(T("auction.recap.winner"), x, yy, w)
+    K.bold(who, vx, vy, K.fit(who, 3.8, vw * 0.6), R.winner == 0 and C.gold or C.text, "right", vw)
+    if R.max then
+      vy = yy
+      yy = fact(T("auction.max"), x, yy, w)
+      money(R.max, x + w - 4, vy, 3.8, C.text, true)
+    end
+    if R.won then
+      vy = yy
+      yy = fact(T("auction.recap.paid"), x, yy, w)
+      money(R.price, x + w - 4, vy, 3.8, C.gold, true)
+      if R.where then
+        vy = yy
+        yy = fact(T("auction.recap.sentTo"), x, yy, w)
+        K.text(T(R.where == "pc" and "auction.recap.pc" or "auction.recap.party"), vx, vy, 3.8, C.text, "right", vw)
+      end
+    elseif R.max then
+      vy = yy
+      yy = fact(T("auction.recap.refunded"), x, yy, w)
+      money(R.max, x + w - 4, vy, 3.8, C.green, true)
+    end
+    if R.nBidders then
+      vy = yy
+      yy = fact(T("auction.recap.bidders"), x, yy, w)
+      K.text(numText(R.nBidders), vx, vy, 3.8, C.text, "right", vw)
+    end
+    -- (the last bids, newest first: the winning one in gold, yours in red)
+    if R.histN > 0 and y + h - yy >= 15 then
+      yy = yy + 1.5
+      K.bold(T("auction.recap.history"), x + 4, yy, 3.8, C.soft)
+      yy = yy + 5.2
+      for j = 1, R.histN do
+        if yy + 4.2 > y + h - 1.5 then break end
+        local hw = R.histWho[j]
+        local name = hw == 0 and T("auction.you") or hw
+        local top = j == 1
+        K.text(name, x + 6, yy, 3.6, hw == 0 and C.red or (top and C.text or C.faint), "left", w - 34)
+        money(R.histAmt[j], x + w - 4, yy, 3.6, top and C.gold or C.faint, true)
+        yy = yy + 4.6
+      end
+    end
+    K.scissor(nil)
+  end
+  local function drawRecap(R, x, y, w, h, t, clock)
+    drawOver(x, y, w)
+    local top = y + 9 + M
+    local bh = y + h - top
+    if w >= 150 and w > bh * 1.2 then
+      local lw = floor((w - M) * 0.48)
+      drawRecapMon(R, x, top, lw, bh, clock)
+      drawRecapResult(R, x + lw + M, top, w - lw - M, bh, t, clock)
+    else
+      -- (stacked: the Pokémon's card short, its IVs only when the result still has room)
+      local mh = (bh >= 32 + 21 + 60) and 53 or 32
+      drawRecapMon(R, x, top, w, mh, clock)
+      drawRecapResult(R, x, top + mh + M, w, bh - mh - M, t, clock)
+    end
+  end
+
   -- the head: the R, Browse | My Bids (a count while results are unread), the money
   local function drawHead(x, y, w, clock)
     K.grad(K.R(x, y + 1, 8, 8), 2, C.redTop, C.redDeep)
@@ -876,7 +1066,9 @@ return function(ctx, env)
     drawHead(x + M, y + 1, w - M * 2, clock)
     local top = y + HEAD_H + 1.5
     local bodyH = y + h - M - top
-    if st.tab == "mine" then
+    if st.tab == "mine" and st.recap then
+      drawRecap(st.recap, x + M, top, w - M * 2, bodyH, t, clock)
+    elseif st.tab == "mine" then
       drawMine(x + M, top, w - M * 2, bodyH, t, clock)
     elseif portrait then
       -- (the whole detail -- types, IVs, the last bids -- when it fits, the list takes what's left)
@@ -907,5 +1099,18 @@ return function(ctx, env)
   end
 
   current()
+  -- (a notification of a win or a loss: straight to its recap)
+  if resumeKey then
+    rebuildMine(true)
+    for i = st.mineBids + 1, st.mineN do
+      local r = st.mineRows[i]
+      if r.k and r.n and (r.k .. ":" .. r.n) == resumeKey then
+        st.mineCursor = i
+        clampList(true)
+        openRecap(i)
+        break
+      end
+    end
+  end
   return W
 end
