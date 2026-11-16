@@ -83,6 +83,7 @@ return function(mod)
   local makeErrands, errandsWindow = loadSibling(mod, "src/errands.lua"), loadSibling(mod, "src/apps/errands.lua")
   local makeSwarm = loadSibling(mod, "src/swarm.lua")
   local makeNews, newsWindow = loadSibling(mod, "src/news.lua"), loadSibling(mod, "src/apps/news.lua")
+  local makeStory = loadSibling(mod, "src/story.lua")
   local makeChallenges, challengesWindow = loadSibling(mod, "src/challenges.lua"), loadSibling(mod, "src/apps/challenges.lua")
   local makeNotes, makeFrost = loadSibling(mod, "src/notes.lua"), loadSibling(mod, "src/frost.lua")
   local Icons = loadSibling(mod, "src/icons.lua")
@@ -429,7 +430,7 @@ return function(mod)
   end
   -- (which app a kind of notification belongs to; R-Bay's are the rest)
   local NOTIFY_APP = { gts = "gts", call = "phone", bank = "bank", challenge = "challenges", errand = "errands",
-                       swarm = "news" }
+                       swarm = "news", story = "news" }
   local function notify(kind, data, quiet)
     if not Nt then return end
     local app = NOTIFY_APP[kind] or "auction"
@@ -519,6 +520,11 @@ return function(mod)
       save = mod.save, now = os.time, session = session,
       badges = function(s) return env.mart and env.mart.badges(s) or 0 end,
       swarm = function() return env.swarm and env.swarm.species() or nil end,
+      -- (a legendary or mythical Pokemon, by R-Bay's tiers: its battle is followed for the News)
+      legend = function(sp)
+        local tier = env.auction and env.auction.tierOf(sp)
+        return tier == "legendary" or tier == "mythical"
+      end,
       leader = function(cls)
         local g = gameId()
         if leaderFor ~= g then
@@ -639,9 +645,32 @@ return function(mod)
     end
     return anchorArt[key] or nil
   end
+  -- (a species by the game's own name for it, "KYOGRE")
+  local function speciesNamed(id)
+    local Constants = engine("src.core.game3.constants")
+    local ok, C = pcall(Constants and Constants.of or error, gameId())
+    local byName = ok and C and C.species and C.species.byName
+    return byName and tonumber(byName["SPECIES_" .. tostring(id)]) or nil
+  end
+  -- Ruby / Sapphire / Emerald's story for the News, from the game's own flags and variables
+  if makeStory then
+    env.story = makeStory(engine, {
+      save = mod.save, now = os.time, gameId = gameId, species = speciesNamed, notify = notify,
+      flag = function(name)
+        local R = engine("src.core.game3.rse.init")
+        return R and R.flag(name, session()) or false
+      end,
+      var = function(name)
+        local R = engine("src.core.game3.rse.init")
+        return R and R.var(name, session()) or 0
+      end,
+      head = function(s, rec) return env.news and env.news.storyHead(s, rec) or tostring(rec.id) end,
+    })
+  end
   if makeNews then
     env.news = makeNews(engine, {
-      save = mod.save, now = os.time, T = T, notify = notify,
+      save = mod.save, now = os.time, T = T, notify = notify, story = env.story, species = speciesNamed,
+      gameId = gameId,
       journal = env.journal, swarm = env.swarm, auction = env.auction, gts = env.gts, errands = env.errands,
       challenges = env.challenges, place = placeName, itemName = env.itemName,
       moveName = function(num)
@@ -1255,13 +1284,28 @@ return function(mod)
     Sh.closeGear()
     if Gear then pcall(Gear.bind) end
   end)
+  -- (a flag's change: the engine names it from FireRed's table whatever the game, so Ruby / Sapphire /
+  -- Emerald's own name is looked up from its id -- a Badge's flag, a story flag)
+  local function flagEvent(ev)
+    local id = type(ev) == "table" and tonumber(ev.id)
+    if not id then return ev end
+    local F = engine("src.core.game3.scripting.flags")
+    local ok, t = pcall(F and F.active or error, session())
+    local nm = ok and type(t) == "table" and t.NAMES and t.NAMES[id]
+    if type(nm) ~= "string" or nm == ev.name then return ev end
+    return { name = nm, id = id, value = ev.value }
+  end
   -- the journal's events (observed only), and an item used from the Bag or the field (the hook's
   -- answer passed on as it came)
   if env.journal then
     for _, name in ipairs({ "battle.started", "battle.damage_dealt", "battle.battler_switched", "battle.fainted",
                             "battle.ended", "pokemon.caught", "egg.hatched", "pokemon.evolved", "pokemon.level_up",
                             "map.entered", "world.stepped", "flag.changed" }) do
-      mod.events:on(name, function(ev) env.journal.on(name, ev) end)
+      if name == "flag.changed" then
+        mod.events:on(name, function(ev) env.journal.on(name, flagEvent(ev)) end)
+      else
+        mod.events:on(name, function(ev) env.journal.on(name, ev) end)
+      end
     end
     -- (the daily swarm: on its route, some of the encounters become it)
     if env.swarm then
@@ -1277,6 +1321,15 @@ return function(mod)
       return ok, kind, text
     end)
   end
+  -- the story's beats: a story flag changed, a new map (variables send no event), a save loaded (its own
+  -- beats, kept without a notification the first time)
+  if env.story then
+    for _, name in ipairs({ "flag.changed", "map.entered" }) do
+      mod.events:on(name, function(ev)
+        pcall(env.story.on, name, name == "flag.changed" and flagEvent(ev) or ev, session())
+      end)
+    end
+  end
   -- (a new map or a loaded save: the next PC boots again)
   mod.events:on("map.entered", function() Sh.forget() end)
   mod.events:on("save.loaded", function(ev)
@@ -1286,6 +1339,7 @@ return function(mod)
     if env.auction then pcall(env.auction.settle, ev and ev.save or session()) end
     if env.gts then pcall(env.gts.settle, ev and ev.save or session()) end
     if env.errands then pcall(env.errands.settle, ev and ev.save or session()) end
+    if env.story then pcall(env.story.check, ev and ev.save or session()) end
   end)
 
   -- other mods add apps (DEVELOPMENT.md "Adding an app"): exports.apps.register{ id, label, glyph,
@@ -1304,7 +1358,7 @@ return function(mod)
   mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
                         mart = env.mart, auction = env.auction, slots = env.slots, pcgames = env.pcgames, gts = env.gts,
                         bank = env.bank, journal = env.journal, challenges = env.challenges, errands = env.errands,
-                        swarm = env.swarm, news = env.news,
+                        swarm = env.swarm, news = env.news, story = env.story,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange,
                         watch = Watch, pad = Watch, notify = Nt, tick = tick, map3d = env.map3d, townmap = TownMap,
                         phone = env.phone, condition = env.condition, ribbons = env.ribbons, hall = env.hall, oak = env.oak, decorate = env.decorate, pokenav = Pokenav, onCall = onCall, gear = Gear, gearPanel = GearPanel }

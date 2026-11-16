@@ -340,6 +340,11 @@ return function(mod, loadSibling)
       swarm = function() return env.swarm and env.swarm.species() or nil end,
       leader = function(cls) return cls == 1 end,
       map = function() return Play and Play.mapNow(session()) or nil end,
+      -- (a legendary or mythical Pokémon, by R-Bay's tiers: its battle is followed for the News)
+      legend = function(sp)
+        local tier = env.auction and env.auction.tierOf(sp)
+        return tier == "legendary" or tier == "mythical"
+      end,
     }) or nil
     if makeChallenges and env.journal then
       env.challenges = makeChallenges(noEngine, {

@@ -18,7 +18,8 @@
 --                               session() ; swarm() -> today's swarm species id or nil ;
 --                               leader(trainerClass) -> a Gym Leader's class ; port (the Game Boy
 --                               games: src/gb/port.lua -- species as their string ids, types, shininess)
---                               ; map() -> where the player is (else session.map)
+--                               ; map() -> where the player is (else session.map) ; legend(sp) -> a
+--                               legendary or mythical species (its battle followed)
 --   Jr.on(name, ev)   name: "battle.started" | "battle.damage_dealt" | "battle.battler_switched" |
 --                     "battle.fainted" | "battle.ended" | "pokemon.caught" | "egg.hatched" |
 --                     "pokemon.evolved" | "pokemon.level_up" | "map.entered" | "world.stepped" |
@@ -30,6 +31,9 @@
 --       way), turns, fin = the finishing blow, at } ; the Gym's adds beats = { { k = "ko" | "down",
 --       t (the turn), v (who fell), by, mv (the move), sup, crit } }, lead, foeLead, n (Badges), badge
 --     the catch: { sp, map, new, shiny, ball, lv, at }
+--   Jr.legend() -> the latest battle with a legendary or mythical Pokémon (deps.legend(sp)), followed like a
+--     trainer's: { sp, lv, map, result = "caught" | "down" (knocked out) | "lost" | "ran" | "fled", turns,
+--     mine, beats, lead, balls (thrown), ball (the one that caught it), shiny, at }
 
 local floor = math.floor
 
@@ -100,6 +104,7 @@ return function(engine, deps)
   function Jr.wins() return data().wins end
   function Jr.gym() return data().gym end
   function Jr.catch() return data().catch end
+  function Jr.legend() return data().legend end
 
   local function P() return engine("src.core.game3.pokemon") end
   local Port = deps.port
@@ -140,13 +145,35 @@ return function(engine, deps)
   end
   local function turnOf(ev) return type(ev.battle) == "table" and tonumber(ev.battle.turn) or 0 end
 
-  -- the trainer battle being fought (memory only)
+  local function isLegend(sp)
+    if not (sp and deps.legend) then return false end
+    local ok, yes = pcall(deps.legend, sp)
+    return ok and yes == true
+  end
+  -- (how a legend's battle ended, from the engine's outcome)
+  local ENDS = { caught = "caught", catch = "caught", win = "down", won = "down", lose = "lost", lost = "lost",
+                 whiteout = "lost", blackout = "lost", run = "ran", ran = "ran", fled_player = "ran",
+                 teleport_player = "ran", player_teleported = "ran", fled = "fled", mon_fled = "fled",
+                 mon_teleported = "fled" }
+
+  -- the trainer battle being fought, or a legend's (memory only)
   local fight
   local live = {}
   live["battle.started"] = function(ev)
     fight = nil
     local b = ev.battle
-    if type(b) ~= "table" or b.wild or b.link or ev.kind == "wild" or ev.kind == "link" then return end
+    if type(b) ~= "table" or b.link or ev.kind == "link" then return end
+    if b.wild or ev.kind == "wild" then
+      -- (a wild battle: only a legend's is followed)
+      local sp = spId(ev.speciesId) or spOf(b.enemy)
+      if not isLegend(sp) then return end
+      local foe = type(b.enemy) == "table" and b.enemy or nil
+      fight = { legend = sp, lv = tonumber(ev.level) or (foe and tonumber(foe.level or (foe.mon and foe.mon.level))),
+                shiny = shiny(foe and foe.mon), map = mapNow(), hit = {}, beats = {}, me = 0, them = 0, mine = {},
+                theirs = {}, lead = spOf(b.player), foeLead = sp }
+      join(fight.mine, fight.lead)
+      return
+    end
     fight = { map = mapNow(), hit = {}, beats = {}, me = 0, them = 0, mine = {}, theirs = {},
               lead = spOf(b.player), foeLead = spOf(b.enemy) }
     join(fight.mine, fight.lead)
@@ -193,11 +220,27 @@ return function(engine, deps)
   end
 
   local handlers = {}
+  -- (balls thrown: the battle's own count, by kind, and a Master Ball)
+  local function ballsOf(b)
+    local r = type(b.battleResults) == "table" and b.battleResults or nil
+    if not r then return nil end
+    local n = r.usedMasterBall and 1 or 0
+    for _, c in pairs(type(r.catchAttempts) == "table" and r.catchAttempts or {}) do n = n + (tonumber(c) or 0) end
+    return n
+  end
   handlers["battle.ended"] = function(d, ev)
     local b = type(ev.battle) == "table" and ev.battle or {}
     local f = fight
     fight = nil
     if b.link then return end
+    if f and f.legend then
+      local how = ENDS[tostring(ev.result or "win")]
+      if how then
+        d.legend = { sp = f.legend, lv = f.lv, map = f.map or mapNow(), result = how, turns = tonumber(b.turn) or 0,
+                     mine = f.mine, beats = f.beats, lead = f.lead, balls = ballsOf(b), ball = f.ball,
+                     shiny = f.shiny or nil, at = Jr.now() }
+      end
+    end
     if ev.result == "win" then
       if b.wild then
         add(d, "wild")
@@ -252,6 +295,7 @@ return function(engine, deps)
       if deps.swarm and deps.swarm() == sp then add(d, "swarm") end
     end
     local sh = shiny(ev.mon)
+    if fight and fight.legend then fight.ball = tonumber(ev.ballId) or (Port and ev.ballId) or nil end
     note(d, { k = "catch", sp = sp, new = ev.isNew == true, shiny = sh })
     d.catch = { sp = sp, map = mapNow(), new = ev.isNew == true, shiny = sh or nil, ball = tonumber(ev.ballId),
                 lv = type(ev.mon) == "table" and tonumber(ev.mon.level) or nil, at = Jr.now() }

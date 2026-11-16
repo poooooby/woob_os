@@ -1014,6 +1014,69 @@ the voxel diorama mod in the engine's checkout either (another author's).
   wider than the line, as Japanese is, broken between letters). Taller than the card, the typing
   line is kept in view (`st.top`), all there it shows the last lines once (`st.settled`), then
   Up / Down and `W.scroll` move it.
+- **A legend's battle** (`Jr.legend()`): `battle.started` with `wild` and a species
+  `deps.legend(sp)` calls legendary or mythical (main.lua: R-Bay's `Au.tierOf`) is followed like a
+  trainer's; `pokemon.caught` during it keeps the Ball; `battle.ended` keeps `d.legend` with the
+  result from the engine's outcome (`catch` -> caught, `win` -> down, `lose` -> lost, `run` -> ran,
+  `fled` -> fled) and the throws (`battle.battleResults.catchAttempts`, counted by kind, plus
+  `usedMasterBall`). The News's `legend` story: a lede, the leads, each knockout, the catch as the
+  last beat.
+- **The story** (`src/story.lua`): `BEATS` in story order, each the game's own flag or variable as
+  its script sets it (found from the cart's scripts; FireRed's have no names, so the map whose events
+  reach the script tells which scene it is):
+
+  | Beat (FireRed / LeafGreen) | Flag | The script's map |
+  |---|---|---|
+  | pokedex | `FLAG_SYS_POKEDEX_GET` | Oak's Lab |
+  | mtMoon | `FLAG_GOT_FOSSIL_FROM_MT_MOON` | Mt. Moon B2F |
+  | burglar | `FLAG_GOT_TM28_FROM_ROCKET` | Cerulean City |
+  | bill | `FLAG_HELPED_BILL_IN_SEA_COTTAGE` | Route 25's Sea Cottage |
+  | ssAnne | `FLAG_GOT_HM01` | the S.S. Anne captain's office |
+  | hideout | `FLAG_HIDE_CELADON_ROCKETS` | Rocket Hideout B4F (Giovanni beaten) |
+  | fuji | `FLAG_RESCUED_MR_FUJI` | Pokémon Tower 7F |
+  | snorlax | `FLAG_WOKE_UP_ROUTE_12_SNORLAX` | Route 12 |
+  | silph | `FLAG_HIDE_SAFFRON_ROCKETS` | Silph Co. 11F (Giovanni beaten) |
+  | giovanni | `FLAG_DEFEATED_LEADER_GIOVANNI` | Viridian Gym |
+  | champion | `FLAG_SYS_GAME_CLEAR` | (the Hall of Fame) |
+  | ruby | `FLAG_GOT_RUBY` | Mt. Ember's Ruby Path B5F |
+  | warehouse / sapphire | `FLAG_DEFEATED_ROCKETS_IN_WAREHOUSE` / `FLAG_RECOVERED_SAPPHIRE` | Five Island's warehouse |
+  | network | `FLAG_SYS_CAN_LINK_WITH_RS` | One Island's Pokémon Center (Celio) |
+  | beast | no flag: `s.roamer` active (`roaming`), kept once seen | (`InitRoamer`) |
+
+  Ruby / Sapphire / Emerald's:
+
+  | Beat | Emerald | Ruby / Sapphire |
+  |---|---|---|
+  | chimney | `FLAG_DEFEATED_EVIL_TEAM_MT_CHIMNEY` (MtChimney_EventScript_Maxie) | the same flag |
+  | institute | `VAR_WEATHER_INSTITUTE_STATE` >= 1 (Shelly beaten) | the same |
+  | orb / orbs | `VAR_MT_PYRE_STATE` >= 1 (MtPyre_Summit_EventScript_TeamAquaExits) | `FLAG_MT_PYRE_ORB_STOLEN` |
+  | groudon | `FLAG_GROUDON_AWAKENED_MAGMA_HIDEOUT` (MagmaHideout_4F_EventScript_Maxie) | - |
+  | submarine | `FLAG_TEAM_AQUA_ESCAPED_IN_SUBMARINE` (AquaHideout_B2F) | `VAR_SLATEPORT_HARBOR_STATE` >= 2 |
+  | spaceCenter | `VAR_MOSSDEEP_CITY_STATE` >= 3 | - |
+  | awakened | `FLAG_KYOGRE_ESCAPED_SEAFLOOR_CAVERN` | `FLAG_LEGEND_ESCAPED_SEAFLOOR_CAVERN` |
+  | clash | `VAR_SOOTOPOLIS_CITY_STATE` >= 2 (the legendaries' scene) | - |
+  | cave | `VAR_SOOTOPOLIS_CITY_STATE` >= 3 (Cave of Origin B1F, Wallace) | `VAR_SOOTOPOLIS_STATE` >= 2 (Steven leads the way) |
+  | rayquaza | `VAR_SKY_PILLAR_STATE` >= 1 | - |
+  | calm | `VAR_SKY_PILLAR_STATE` >= 2 (Rayquaza's scene in Sootopolis) | `FLAG_LEGENDARY_BATTLE_COMPLETED` |
+  | champion | `FLAG_SYS_GAME_CLEAR` | the same |
+  | lati | `FLAG_LATIOS_OR_LATIAS_ROAMING` (the TV report) | the same |
+  | frontier / tower | `FLAG_SYS_FRONTIER_PASS` | `FLAG_LANDMARK_BATTLE_TOWER` |
+
+  The team and the legend by version (Ruby: Magma, Groudon; Sapphire: Aqua, Kyogre; Emerald: both).
+  `Sy.check` runs on `flag.changed` for a watched flag, on `map.entered` (variables send no event)
+  and on `save.loaded`; never per frame. A beat seen for the first time gets `Sy.now()` and the newest
+  of a check a "story" notification (its headline from `Nw.storyHead`); the save's first check keeps
+  what it already had at 0, quietly (`mod.save` "story" `{ init, seen }`). `Sy.crisis` is
+  `FLAG_SYS_WEATHER_CTRL` (set at the Seafloor Cavern, cleared by Rayquaza / the Cave of Origin's
+  battle); `Sy.roamer` is `s.roamer` (`species`, `map`, `active`), the same the Pokédex's Area shows.
+  The News tells the crisis, then the beats reached since it was last watched (three at most), else
+  the latest, then the roamer; the words are `news.story.<id>` (Ruby / Sapphire's own for `cave`
+  and `calm`: `caveRs`, `calmRs`; FireRed / LeafGreen's `championFr`), each given the names `STORY`
+  lists in order.
+- **The engine's `flag.changed` names a flag from FireRed's table** whatever the game
+  (`Flags.NAMES[id]`), so on Ruby / Sapphire / Emerald the name is wrong. main.lua's `flagEvent`
+  looks the id up in the game's own table (`Flags.active(session).NAMES`) before the journal (a
+  Badge) and the story see it.
 - **Words:** type names are `type.<id>` (the game keeps them six letters long: "PSYCHC").
 
 ## The PokéNav's apps

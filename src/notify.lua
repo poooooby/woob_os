@@ -28,13 +28,13 @@ local KEEP, WAITING = 20, 3
 -- the list only
 local IN, HOLD, OUT, STALE = 0.3, 4, 0.35, 600
 local APP = { outbid = "auction", won = "auction", lost = "auction", soon = "auction", gts = "gts", call = "phone",
-              bank = "bank", challenge = "challenges", errand = "errands", swarm = "news" }
+              bank = "bank", challenge = "challenges", errand = "errands", swarm = "news", story = "news" }
 local SOUND = { outbid = "SE_FAILURE", won = "SE_SUCCESS", lost = "SE_SELECT", soon = "SE_SELECT", gts = "SE_PC_LOGIN",
                 call = "SE_POKENAV_CALL", bank = "SE_M_PAY_DAY", challenge = "SE_SUCCESS",
-                errand = "SE_BALL_TRAY_BALL", swarm = "SE_PIN" }
+                errand = "SE_BALL_TRAY_BALL", swarm = "SE_PIN", story = "SE_PIN" }
 local TEXT = { outbid = "notify.outbid", won = "notify.won", lost = "notify.lost", soon = "notify.soon", gts = "notify.gts",
                call = "notify.call", bank = "notify.bank", challenge = "notify.challenge",
-               errand = "notify.errand", swarm = "notify.swarm" }
+               errand = "notify.errand", swarm = "notify.swarm", story = "notify.story" }
 local TITLE = { auction = "app.auction", gts = "app.gts", phone = "app.phone", bank = "app.bank",
                 challenges = "app.challenges", errands = "app.errands", news = "app.news" }
 -- each app's own switch (Settings > Notifications), and the order Settings lists them in

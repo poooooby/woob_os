@@ -774,4 +774,207 @@ if Sw and Nw then
   X._test.env.setLanguage("en")
 end
 
+-- ------- a battle with a legend (every game): followed like a Gym's, told by how it ended
+
+if Jr and Nw then
+  local ev = run.loader.events
+  local kyogre, squirtle, pidgey = spOf(382), spOf(7), spOf(16)
+  local function battler(side, id, sp, lv) return { side = side, id = id, species = sp, level = lv, mon = { species = sp, level = lv } } end
+  s.map = GAME == "emerald" and "EM_MARINE_CAVE_END" or s.map
+  tnow = tnow + 100
+  local me, foe = battler("player", 0, squirtle, 60), battler("enemy", 1, kyogre, 70)
+  local lb = { wild = true, turn = 0, player = me, enemy = foe, battleResults = { catchAttempts = { [3] = 2 } } }
+  ev:emit("battle.started", { kind = "wild", battle = lb, speciesId = kyogre, level = 70 })
+  lb.turn = 2
+  ev:emit("battle.damage_dealt", { battle = lb, user = foe, target = me, targetId = 0, move = { num = 56 }, typeMult = 20 })
+  ev:emit("battle.fainted", { battle = lb, battler = me, sideName = "player", battlerId = 0 })
+  local bird = battler("player", 0, pidgey, 60)
+  lb.player, lb.turn = bird, 5
+  ev:emit("battle.battler_switched", { battle = lb, sideName = "player", battler = bird, speciesId = pidgey })
+  ev:emit("pokemon.caught", { speciesId = kyogre, isNew = true, ballId = 2, mon = { species = kyogre, level = 70 } })
+  ev:emit("battle.ended", { result = "caught", battle = lb })
+  local L = Jr.legend()
+  T.check(L and L.sp == kyogre and L.result == "caught" and L.lv == 70 and L.turns == 5 and L.ball == 2 and L.balls == 2
+    and L.lead == squirtle and #L.beats == 1 and L.beats[1].k == "down" and L.beats[1].mv == 56,
+    "a legend's battle: caught on turn 5 in the second Ball thrown, the setback (" .. tostring(L and L.result) .. ")")
+  -- (an ordinary wild battle isn't followed)
+  ev:emit("battle.started", { kind = "wild", battle = { wild = true, turn = 0, player = me, enemy = battler("enemy", 1, pidgey, 3) }, speciesId = pidgey })
+  ev:emit("battle.ended", { result = "win", battle = { wild = true, turn = 1 } })
+  T.check(Jr.legend() == L, "a Pidgey: not a legend's battle")
+  local cast = Nw.build(s)
+  local ls
+  for _, st in ipairs(cast.stories) do if st.key == "legend" then ls = st end end
+  local kyName = PokeG.name(kyogre)
+  T.check(ls and ls.head:lower():find("catches", 1, true) and ls.head:lower():find(kyName:lower(), 1, true)
+    and ls.body:find("70", 1, true) and ls.body:find("2 throws", 1, true) and ls.mood == "cheer" and ls.sp == kyogre,
+    "the News: the catch, the level, the throws (" .. tostring(ls and (ls.head .. " / " .. ls.body)) .. ")")
+  T.check(ls and #ls.beats == 3 and ls.beats[1].mark == "" and ls.beats[2].mark == "T2" and ls.beats[3].mark == "T5",
+    "its play-by-play: the leads, the setback, the catch")
+  -- (knocked out instead: told so)
+  ev:emit("battle.started", { kind = "wild", battle = lb, speciesId = kyogre, level = 70 })
+  ev:emit("battle.fainted", { battle = lb, battler = foe, sideName = "enemy", battlerId = 1 })
+  ev:emit("battle.ended", { result = "win", battle = lb })
+  T.eq(Jr.legend().result, "down", "a legend knocked out")
+end
+
+-- ------- the story (Ruby / Sapphire / Emerald): the game's own flags and variables, told by the News
+
+local Sy = X._test.story
+T.check(Sy ~= nil, "the story")
+local RSE_GAME = GAME == "emerald" or GAME == "ruby" or GAME == "sapphire"
+if Sy and Nw and not RSE_GAME then
+  -- (FireRed / LeafGreen: Team Rocket, the Sevii Islands, the beasts roaming)
+  local function has(text, part) return tostring(text):lower():find(tostring(part):lower(), 1, true) ~= nil end
+  local R = require("src.core.game3.rse.init")
+  local ev = run.loader.events
+  local Space = require("src.core.game3.scripting.space")
+  local keptStore = Space.store
+  Space.store = keptStore or { flags = {}, vars = {} }
+  Sy.store, Sy.now = fakeSave, function() return tnow end
+  fakeSave.data.story, fakeSave.data.news = nil, nil
+  R.setFlag("FLAG_SYS_POKEDEX_GET", true)
+  Nt.reset()
+  Sy.check(s)
+  T.check(#Nt.list() == 0 and fakeSave.data.story.seen.pokedex == 0, "FireRed: the Pokédex the save had, kept quietly")
+  tnow = tnow + 50
+  R.setFlag("FLAG_HIDE_SAFFRON_ROCKETS", true)
+  ev:emit("flag.changed", { name = "FLAG_HIDE_SAFFRON_ROCKETS", value = true })
+  local rec = Nt.list()[1]
+  T.check(rec and rec.kind == "story" and rec.state.story == "story.silph" and has(rec.text, "Silph Co. liberated"),
+    "Silph Co. freed: a notification (" .. tostring(rec and rec.text) .. ")")
+  local function build()
+    local c = Nw.build(s)
+    local by = {}
+    for _, st in ipairs(c.stories) do by[st.key] = st end
+    return by
+  end
+  local by = build()
+  local sl = by["story.silph"]
+  T.check(sl and sl.tag == "you" and sl.mood == "cheer" and has(sl.body, "Giovanni") and sl.color[1] == 196,
+    "the News: Silph Co., the rookie's, in Team Rocket's red (" .. tostring(sl and sl.body) .. ")")
+  -- (the Champion: the Indigo Plateau, not Ever Grande)
+  tnow = tnow + 50
+  R.setFlag("FLAG_SYS_GAME_CLEAR", true)
+  ev:emit("flag.changed", { name = "FLAG_SYS_GAME_CLEAR", value = true })
+  by = build()
+  T.check(by["story.champion"] and has(by["story.champion"].body, "Indigo Plateau"), "the Champion at the Indigo Plateau")
+  -- (Raikou out roaming: its beat on the next map, then where it is)
+  local raikou = spOf(243)
+  local keep = s.roamer
+  s.roamer = { species = raikou, map = s.map, active = true }
+  tnow = tnow + 50
+  ev:emit("map.entered", { mapId = s.map })
+  rec = Nt.list()[1]
+  T.check(rec and rec.state.story == "story.beast" and rec.sp == raikou and has(rec.text, PokeG.name(raikou)),
+    "Raikou roaming: a notification naming it (" .. tostring(rec and rec.text) .. ")")
+  by = build()
+  T.check(by.roamer and by.roamer.sp == raikou and by["story.beast"], "where Raikou is, and its beat")
+  for _, lang in ipairs({ "en", "ja", "de" }) do
+    X._test.env.setLanguage(lang)
+    for _, story in ipairs({ "story.beast", "roamer" }) do
+      local SW = Apps.byId("news").window({ session = s, mode = "pad", app = "news", rows = {},
+        resume = { app = "news", state = { story = story } } }, X._test.env)
+      local okS, errS = pcall(function() for _ = 1, 2 do drawWin(SW, false) drawWin(SW, true) end end)
+      T.check(okS and SW.state.cast.stories[SW.state.i].key == story, lang .. ": " .. story .. " draws (" .. tostring(errS) .. ")")
+    end
+  end
+  X._test.env.setLanguage("en")
+  s.roamer.active = false
+  T.check(#Sy.reached(s) >= 4 and Sy.roamer(s) == nil, "caught: its beat stays, no longer roaming")
+  for _, b in ipairs(Sy.BEATS) do
+    if b.games[GAME] then
+      local head = Nw.storyHead(s, { id = b.id, team = b.team, legend = raikou })
+      T.check(type(head) == "string" and not head:find("news.story", 1, true) and not head:find("%", 1, true),
+        "the headline for " .. b.id .. ": " .. tostring(head))
+    end
+  end
+  s.roamer = keep
+  for _, f in ipairs({ "FLAG_SYS_POKEDEX_GET", "FLAG_HIDE_SAFFRON_ROCKETS", "FLAG_SYS_GAME_CLEAR" }) do R.setFlag(f, false) end
+  Space.store = keptStore
+elseif Sy and Nw then
+  local function has(text, part) return tostring(text):lower():find(tostring(part):lower(), 1, true) ~= nil end
+  local R = require("src.core.game3.rse.init")
+  local ev = run.loader.events
+  local em = GAME == "emerald"
+  local legend = (GAME == "ruby") and spOf(383) or spOf(382)
+  local AWAKE = em and "FLAG_KYOGRE_ESCAPED_SEAFLOOR_CAVERN" or "FLAG_LEGEND_ESCAPED_SEAFLOOR_CAVERN"
+  Sy.store, Sy.now = fakeSave, function() return tnow end
+  fakeSave.data.story, fakeSave.data.news = nil, nil
+  -- (headless there's no script store: the flags and variables the game's scripts would keep)
+  local Space = require("src.core.game3.scripting.space")
+  local keptStore = Space.store
+  Space.store = keptStore or { flags = {}, vars = {} }
+  -- (a save that already had a beat: kept, no notification)
+  R.setFlag("FLAG_DEFEATED_EVIL_TEAM_MT_CHIMNEY", true)
+  Nt.reset()
+  Sy.check(s)
+  T.check(#Nt.list() == 0 and fakeSave.data.story.seen.chimney == 0, "a beat the save already had: kept, no notification")
+  -- (the legend awakened: the flag set as the script sets it)
+  tnow = tnow + 50
+  R.setFlag(AWAKE, true)
+  R.setFlag("FLAG_SYS_WEATHER_CTRL", true)
+  ev:emit("flag.changed", { name = AWAKE, value = true })
+  local rec = Nt.list()[1]
+  T.check(#Nt.list() == 1 and rec.kind == "story" and rec.app == "news" and rec.state.story == "story.awakened"
+    and rec.sp == legend and has(rec.text, PokeG.name(legend)),
+    "the legend awakened: a notification naming it, opening its story (" .. tostring(rec and rec.text) .. ")")
+  ev:emit("flag.changed", { name = "FLAG_SYS_POKEDEX_GET", value = true })
+  T.eq(#Nt.list(), 1, "another flag: nothing more")
+  local function build()
+    local c = Nw.build(s)
+    local by, keys = {}, {}
+    for _, st in ipairs(c.stories) do by[st.key], keys[#keys + 1] = st, st.key end
+    return by, " " .. table.concat(keys, " ") .. " "
+  end
+  local by, joined = build()
+  local aw, cr = by["story.awakened"], by.crisis
+  T.check(aw and aw.sp == legend and aw.mood == "shock" and has(aw.head, PokeG.name(legend))
+    and aw.body:find(em and "Team Aqua" or (GAME == "ruby" and "Team Magma" or "Team Aqua"), 1, true),
+    "the News: the legend awakened, by the team that woke it (" .. tostring(aw and (aw.head .. " / " .. aw.body)) .. ")")
+  T.check(cr and cr.mood == "shock" and cr.head:find(em and "Drought and downpour" or (GAME == "ruby" and "Drought" or "Downpour"), 1, true),
+    "the weather while it's loose (" .. tostring(cr and cr.head) .. ")")
+  T.check(not by["story.chimney"] and joined:find(" crisis story.awakened ", 1, true),
+    "the story leads the world's news; an old beat isn't told again (" .. joined .. ")")
+  -- (a variable: read on the next map)
+  tnow = tnow + 50
+  R.setVar(em and "VAR_SOOTOPOLIS_CITY_STATE" or "VAR_SOOTOPOLIS_STATE", em and 3 or 2)
+  ev:emit("map.entered", { mapId = s.map })
+  T.check(Nt.list()[1].state.story == "story.cave", "the Cave of Origin: on the next map")
+  by = build()
+  T.check(by["story.cave"] and not by["story.awakened"], "the next broadcast: what's new since")
+  by = build()
+  T.check(by["story.cave"] ~= nil, "nothing new: the latest beat stays the story")
+  -- (Latias / Latios out roaming: where the game has it now)
+  local lati = spOf(380)
+  R.setFlag("FLAG_LATIOS_OR_LATIAS_ROAMING", true)
+  local keep = s.roamer
+  s.roamer = { species = lati, map = s.map, active = true }
+  by = build()
+  T.check(by.roamer and by.roamer.sp == lati and has(by.roamer.head, PokeG.name(lati)),
+    "Latias roaming: where it is (" .. tostring(by.roamer and by.roamer.head) .. ")")
+  -- (the window: each story drawn, in every language's longest)
+  for _, lang in ipairs({ "en", "ja", "de" }) do
+    X._test.env.setLanguage(lang)
+    for _, story in ipairs({ "story.lati", "crisis", "roamer", "legend" }) do
+      local SW = Apps.byId("news").window({ session = s, mode = "pad", app = "news", rows = {},
+        resume = { app = "news", state = { story = story } } }, X._test.env)
+      local okS, errS = pcall(function() for _ = 1, 2 do drawWin(SW, false) drawWin(SW, true) end end)
+      T.check(okS and SW.state.cast.stories[SW.state.i].key == story, lang .. ": " .. story .. " draws (" .. tostring(errS) .. ")")
+    end
+  end
+  X._test.env.setLanguage("en")
+  -- (the beats' words: every one, every game's way, in every language)
+  for _, b in ipairs(Sy.BEATS) do
+    local head = Nw.storyHead(s, { id = b.id, team = "aqua", legend = legend })
+    T.check(type(head) == "string" and not head:find("news.story", 1, true) and not head:find("%", 1, true),
+      "the headline for " .. b.id .. ": " .. tostring(head))
+  end
+  s.roamer = keep
+  for _, f in ipairs({ "FLAG_DEFEATED_EVIL_TEAM_MT_CHIMNEY", AWAKE, "FLAG_SYS_WEATHER_CTRL", "FLAG_LATIOS_OR_LATIAS_ROAMING" }) do
+    R.setFlag(f, false)
+  end
+  R.setVar(em and "VAR_SOOTOPOLIS_CITY_STATE" or "VAR_SOOTOPOLIS_STATE", 0)
+  Space.store = keptStore
+end
+
 T.finish("woob_os world (" .. GAME .. ")")

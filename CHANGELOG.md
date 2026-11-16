@@ -5,6 +5,31 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **The News follows FireRed and LeafGreen's story.** Each step is breaking news with a notification
+  the moment the game reaches it: the Pokédex from Professor Oak, Team Rocket's fossil dig at Mt.
+  Moon, the Cerulean burglar, Bill's mix-up, the S.S. Anne's captain, the Rocket Hideout under the
+  Game Corner, Mr. Fuji rescued from Pokémon Tower, Snorlax woken on Route 12, Silph Co. liberated,
+  Team Rocket disbanded after Viridian's Gym, the new Champion, and on the Sevii Islands the Ruby
+  found on Mt. Ember, Team Rocket's warehouse raided, the Sapphire won back and Celio's machine
+  running. While Raikou, Entei or Suicune roams, the News says which route it was last seen on.
+- **The News follows Ruby, Sapphire and Emerald's story.** Each step is breaking news with a
+  notification the moment the game reaches it: Team Magma or Team Aqua stopped at Mt. Chimney and
+  driven out of the Weather Institute, Mt. Pyre's orbs stolen, the submarine taken, Groudon woken
+  under Jagged Pass and the Space Center saved (Emerald), the legend awakened in the Seafloor Cavern,
+  Groudon and Kyogre clashing over Sootopolis, the Cave of Origin, Rayquaza woken at Sky Pillar and
+  the clash ended, the new Champion, Latias or Latios sighted, the Battle Frontier (Emerald) and the
+  Battle Tower (Ruby and Sapphire). While the legend is loose, the drought, the downpour or
+  Emerald's swings between the two lead the News, and while Latias or Latios roams the News says
+  which route it was last seen on. A save that already had a step keeps it without a
+  notification.
+- **A battle with a legendary Pokémon gets its own report** on every game: where, its level, the
+  play-by-play, and how it ended (caught, with the Ball and how many throws it took, knocked out,
+  got away, or your team beaten).
+
+### Fixed
+- On Ruby, Sapphire and Emerald, the News's Gym reports now count the Badge won.
+
 ## [0.15.0] - 2026-11-16
 
 ### Added

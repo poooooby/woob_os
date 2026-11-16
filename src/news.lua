@@ -2,9 +2,11 @@
 -- region can't stop talking about, the way sports news follows a breakout star: first their latest
 -- Gym (the score, then the play-by-play: the leads, each knockout and the turn it came, the
 -- finishing blow), their last two trainers beaten (the score, where, both teams, the finisher), their
--- latest catch (a signing: where, the level, the Ball), newest first, and their week. Then the world
--- (today's swarm, Ruby / Sapphire / Emerald's own TV outbreak, Emerald's storms, R-Bay's hottest
--- auction), then what else the journal saw since they last watched (a shiny, a first for the
+-- latest catch (a signing: where, the level, the Ball), their latest battle with a legend (its
+-- play-by-play and how it ended), newest first, and their week. Then the world
+-- (Ruby / Sapphire / Emerald's story as it happens -- src/story.lua -- the weather while a legend is loose
+-- and where Latias / Latios roam, today's swarm, the game's own TV outbreak, Emerald's storms, R-Bay's
+-- hottest auction), then what else the journal saw since they last watched (a shiny, a first for the
 -- Pokédex, hatches, evolutions), a GTS trade, a team out on an errand or back, the week's challenges.
 -- The rookie's stories are told as the desk's reports, the player by name ("Our field teams report ..."),
 -- never to them ("you").
@@ -16,18 +18,67 @@
 -- the rest.
 --
 --   Nw = News(engine, deps)  deps: save ; now() ; journal ; swarm ; auction ; gts ; errands ;
---       challenges ; storm(s) -> { kind, place } | nil ; place(mapId) -> its name ; monName(sp) ;
+--       challenges ; story (src/story.lua) ; storm(s) -> { kind, place } | nil ; place(mapId) -> its name ;
+--       monName(sp) ; species(name) -> sp ;
 --       moveName(num) ; itemName(id) ; T ; notify(kind, data)
 --   Nw.build(s) -> { stories = { { tag = "world" | "you", head, body, beats = { { mark, text } } | nil,
 --       sp, glyph, color, key, mood = "cheer" | "shock" | nil } }, ticker }
---     keys: gym, match1, match2, signing, week, swarm, outbreak, storm, rbay, shiny, catch, hatch,
---       evolve, gts, errand, errandBack, challenges, quiet
+--     keys: gym, match1, match2, signing, legend, week, story.<id> (src/story.lua's ids), crisis, roamer,
+--       swarm, outbreak, storm, rbay, shiny, catch, hatch, evolve, gts, errand, errandBack, challenges, quiet
 --   Nw.tick(s) (once a second: a new day's swarm -> a "swarm" notification, once a day)
+--   Nw.storyHead(s, { id, team, legend }) -> a story beat's headline (its notification's words)
 
 local floor, max, min = math.floor, math.max, math.min
 
 local TIER_RANK = { common = 1, uncommon = 2, rare = 3, prized = 4, legendary = 5, mythical = 6 }
 local MOMENTS = 4      -- the journal's moments told at most
+local BEATS_NEW = 3    -- the story's beats told at most, when several came since they last watched
+
+-- the story's beats: what the headline and the words are given, in order (me = the player, team, legend;
+-- groudon / kyogre the two by name), whose story it is, the anchor's mood, a picture when it has no
+-- Pokemon. Ruby and Sapphire tell a few their own way, FireRed and LeafGreen the Champion (KEY_RS, KEY_FR:
+-- the words' key)
+local STORY = {
+  -- (FireRed / LeafGreen)
+  pokedex = { head = { "me" }, body = { "me" }, tag = "you", mood = "cheer", glyph = "pokeball" },
+  mtMoon = { head = {}, body = { "me" }, tag = "you", mood = "cheer", glyph = "cube" },
+  burglar = { head = {}, body = { "me" }, tag = "you", glyph = "glove" },
+  bill = { head = { "me" }, body = { "me" }, tag = "you", glyph = "speech" },
+  ssAnne = { head = { "me" }, body = { "me" }, tag = "you", glyph = "fish" },
+  hideout = { head = {}, body = { "me" }, tag = "you", mood = "shock", glyph = "building" },
+  fuji = { head = {}, body = { "me" }, tag = "you", mood = "cheer", glyph = "bell" },
+  snorlax = { head = { "legend" }, body = { "legend", "me" } },
+  silph = { head = {}, body = { "me" }, tag = "you", mood = "cheer", glyph = "building" },
+  giovanni = { head = {}, body = { "me" }, mood = "shock", glyph = "glove" },
+  championFr = { head = { "me" }, body = { "me" }, tag = "you", mood = "cheer", glyph = "medal" },
+  ruby = { head = { "me" }, body = { "me" }, tag = "you", mood = "cheer", glyph = "flame" },
+  warehouse = { head = {}, body = { "me" }, tag = "you", mood = "cheer", glyph = "building" },
+  sapphire = { head = {}, body = { "me" }, tag = "you", mood = "cheer", glyph = "eye" },
+  network = { head = {}, body = {}, mood = "cheer", glyph = "network" },
+  beast = { head = { "legend" }, body = { "legend" }, mood = "shock" },
+  -- (Ruby / Sapphire / Emerald)
+  chimney = { head = { "me", "team" }, body = { "me", "team" }, tag = "you", mood = "cheer", glyph = "flame" },
+  institute = { head = { "me", "team" }, body = { "me", "team" }, tag = "you", mood = "cheer", glyph = "cloud" },
+  orb = { head = { "team" }, body = { "team" }, mood = "shock", glyph = "eye" },
+  orbs = { head = {}, body = {}, mood = "shock", glyph = "eye" },
+  groudon = { head = { "legend" }, body = { "team", "legend" }, mood = "shock" },
+  submarine = { head = { "team" }, body = { "team" }, mood = "shock", glyph = "fish" },
+  spaceCenter = { head = { "me" }, body = { "team", "me" }, tag = "you", mood = "cheer", glyph = "building" },
+  awakened = { head = { "legend" }, body = { "team", "legend" }, mood = "shock" },
+  clash = { head = { "groudon", "kyogre" }, body = {}, mood = "shock" },
+  cave = { head = { "me" }, body = { "me" }, tag = "you", glyph = "eye" },
+  caveRs = { head = { "legend" }, body = { "legend", "me" } },
+  rayquaza = { head = { "legend" }, body = { "me", "legend" }, mood = "shock" },
+  calm = { head = { "legend" }, body = { "legend" }, mood = "cheer" },
+  calmRs = { head = { "me", "legend" }, body = { "me", "legend" }, tag = "you", mood = "cheer" },
+  champion = { head = { "me" }, body = { "me" }, tag = "you", mood = "cheer", glyph = "medal" },
+  lati = { head = { "legend" }, body = { "legend" }, mood = "shock" },
+  frontier = { head = { "me" }, body = { "me" }, tag = "you", mood = "cheer", glyph = "building" },
+  tower = { head = { "me" }, body = { "me" }, tag = "you", mood = "cheer", glyph = "building" },
+}
+local KEY_RS = { cave = "caveRs", calm = "calmRs" }
+local KEY_FR = { champion = "championFr" }
+local TEAM_COLOR = { magma = { 214, 48, 49 }, aqua = { 9, 132, 227 }, rocket = { 196, 30, 44 } }
 
 return function(engine, deps)
   deps = deps or {}
@@ -154,6 +205,40 @@ return function(engine, deps)
                         body = body, at = num(w.at), sp = f and f.by or (w.mine and w.mine[1]),
                         glyph = "glove", color = { 255, 69, 58 }, mood = num(w.them) == 0 and "cheer" or nil }
     end
+    local L = Jr.legend and Jr.legend()
+    if type(L) == "table" and L.sp and L.result then
+      local who = name(L.sp)
+      local body = T.f("news.legend.lede", place(L.map), me, who, tostring(L.lv or "?"), turns(L.turns))
+      local beats = {}
+      if L.lead then beats[1] = { mark = "", text = T.f("news.legend.lead", me, name(L.lead), who) } end
+      local last
+      for i, b in ipairs(L.beats or {}) do if b.k == "ko" then last = i end end
+      for i, b in ipairs(L.beats or {}) do
+        beats[#beats + 1] = { mark = T.f("news.pbp.turn", num(b.t)), text = beatText(b, i == last) }
+      end
+      local balls = num(L.balls)
+      if L.result == "caught" then
+        local ball = itemName(L.ball)
+        body = body .. " " .. (ball and T.f("news.legend.caught", ball) or T("news.legend.caughtNone"))
+        if balls == 1 then body = body .. " " .. T("news.legend.first")
+        elseif balls > 1 then body = body .. " " .. T.f("news.legend.balls", balls) end
+        beats[#beats + 1] = { mark = T.f("news.pbp.turn", num(L.turns)),
+                              text = ball and T.f("news.legend.caughtBeat", ball) or T("news.legend.caughtNone") }
+      elseif L.result == "down" then
+        body = body .. " " .. T("news.legend.down")
+      elseif L.result == "lost" then
+        body = body .. " " .. T.f("news.legend.lost", me)
+      elseif L.result == "ran" then
+        body = body .. " " .. T.f("news.legend.ran", me)
+      else
+        body = body .. " " .. T("news.legend.fled")
+      end
+      if L.shiny then body = body .. " " .. T("news.legend.shiny") end
+      local mood = nil
+      if L.shiny then mood = "shock" elseif L.result == "caught" then mood = "cheer" end
+      out[#out + 1] = { tag = "you", key = "legend", head = T.f("news.legend.head." .. L.result, me, who), body = body,
+                        beats = beats, at = num(L.at), sp = L.sp, mood = mood }
+    end
     local c = Jr.catch and Jr.catch()
     if type(c) == "table" and c.sp then
       local body = T.f("news.sign.body", place(c.map), tostring(c.lv or "?"), name(c.sp))
@@ -169,6 +254,67 @@ return function(engine, deps)
       return a.key < b.key
     end)
     return out
+  end
+
+  -- a story beat's words: its key (Ruby / Sapphire's own for a few), the names it's given in order
+  local function legendName(sp) return sp and name(sp) or "?" end
+  local spByName = {}
+  local function speciesNamed(id)
+    local hit = spByName[id]
+    if hit == nil then
+      local ok, sp = pcall(deps.species or error, id)
+      hit = ok and sp or false
+      spByName[id] = hit
+    end
+    return hit or nil
+  end
+  local function storyArgs(spec, me, rec)
+    local out = {}
+    for i, a in ipairs(spec) do
+      if a == "me" then out[i] = me
+      elseif a == "team" then out[i] = T("news.team." .. tostring(rec.team or "magma"))
+      elseif a == "legend" then out[i] = legendName(rec.legend)
+      else out[i] = legendName(speciesNamed(a:upper())) end
+    end
+    return out
+  end
+  local unpack = unpack or table.unpack
+  local function storyKey(id)
+    local g = deps.gameId and deps.gameId() or ""
+    if g == "ruby" or g == "sapphire" then return KEY_RS[id] or id end
+    if g == "firered" or g == "leafgreen" then return KEY_FR[id] or id end
+    return id
+  end
+  function Nw.storyHead(s, rec)
+    local key = storyKey(rec.id)
+    local spec = STORY[key]
+    if not spec then return tostring(rec.id) end
+    return T.f("news.story." .. key .. ".head", unpack(storyArgs(spec.head, playerOf(s), rec)))
+  end
+
+  -- the story's beats: the ones reached since they last watched (the newest few), else the latest
+  local function storyBeats(s, me, since, add)
+    local Sy = deps.story
+    if not Sy then return end
+    local okR, all = pcall(Sy.reached, s)
+    if not (okR and type(all) == "table" and #all > 0) then return end
+    local told = {}
+    for i = #all, 1, -1 do
+      if #told >= BEATS_NEW then break end
+      if all[i].at > since then told[#told + 1] = all[i] end
+    end
+    if #told == 0 then told[1] = all[#all] end
+    for _, rec in ipairs(told) do
+      local key = storyKey(rec.id)
+      local spec = STORY[key]
+      if spec then
+        add(spec.tag or "world", "story." .. rec.id,
+          T.f("news.story." .. key .. ".head", unpack(storyArgs(spec.head, me, rec))),
+          T.f("news.story." .. key .. ".body", unpack(storyArgs(spec.body, me, rec))),
+          { sp = rec.legend, glyph = not rec.legend and spec.glyph or nil,
+            color = TEAM_COLOR[rec.team or ""] or { 88, 86, 214 }, mood = spec.mood })
+      end
+    end
   end
 
   function Nw.build(s)
@@ -189,7 +335,24 @@ return function(engine, deps)
         add("you", "week", T.f("news.week.head", me), T.f("news.week.body", me, tr, ca, steps), { glyph = "chart", color = { 255, 55, 95 } })
       end
     end
-    -- (the world)
+    -- (the world: the story first -- the weather while a legend is loose, its beats, where Latias / Latios
+    -- roam -- then the day's)
+    local Sy = deps.story
+    if Sy and s then
+      local okC, crisis = pcall(Sy.crisis, s)
+      if okC and crisis then
+        local legend = crisis == "drought" and speciesNamed("GROUDON") or speciesNamed("KYOGRE")
+        add("world", "crisis", T("news.crisis." .. crisis .. ".head"), T.f("news.crisis." .. crisis .. ".body", legendName(legend)),
+          { glyph = "cloud", color = crisis == "drought" and { 214, 150, 60 } or { 70, 110, 200 }, mood = "shock" })
+      end
+      storyBeats(s, me, tonumber(data().watched) or 0, add)
+      local okL, r = pcall(Sy.roamer, s)
+      if okL and type(r) == "table" then
+        local who, where = name(r.sp), place(r.map)
+        add("world", "roamer", T.f("news.roamer.head", who, where), T.f("news.roamer.body", who, where),
+          { sp = r.sp, mood = "shock" })
+      end
+    end
     local sw = deps.swarm and deps.swarm.today(s)
     if sw then
       local where, who = place(sw.mapId), name(sw.species)

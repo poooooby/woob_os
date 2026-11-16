@@ -154,7 +154,8 @@ return function(ctx, env)
   local SHADE = { 0, 0, 0 }
   local TAG_WORLD, TAG_YOU = { 40, 150, 255 }, { 255, 156, 40 }
   local SCREEN_TOP, SCREEN_FOOT = { 30, 80, 170 }, { 10, 26, 70 }
-  local BREAKING = { swarm = true, outbreak = true, storm = true }
+  local BREAKING = { swarm = true, outbreak = true, storm = true, crisis = true, roamer = true,
+                     ["story.awakened"] = true, ["story.groudon"] = true, ["story.clash"] = true }
   -- the motion's numbers (the view's own: st is the window's)
   local mv = { lastT = nil, dt = 0, coloured = false, r = 0.16, g = 0.59, b = 1 }
 

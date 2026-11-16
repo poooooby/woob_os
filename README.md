@@ -51,6 +51,11 @@ controller, a touch screen, or a mouse and keyboard.
 - 👟 **Errands:** send up to three Pokémon on a timed job for money, an item and EXP.
 - 🏅 **Challenges:** five goals a week, counted from how you play, each with a reward.
 - 📰 **News:** the day's stories about your battles, catches and week, and where today's swarm is.
+  A battle with a legendary Pokémon gets its own report, catch or not. On FireRed, LeafGreen, Ruby,
+  Sapphire and Emerald the News follows the region's story as it happens: Team Rocket's schemes from
+  Mt. Moon to Silph Co. and the Sevii Islands, or Team Magma and Team Aqua's, the legend's awakening
+  and the drought or downpour it brings. It also says where Raikou, Entei or Suicune, or Latias or
+  Latios, has been seen.
 - 📟 **Oak's PC**, 🏆 **Hall of Fame**, and 🛋️ **Decorate** at your bedroom PC.
 - 🕹️ **PC Games:** with the PC Games mod installed, its games get an icon too.
 - ⚙️ **Settings:** language, wallpaper, text size, notifications for each app, and switches for
