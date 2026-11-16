@@ -560,6 +560,17 @@ return function(ctx, env)
   -- ------- drawing (no tables made here)
 
   local function G() return K.graphics() end
+  -- (the text size past 100%: 0 at Normal, 0.3 at Larger; set each frame. Room that grows with it is
+  -- this times so many units: nothing moves at 100%)
+  local gx = 0
+  -- an amount's size that keeps it in `room` (units): back towards its 100% size, never under it
+  local function moneySize(n, size, room)
+    if gx <= 0 or not env.amount then return size end
+    local ok, w = pcall(env.amount, n, 0, 0, size, C.text, true)
+    w = ok and tonumber(w) or 0
+    if w <= room then return size end
+    return size * max(1 / (1 + gx), room / w)
+  end
   local function money(n, x, y, size, c, align)
     if not env.amount then return 0 end
     local ok, w = pcall(env.amount, n, 0, 0, size, c, true)
@@ -1119,15 +1130,21 @@ return function(ctx, env)
     local pending = st.win and (st.win.pays - amount) or 0
     local bal = T("slots.balance")
     K.text(bal, x, y + 2, K.fit(bal, 3.2, third - 4), C.soft, "center", third)
-    money(max(0, (env.money and env.money(s) or floor(tonumber(s and s.money) or 0)) - pending), x + third / 2, y + 6.6, 5.6, C.text, "center")
+    local bal = max(0, (env.money and env.money(s) or floor(tonumber(s and s.money) or 0)) - pending)
+    local bs = moneySize(bal, 5.6, third - 4)
+    money(bal, x + third / 2, y + 6.6 + (5.6 - bs) * 0.5, bs, C.text, "center")
     local w2 = x + third
     K.text(T("slots.win"), w2, y + 2, 3.2, C.soft, "center", third)
     local lit = st.win and not st.spinning and amount > 0
     if lit then glow(w2 + third / 2, y + h / 2, third * 0.45, h * 0.7, C.gold, 0.25 + 0.15 * sin(clock * 8)) end
-    money(lit and amount or 0, w2 + third / 2, y + 6.6, 5.6, lit and C.goldTop or C.faint, "center")
+    local ws = moneySize(lit and amount or 0, 5.6, third - 4)
+    money(lit and amount or 0, w2 + third / 2, y + 6.6 + (5.6 - ws) * 0.5, ws, lit and C.goldTop or C.faint, "center")
     local w3 = x + third * 2
     K.text(T("slots.bet"), w3, y + 2, 3.2, C.soft, "center", third)
-    money(Sl.BETS[betLevel()] * linesPlayed(), w3 + third / 2, y + 6.6, 5.6, C.goldTop, "center")
+    -- (the bet between its arrows)
+    local bet = Sl.BETS[betLevel()] * linesPlayed()
+    local ts = moneySize(bet, 5.6, third - 24)
+    money(bet, w3 + third / 2, y + 6.6 + (5.6 - ts) * 0.5, ts, C.goldTop, "center")
     local cy = y + h / 2
     local locked = st.spinning or Sl.freeState() ~= nil
     for k = -1, 1, 2 do
@@ -1204,6 +1221,7 @@ return function(ctx, env)
     return (age < hold and min(1, age / 0.18) or max(0, 1 - (age - hold) / 0.5)), age
   end
   local function drawBigBack(body, clock)
+    K.auditLayer()
     local a = bigWinAlpha(clock)
     if not a then return end
     local win = st.win
@@ -1258,6 +1276,7 @@ return function(ctx, env)
 
   -- free spins won ("FREE SPINS! +10, wins ×3") and over ("TOTAL WIN ₽...")
   local function drawCard(body, clock)
+    K.auditLayer()
     local intro, outro = st.intro, st.outro
     local card = intro or outro
     if not card then return end
@@ -1309,6 +1328,7 @@ return function(ctx, env)
   -- the pay table: three, four and five of each symbol (× the bet on a line, five's tickets), the
   -- wild and the Bonus underneath
   local function drawTable(x, y, w, h, clock)
+    K.auditLayer()
     -- (it pops in: a card of smoked glass, a gold line round it, over the machine dimmed)
     local age = clock - mv.tableAt
     local f0 = K.getFade()
@@ -1513,25 +1533,33 @@ return function(ctx, env)
     local tx = dx + ps + 9
     local ns = K.fit(p.name, 5, dw - (tx - dx) - 3)
     K.bold(p.name, tx, dy + 4 + (5 - ns) * 0.5, ns, C.text)
+    -- (its rarity's pill as tall as its words; at a bigger text size the lines under it move down: dg)
     local rw = K.width(T(rar.key), 3.4) + 3
+    local dg = gx * 3
     K.col(rar.c)
-    K.box("fill", K.R(tx, dy + 10.5, rw, 4.6), 2.3)
-    K.text(T(rar.key), tx, dy + 10.7, 3.4, C.bg, "center", rw)
+    K.box("fill", K.R(tx, dy + 10.5 + dg * 0.4 - 2.3 * gx, rw, 4.6 * (1 + gx)), 2.3 * (1 + gx))
+    K.text(T(rar.key), tx, dy + 10.7 + dg * 0.4, 3.4, C.bg, "center", rw)
     if p.kind == "mon" then
-      K.text(levelText(Sl.level(session())), tx + rw + 2, dy + 10.6, 4.2, C.soft)
+      K.text(levelText(Sl.level(session())), tx + rw + 2, dy + 10.6 + dg * 0.4, 4.2, C.soft)
     end
     -- (the bar towards it)
     local tickets = Sl.tickets()
-    local fb = K.R(tx, dy + 17, dw - (tx - dx) - 4, 3.4)
+    local fb = K.R(tx, dy + 17 + dg, dw - (tx - dx) - 4, 3.4)
     K.col(C.black, 0.4)
     K.box("fill", fb, 1.7)
     local f = min(1, tickets / max(1, p.cost))
     if f > 0 then K.grad(K.R(fb[1], fb[2], max(3.4, fb[3] * f), fb[4]), 1.7, C.goldTop, C.goldDark) end
-    ticket(tx, dy + 22.2, 3.4)
-    K.text(progressText(min(tickets, 99999) * 100000 + p.cost), tx + 6.5, dy + 21.8, 4, f >= 1 and C.gold or C.soft)
+    ticket(tx, dy + 22.2 + dg, 3.4)
+    K.text(progressText(min(tickets, 99999) * 100000 + p.cost), tx + 6.5, dy + 21.8 + dg, 4, f >= 1 and C.gold or C.soft)
     if not portrait and p.desc ~= "" then
-      K.scissor(K.R(dx, dy + ps + 10, dw, dh - ps - 10 - 16))
-      K.text(p.desc, dx + 4, dy + ps + 10, 4, C.soft, "left", dw - 8)
+      local dh2 = dh - ps - 10 - 16 - dg
+      -- (at a bigger text size, cut after its last whole line)
+      if gx > 0 then
+        local lh = K.lineH(4) * 1.17
+        dh2 = floor((dh2 + 2.4 * gx) / lh) * lh - 2.4 * gx + 0.8
+      end
+      K.scissor(K.R(dx, dy + ps + 10 + dg, dw, max(0, dh2)))
+      K.text(p.desc, dx + 4, dy + ps + 10 + dg, 4, C.soft, "left", dw - 8)
       K.scissor(nil)
     end
     K.settle(e)
@@ -1612,6 +1640,7 @@ return function(ctx, env)
   function W.draw(body, clock, portrait)
     local x, y, w, h = body[1], body[2], body[3], body[4]
     st.bx, st.by, st.bw = x, y, w
+    gx = K.textScale() - 1
     advance(now())
     motion(clock)
     drawStage(body, clock)

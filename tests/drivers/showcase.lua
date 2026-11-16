@@ -10,6 +10,9 @@
 --
 -- SHOWCASE_AUTO=<dir> walks every scene by itself through the same keys, a screenshot of each in <dir>
 -- and a log (driver.log), then quits. SHOWCASE_BARE=1: no caption over the screenshots.
+-- SHOWCASE_TEXT=<percent> (with SHOWCASE_AUTO): each scene's text audited at 100% and at that size (the kit's
+-- K.audit), what's new at that size logged ("TEXT" lines: texts running over each other or out of their
+-- clip), the screenshot taken at it; Settings' text size put back after.
 
 local CENTER = { frlg = "VIRIDIAN_CITY_POKEMON_CENTER_1F", rse = "OLDALE_TOWN_POKEMON_CENTER_1F" }
 local HOUSE = "LITTLEROOT_TOWN_BRENDANS_HOUSE_2F"
@@ -501,8 +504,17 @@ local function body(game, log, auto)
       local untilT = love.timer.getTime() + t
       waitFor(function() return love.timer.getTime() > untilT end, 600)
     end
+    local textPct = tonumber(os.getenv("SHOWCASE_TEXT"))
+    local audit = textPct and dofile("mods/woob_os/tests/drivers/textaudit.lua")(U, X)
+    local textIssues = 0
     local function shoot()
       local name = string.format("%02d_%s.png", cur, scenes[cur].title:gsub("[^%w]+", "_"))
+      if audit then
+        local fresh, n = audit(textPct)
+        for _, line in ipairs(fresh) do log(("TEXT %s: %s"):format(scenes[cur].title, line)) end
+        textIssues = textIssues + #fresh
+        log(("  %s: %d texts, %d new at %d%%"):format(scenes[cur].title, n, #fresh, textPct))
+      end
       U.shot(game, auto .. "/" .. name)
     end
     settle(3.2)
@@ -543,6 +555,10 @@ local function body(game, log, auto)
     pump()
     check(cur == 1 and s0.money == 999999, "Home: from the top, everything made up again")
     settle(0.5)
+    if audit then
+      audit.restore()
+      log(("%d text issues at %d%%"):format(textIssues, textPct))
+    end
     log(("%d failures"):format(fails))
     love.keypressed, love.draw = keyWas, drawWas
     return

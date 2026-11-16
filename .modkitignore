@@ -30,3 +30,4 @@ docs/screenshots/ribbons.png
 docs/screenshots/slots.png
 docs/screenshots/summary.png
 wallpapers/blastoise-test-wallpaper.png
+tests/drivers/textaudit.lua

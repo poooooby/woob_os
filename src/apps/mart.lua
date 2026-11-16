@@ -602,7 +602,8 @@ return function(ctx, env)
       end
     end
     if line ~= "" then lines[#lines + 1] = line end
-    local out = { lines = lines, pre = {}, count = {}, n = 0, size = size, line = LINE * size / SIZE }
+    -- (a line's step as tall as the words are drawn: the text size's)
+    local out = { lines = lines, pre = {}, count = {}, n = 0, size = size, line = LINE * size / SIZE * K.textScale() }
     for j, l in ipairs(lines) do
       local pre, k, acc = {}, 0, ""
       for ch in l:gmatch(UTF8) do
@@ -637,10 +638,17 @@ return function(ctx, env)
     -- (the words: made again when they or the width change; smaller when they'd overflow)
     local tw = w - 8
     local L = st.lines
-    if not L or st.linesW ~= floor(tw) or st.linesText ~= s.text then
+    local TS = K.textScale()
+    if not L or st.linesW ~= floor(tw) or st.linesText ~= s.text or st.linesTS ~= TS then
       L = linesOf(s.text, tw, SIZE)
       if #L.lines * L.line > h - 4 then L = linesOf(s.text, tw, SIZE * 0.84) end
-      st.lines, st.linesW, st.linesText = L, floor(tw), s.text
+      -- (bigger text: smaller again until the lines fit, never under the words' size at 100%'s 0.84)
+      local k = 0.84
+      while TS > 1 and #L.lines * L.line > h - 4 and SIZE * (k - 0.06) * TS >= SIZE * 0.84 - 0.01 do
+        k = k - 0.06
+        L = linesOf(s.text, tw, SIZE * k)
+      end
+      st.lines, st.linesW, st.linesText, st.linesTS = L, floor(tw), s.text, TS
     end
     local left = shown()
     local total = #L.lines * L.line
@@ -658,7 +666,7 @@ return function(ctx, env)
           cw = K.width(L.pre[j][left], L.size)
         end
         K.col(s.bad and RED or MART, 0.5 + 0.5 * abs(sin(clock * 8)))
-        K.box("fill", K.R(x + 4 + cw + 0.4, ly + 0.3, 0.6, L.size * 1.1))
+        K.box("fill", K.R(x + 4 + cw + 0.4, ly + 0.3 - 0.6 * (TS - 1) * L.size, 0.6, L.size * TS * 1.1))
         break
       end
       ly = ly + L.line
@@ -895,14 +903,14 @@ return function(ctx, env)
     local bt = inBagText(st.inBag)
     local bw = K.width(bt, 3.5) + 4
     K.col(tc, 0.2)
-    K.box("fill", K.R(tx, ty + 10.6, bw, 5), 2.5)
+    K.box("fill", K.R(tx, ty + 10.6, bw, 5 + (K.textScale() - 1) * 1.5), 2.5)
     K.text(bt, tx + 2, ty + 11.3, 3.5, SOFT)
     K.setFade(f0)
     if big and r.desc ~= "" then
       -- (the words, as many whole lines as fit above the stepper)
       local e2 = ease((pt - 0.1) / 0.32)
       local dy = y + is + 8
-      local lh = K.font(3.8 * K.sc):getHeight() / K.sc
+      local lh = K.font(3.8 * K.textScale() * K.sc):getHeight() / K.sc
       local n = floor((h - (dy - y) - 28) / lh)
       if n >= 1 then
         K.scissor(K.R(x, dy, w, n * lh + 0.2))

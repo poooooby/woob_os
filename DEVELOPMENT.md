@@ -632,6 +632,18 @@ screenshots each. Settings changed by hand during it are the real ones.
   R-Bay and Slots draw their own dark backdrops (soft lights over a night colour) and dark panes through
   `K.glass(b, rad, a, tint, sheen, edge)` with a dark tint. `env.appIcon(app, x, y, size, a)` and
   `Wall.draw(..., fit, a)` take an alpha; the icons' glyphs take the kit's fade themselves.
+- **The text size** (Settings > Display, the mod option `textSize`: 100 / 115 / 130): `Settings.textSize(option)`
+  picks whichever changed last (the app can't set the mod's option, so the option's value last seen is kept
+  as `textSizeOpt`); main.lua's `applyTextSize` puts it on the kit at load, once a second and when the
+  Settings app changes it. The kit draws every text at size x `K.textScale()`, grown round its line's
+  middle; `K.width` / `K.fit` measure at it, so a fitted text still fits; a line given `align` + `w` that
+  fitted at 100% shrinks back into `w`; `K.lineH(size)`. Windows add room that's zero at 100% where stacked
+  lines or fixed rows need it (`(K.textScale() - 1) * size`): 100% stays pixel for pixel as it was.
+  Checking it: the kit's audit (`K.audit = { n = 0 }`, then `K.auditIssues`: texts overlapping each other
+  or out past their clip; `K.auditLayer()` starts an overlay, which K.dim / K.sheet / K.toast do), run at
+  100% and at the size by `tests/drivers/textaudit.lua` around each shot: `SHOWCASE_TEXT=130` (with
+  `SHOWCASE_AUTO`) and the probe's `PROBE_TEXT=130` log what's new as `TEXT` lines. It can't see text
+  running into shapes: look at the shots.
 - **Testing motion headless:** the windows' motion runs on the wall clock while headless frames outrun
   it, the tests' stand-in graphics allocate on each `push`, and LuaJIT compiles the new motion's traces in
   the first seconds (a one-off on the heap): garbage checks of a window draw for a while first (the Game

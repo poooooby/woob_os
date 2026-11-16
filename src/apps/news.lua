@@ -140,7 +140,8 @@ return function(ctx, env)
     return true
   end
   function W.tap(arg) if arg == CARD then advance() end end
-  function W.scroll(dy) scrollBy(-dy / LINE) end
+  -- (a line's step: LINE, as much taller as the text size makes the words; st.lineH, the last draw's)
+  function W.scroll(dy) scrollBy(-dy / (st.lineH or LINE)) end
   function W.hints() return T.list(HINTS.main) end
 
   -- ------- drawing (no tables made here)
@@ -320,11 +321,14 @@ return function(ctx, env)
       top = top + 9
     end
     -- (the tag, the dots for where it is in the broadcast)
+    -- (g: what the text size adds to a line of the card's words; 0 at 100%)
+    local g = K.textScale() - 1
     local tag = T(story.tag == "world" and "news.world" or "news.you")
     local tw = K.width(tag, 3.3) + 5
+    local tagH = 5.4 + g * 3.3
     K.col(tagC)
-    K.box("fill", K.R(cx + 4, top, tw, 5.4), 2.7)
-    K.bold(tag, cx + 4, top + 0.8, 3.3, WHITE, "center", tw)
+    K.box("fill", K.R(cx + 4, top, tw, tagH), tagH / 2)
+    K.bold(tag, cx + 4, top + 0.8 + g * 1.65, 3.3, WHITE, "center", tw)
     local n = #cast.stories
     local dx = cx + w - 4
     for d = n, 1, -1 do
@@ -332,9 +336,10 @@ return function(ctx, env)
       local dw = on and 4 or 1.4
       dx = dx - dw
       if on then K.col(tagC) else K.col(SHADE, 0.2) end
-      K.box("fill", K.R(dx, top + 2, dw, 1.4), 0.7)
+      K.box("fill", K.R(dx, top + 2 + g * 1.65, dw, 1.4), 0.7)
       dx = dx - 1
     end
+    top = top + g * 3.3
     -- (the picture in a spotlight, popping up after the card)
     local ps = min(26, h * 0.32)
     local px, py = cx + w - ps - 4, top + 7
@@ -360,15 +365,17 @@ return function(ctx, env)
     K.bold(story.head, cx + 4, top + 7 + (1 - he) * 3, K.fit(story.head, 5.4, hw * 2), INK, "left", hw, he)
     -- (the words, typed out)
     local tw2 = w - 8
-    if not st.lines or st.linesW ~= floor(tw2) or st.linesI ~= st.i then
-      st.lines, st.linesW, st.linesI = linesOf(story, tw2), floor(tw2), st.i
+    if not st.lines or st.linesW ~= floor(tw2) or st.linesI ~= st.i or st.linesS ~= g then
+      st.lines, st.linesW, st.linesI, st.linesS = linesOf(story, tw2), floor(tw2), st.i, g
     end
     local L = st.lines
     local total = shown()
     local left = total
     local y0 = top + 7 + ps + 3
     local nl = #L.lines
-    st.cap = max(1, floor((b[2] + h - 3 - y0) / LINE))
+    local step = LINE + g * LINE
+    st.lineH = step
+    st.cap = max(1, floor((b[2] + h - 3 - y0) / step))
     -- (while typing, the line being typed kept in view; all there (A shows the rest), the last lines,
     -- then where they scroll it)
     if total < L.n then
@@ -400,7 +407,7 @@ return function(ctx, env)
             G.circle("fill", K.X(cx + 4 + MARK_W * 0.4), K.Y(ly + SIZE * 0.62), 0.9 * K.sc)
           else
             K.col(tagC, 0.9)
-            K.box("fill", K.R(cx + 4, ly + 0.3, MARK_W - 1.6, SIZE * 1.15), 1.6)
+            K.box("fill", K.R(cx + 4, ly + 0.3 - g * SIZE * 0.575, MARK_W - 1.6, SIZE * 1.15 * (1 + g)), 1.6)
             K.bold(mk, cx + 4, ly + 0.3 + (SIZE * 1.15 - MARK_SIZE * 1.2) / 2, MARK_SIZE, WHITE, "center", MARK_W - 1.6)
           end
         end
@@ -412,14 +419,14 @@ return function(ctx, env)
           -- (the caret where the words are being typed)
           local cw = K.width(L.pre[j][left], SIZE)
           K.col(tagC, 0.5 + 0.5 * abs(sin(clock * 8)))
-          K.box("fill", K.R(lx + cw + 0.4, ly + 0.4, 0.6, SIZE * 1.1))
+          K.box("fill", K.R(lx + cw + 0.4, ly + 0.4 - g * SIZE * 0.55, 0.6, SIZE * 1.1 * (1 + g)))
           break
         end
-        ly = ly + LINE
+        ly = ly + step
       end
     end
     if nl > st.cap then
-      local sh = st.cap * LINE
+      local sh = st.cap * step
       local bh = max(4, sh * st.cap / nl)
       K.col(SHADE, 0.22)
       K.box("fill", K.R(b[1] + w - 2.2, y0 + (sh - bh) * (st.top / max(1, nl - st.cap)), 1, bh), 0.5)

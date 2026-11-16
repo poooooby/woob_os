@@ -946,6 +946,13 @@ return function(ctx, env, opts)
   local WX_DOT = { rain = { 120, 170, 255 }, thunder = { 160, 150, 255 }, snow = { 236, 242, 255 },
                    fog = { 200, 210, 226 }, ash = { 150, 146, 144 }, sand = { 236, 190, 110 },
                    shade = { 130, 140, 166 }, clouds = { 236, 242, 255 } }
+  -- (Fly on its button; bigger text fitted inside the capsule's ends rather than out to its edges)
+  local function flyWord(draw, fb, ink)
+    local word = T("map.fly")
+    if K.textScale() == 1 then return draw(word, fb[1], fb[2] + 2.6, 4.8, ink, "center", fb[3]) end
+    local fs = K.fit(word, 4.8, fb[3] - 3)
+    draw(word, fb[1] + 1.5, fb[2] + (fb[4] - fs * 1.2) / 2, fs, ink, "center", fb[3] - 3)
+  end
   local function drawCard(body, compact)
     local p = place()
     if not p then return end
@@ -1009,11 +1016,11 @@ return function(ctx, env, opts)
         K.box("fill", fb, 5.5)
         K.grad(fb, 5.5, ACCENT_TOP, GLOSS0)
         K.ring(fb, 5.5, WHITE, 0.35, 0.4)
-        K.bold(T("map.fly"), fb[1], fb[2] + 2.6, 4.8, WHITE, "center", fb[3])
+        flyWord(K.bold, fb, WHITE)
       else
         K.col(PILL)
         K.box("fill", fb, 5.5)
-        K.text(T("map.fly"), fb[1], fb[2] + 2.6, 4.8, SOFT, "center", fb[3])
+        flyWord(K.text, fb, SOFT)
       end
       K.addHit(fb, "win", A_FLY)
     end
@@ -1060,8 +1067,10 @@ return function(ctx, env, opts)
     local why = Rd.problem and Rd.problem()
     if not why then return end
     local w = min(220, body[3] - M * 4)
-    if why ~= st.problem then
-      st.problem, st.problemAt = why, clock
+    local g = K.textScale() - 1
+    if why ~= st.problem or st.problemG ~= g then
+      if why ~= st.problem then st.problemAt = clock end
+      st.problem, st.problemG = why, g
       local lines, line = {}, ""
       local flat = why:gsub("%s+", " ")
       for word in flat:gmatch("%S+") do
@@ -1079,12 +1088,13 @@ return function(ctx, env, opts)
     end
     if clock - st.problemAt > PROBLEM_FOR then return end
     local lines = st.problemLines
-    local h = 11 + #lines * 4.6
+    local step = 4.6 + g * 3.4
+    local h = 11 + g * 4.4 + #lines * step
     local b = K.R(body[1] + (body[3] - w) / 2, body[2] + M + 16, w, h)
     glass(b, 5, 0.55)
-    K.bold(T("map.problem"), b[1] + 5, b[2] + 3, 4.4, WHITE)
+    K.bold(T("map.problem"), b[1] + 5, b[2] + 3 + g * 2.2, g > 0 and K.fit(T("map.problem"), 4.4, w - 10) or 4.4, WHITE)
     for i = 1, #lines do
-      K.text(lines[i], b[1] + 5, b[2] + 4 + i * 4.6, 3.4, SOFT)
+      K.text(lines[i], b[1] + 5, b[2] + 4 + g * 4.4 + i * step, 3.4, SOFT)
     end
   end
 

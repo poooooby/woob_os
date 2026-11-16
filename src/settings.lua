@@ -5,6 +5,9 @@
 --                        name) -> table | nil, err (src/i18n.lua's) ; log(fmt, ...)
 --   S.get(key, default) ; S.set(key, value) -> true when it changed (strings, numbers, booleans)
 --   S.cache: where set() writes (a test swaps in its own)
+--   S.textSize(option) -> percent: the mod option's text size or Settings > Display's, whichever changed
+--                        last (the app can't set the mod's option: the option's value last seen is kept
+--                        beside its own, "textSizeOpt")
 
 return function(deps)
   local S = {}
@@ -55,6 +58,18 @@ return function(deps)
     values[key] = value
     write()
     return true
+  end
+
+  function S.textSize(option)
+    local opt = tonumber(option) or 100
+    local seen = tonumber(values.textSizeOpt)
+    if seen ~= opt then
+      -- (the option changed since it was last seen, or never seen: the option's value)
+      if seen ~= nil or values.textSize == nil then S.set("textSize", opt) end
+      S.set("textSizeOpt", opt)
+      return opt
+    end
+    return tonumber(values.textSize) or opt
   end
 
   return S

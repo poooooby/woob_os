@@ -84,7 +84,7 @@ return function(ctx, env)
 
   local st = {
     tab = "wonder", box = 1, rows = {}, cursor = 1, top = 0, visible = 6, picking = nil,
-    lcursor = 1, ltop = 0, listings = {}, listingsAt = nil,
+    lcursor = 1, ltop = 0, listings = {}, listingsAt = nil, lrowH = LROW_H,
     sheet = nil, species = {}, scursor = 1, stop = 0, levels = 1, confirm = nil, yes = true,
     search = nil, reveal = nil, toast = nil, request = nil, depKey = nil, dep = {},
   }
@@ -604,7 +604,7 @@ return function(ctx, env)
     elseif st.tab == "wonder" or st.picking then
       st.top = max(0, min(max(0, #st.rows - st.visible), st.top - dy / ROW_H))
     elseif st.tab == "browse" then
-      st.ltop = max(0, min(max(0, #st.listings - st.visible), st.ltop - dy / LROW_H))
+      st.ltop = max(0, min(max(0, #st.listings - st.visible), st.ltop - dy / st.lrowH))
     end
   end
 
@@ -626,6 +626,9 @@ return function(ctx, env)
 
   local G = nil               -- (the host's graphics, taken each frame)
   local bodyNow = nil
+  -- (the text size past 100%: 0 at Normal, 0.3 at Larger; set each frame. Room that grows with it is
+  -- this times so many units: nothing moves at 100%)
+  local gx = 0
   -- the motion's numbers
   local mv = {
     lastT = nil, coloured = false, r = 0.16, g = 0.77, b = 0.81, r2 = 0.29, g2 = 0.53, b2 = 1,
@@ -664,8 +667,9 @@ return function(ctx, env)
   -- a coloured chip with white words (a tier, "Traded", "You have it!") -> its width
   local function chip(text, x, y, size, c, a)
     local w = K.width(text, size) + 3
+    local gh = size * 1.35 * gx   -- (as tall as its words: grown round its middle with the text size)
     K.col(c, a)
-    K.box("fill", K.R(x, y, w, size * 1.35), size * 0.6)
+    K.box("fill", K.R(x, y - gh / 2, w, size * 1.35 + gh), size * 0.6 * (1 + gx))
     K.text(text, x, y + size * 0.12, size, C.white, "center", w, a)
     return w
   end
@@ -673,10 +677,11 @@ return function(ctx, env)
   -- a type's pill -> its width
   local function typePill(id, name, x, y, h, size, a, ring)
     local pw = K.width(name, size) + 5
-    local b = K.R(x, y, pw, h)
+    -- (as tall as its words: grown round its middle with the text size)
+    local b = K.R(x, y - h * gx / 2, pw, h * (1 + gx))
     K.col(TYPE[id] or C.faint, a)
-    K.box("fill", b, h / 2)
-    if ring then K.ring(b, h / 2, C.white, 0.55 * (a or 1), 0.4) end
+    K.box("fill", b, b[4] / 2)
+    if ring then K.ring(b, b[4] / 2, C.white, 0.55 * (a or 1), 0.4) end
     K.text(name, x, y + (h - size * 1.2) / 2, size, C.white, "center", pw, a)
     return pw
   end
@@ -697,8 +702,9 @@ return function(ctx, env)
   local function shinyBadge(x, y, size, clock, a)
     local word = T("auction.shiny")
     local w = K.width(word, size) + size * 1.6 + 3
-    local b = K.R(x, y, w, size * 1.35)
-    K.grad(b, size * 0.6, C.goldTop, C.goldDark, a)
+    local gh = size * 1.35 * gx
+    local b = K.R(x, y - gh / 2, w, size * 1.35 + gh)
+    K.grad(b, size * 0.6 * (1 + gx), C.goldTop, C.goldDark, a)
     sparkle(x + size * 0.85, y + size * 0.68, size * 0.55 * (0.85 + 0.15 * sin((clock or 0) * 5)), C.white, a or 1)
     K.bold(word, x + size * 1.6, y + size * 0.12, size, C.shinyInk, "center", w - size * 1.6 - 1, a)
     return w
@@ -922,9 +928,10 @@ return function(ctx, env)
       G.circle("fill", K.X(x + 8.5 + dx), K.Y(ry + 6), 4.8 * K.sc)
       if env.monIconOf then pcall(env.monIconOf, r.mon, x + 3 + dx, ry + 0.5, 11, i == st.cursor and frame or 0, a * f0 * e) end
       local ns = K.fit(r.name, 4.6, w - 40)
-      K.text(r.name, x + 15 + dx, ry + (r.why and 1.2 or 3.4), ns, r.ok and C.ink or C.faint)
+      K.text(r.name, x + 15 + dx, ry + (r.why and 1.2 - gx * 1.5 or 3.4), ns, r.ok and C.ink or C.faint)
       K.text(levelText(r.level), x + w - 4 - 20 + dx, ry + 3.4, 4, C.soft, "right", 20)
-      if r.why then K.text(r.why, x + 15 + dx, ry + 6.6, 3.2, C.red, "left", w - 40) end
+      -- (why it can't go: at the size it has at 100%, so a long reason takes no more lines than it did)
+      if r.why then K.text(r.why, x + 15 + dx, ry + 6.6, 3.2 / (1 + gx), C.red, "left", w - 40) end
       if r.party then
         K.col(C.gold, 0.95)
         G.circle("fill", K.X(x + w - 4 - 22 - 1.5 + dx), K.Y(ry + ROW_H / 2), 1 * K.sc)
@@ -953,12 +960,13 @@ return function(ctx, env)
     local tw = x + w - tx - 2
     local e = K.outCubic((t - 0.05) / 0.3)
     local ox = (1 - e) * 6
-    local ty = y + max(1.5, (h - (h >= 18 and 17 or 11)) / 2)
+    -- (its lines further apart at a bigger text size: the level gx * 2 lower, the types gx * 3)
+    local ty = y + max(1.5, (h - (h >= 18 and 17 + gx * 3 or 11 + gx * 2)) / 2)
     local ns = K.fit(r.name, 4.8, tw - 4)
     K.label(r.name, tx + ox, ty, ns, C.white, nil, nil, e)
     if r.shiny then sparkle(tx + ox + K.width(r.name, ns) + 2.5, ty + 2.6, 1.8 + 0.4 * sin(clock * 5), C.goldTop, e) end
-    K.label(levelText(r.level), tx + ox, ty + 6, 3.6, C.white, nil, nil, 0.9 * e)
-    if h >= 18 and r.t1 and pillsW(r, 3.2) <= tw then pills(r, tx + ox, ty + 11.5, 5, 3.2, e, true) end
+    K.label(levelText(r.level), tx + ox, ty + 6 + gx * 2, 3.6, C.white, nil, nil, 0.9 * e)
+    if h >= 18 and r.t1 and pillsW(r, 3.2) <= tw then pills(r, tx + ox, ty + 11.5 + gx * 3, 5, 3.2, e, true) end
   end
 
   -- the picker's right card: what's being done, the chosen Pokémon, the button
@@ -1010,7 +1018,7 @@ return function(ctx, env)
   local function drawListings(x, y, w, h, clock, dt)
     K.glass(K.R(x, y, w, h), 4)
     local lh = h - 2
-    st.visible = max(1, floor(lh / LROW_H))
+    st.visible = max(1, floor(lh / st.lrowH))
     if st.lcursor > st.ltop + st.visible then st.ltop = st.lcursor - st.visible end
     if st.lcursor <= st.ltop then st.ltop = st.lcursor - 1 end
     st.ltop = max(0, min(st.ltop, max(0, #st.listings - st.visible)))
@@ -1021,7 +1029,7 @@ return function(ctx, env)
     if #st.listings > 0 then
       if mv.lcurPrev == nil then mv.lcurY = st.lcursor end
       mv.lcurY, mv.lcurPrev = K.approach(mv.lcurY, st.lcursor, dt, 22), st.lcursor
-      highlight(x + 1.5, top, w - 3, LROW_H, mv.lcurY - mv.ltop, 2.5)
+      highlight(x + 1.5, top, w - 3, st.lrowH, mv.lcurY - mv.ltop, 2.5)
     end
     local first = floor(mv.ltop) + 1
     local half = (w - 10) / 2
@@ -1029,12 +1037,12 @@ return function(ctx, env)
     local frame = floor(clock * 3) % 2
     for i = first, min(#st.listings, first + st.visible + 1) do
       local L = st.listings[i]
-      local ry0 = top + (i - 1 - mv.ltop) * LROW_H
+      local ry0 = top + (i - 1 - mv.ltop) * st.lrowH
       local e = rowIn(since, i - first)
       local ry = ry0 + (1 - e) * 4
       local f0 = K.getFade()
       K.setFade(f0 * e)
-      local rb = K.R(x + 1.5, ry + 0.4, w - 3, LROW_H - 0.8)
+      local rb = K.R(x + 1.5, ry + 0.4, w - 3, st.lrowH - 0.8)
       if L.canDo then
         K.col(C.green, 0.1 + 0.06 * sin(clock * 3 + i))
         K.box("fill", rb, 2.5)
@@ -1044,28 +1052,40 @@ return function(ctx, env)
       local tc = TIER_C[L.tier] or TIER_C.common
       K.col(tc, a)
       K.box("fill", K.R(rb[1] + 0.6, rb[2] + 1.6, 1.1, rb[4] - 3.2), 0.5)
+      -- (a taller row at a bigger text size: its lines apart -- the second dg down, the third twice that --
+      -- the pictures and arrows in its middle)
+      local dg = (st.lrowH - LROW_H) * 0.45
+      local dm = (st.lrowH - LROW_H) * 0.5
       -- (what they offer, on a disc of its type)
       K.col(TYPE[L.t1] or C.slate, 0.26 * a)
-      G.circle("fill", K.X(x + 9), K.Y(ry + 6.3), 5.4 * K.sc)
-      if env.monIcon then pcall(env.monIcon, L.sp, x + 3.5, ry + 0.8, 11, i == st.lcursor and frame or 0, 1, 1, 1, ia) end
+      G.circle("fill", K.X(x + 9), K.Y(ry + 6.3 + dm), 5.4 * K.sc)
+      if env.monIcon then pcall(env.monIcon, L.sp, x + 3.5, ry + 0.8 + dm, 11, i == st.lcursor and frame or 0, 1, 1, 1, ia) end
       local ns = K.fit(L.offerName, 4.6, half - 16)
       K.bold(L.offerName, x + 15, ry + 1.6, ns, C.ink, nil, nil, a)
-      local pw = chip(T(TIER_KEY[L.tier] or TIER_KEY.common), x + 15, ry + 7.2, 3.2, tc, a)
-      K.text(levelText(L.level), x + 17 + pw, ry + 7.2, 3.6, C.soft, nil, nil, a)
-      if L.shiny then shinyBadge(x + 15 + pw + 3 + K.width(levelText(L.level), 3.6), ry + 7.2, 3.2, clock, a) end
-      K.text(L.whoText, x + 15, ry + 11.6, 3.2, C.faint, nil, nil, a)
+      -- (the tier, level and Shiny stop short of the arrows: back towards 100% if they must)
+      local tier, lv = T(TIER_KEY[L.tier] or TIER_KEY.common), levelText(L.level)
+      local k = 1
+      if gx > 0 then
+        local grows = K.width(tier, 3.2) + K.width(lv, 3.6) + (L.shiny and shinyW(3.2) - 3 or 0)
+        local room = half - 14 - 5 - (L.shiny and 6 or 0)
+        if grows > room then k = max(1 / (1 + gx), room / grows) end
+      end
+      local pw = chip(tier, x + 15, ry + 7.2 + dg, 3.2 * k, tc, a)
+      K.text(lv, x + 17 + pw, ry + 7.2 + dg, 3.6 * k, C.soft, nil, nil, a)
+      if L.shiny then shinyBadge(x + 15 + pw + 3 + K.width(lv, 3.6 * k), ry + 7.2 + dg, 3.2 * k, clock, a) end
+      K.text(L.whoText, x + 15, ry + 11.6 + dg * 2, 3.2, C.faint, nil, nil, a)
       -- (the swap arrows, then what they want)
       local mx = x + 5 + half
-      K.chevron(mx - 0.5, ry + 5, 3.4, C.accent, 1, a)
-      K.chevron(mx + 1.5, ry + 9, 3.4, C.accent, -1, a)
+      K.chevron(mx - 0.5, ry + 5 + dm, 3.4, C.accent, 1, a)
+      K.chevron(mx + 1.5, ry + 9 + dm, 3.4, C.accent, -1, a)
       local ax = mx + 5
       K.text(T("gts.wants"), ax, ry + 0.8, 3.2, C.faint, nil, nil, a)
       K.col(TYPE[L.a1] or C.slate, 0.24 * a)
-      G.circle("fill", K.X(ax + 4.5), K.Y(ry + 9), 4.4 * K.sc)
-      if env.monIcon then pcall(env.monIcon, L.ask, ax, ry + 4.5, 9, 0, 1, 1, 1, ia) end
+      G.circle("fill", K.X(ax + 4.5), K.Y(ry + 9 + dm), 4.4 * K.sc)
+      if env.monIcon then pcall(env.monIcon, L.ask, ax, ry + 4.5 + dm, 9, 0, 1, 1, 1, ia) end
       local ans = K.fit(L.askName, 4.2, x + w - ax - 14)
-      K.text(L.askName, ax + 11, ry + 5, ans, C.ink, nil, nil, a)
-      K.text(rangeText(L.levels), ax + 11, ry + 10.2, 3.4, C.soft, nil, nil, a)
+      K.text(L.askName, ax + 11, ry + 5 + dg, ans, C.ink, nil, nil, a)
+      K.text(rangeText(L.levels), ax + 11, ry + 10.2 + dg * 2, 3.4, C.soft, nil, nil, a)
       if L.done then
         local t = T("gts.done")
         chip(t, x + w - 4 - chipW(t, 3.2), ry + 1.4, 3.2, C.faint)
@@ -1074,10 +1094,10 @@ return function(ctx, env)
         chip(t, x + w - 4 - chipW(t, 3.2), ry + 1.4, 3.2, C.green, 0.7 + 0.3 * abs(sin(clock * 4)))
       end
       if i ~= st.lcursor and i + 1 ~= st.lcursor and i < #st.listings then
-        K.hairline(x + 15, ry + LROW_H - 0.2, w - 17)
+        K.hairline(x + 15, ry + st.lrowH - 0.2, w - 17)
       end
       K.setFade(f0)
-      K.addHit(K.R(x + 1.5, ry0 + 0.4, w - 3, LROW_H - 0.8), "win", ROW + i, clip)
+      K.addHit(K.R(x + 1.5, ry0 + 0.4, w - 3, st.lrowH - 0.8), "win", ROW + i, clip)
     end
     if #st.listings == 0 then K.text(T("gts.none"), x, y + h / 2 - 3, 4.4, C.faint, "center", w) end
     K.scrollbar(x + w, top, lh, mv.ltop, st.visible, #st.listings)
@@ -1097,8 +1117,10 @@ return function(ctx, env)
     if not dep then
       globe(cx, y + h * 0.34 + sin(clock * 1.6) * 0.8, min(16, h * 0.2) * pop, clock, false)
       K.rise(e1, 4)
-      K.bold(T("gts.depositTitle"), x, y + h * 0.62, 5.4, C.ink, "center", w)
-      K.text(T("gts.depositBlurb"), x + 8, y + h * 0.62 + 7, 3.8, C.soft, "center", w - 16)
+      -- (a bigger text size: the words a little higher when the button under them is near)
+      local up = gx > 0 and min(gx * 4, max(0, y + h * 0.62 + 11.6 + gx * 4.6 - (y + h - 14.5))) or 0
+      K.bold(T("gts.depositTitle"), x, y + h * 0.62 - up, 5.4, C.ink, "center", w)
+      K.text(T("gts.depositBlurb"), x + 8, y + h * 0.62 + 7 - up, 3.8, C.soft, "center", w - 16)
       K.settle(e1)
       local go = K.R(cx - 30, y + h - 14, 60, 10)
       button(go, T("gts.depositBtn"), false, "go", clock)
@@ -1126,10 +1148,13 @@ return function(ctx, env)
     local posted = Gx.posted()
     picture(d.sp, posted and posted.mon, cx, py + sin(clock * 2) * 0.4, r * 1.6, clock, mv.depAt, pop, fa, d.shiny)
     local ty = py + r + 3
+    -- (at a bigger text size the lines move apart, as far as there's room above the button: dg each)
+    local dg = 0
+    if gx > 0 then dg = max(0, min(gx * 1.7, (y + h - 14 - (ty + 21.5)) / 3)) end
     K.rise(e1, 4)
     if dep.received then
       K.bold(d.traded, x, ty, 5, C.goldDark, "center", w)
-      K.text(d.from, x, ty + 7, 3.8, C.soft, "center", w)
+      K.text(d.from, x, ty + 7 + dg, 3.8, C.soft, "center", w)
       sparkle(cx - r - 3, py - r * 0.5, 1.4 + 0.8 * abs(sin(clock * 3)), C.gold, 0.9)
       sparkle(cx + r + 3, py + r * 0.4, 1.2 + 0.8 * abs(sin(clock * 4)), C.goldTop, 0.9)
     else
@@ -1139,7 +1164,7 @@ return function(ctx, env)
       local nx = cx - (nw + (pw > 0 and pw + 2 or 0)) / 2
       K.bold(d.name, nx, ty, 5, C.ink)
       if pw > 0 then pills(d, nx + nw + 2, ty + 0.4, 5, 3.2) end
-      K.text(d.seek, x, ty + 6.5, 3.8, C.teal, "center", w)
+      K.text(d.seek, x, ty + 6.5 + dg, 3.8, C.teal, "center", w)
     end
     K.settle(e1)
     if not dep.received then
@@ -1147,12 +1172,12 @@ return function(ctx, env)
       local mins = floor(max(0, Gx.now() - (dep.at or 0)) / 60)
       local dots = floor(clock * 2) % 4
       local wt = T("gts.waiting")
-      K.text(wt, x, ty + 12, 3.6, C.soft, "center", w)
+      K.text(wt, x, ty + 12 + dg * 2, 3.6, C.soft, "center", w)
       K.col(C.soft)
       for k = 1, dots do
-        G.circle("fill", K.X(cx + K.width(wt, 3.6) / 2 + k * 1.6), K.Y(ty + 15.6), 0.4 * K.sc)
+        G.circle("fill", K.X(cx + K.width(wt, 3.6) / 2 + k * 1.6), K.Y(ty + 15.6 + dg * 2), 0.4 * K.sc)
       end
-      K.text(agoText(mins), x, ty + 17, 3.4, C.faint, "center", w)
+      K.text(agoText(mins), x, ty + 17 + dg * 3, 3.4, C.faint, "center", w)
       K.settle(e2)
     end
     local go = K.R(cx - 30, y + h - 14, 60, 10)
@@ -1214,6 +1239,13 @@ return function(ctx, env)
     local tc = TIER_C[rv.tier] or TIER_C.common
     local cx, cy = x + w / 2, y + h * 0.32
     local r = min(w, h) * 0.2
+    -- (a bigger text size: the card's lines further apart, the card taller by `more`; the Pokémon lifted
+    -- and a little smaller to make the room the window doesn't have)
+    local more = gx * (5 + (rv.item and 1.5 or 0) + (rv.evolve and 1.5 or 0))
+    if more > 0 then
+      local lift = min(more, max(0, cy + r + 3 + 28 + (rv.item and 5 or 0) + (rv.evolve and 5 or 0) + more - (y + h - 3)))
+      cy, r = cy - lift * 0.6, r - lift * 0.4
+    end
     burstAt.x, burstAt.y = cx, cy
     local fa = K.outCubic(age / 0.25)
     if (RANK[rv.tier] or 1) >= 3 then rays(cx, cy, r * 2.6 * (0.6 + 0.4 * fa), clock, tc, 0.22 * fa) end
@@ -1227,14 +1259,14 @@ return function(ctx, env)
     -- (its card)
     local cw = min(w - 12, 150)
     local ty = cy + r + 3
-    local ch = min(y + h - 3 - ty, 22 + (rv.item and 5 or 0) + (rv.evolve and 5 or 0) + 6)
+    local ch = min(y + h - 3 - ty, 22 + (rv.item and 5 or 0) + (rv.evolve and 5 or 0) + 6 + more)
     local e = K.outCubic((age - 0.18) / 0.4)
     K.rise(e, 6)
     K.glass(K.R(cx - cw / 2, ty, cw, ch), 5, 0.6)
     local yy = ty + 2.5
     local ns = K.fit(rv.name, 6, cw - 8)
     K.bold(rv.name, cx - cw / 2, yy, ns, C.ink, "center", cw)
-    yy = yy + 7.6
+    yy = yy + 7.6 + gx * 2
     -- (its types, its tier, its level, Shiny: one line, centred; the types left out when it's too narrow)
     local tier = T(TIER_KEY[rv.tier] or TIER_KEY.common)
     local lv = levelText(rv.level)
@@ -1249,16 +1281,16 @@ return function(ctx, env)
     chip(tier, sx, yy, 3.6, tc)
     K.text(lv, sx + tw + 2, yy, 4, C.soft)
     if rv.shiny then shinyBadge(sx + tw + 4 + lw, yy, 3.6, clock) end
-    yy = yy + 6.4
+    yy = yy + 6.4 + gx * 1.5
     K.text(rv.ot, cx - cw / 2, yy, 3.8, C.teal, "center", cw)
-    yy = yy + 5.4
+    yy = yy + 5.4 + gx * 1.5
     if rv.item then
       K.text(rv.item, cx - cw / 2, yy, 3.6, C.goldDark, "center", cw)
-      yy = yy + 5
+      yy = yy + 5 + gx * 1.5
     end
     K.text(ivTotal(rv.ivs), cx - cw / 2, yy, 3.6, C.soft, "center", cw)
     if rv.evolve then
-      K.bold(T("gts.evolving"), cx - cw / 2, yy + 5, 3.8, C.goldDark, "center", cw, 0.6 + 0.4 * abs(sin(clock * 4)))
+      K.bold(T("gts.evolving"), cx - cw / 2, yy + 5 + gx * 1.5, 3.8, C.goldDark, "center", cw, 0.6 + 0.4 * abs(sin(clock * 4)))
     end
     K.settle(e)
   end
@@ -1435,6 +1467,9 @@ return function(ctx, env)
     local x, y, w, h = body[1], body[2], body[3], body[4]
     G = K.graphics()
     bodyNow = body
+    gx = K.textScale() - 1
+    -- (the listings' rows taller with the text size, their three lines apart)
+    st.lrowH = LROW_H + gx * 10
     local dt = mv.lastT and max(0, min(0.1, clock - mv.lastT)) or 0
     mv.lastT = clock
     advance(now())

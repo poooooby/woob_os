@@ -408,7 +408,10 @@ return function(mod)
       if not Settings then return default end
       return Settings.get(key, default)
     end,
-    setSetting = function(key, v) if Settings then Settings.set(key, v) end end,
+    setSetting = function(key, v)
+      if Settings then Settings.set(key, v) end
+      if key == "textSize" then Kit.setTextScale((tonumber(v) or 100) / 100) end
+    end,
   }
   -- the notifications: pushed by the models below, made once the apps are (Nt set further down);
   -- quiet (the list only) while the player is looking at that app already
@@ -647,8 +650,8 @@ return function(mod)
         local Pk = engine("src.core.game3.pokemon")
         local ok, n = pcall(Pk and Pk.name or error, sp)
         if not (ok and n) then return tostring(sp) end
-        -- (the fonts have no gender signs: Nidoran F, Nidoran M)
-        return titled((tostring(n):gsub("\226\153\128", " F"):gsub("\226\153\130", " M")))
+        -- (Nidoran's sign kept: the kit draws it)
+        return titled(tostring(n))
       end,
       storm = function(s)
         if gameId() ~= "emerald" or not (env.map3d and env.map3d.model) then return nil end
@@ -1126,9 +1129,17 @@ return function(mod)
   env.glyph = Desktop.glyph
   -- (money in a window, with the game's sign: the Mart)
   env.amount = function(n, x, y, size, c, measure) return Desktop.amount(n, x, y, size, c, measure) end
+  -- the text size (Settings > Display, the mod option), on the kit: at load, once a second, and at once
+  -- when the Settings app changes it
+  local function applyTextSize()
+    local pct = Settings and Settings.textSize(option("textSize", 100)) or tonumber(option("textSize", 100)) or 100
+    Kit.setTextScale(pct / 100)
+  end
+  applyTextSize()
   -- once a second, wherever the player is: R-Bay's auctions and the GTS settle (their
   -- notifications come from it); a win's Poké Ball onto the desktop's pad
   local function tick()
+    applyTextSize()
     -- (the open desktop's or pad's session first: the one the PC was opened with)
     local open = Desktop.isOpen() and Desktop.state() or (Watch and Watch.isOpen() and Watch.state())
     local s = open and open.ctx and open.ctx.session or session()

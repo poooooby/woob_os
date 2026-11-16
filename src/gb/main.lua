@@ -139,7 +139,10 @@ return function(mod, loadSibling)
       if not Settings then return default end
       return Settings.get(key, default)
     end,
-    setSetting = function(key, v) if Settings then Settings.set(key, v) end end,
+    setSetting = function(key, v)
+      if Settings then Settings.set(key, v) end
+      if key == "textSize" then Kit.setTextScale((tonumber(v) or 100) / 100) end
+    end,
   }
   if Gd then
     env.gd = Gd
@@ -525,8 +528,16 @@ return function(mod, loadSibling)
   env.glyph = Desktop.glyph
   env.amount = function(n, x, y, size, c, measure) return Desktop.amount(n, x, y, size, c, measure) end
 
+  -- the text size (Settings > Display, the mod option), on the kit: at load, once a second, and at once
+  -- when the Settings app changes it
+  local function applyTextSize()
+    local pct = Settings and Settings.textSize(option("textSize", 100)) or tonumber(option("textSize", 100)) or 100
+    Kit.setTextScale(pct / 100)
+  end
+  applyTextSize()
   -- once a second: R-Bay's auctions and the GTS settle, challenges and errands, the News's day, a Badge
   local function tick()
+    applyTextSize()
     local open = Desktop.isOpen() and Desktop.state() or (Watch and Watch.isOpen() and Watch.state())
     local s = open and open.ctx and open.ctx.session or session()
     if not s then return end

@@ -404,14 +404,39 @@ return function(ctx, env)
     else K.bold(label, b[1], b[2] + (b[4] - fs * 1.2) / 2, fs, UI.accent, "center", b[3]) end
   end
 
-  -- (how many lines its description takes at w units: worked out once per width, kept on its row)
+  -- (how many lines its description takes at w units, at the text size: worked out once per width and
+  -- size, kept on its row; one that fitted at 100% stays one line, as the kit draws it)
   local function descLines(row, w)
     local px = floor(w * K.sc + 0.5)
-    if row.wrapPx ~= px then
-      local ok, _, lines = pcall(K.font(4.4 * K.sc).getWrap, K.font(4.4 * K.sc), row.desc, w * K.sc)
-      row.wrapPx, row.wrapN = px, ok and type(lines) == "table" and #lines or 3
+    local ts = K.textScale()
+    if row.wrapPx ~= px or row.wrapTs ~= ts then
+      if ts ~= 1 and K.width(row.desc, 4.4 / ts) <= w + 0.01 then
+        row.wrapPx, row.wrapTs, row.wrapN = px, ts, 1
+      else
+        local f = K.font(4.4 * ts * K.sc)
+        local ok, _, lines = pcall(f.getWrap, f, row.desc, w * K.sc)
+        row.wrapPx, row.wrapTs, row.wrapN = px, ts, ok and type(lines) == "table" and #lines or 3
+      end
     end
     return row.wrapN
+  end
+  -- (the question's note: its lines at 100% and at the text size, kept per words, width and size)
+  local noteWrap = { s = nil, w = 0, ts = 0, sc = 0, n1 = 1, n = 1 }
+  local function wrapN(s, size, w, ts)
+    local f = K.font(size * ts * K.sc)
+    local ok, _, lines = pcall(f.getWrap, f, s, w * K.sc)
+    return ok and type(lines) == "table" and #lines or 1
+  end
+  local function noteGrowth(s, size, w)
+    local ts = K.textScale()
+    if ts == 1 then return 0 end
+    local m = noteWrap
+    if m.s ~= s or m.w ~= w or m.ts ~= ts or m.sc ~= K.sc then
+      m.s, m.w, m.ts, m.sc = s, w, ts, K.sc
+      m.n1 = wrapN(s, size, w, 1)
+      m.n = m.n1 == 1 and 1 or wrapN(s, size, w, ts)
+    end
+    return max(0, m.n * size * ts * 1.2 - m.n1 * size * 1.2)
   end
 
   -- an app's page: back, a pane of its colour (its icon popping, its name, who made it, its buttons or
@@ -471,9 +496,11 @@ return function(ctx, env)
     rise(e4, 7)
     local cy = hy + HEAD_PANE + GAP + 1
     local cw = w - M * 2
-    local cb = K.R(x + M, cy, cw, max(10, min(y + h - M - cy, 8 + descLines(row, cw - 10) * 4.4 * 1.2)))
+    local ts = K.textScale()
+    local cb = K.R(x + M, cy, cw, max(10, min(y + h - M - cy, 8 + descLines(row, cw - 10) * 4.4 * ts * 1.2)))
     K.glass(cb, 5)
-    K.text(row.desc, cb[1] + 5, cb[2] + 4, 4.4, UI.label, "left", cb[3] - 10)
+    -- (at a bigger text size its top stays put: it grows down, the card with it)
+    K.text(row.desc, cb[1] + 5, cb[2] + 4 + (ts - 1) * 4.4 * 0.6, 4.4, UI.label, "left", cb[3] - 10)
     settle(e4)
   end
 
@@ -484,7 +511,10 @@ return function(ctx, env)
     local e = outCubic((clock - mv.confirmAt) / 0.22)
     K.dim(body, 0.3 * e)
     K.addHit(body, "win", DIM)
-    local mw, mh = min(w - 16, 130), 40
+    -- (taller by what its note grows at a bigger text size)
+    local note = T("store.removeNote")
+    local mw = min(w - 16, 130)
+    local mh = 40 + noteGrowth(note, 3.9, mw - 10)
     local mx, my = x + (w - mw) / 2, y + (h - mh) / 2
     local cb = K.R(mx, my, mw, mh)
     rise(e, 6)
@@ -493,7 +523,7 @@ return function(ctx, env)
     K.glass(cb, 6, 0.9)
     K.addHit(cb, "win", -1)
     K.bold(c.title, mx + 4, my + 5, K.fit(c.title, 5.4, mw - 8), UI.label, "center", mw - 8)
-    K.text(T("store.removeNote"), mx + 5, my + 13, 3.9, UI.secondary, "center", mw - 10)
+    K.text(note, mx + 5, my + 13, 3.9, UI.secondary, "center", mw - 10)
     local bw, by = (mw - 8 - GAP) / 2, my + mh - 14
     for i = 1, 2 do
       local bb = K.R(mx + 4 + (i - 1) * (bw + GAP), by, bw, 10.5)

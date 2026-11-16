@@ -15,6 +15,7 @@
 local floor, max, min, sin, cos, pi, abs = math.floor, math.max, math.min, math.sin, math.cos, math.pi, math.abs
 
 local M = 3
+local STRIP_G = 7.5     -- upright: how much taller the week's strip grows for each 100% more of text size
 local CLAIM, BONUS = 2100, 2200
 local HINTS = { main = { { "^ v", "hint.choose" }, { "A", "challenges.claim" }, { "B", "hint.close" } } }
 -- each kind's picture (src/icons.lua) and colour
@@ -165,11 +166,12 @@ return function(ctx, env)
   local rowX, rowY, rowW, rowH = {}, {}, {}, {}
   for i = 1, 8 do rowX[i], rowY[i], rowW[i], rowH[i] = 0, 0, 0, 0 end
 
-  local function money(n, x, y, size, c, right)
+  -- (measure: its width only)
+  local function money(n, x, y, size, c, right, measure)
     if not env.amount then return 0 end
     local ok, w = pcall(env.amount, n, 0, 0, size, c, true)
     w = ok and tonumber(w) or 0
-    pcall(env.amount, n, right and x - w or x, y, size, c)
+    if not measure then pcall(env.amount, n, right and x - w or x, y, size, c) end
     return w
   end
   local function check(cx, cy, r, c, a)
@@ -271,12 +273,14 @@ return function(ctx, env)
     end
     local text = endsText(mins)
     local ew = K.width(text, size) + 6
-    local ch = size + 2.6
+    -- (as much taller as the text size makes its words, the words in its middle)
+    local g = (K.textScale() - 1) * size
+    local ch = size + 2.6 + g
     K.col(C.gold, 0.26)
     K.box("fill", K.R(x, y, ew, ch), ch / 2)
     local fe = K.outCubic((mv.clock - mv.endsAt) / 0.35)
-    if fe < 1 then K.text(mv.endsOld, x + 3, y + 1.3 - fe * 2.5, size, C.goldInk, nil, nil, 1 - fe) end
-    K.text(text, x + 3, y + 1.3 + (1 - fe) * 2.5, size, C.goldInk, nil, nil, fe)
+    if fe < 1 then K.text(mv.endsOld, x + 3, y + 1.3 + g / 2 - fe * 2.5, size, C.goldInk, nil, nil, 1 - fe) end
+    K.text(text, x + 3, y + 1.3 + g / 2 + (1 - fe) * 2.5, size, C.goldInk, nil, nil, fe)
     return ew
   end
 
@@ -369,12 +373,21 @@ return function(ctx, env)
     popOut(pop)
     local tx = bb[1] + (small and 17 or 18)
     local words = bb[3] - (tx - bb[1]) - 26
+    -- (g: what the text size adds; bigger, the words keep clear of the reward as wide as it's drawn, and
+    -- the two lines stay apart)
+    local g = K.textScale() - 1
+    if g > 0 and not bonus.claimed and not ready then
+      local rw = bonus.money and money(bonus.money, 0, 0, 4, C.goldInk, false, true)
+        or (10 + K.width(timesText(bonus.n or 1), 3.6))
+      words = min(words, bb[3] - (tx - bb[1]) - 3 - rw - 2)
+    end
     if small then
       K.text(T("challenges.bonus"), tx, mid - 3.6 * 0.6, K.fit(T("challenges.bonus"), 3.6, words), C.ink)
     else
-      local top = mid - (4 * 1.2 + 1 + 3.2 * 1.2) / 2
-      K.bold(T("challenges.bonus"), tx, top, K.fit(T("challenges.bonus"), 4, words), C.ink)
-      K.text(T("challenges.bonusNote"), tx, top + 4 * 1.2 + 1, K.fit(T("challenges.bonusNote"), 3.2, words), C.soft)
+      local top = mid - (4 * 1.2 * (1 + g) + 1 + 3.2 * 1.2 * (1 + g)) / 2
+      K.bold(T("challenges.bonus"), tx, top + g * 4 * 0.6, K.fit(T("challenges.bonus"), 4, words), C.ink)
+      K.text(T("challenges.bonusNote"), tx, top + 4 * 1.2 * (1 + g) + 1 + g * 3.2 * 0.6,
+        K.fit(T("challenges.bonusNote"), 3.2, words), C.soft)
     end
     if bonus.claimed then
       check(bb[1] + bb[3] - 6, mid, 3.4 * K.outBack(pt / 0.4), C.green)
@@ -440,16 +453,19 @@ return function(ctx, env)
   -- (upright: the week's strip)
   local function drawStrip(x, y, w, h, list, clock)
     K.glass(K.R(x, y, w, h), 6)
-    K.bold(T("challenges.week"), x + 4, y + 3, 5.4, C.ink)
-    countdown(x + 4, y + 9.6, 3.2)
+    -- (g: what the text size adds; the countdown, the bar and the bonus that much lower, the strip as
+    -- much taller: STRIP_G)
+    local g = K.textScale() - 1
+    K.bold(T("challenges.week"), x + 4, y + 3 + g * 0.6, g > 0 and K.fit(T("challenges.week"), 5.4, w - 30) or 5.4, C.ink)
+    countdown(x + 4, y + 9.6 + g * 3.4, 3.2)
     local claimed = claimedNow(list)
     local pop = bump(mv.ringAt, 0.12, 0.45)
     popIn(x + w - 10, y + 9, pop)
     ring(x + w - 10, y + 9, 6, mv.ring, 1.6)
     K.text(doneText(claimed), x + w - 16, y + 9 - 3.2 * 0.6, 3.2, C.ink, "center", 12)
     popOut(pop)
-    weekBar(x + 4, y + 16.4, w - 8)
-    drawBonus(K.R(x + 2, y + 18.5, w - 4, h - 20.5), true, clock)
+    weekBar(x + 4, y + 16.4 + g * STRIP_G, w - 8)
+    drawBonus(K.R(x + 2, y + 18.5 + g * STRIP_G, w - 4, h - 20.5 - g * STRIP_G), true, clock)
   end
 
   -- the highlight gliding to the chosen goal (or the bonus), in its colour
@@ -545,7 +561,7 @@ return function(ctx, env)
       drawGlide()
     else
       -- (upright: the week's strip, then the goals, scrolling smoothly)
-      local hh = 34
+      local hh = 34 + (K.textScale() - 1) * STRIP_G
       local e0 = K.stagger(since, 0, 0.06, 0.34)
       K.rise(e0, 6)
       drawStrip(x + M, y + M, w - M * 2, hh, list, clock)

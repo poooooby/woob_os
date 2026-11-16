@@ -232,6 +232,7 @@ return function(deps)
   end
 
   function Nd.draw(sb, rad, dt, clock)
+    K.auditLayer()
     local G = K.graphics()
     local x, w, h = sb[1], sb[3], sb[4]
     geo.x, geo.y, geo.w, geo.h = x, sb[2], w, h
@@ -260,10 +261,13 @@ return function(deps)
     local cx = x + (w - cw) / 2
     geo.cx, geo.cw = cx, cw
     local hy = sb[2] + 27 + oy
-    K.bold(T("notes.title"), cx + 1, hy, 6, WHITE, nil, nil, a)
     local l = list()
     local word = T("notes.clear")
     local bw = K.width(word, 4.4) + 8
+    -- (at a bigger text size the heading kept clear of Clear)
+    local title = T("notes.title")
+    local hs = K.textScale() > 1 and K.fit(title, 6, cw - bw - 4) or 6
+    K.bold(title, cx + 1, hy + (6 - hs) * 0.5, hs, WHITE, nil, nil, a)
     local cb = geo.clear
     cb[1], cb[2], cb[3], cb[4] = cx + cw - bw, hy - 0.4, bw, 8
     if #l > 0 then

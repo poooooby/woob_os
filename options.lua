@@ -24,6 +24,14 @@ return {
     description = "The menu bar's clock in 24-hour time (15:30) instead of 3:30 PM.",
   },
   {
+    key = "textSize",
+    label = "Text Size",
+    type = "choice",
+    default = 100,
+    choices = { { "Normal", 100 }, { "Large", 115 }, { "Larger", 130 } },
+    description = "Bigger text in every WoobOS app. Words that don't fit get a little smaller to stay in place. Also in Settings > Display.",
+  },
+  {
     key = "pokedex",
     label = "Pokédex",
     type = "toggle",

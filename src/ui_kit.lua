@@ -387,7 +387,18 @@ return function(deps)
   -- does s carry a ♀ / ♂ (a name that shows its own sign: no separate mark beside it, as the games do)
   function K.hasSign(s) return signed(s) ~= nil end
 
-  local function width(s, size)
+  -- the player's text size (Settings > Display or the mod option, set by main.lua): every text drawn this
+  -- much bigger and measured at it (K.width, K.fit), so what's laid out after a text moves with it and
+  -- a fitted text still fits; it grows round its line's middle, so a centred line stays centred, and a
+  -- line given a width it fitted at 1x shrinks back into it rather than wrap or run over
+  local TS = 1
+  function K.setTextScale(v) TS = max(1, min(1.6, tonumber(v) or 1)) end
+  function K.textScale() return TS end
+  -- (a line's height at a size: a stacked line's step, as big as its text is drawn)
+  function K.lineH(size) return size * TS end
+
+  -- (a text's width at exactly `size`)
+  local function measure(s, size)
     local p = signed(s)
     if p then
       local f, n = font(size * sc), 0
@@ -396,6 +407,7 @@ return function(deps)
     end
     return font(size * sc):getWidth(s) / sc
   end
+  local function width(s, size) return measure(s, size * TS) end
   K.width = width
   -- (a text with signs: on one line, runs and marks in turn; a wrapped one without its signs)
   local function signedText(p, f, x, y, size, align, w)
@@ -424,10 +436,94 @@ return function(deps)
     end
     G.setLineWidth(lw)
   end
+  -- the text audit (the tests' text-size check; K.audit = { n = 0 } turns it on, nil off): each text's
+  -- ink this frame (units) and the clip it was drawn in, read by K.auditIssues
+  K.audit = nil
+  -- (an overlay starts: a dim, a sheet, a toast, a window's own banner; texts under it and over it aren't
+  -- compared)
+  function K.auditLayer()
+    local A = K.audit
+    if A then A.layer = (A.layer or 0) + 1 end
+  end
+  local function auditText(s, x, y, size, align, w, f, a)
+    local A = K.audit
+    if (a or 1) * fade < 0.05 or s == "" then return end
+    local tw, lines = measure(s, size), 1
+    if align and w and tw > w + 0.01 then
+      local ok, _, ls = pcall(f.getWrap, f, tostring(s), w * sc)
+      lines = ok and type(ls) == "table" and math.max(1, #ls) or math.ceil(tw / math.max(1, w))
+      tw = w
+    end
+    local x1 = x
+    if align == "center" and w then x1 = x + (w - tw) / 2 elseif align == "right" and w then x1 = x + w - tw end
+    local lh = size * 1.2
+    local okH, fh = pcall(f.getHeight, f)
+    if okH and tonumber(fh) then lh = fh / sc end
+    local cx, cy, cw, ch
+    if G.getScissor then cx, cy, cw, ch = G.getScissor() end
+    A.n = A.n + 1
+    A[A.n] = { s = tostring(s), x1 = x1, y1 = y + size * 0.22, x2 = x1 + tw, y2 = y + (lines - 1) * lh + size * 1.02,
+               lines = lines, size = size, layer = A.layer or 0,
+               cx1 = cx and (cx - ox) / sc, cy1 = cy and (cy - oy) / sc,
+               cx2 = cx and (cx + cw - ox) / sc, cy2 = cy and (cy + ch - oy) / sc }
+  end
+  -- what the audit saw, as { kind, text, other } records: "overlap" (two texts' ink crossing; a text and
+  -- its shadow or bold twin aren't counted), "clipX" / "clipY" (a text out past the clip it was drawn
+  -- in), "wrap" (a text in more lines than `prev` had it, when given)
+  function K.auditIssues(A)
+    local out = {}
+    for i = 1, A.n do
+      local t = A[i]
+      if t.cx1 then
+        if t.x1 < t.cx1 - 0.4 or t.x2 > t.cx2 + 0.4 then
+          -- (all of it out of the clip: not drawn at all, a list's row off its end)
+          if t.x2 > t.cx1 and t.x1 < t.cx2 and t.y2 > t.cy1 and t.y1 < t.cy2 then out[#out + 1] = { "clipX", t.s } end
+        end
+        if (t.y1 < t.cy1 - 0.4 or t.y2 > t.cy2 + 0.4) and t.y2 > t.cy1 and t.y1 < t.cy2 then out[#out + 1] = { "clipY", t.s } end
+      end
+      for j = i + 1, A.n do
+        local u = A[j]
+        local twin = t.s == u.s and math.abs(t.x1 - u.x1) < 1.2 and math.abs(t.y1 - u.y1) < 1.2
+        if not twin and t.layer == u.layer then
+          local ix = math.min(t.x2, u.x2) - math.max(t.x1, u.x1)
+          local iy = math.min(t.y2, u.y2) - math.max(t.y1, u.y1)
+          if ix > 0.5 and iy > 0.5 then
+            -- (both shown in the same clip; a text drawn where another is clipped away isn't an overlap)
+            local vis = function(r, px, py)
+              return not r.cx1 or (px >= r.cx1 and px <= r.cx2 and py >= r.cy1 and py <= r.cy2)
+            end
+            local mx, my = (math.max(t.x1, u.x1) + math.min(t.x2, u.x2)) / 2, (math.max(t.y1, u.y1) + math.min(t.y2, u.y2)) / 2
+            if vis(t, mx, my) and vis(u, mx, my) then out[#out + 1] = { "overlap", t.s, u.s } end
+          end
+        end
+      end
+    end
+    return out
+  end
+
   local function text(s, x, y, size, c, align, w, a)
+    if TS ~= 1 then
+      local big = size * TS
+      -- (a line that fitted its width at 1x stays on one line, in it)
+      if align and w then
+        local w1 = measure(s, size)
+        if w1 <= w + 0.01 then
+          -- (fonts come in whole pixels: stepped down until it truly fits, never under its 1x size)
+          local wb = measure(s, big)
+          local k = 0
+          while wb > w and big > size and k < 4 do
+            big = max(size, big * w / wb * 0.985)
+            wb, k = measure(s, big), k + 1
+          end
+        end
+      end
+      y = y - (big - size) * 0.6
+      size = big
+    end
     local f = font(size * sc)
     G.setFont(f)
     col(c, a)
+    if K.audit then auditText(s, x, y, size, align, w, f, a) end
     local p = signed(s)
     if p then
       signedText(p, f, x, y, size, align, w)
@@ -446,10 +542,19 @@ return function(deps)
     text(s, x, y + 0.5, size, BLACK, align, w, 0.22 * (a or 1))
     return text(s, x, y, size, c, align, w, a)
   end
-  -- a font size that fits s in w units (smaller only, never under 3.5)
+  -- a font size that fits s in w units at the text size (smaller only; never under 3.5 units drawn)
   function K.fit(s, size, w)
     local tw = width(s, size)
-    if w and tw > w and tw > 0 then return max(3.5, size * w / tw * 0.97) end
+    if w and tw > w and tw > 0 then
+      local floorS = 3.5 / TS
+      local fs = max(floorS, size * w / tw * 0.97)
+      -- (fonts come in whole pixels: a step or two more where the rounding still left it too wide)
+      local k = 0
+      while k < 3 and fs > floorS and width(s, fs) > w do
+        fs, k = max(floorS, fs * 0.95), k + 1
+      end
+      return fs
+    end
     return size
   end
   function K.scissor(b)
@@ -706,6 +811,7 @@ return function(deps)
 
   -- a toast pill near the foot of `area` (units): state = { text, bad, t }; -> false once gone
   function K.toast(state, clock, area, badColor, goodColor, ink)
+    K.auditLayer()
     local age = clock - state.t
     local a = age < 2.2 and min(1, age / 0.15 + 0.01) or max(0, 1 - (age - 2.2) / 0.4)
     if a <= 0 then return false end
@@ -890,10 +996,12 @@ return function(deps)
   end
   -- a sheet or popover over a dimmed window: the dim, then the card with its shadow
   function K.dim(b, a)
+    K.auditLayer()
     col(BLACK, a or 0.22)
     box("fill", b)
   end
   function K.sheet(b, rad)
+    K.auditLayer()
     rad = rad or 6
     K.shadow(b, rad, 1.6, 0.3)
     col(UI.card)

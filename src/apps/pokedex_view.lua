@@ -77,6 +77,9 @@ return function(K, env, T, st, A, KINDS)
   local mesh = nil
   local PX, PY, HX, HY = { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }
   local CHX, CHW = { 0, 0, 0, 0 }, { 0, 0, 0, 0 }
+  -- (the moves' chips' words' keys, made once)
+  local KIND_KEY = {}
+  for i = 1, #KINDS do KIND_KEY[i] = "dex.moves." .. KINDS[i] end
 
   -- the motion's numbers (see the top)
   local mv = {
@@ -108,10 +111,26 @@ return function(K, env, T, st, A, KINDS)
     st.lines[slot] = { text = text, w = w, size = size, lines = lines }
     return lines
   end
+  -- (a wrapped line's step: as tall as the player's text size draws it)
+  local function lineH(size) return K.lineH(size) * 1.25 end
   local function drawLines(lines, x, y, size, c, a)
-    local lh = size * 1.25
+    local lh = lineH(size)
     for i = 1, #lines do K.text(lines[i], x, y + (i - 1) * lh, size, c, nil, nil, a) end
     return #lines * lh
+  end
+  -- (the player's text size over 100%: 0 at 100%, so every room made of it leaves 100% as it was)
+  local function grown() return K.textScale() - 1 end
+  -- (how much wider s is drawn than at 100%)
+  local function extra(s, size)
+    local w = K.width(s, size)
+    return w - w / K.textScale()
+  end
+  -- (a size keeping s inside `room` at the player's text size, never drawn under its 100% size; at 100%
+  -- just `size`)
+  local function roomy(s, size, room)
+    local ts = K.textScale()
+    if ts == 1 then return size end
+    return max(size / ts, K.fit(s, size, room))
   end
 
   -- something settling in: drawn `(1 - e) * dy` units lower and at `e` of itself (the kit's fade, so
@@ -380,24 +399,27 @@ return function(K, env, T, st, A, KINDS)
     local fs = K.fit(e.name, 7, tw - 6)
     K.label(e.name, tx + (1 - e1) * 8, y + 8, fs, C.white, nil, nil, e1)
     if e.sex then sexMark(e.sex, tx + (1 - e1) * 8 + K.width(e.name, fs) + 1.2, y + 9, 5, e1) end
-    K.label(pg.category, tx + (1 - e2) * 8, y + 16.5, K.fit(pg.category, 4, tw), C.white, nil, nil, 0.9 * e2)
+    -- (the lines under the name a little lower, the chips' three lines apart, as the text grows)
+    local g = grown()
+    K.label(pg.category, tx + (1 - e2) * 8, y + 16.5 + g * 3, K.fit(pg.category, 4, tw), C.white, nil, nil, 0.9 * e2)
     local cx = tx + (1 - e3) * 8
     for i = 1, #pg.types do
-      cx = cx + pill(pg.types[i].id, pg.types[i].name, cx, y + 23, 6, 3.6, e3, true) + 1.5
+      cx = cx + pill(pg.types[i].id, pg.types[i].name, cx, y + 23 + g * 3, 6, 3.6, e3, true) + 1.5
     end
     -- (height and weight, two frosted chips)
     local chw = min(36, (tw - 1.5) / 2)
-    local cy = y + 31.8
+    local cy = y + 31.8 + g * 3
     local ox = (1 - e4) * 8
     for j = 1, 2 do
       local bx = tx + ox + (j - 1) * (chw + 1.5)
       K.col(C.white, 0.2 * e4)
-      K.box("fill", K.R(bx, cy, chw, 13.2), 2.5)
+      K.box("fill", K.R(bx, cy, chw, 13.2 + g * 4), 2.5)
       -- (the word, metres / kilograms bold, feet / pounds under them)
       local m, imp = j == 1 and pg.heightM or pg.weightM, j == 1 and pg.heightI or pg.weightI
-      K.text(word(j == 1 and "dex.height" or "dex.weight"), bx + 2.2, cy + 1, 2.9, C.white, nil, nil, 0.8 * e4)
-      K.bold(m or "", bx + 2.2, cy + 4.5, K.fit(m or "", 3.6, chw - 4), C.white, nil, nil, e4)
-      if imp then K.text(imp, bx + 2.2, cy + 9, 2.9, C.white, nil, nil, 0.75 * e4) end
+      local lab = word(j == 1 and "dex.height" or "dex.weight")
+      K.text(lab, bx + 2.2, cy + 1 - g, roomy(lab, 2.9, chw - 4), C.white, nil, nil, 0.8 * e4)
+      K.bold(m or "", bx + 2.2, cy + 4.5 + g * 1.5, K.fit(m or "", 3.6, chw - 4), C.white, nil, nil, e4)
+      if imp then K.text(imp, bx + 2.2, cy + 9 + g * 4, roomy(imp, 2.9, chw - 4), C.white, nil, nil, 0.75 * e4) end
     end
     return h
   end
@@ -405,14 +427,16 @@ return function(K, env, T, st, A, KINDS)
   local function descCard(x, y, w, e, pg, clock)
     local inner = w - 8
     local lines = wrap("desc", pg.description, inner, 3.9)
-    local h = 6 + #lines * 3.9 * 1.25 + (pg.noGender and 3 or 12)
+    local h = 6 + #lines * lineH(3.9) + (pg.noGender and 3 or 12 + grown() * 4)
     glass(K.R(x, y, w, h), 4)
     drawLines(lines, x + 4, y + 4, 3.9, C.ink)
     -- (the gender ratio: each side filling in from its end; Red / Blue / Yellow's Pokémon have none)
     if pg.noGender then return h end
-    local gy = y + h - 9
+    local gy = y + h - 9 - grown() * 3
     K.text(word("dex.gender"), x + 4, gy, 3.4, C.soft)
-    local bx, bw = x + 22, w - 26
+    -- (the bar after the word, however big it's drawn)
+    local gx = extra(word("dex.gender"), 3.4)
+    local bx, bw = x + 22 + gx, w - 26 - gx
     if pg.female == nil then
       K.text(word("dex.genderless"), bx, gy, 3.4, C.ink)
     else
@@ -446,9 +470,8 @@ return function(K, env, T, st, A, KINDS)
   -- six bars beside it
   local function stats(x, y, w, pg, dt)
     local wide = w >= WIDE_STATS
-    local h = wide and 60 or 76
+    local h = wide and 60 or 76 + grown() * 4
     glass(K.R(x, y, w, h), 4)
-    K.bold(word("dex.stats"), x + 4, y + 3, 4.2, C.ink)
     local total = 0
     for j = 1, 6 do
       st.shown[j] = approach(st.shown[j], pg.stats[j], dt, 8)
@@ -457,7 +480,10 @@ return function(K, env, T, st, A, KINDS)
     local tt, tv = word("dex.total"), num(floor(total + 0.5))
     local tw = K.width(tv, 4.2)
     K.bold(tv, x + w - 4 - tw, y + 3, 4.2, C.ink)
-    K.text(tt, x + w - 6 - tw - K.width(tt, 3.6), y + 3.6, 3.6, C.soft)
+    local ttw = K.width(tt, 3.6)
+    K.text(tt, x + w - 6 - tw - ttw, y + 3.6, 3.6, C.soft)
+    -- (the title kept clear of the total)
+    K.bold(word("dex.stats"), x + 4, y + 3, roomy(word("dex.stats"), 4.2, w - 12 - tw - ttw), C.ink)
     local rad = wide and 16.5 or min(22, w * 0.22)
     local cx = wide and (x + 6 + rad) or (x + w / 2)
     local cy = wide and (y + 35) or (y + 39)
@@ -504,12 +530,13 @@ return function(K, env, T, st, A, KINDS)
       G.circle("fill", K.X(PX[j]), K.Y(PY[j]), 0.75 * K.sc)
     end
     if not wide then
-      -- (each corner's stat and value)
+      -- (each corner's stat and value, apart as the text grows)
+      local g = grown() * 1.8
       for j = 1, 6 do
         local si = CORNER_STAT[j]
         local lx, ly = corner(j, cx, cy, rad + 9, STAT_MAX)
-        K.text(word(STAT_KEY[si]), lx - 16, ly - 4, 3.1, C.soft, "center", 32)
-        K.bold(num(floor(st.shown[si] + 0.5)), lx - 16, ly - 0.4, 3.6, C.ink, "center", 32)
+        K.text(word(STAT_KEY[si]), lx - 16, ly - 4 - g, 3.1, C.soft, "center", 32)
+        K.bold(num(floor(st.shown[si] + 0.5)), lx - 16, ly - 0.4 + g, 3.6, C.ink, "center", 32)
       end
       return h
     end
@@ -542,7 +569,7 @@ return function(K, env, T, st, A, KINDS)
     local inner = w - 11
     local h = 10
     for i = 1, #pg.abilities do
-      h = h + 5.5 + #wrap(AB[i] or "ab", pg.abilities[i].desc, inner, 3.5) * 3.5 * 1.25 + 3
+      h = h + 5.5 + #wrap(AB[i] or "ab", pg.abilities[i].desc, inner, 3.5) * lineH(3.5) + 3
     end
     glass(K.R(x, y, w, h), 4)
     K.bold(word("dex.abilities"), x + 4, y + 3, 4.2, C.ink)
@@ -550,7 +577,7 @@ return function(K, env, T, st, A, KINDS)
     for i = 1, #pg.abilities do
       local a = pg.abilities[i]
       local lines = wrap(AB[i] or "ab", a.desc, inner, 3.5)
-      local bh = 5.5 + #lines * 3.5 * 1.25
+      local bh = 5.5 + #lines * lineH(3.5)
       -- (a strip in its type's colour beside each)
       G.setColor(mv.r, mv.g, mv.b, 0.85 * K.getFade())
       K.box("fill", K.R(x + 4, ay + 0.3, 1.3, bh - 1.2), 0.65)
@@ -568,9 +595,17 @@ return function(K, env, T, st, A, KINDS)
   local function moveRows(x, y, w, pg, clock, dt)
     local chipH, ky = 6, y
     local cx = x
+    -- (the chips' words smaller when, grown, they'd run past the card; never under their 100% size)
+    local cs = 3.5
+    if K.textScale() ~= 1 then
+      local tw = 0
+      for i = 1, #KINDS do tw = tw + K.width(word(KIND_KEY[i]), 3.5) end
+      local room = w - #KINDS * 6 - (#KINDS - 1) * 1.5
+      if tw > room and tw > 0 then cs = max(3.5 / K.textScale(), 3.5 * room / tw * 0.97) end
+    end
     for i = 1, #KINDS do
       local label = word("dex.moves." .. KINDS[i])
-      CHX[i], CHW[i] = cx, K.width(label, 3.5) + 6
+      CHX[i], CHW[i] = cx, K.width(label, cs) + 6
       K.col(C.track)
       K.box("fill", K.R(cx, ky, CHW[i], chipH), chipH / 2)
       cx = cx + CHW[i] + 1.5
@@ -585,8 +620,8 @@ return function(K, env, T, st, A, KINDS)
     for i = 1, #KINDS do
       local on = abs(mv.kindX - i) < 0.5
       local cb = K.R(CHX[i], ky, CHW[i], chipH)
-      K.text(word("dex.moves." .. KINDS[i]), CHX[i], ky + (chipH - 4.2) / 2, 3.5, on and C.white or C.ink, "center",
-        CHW[i])
+      K.text(word("dex.moves." .. KINDS[i]), CHX[i], ky + (chipH - 4.2) / 2 + (3.5 - cs) * 0.6, cs, on and C.white or C.ink,
+        "center", CHW[i])
       K.addHit(cb, "win", A.KIND + i)
     end
     local rows = pg.moves[KINDS[st.kind]] or {}
@@ -601,9 +636,11 @@ return function(K, env, T, st, A, KINDS)
     local nameX = x + 12
     local typeX = x + w * (wide and 0.46 or 0.52)
     local powX = x + w - (wide and 34 or 22)
-    K.text(word("dex.col.power"), powX - 4, ry, 3, C.faint, "right", 14)
-    if wide then K.text(word("dex.col.acc"), powX + 7, ry, 3, C.faint, "right", 14) end
-    K.text(word("dex.col.pp"), powX + (wide and 18 or 7), ry, 3, C.faint, "right", 14)
+    -- (each column's name kept to its column as the text grows)
+    local hp, ha, hpp = word("dex.col.power"), word("dex.col.acc"), word("dex.col.pp")
+    K.text(hp, powX - 4, ry, roomy(hp, 3, 14), C.faint, "right", 14)
+    if wide then K.text(ha, powX + 7, ry, roomy(ha, 3, 10.5), C.faint, "right", 14) end
+    K.text(hpp, powX + (wide and 18 or 7), ry, roomy(hpp, 3, 10.5), C.faint, "right", 14)
     ry = ry + 4.5
     for i = 1, #rows do
       local r = rows[i]
@@ -614,7 +651,7 @@ return function(K, env, T, st, A, KINDS)
         K.col(C.track, 0.35)
         K.box("fill", K.R(x, yy - 0.8, w, rh), 2)
       end
-      K.text(r.tag, x + 1.5, yy + 0.6, 3.3, C.soft)
+      K.text(r.tag, x + 1.5, yy + 0.6, roomy(r.tag, 3.3, nameX - x - 2.5), C.soft)
       K.text(r.name, nameX, yy + 0.4, K.fit(r.name, 3.7, typeX - nameX - 2), C.ink)
       local pw = pill(r.typeId, r.typeName, typeX, yy, 5.2, 3.1)
       if not r.status then
@@ -635,7 +672,9 @@ return function(K, env, T, st, A, KINDS)
       K.text(word("dex.where.none"), x + 2, y + 1, 3.6, C.soft)
       return 8
     end
-    local rh = 10
+    -- (a row taller, its second line lower, as the text grows; 10 and 0 at 100%)
+    local rh = 10 + grown() * 4
+    local g2 = grown() * 2
     for i = 1, #list do
       local r = list[i]
       local yy = y + (i - 1) * rh
@@ -651,9 +690,10 @@ return function(K, env, T, st, A, KINDS)
       K.col(C.white)
       G.circle("fill", K.X(x + 2.6), K.Y(yy + 2.4), 0.6 * K.sc)
       K.bold(r.place, x + 6, yy + 0.4, K.fit(r.place, 3.8, w * 0.55 - 5), C.ink)
-      K.text(r.methodText, x + 6, yy + 4.6, 3.2, C.soft)
+      -- (how, kept clear of the chance on its right)
+      K.text(r.methodText, x + 6, yy + 4.6 + g2, roomy(r.methodText, 3.2, w - 9 - K.width(r.chanceText, 3.2)), C.soft)
       K.text(r.levels, x + w * 0.55, yy + 0.6, 3.5, C.ink, "right", w * 0.45 - 2)
-      K.text(r.chanceText, x + w * 0.55, yy + 4.6, 3.2, C.soft, "right", w * 0.45 - 2)
+      K.text(r.chanceText, x + w * 0.55, yy + 4.6 + g2, 3.2, C.soft, "right", w * 0.45 - 2)
       settle(ein)
     end
     return #list * rh
@@ -706,7 +746,10 @@ return function(K, env, T, st, A, KINDS)
         K.box("fill", K.R(x, yy - 0.8, w, 6.4), 2)
       end
       K.text(r.label, x + 1.5, yy + 0.2, 3.4, C.soft)
-      K.text(r.value, x + w * 0.42, yy + 0.2, K.fit(r.value, 3.4, w * 0.58 - 2), C.ink, "right", w * 0.58 - 2)
+      -- (the value kept clear of its label)
+      local vs = K.fit(r.value, 3.4, w * 0.58 - 2)
+      vs = roomy(r.value, vs, w - 5.5 - K.width(r.label, 3.4))
+      K.text(r.value, x + w * 0.42, yy + 0.2, vs, C.ink, "right", w * 0.58 - 2)
       settle(ein)
       yy = yy + 6.4
     end

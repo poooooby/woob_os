@@ -378,12 +378,16 @@ return function(ctx, env)
       pcall(env.glyph, G, "phone", K.X(cx), K.Y(cy), s * K.sc, a * K.getFade())
     end
   end
-  -- a capsule with words -> where the next one goes
-  local function pill(x, y, words, fill, fillA, ink, size, a)
+  -- a capsule with words -> where the next one goes (grown with the text size, its words fitted to end by
+  -- `right`)
+  local function pill(x, y, words, fill, fillA, ink, size, a, right)
+    if right and K.textScale() > 1 then size = K.fit(words, size, right - x - 5) end
     local w = K.width(words, size) + 5
+    -- (as tall as its words are drawn)
+    local g = (K.textScale() - 1) * size
     K.col(fill, fillA * a)
-    K.box("fill", K.R(x, y, w, size + 2.6), (size + 2.6) / 2)
-    K.bold(words, x, y + 1.2, size, ink, "center", w, a)
+    K.box("fill", K.R(x, y, w, size + 2.6 + g), (size + 2.6 + g) / 2)
+    K.bold(words, x, y + 1.2 + g / 2, size, ink, "center", w, a)
     return x + w + 1.5
   end
 
@@ -431,6 +435,8 @@ return function(ctx, env)
     local since = clock - mv.rowsAt
     local first = floor(top) + 1
     local f0 = K.getFade()
+    -- (the name and the line under it apart as the text grows: nothing at 100%)
+    local gl = (K.textScale() - 1) * 1.5
     for i = first, min(#st.rows, first + st.visible) do
       local r = st.rows[i]
       local e = K.stagger(since, i - first, 0.035, 0.28)
@@ -446,19 +452,19 @@ return function(ctx, env)
       avatar(c and c.pic or (r.recent and r.recent.pic), name, x + 2.5, ry + oy + 2, 11, 1)
       local tx = x + 16
       local nw = w - 16 - 14
-      K.bold(name, tx, ry + oy + 2.2, K.fit(name, 4.8, nw), ink)
+      K.bold(name, tx, ry + oy + 2.2 - gl, K.fit(name, 4.8, nw), ink)
       if r.recent then
         if refreshAgo or not r.ago then r.ago = agoText(max(0, floor((t - (r.recent.at or t)) / 60))) end
         -- (in or out: a little arrow)
         K.col(lit and C.white or (r.recent.incoming and C.green or C.accent))
-        local ax, ay = K.X(tx + 1.5), K.Y(ry + oy + 10.2)
+        local ax, ay = K.X(tx + 1.5), K.Y(ry + oy + 10.2 + gl)
         local u = 1.4 * K.sc
         if r.recent.incoming then G.polygon("fill", ax - u, ay - u, ax + u, ay + u, ax - u, ay + u)
         else G.polygon("fill", ax + u, ay + u, ax - u, ay - u, ax + u, ay - u) end
-        K.text(r.ago, tx + 4, ry + oy + 8.3, 3.8, soft, nil, nil, lit and 0.85 or 1)
+        K.text(r.ago, tx + 4, ry + oy + 8.3 + gl, 3.8, soft, nil, nil, lit and 0.85 or 1)
       else
         local sub = c.place ~= "" and c.place or c.desc
-        K.text(sub, tx, ry + oy + 8.3, K.fit(sub, 3.8, nw), soft, nil, nil, lit and 0.85 or 1)
+        K.text(sub, tx, ry + oy + 8.3 + gl, K.fit(sub, 3.8, nw), soft, nil, nil, lit and 0.85 or 1)
       end
       if c and c.rematch then
         K.col(lit and C.white or C.green)
@@ -552,15 +558,19 @@ return function(ctx, env)
     local tx = x + ps + 9
     local room = x + w - tx - 3
     local e1, e2, e3 = outCubic((t - 0.05) / 0.32), outCubic((t - 0.1) / 0.32), outCubic((t - 0.16) / 0.32)
-    local ty = y + max(2, (h - 30) / 2)
+    -- (the lines apart as the text grows, the pills taller: nothing at 100%)
+    local gs = K.textScale() - 1
+    local ty = y + max(2, (h - 30 - gs * 9) / 2)
     K.label(c.name, tx + (1 - e1) * 8, ty, K.fit(c.name, 6.4, room), C.white, nil, nil, e1 * f0)
-    K.label(c.desc, tx + (1 - e2) * 8, ty + 8.5, K.fit(c.desc, 4, room), C.white, nil, nil, 0.9 * e2 * f0)
+    K.label(c.desc, tx + (1 - e2) * 8, ty + 8.5 + gs * 4, K.fit(c.desc, 4, room), C.white, nil, nil, 0.9 * e2 * f0)
     if c.place ~= "" then
-      K.label(c.place, tx + (1 - e2) * 8, ty + 14, K.fit(c.place, 3.6, room), C.white, nil, nil, 0.75 * e2 * f0)
+      K.label(c.place, tx + (1 - e2) * 8, ty + 14 + gs * 6, K.fit(c.place, 3.6, room), C.white, nil, nil,
+        0.75 * e2 * f0)
     end
     local px = tx + (1 - e3) * 8
-    if c.rematch then px = pill(px, ty + 20.5, T("phone.wantsRematch"), C.white, 0.92, C.greenInk, 3.4, e3 * f0) end
-    if c.nearby then pill(px, ty + 20.5, T("phone.nearby"), C.white, 0.92, C.amber, 3.4, e3 * f0) end
+    local py = ty + 20.5 + gs * 8
+    if c.rematch then px = pill(px, py, T("phone.wantsRematch"), C.white, 0.92, C.greenInk, 3.4, e3 * f0, x + w - 3) end
+    if c.nearby then pill(px, py, T("phone.nearby"), C.white, 0.92, C.amber, 3.4, e3 * f0, x + w - 3) end
   end
 
   -- Call (green, a handset) and ★ (glass, the star popping as it's set)
@@ -622,19 +632,21 @@ return function(ctx, env)
   local function checkPage(c, x, y, w, h, t)
     if h < 10 or #c.check == 0 then return end
     -- (as tall as its lines, the room allowing)
+    -- (each line's step grows with the text size: nothing at 100%)
+    local gs = K.textScale() - 1
     local need = 4.5
-    for i = 1, #c.check do need = need + (c.headings and c.headings[i] and 5.4 or 6.2) end
+    for i = 1, #c.check do need = need + (c.headings and c.headings[i] and 5.4 + gs * 4.8 or 6.2 + gs * 5.2) end
     h = min(h, need)
     K.glass(K.R(x, y, w, h), 4, 0.55)
     local f0 = K.getFade()
     local ly = y + 3
     for i, line in ipairs(c.check) do
       local head = c.headings and c.headings[i]
-      if ly + 5 > y + h - 1.5 then break end
+      if ly + 5 + gs * 5 > y + h - 1.5 then break end
       local e = K.stagger(t - 0.12, i, 0.04, 0.28)
       K.setFade(f0 * e)
-      K.text(line, x + 3.5, ly + (1 - e) * 3, K.fit(line, head and 4 or 4.3, w - 7), head and C.accent or C.ink)
-      ly = ly + (head and 5.4 or 6.2)
+      K.text(line, x + 3.5, ly + (1 - e) * 3 + gs * 2, K.fit(line, head and 4 or 4.3, w - 7), head and C.accent or C.ink)
+      ly = ly + (head and 5.4 + gs * 4.8 or 6.2 + gs * 5.2)
     end
     K.setFade(f0)
   end
@@ -679,6 +691,9 @@ return function(ctx, env)
 
   local LINE_TOP = { 255, 255, 255, 0.55 }
   local SIZE, LINE, PADX, PADY = 4.6, 6.1, 3.6, 2.4
+  -- (a line's step as the text grows, and how far its words are drawn higher by the kit: nothing at 100%)
+  local function lineStep() return LINE + (K.textScale() - 1) * SIZE * 1.2 end
+  local function lineLift() return (K.textScale() - 1) * SIZE * 0.6 end
   local UTF8 = "[%z\1-\127\194-\244][\128-\191]*"
 
   -- a bubble: its lines, each line's typed-out beginnings (made here, so the draw makes no strings)
@@ -695,7 +710,7 @@ return function(ctx, env)
       b.lw[j] = K.width(line, SIZE)
       b.tw = max(b.tw, b.lw[j])
     end
-    b.h = #lines * LINE + PADY * 2 - 0.6
+    b.h = #lines * lineStep() + PADY * 2 - 0.6
     return b
   end
   -- the game's pages (a blank line apart) as bubbles of at most `most` lines, `w` units wide (made
@@ -733,7 +748,7 @@ return function(ctx, env)
       if left <= 0 then break end
       n, left = j, left - b.count[j]
     end
-    return max(1, n) * LINE + PADY * 2 - 0.6
+    return max(1, n) * lineStep() + PADY * 2 - 0.6
   end
   -- the widest line typed so far of a bubble, `left` letters into it
   local function typedWidth(b, left)
@@ -779,9 +794,10 @@ return function(ctx, env)
   -- widening as the words come
   local function drawBubbles(cl, x, ay0, ay1, w, a, t, clock)
     local tw = floor(min(w - 28, 170) - PADX * 2)
-    local most = max(2, min(4, floor((ay1 - ay0 - PADY * 2) / LINE)))
-    if not st.bubbles or st.bubW ~= tw or st.bubL ~= most then
-      st.bubbles, st.bubW, st.bubL = buildBubbles(cl.text, tw, most), tw, most
+    local step = lineStep()
+    local most = max(2, min(4, floor((ay1 - ay0 - PADY * 2) / step)))
+    if not st.bubbles or st.bubW ~= tw or st.bubL ~= most or st.bubS ~= K.textScale() then
+      st.bubbles, st.bubW, st.bubL, st.bubS = buildBubbles(cl.text, tw, most), tw, most, K.textScale()
       cl.idx = min(cl.idx, #st.bubbles)
     end
     local bubbles = st.bubbles
@@ -836,7 +852,7 @@ return function(ctx, env)
         typingDots(bx, foot - 9.2 * k, k, ba, clock)
       else
         local left = now_ and shownOf(cl, b, t) or b.n
-        local ly = by + PADY
+        local ly = by + PADY + lineLift()
         for j, line in ipairs(b.lines) do
           local n = b.count[j]
           if left >= n then
@@ -846,7 +862,7 @@ return function(ctx, env)
             if left > 0 then K.text(b.pre[j][left], bx + PADX, ly, SIZE, C.ink, nil, nil, ba) end
             break
           end
-          ly = ly + LINE
+          ly = ly + step
         end
         if now_ and cl.idx < #bubbles and shownOf(cl, b, t) >= b.n then
           K.chevron(bx + bw + 3.2, by + bh - 3, 1.8, C.soft, 2, K.pulse() * ba)
@@ -919,11 +935,13 @@ return function(ctx, env)
       local nx = x + M + 17
       local name = cl.name or "?"
       local tint = tintOf(name)
-      K.bold(name, nx, y + M + 2.4, K.fit(name, 5, w - M * 2 - 34), C.ink, nil, nil, e)
+      -- (the name and the time apart as the text grows: nothing at 100%)
+      local gh = (K.textScale() - 1) * 1.5
+      K.bold(name, nx, y + M + 2.4 - gh, K.fit(name, 5, w - M * 2 - 34), C.ink, nil, nil, e)
       K.col(C.green, e)
-      G.circle("fill", K.X(nx + 1), K.Y(y + M + 10.9), 0.95 * K.sc)
+      G.circle("fill", K.X(nx + 1), K.Y(y + M + 10.9 + gh), 0.95 * K.sc)
       local clockText = timeText(floor(max(0, since - DIAL)))
-      K.text(clockText, nx + 3, y + M + 8.8, 3.8, C.greenInk, nil, nil, e)
+      K.text(clockText, nx + 3, y + M + 8.8 + gh, 3.8, C.greenInk, nil, nil, e)
       local b = st.bubbles and st.bubbles[cl.idx]
       local talking = b and not typingNow(cl, t) and shownOf(cl, b, t) < b.n
       local wx = x + w - M - 13

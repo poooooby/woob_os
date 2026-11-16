@@ -84,7 +84,7 @@ return function(ctx, env)
   local function clockNow() return Au.now() end
 
   local st = {
-    tab = "browse", focus = "list", cursor = 1, top = 0, visible = 6, key = nil, amount = 0,
+    tab = "browse", focus = "list", cursor = 1, top = 0, visible = 6, key = nil, amount = 0, rowH = ROW_H,
     mineCursor = 1, mineTop = 0, rows = {}, mineRows = {}, mineN = 0, mineBids = 0, mineAt = -1, toast = nil,
     hotKey = nil, recap = nil, recapBurst = false,
   }
@@ -459,9 +459,9 @@ return function(ctx, env)
     if st.recap then return end
     st.free = true
     if st.tab == "browse" then
-      st.top = max(0, min(max(0, #st.rows - st.visible), st.top - dy / ROW_H))
+      st.top = max(0, min(max(0, #st.rows - st.visible), st.top - dy / st.rowH))
     else
-      st.mineTop = max(0, min(max(0, st.mineN - st.visible), st.mineTop - dy / ROW_H))
+      st.mineTop = max(0, min(max(0, st.mineN - st.visible), st.mineTop - dy / st.rowH))
     end
   end
 
@@ -474,6 +474,9 @@ return function(ctx, env)
   -- ------- drawing (no tables made here)
 
   local function G() return K.graphics() end
+  -- (the text size past 100%: 0 at Normal, 0.3 at Larger; set each frame. Room that grows with it is
+  -- this times so many units: nothing moves at 100%)
+  local gx = 0
   local function money(n, x, y, size, c, right)
     if not env.amount then return 0 end
     local ok, w = pcall(env.amount, n, 0, 0, size, c, true)
@@ -481,10 +484,17 @@ return function(ctx, env)
     pcall(env.amount, n, right and x - w or x, y, size, c)
     return w
   end
+  local function moneyW(n, size)
+    if not env.amount then return 0 end
+    local ok, w = pcall(env.amount, n, 0, 0, size, C.text, true)
+    return ok and tonumber(w) or 0
+  end
+  -- (a pill as tall as its words: grown round its middle with the text size)
   local function pill(text, x, y, size, c, a)
     local w = K.width(text, size) + 3
+    local gh = size * 1.35 * gx
     K.col(c, a)
-    K.box("fill", K.R(x, y, w, size * 1.35), size * 0.6)
+    K.box("fill", K.R(x, y - gh / 2, w, size * 1.35 + gh), size * 0.6 * (1 + gx))
     K.text(text, x, y + size * 0.12, size, C.white, "center", w, a)
     return w
   end
@@ -556,11 +566,26 @@ return function(ctx, env)
   local function shinyBadge(x, y, size, clock)
     local word = T("auction.shiny")
     local w = K.width(word, size) + size * 1.6 + 3
-    local b = K.R(x, y, w, size * 1.35)
-    K.grad(b, size * 0.6, C.goldTop, C.goldDark)
+    local gh = size * 1.35 * gx
+    local b = K.R(x, y - gh / 2, w, size * 1.35 + gh)
+    K.grad(b, size * 0.6 * (1 + gx), C.goldTop, C.goldDark)
     sparkle(x + size * 0.85, y + size * 0.68, size * 0.55 * (0.85 + 0.15 * sin((clock or 0) * 5)), C.white, 1)
     K.bold(word, x + size * 1.6, y + size * 0.12, size, C.shinyInk, "center", w - size * 1.6 - 1)
     return w
+  end
+  local function shinyW(size) return K.width(T("auction.shiny"), size) + size * 1.6 + 3 end
+  -- a row's line of pills (tier, level, Shiny, your standing) bigger than its room: the size to draw them
+  -- at, back towards 100% (never under it), so they stop short of what's at the right
+  -- (ps the pills' size, 3.4 unless given; ls the level's, 3.8)
+  local function pillsK(tierWord, lv, shiny, stand, room, ps, ls)
+    if gx <= 0 then return 1 end
+    ps, ls = ps or 3.4, ls or 3.8
+    -- (what grows with the size, and what doesn't: the pills' ends and the gaps)
+    local grows, fixed = K.width(tierWord, ps) + K.width(lv, ls), 7
+    if shiny then grows, fixed = grows + shinyW(ps) - 3, fixed + 5 end
+    if stand then grows, fixed = grows + K.width(stand, ps), fixed + 3 end
+    if grows + fixed <= room then return 1 end
+    return max(1 / (1 + gx), (room - fixed) / grows)
   end
   local function rays(cx, cy, r, clock, c, a)
     local g = G()
@@ -680,15 +705,25 @@ return function(ctx, env)
     K.bold(tag, tb[1] + 5.5, tb[2] + 0.9, 3.4, C.white)
     local ns = K.fit(L.name, 5.6, tw - tgw - 2)
     K.bold(L.name, tx, y + 2.6 + (5.6 - ns) * 0.5, ns, C.text)
-    local pw = pill(T(TIER_KEY[L.tier]), tx, y + 9.3, 3.4, tc)
-    K.text(levelText(L.level), tx + pw + 2, y + 9.4, 3.8, C.soft)
-    if L.shiny then shinyBadge(tx + pw + 4 + K.width(levelText(L.level), 3.8), y + 9.3, 3.4, clock) end
     local fl = flashing(L, clock)
+    -- (the tier, level and Shiny stop short of the price beside them on a short card)
+    local tier, lv = T(TIER_KEY[L.tier]), levelText(L.level)
+    local k = pillsK(tier, lv, L.shiny, nil, h < 32 and tw - moneyW(L.price, 7) - 6 or tw)
+    local pw = pill(tier, tx, y + 9.3, 3.4 * k, tc)
+    K.text(lv, tx + pw + 2, y + 9.4, 3.8 * k, C.soft)
+    local pend = tx + pw + 2 + K.width(lv, 3.8 * k)
+    if L.shiny then pend = pend + 2 + shinyBadge(tx + pw + 4 + K.width(lv, 3.8 * k), y + 9.3, 3.4 * k, clock) end
     if h < 32 then
       -- (a short card, a phone's: the price at the right under the tag, the bids under it, so the
       -- tier and level keep their row)
       local right = x + w - 3
-      local mw = money(L.price, right, y + 8.6, 7, fl and C.white or C.gold, true)
+      -- (and the price, if they still meet, back towards its 100% size too)
+      local psz = 7
+      if gx > 0 then
+        local pw7 = moneyW(L.price, 7)
+        if pw7 > right - pend - 2 then psz = 7 * max(1 / (1 + gx), (right - pend - 2) / pw7) end
+      end
+      local mw = money(L.price, right, y + 8.6 + (7 - psz) * 0.5, psz, fl and C.white or C.gold, true)
       if fl then upArrow(right - mw - 4.5, y + 10.4, 3, C.green, 1) end
       K.text(bidsText(L.nbids), tx, y + h - 4.9, 3.6, C.soft, "right", right - tx)
     else
@@ -699,9 +734,16 @@ return function(ctx, env)
     local left = L.finish - t
     local urgent = left < 600
     local la = urgent and (0.6 + 0.4 * abs(sin(clock * 5))) or 1
-    K.text(T("auction.endsIn"), tx, y + h - 4.8, 3.4, C.faint)
-    K.text(leftText(leftKey(left)), tx + K.width(T("auction.endsIn"), 3.4) + 1.5, y + h - 4.9, 3.6,
-      urgent and C.red or C.text, nil, nil, la)
+    -- (on a short card it stops short of the bids at its right: smaller, back towards 100%, if it must)
+    local ends, lt = T("auction.endsIn"), leftText(leftKey(left))
+    local ek = 1
+    if gx > 0 and h < 32 then
+      local room = w - (tx - x) - 3 - K.width(bidsText(L.nbids), 3.6) - 2.5
+      local ew = K.width(ends, 3.4) + 1.5 + K.width(lt, 3.6)
+      if ew > room then ek = max(1 / (1 + gx), (room - 1.5) / (ew - 1.5)) end
+    end
+    K.text(ends, tx, y + h - 4.8, 3.4 * ek, C.faint)
+    K.text(lt, tx + K.width(ends, 3.4 * ek) + 1.5, y + h - 4.9, 3.6 * ek, urgent and C.red or C.text, nil, nil, la)
     shimmer(b, clock + 1.3, 3.4, 0.1)
     K.scissor(nil)
     K.ring(b, 4, tc, 0.45 + 0.3 * sin(clock * 3), 0.6)
@@ -714,7 +756,10 @@ return function(ctx, env)
   -- (the chosen row's highlight is the list's, gliding under the rows)
   local function drawRow(L, i, x, ry, w, on, t, clip, clock)
     watch(L, clock)
-    local rb = K.R(x + 1.5, ry + 0.4, w - 3, ROW_H - 0.8)
+    local rh = st.rowH
+    -- (a row taller with the text size: its first line a little lower, its second more, the icon centred)
+    local d1, d2 = (rh - ROW_H) * 0.25, (rh - ROW_H) * 0.8
+    local rb = K.R(x + 1.5, ry + 0.4, w - 3, rh - 0.8)
     local tc = TIER_C[L.tier]
     K.col(tc)
     K.box("fill", K.R(rb[1] + 0.6, rb[2] + 1.6, 1.1, rb[4] - 3.2), 0.5)
@@ -723,31 +768,34 @@ return function(ctx, env)
       shimmer(rb, clock + i * 0.5, 2.8, 0.1)
       K.scissor(clip)
     end
-    monIcon(L.sp, x + 3.5, ry + 1.5, 10)
+    monIcon(L.sp, x + 3.5, ry + 1.5 + (rh - ROW_H) * 0.5, 10)
     local fl = flashing(L, clock)
-    local pw = money(L.price, x + w - 4, ry + 1.8, 4.6, fl and C.gold or C.text, true)
-    if fl then upArrow(x + w - 7.5 - pw, ry + 2.6, 2.6, C.green, 1 - (clock - L.flashT) / 0.9) end
+    local pw = money(L.price, x + w - 4, ry + 1.8 + d1, 4.6, fl and C.gold or C.text, true)
+    if fl then upArrow(x + w - 7.5 - pw, ry + 2.6 + d1, 2.6, C.green, 1 - (clock - L.flashT) / 0.9) end
     local hot = L.key == st.hotKey
     local ns = K.fit(L.name, 4.6, w - 26 - pw - (hot and 4 or 0))
-    K.bold(L.name, x + 15, ry + 1.8 + (4.6 - ns) * 0.5, ns, C.text)
-    if hot then flame(x + 17 + K.width(L.name, ns) + 1.5, ry + 6, 3.6, clock) end
-    local px = x + 15
-    px = px + pill(T(TIER_KEY[L.tier]), px, ry + 7.3, 3.4, tc) + 2
-    K.text(levelText(L.level), px, ry + 7.4, 3.8, C.soft)
-    px = px + K.width(levelText(L.level), 3.8) + 2
-    if L.shiny then px = px + shinyBadge(px, ry + 7.3, 3.4, clock) + 2 end
-    if L.mine then
-      local lead = L.leader == 0
-      pill(T(lead and "auction.winning" or "auction.outbid"), px, ry + 7.3, 3.4, lead and C.green or C.red,
-        lead and 1 or (0.6 + 0.4 * abs(sin(clock * 4))))
-    end
+    K.bold(L.name, x + 15, ry + 1.8 + d1 + (4.6 - ns) * 0.5, ns, C.text)
+    if hot then flame(x + 17 + K.width(L.name, ns) + 1.5, ry + 6 + d1, 3.6, clock) end
     local left = L.finish - t
     local urgent = left < 600
-    K.text(leftText(leftKey(left)), x + w - 4 - 30, ry + 7.4, 3.8, urgent and C.red or C.soft, "right", 30, urgent and
+    local lt = leftText(leftKey(left))
+    local lead = L.mine and L.leader == 0
+    local stand = L.mine and T(lead and "auction.winning" or "auction.outbid") or nil
+    local tier, lv = T(TIER_KEY[L.tier]), levelText(L.level)
+    local k = pillsK(tier, lv, L.shiny, stand, w - 21 - K.width(lt, 3.8))
+    local px = x + 15
+    px = px + pill(tier, px, ry + 7.3 + d2, 3.4 * k, tc) + 2
+    K.text(lv, px, ry + 7.4 + d2, 3.8 * k, C.soft)
+    px = px + K.width(lv, 3.8 * k) + 2
+    if L.shiny then px = px + shinyBadge(px, ry + 7.3 + d2, 3.4 * k, clock) + 2 end
+    if stand then
+      pill(stand, px, ry + 7.3 + d2, 3.4 * k, lead and C.green or C.red, lead and 1 or (0.6 + 0.4 * abs(sin(clock * 4))))
+    end
+    K.text(lt, x + w - 4 - 30, ry + 7.4 + d2, 3.8, urgent and C.red or C.soft, "right", 30, urgent and
       (0.55 + 0.45 * abs(sin(clock * 5))) or 1)
     if not on then
       K.col(C.line)
-      K.box("fill", K.R(x + 15, ry + ROW_H - 0.2, w - 17, 0.25))
+      K.box("fill", K.R(x + 15, ry + rh - 0.2, w - 17, 0.25))
     end
     K.addHit(rb, "win", i, clip)
   end
@@ -756,19 +804,19 @@ return function(ctx, env)
   -- the rows) -> its offset now
   local function glide(cur, rel, top, lastTop)
     if cur == nil then return rel end
-    return K.approach(cur - (top - lastTop) * ROW_H, rel, mv.dt, 24)
+    return K.approach(cur - (top - lastTop) * st.rowH, rel, mv.dt, 24)
   end
   local function drawBrowseList(x, y, w, h, focused, t, clock)
     pane(K.R(x, y, w, h), 4)
-    st.visible = max(1, floor((h - 2) / ROW_H))
+    st.visible = max(1, floor((h - 2) / st.rowH))
     clampList()
     local clip = K.R(x, y + 1, w, h - 2)
     K.scissor(clip)
     local C0 = st.rows[st.cursor]
     if C0 then
-      mv.rowY = glide(mv.rowY, (st.cursor - 1 - st.top) * ROW_H, st.top, mv.rowTop)
+      mv.rowY = glide(mv.rowY, (st.cursor - 1 - st.top) * st.rowH, st.top, mv.rowTop)
       local tc = TIER_C[C0.tier]
-      lit(K.R(x + 1.5, y + 1.4 + mv.rowY, w - 3, ROW_H - 0.8), 2.5, tc, focused and 0.24 or 0.14, focused and 0.8 or 0.4)
+      lit(K.R(x + 1.5, y + 1.4 + mv.rowY, w - 3, st.rowH - 0.8), 2.5, tc, focused and 0.24 or 0.14, focused and 0.8 or 0.4)
     end
     mv.rowTop = st.top
     local first = floor(st.top) + 1
@@ -778,7 +826,7 @@ return function(ctx, env)
       -- (the rows rising in one after another as the tab opens)
       local e = K.stagger(since, i - first, 0.035, 0.28)
       local f = fadeTo(e)
-      drawRow(st.rows[i], i, x, y + 1 + (i - 1 - st.top) * ROW_H + (1 - e) * 4, w, i == st.cursor, t, clip, clock)
+      drawRow(st.rows[i], i, x, y + 1 + (i - 1 - st.top) * st.rowH + (1 - e) * 4, w, i == st.cursor, t, clip, clock)
       K.setFade(f)
     end
     K.scrollbar(x + w, y + 1, h - 2, st.top, st.visible, #st.rows)
@@ -789,14 +837,24 @@ return function(ctx, env)
   local function drawIvs(L, x, y, w, clock)
     K.text(ivTotal(L.ivSum), x, y, 3.8, C.soft)
     local cw = (w - 3) / 2
+    -- (the stats' words and their numbers take what they grew with the text size; the bars give it up)
+    local lg, ng = 0, 0
+    if gx > 0 then
+      local k = 1 / (1 + gx)
+      for i = 1, #IV_LABEL do
+        local s = T(IV_LABEL[i])
+        lg = max(lg, K.width(s, 3.6) - K.width(s, 3.6 * k))
+      end
+      ng = K.width("00", 3.6) - K.width("00", 3.6 * k)
+    end
     for i, key in ipairs(Au.IV_KEYS) do
       local col, row = (i - 1) % 2, floor((i - 1) / 2)
       local cx, cy = x + col * (cw + 3), y + 5 + row * 5
       local v = L.ivs[key] or 0
       local top = v == 31
       K.text(T(IV_LABEL[i]), cx, cy, 3.6, C.soft)
-      K.text(numText(v), cx + 9, cy, 3.6, top and C.gold or C.text, "right", 6)
-      local bx, bw = cx + 16.5, cw - 17
+      K.text(numText(v), cx + 9 + lg, cy, 3.6, top and C.gold or C.text, "right", 6 + ng)
+      local bx, bw = cx + 16.5 + lg + ng, cw - 17 - lg - ng
       K.col(C.bar)
       K.box("fill", K.R(bx, cy + 1.1, bw, 2.2), 1.1)
       local fw = max(2.2, bw * v / 31)
@@ -834,9 +892,11 @@ return function(ctx, env)
     local tx = x + ps + 6
     local ns = K.fit(L.name, 5.4, w - (tx - x) - 3)
     K.bold(L.name, tx, y + 3.5 + (5.4 - ns) * 0.5, ns, C.text)
-    local pw = pill(T(TIER_KEY[L.tier]), tx, y + 10.3, 3.6, tc)
-    K.text(levelText(L.level), tx + pw + 2, y + 10.4, 4, C.soft)
-    if L.shiny then shinyBadge(tx + pw + 4 + K.width(levelText(L.level), 4), y + 10.3, 3.6, clock) end
+    local tier, lv = T(TIER_KEY[L.tier]), levelText(L.level)
+    local k = pillsK(tier, lv, L.shiny, nil, w - (tx - x) - 3, 3.6, 4)
+    local pw = pill(tier, tx, y + 10.3, 3.6 * k, tc)
+    K.text(lv, tx + pw + 2, y + 10.4, 4 * k, C.soft)
+    if L.shiny then shinyBadge(tx + pw + 4 + K.width(lv, 4 * k), y + 10.3, 3.6 * k, clock) end
     if not compact and L.types ~= "" then K.text(L.types, tx, y + 16, 3.8, C.faint, "left", w - (tx - x) - 3) end
     local yy = y + ps + 6
     if not compact then
@@ -851,18 +911,24 @@ return function(ctx, env)
       urgent and (0.55 + 0.45 * abs(sin(clock * 5))) or 1)
     local fl = flashing(L, clock)
     local pk = fl and (1 + 0.12 * sin((clock - L.flashT) / 0.9 * pi)) or 1
-    scaleAbout(x + 4, yy + 7.4, pk)
-    local mw = money(L.price, x + 4, yy + 4.4, 6, fl and C.gold or C.text)
+    -- (the price a little further under its label at a bigger text size, while the bid controls leave room)
+    local py = yy + max(0, min(gx * 3, y + h - 25 - (yy + 12)))
+    scaleAbout(x + 4, py + 7.4, pk)
+    local mw = money(L.price, x + 4, py + 4.4, 6, fl and C.gold or C.text)
     G().pop()
     local bt = bidsText(L.nbids)
-    K.text(bt, x + 6 + mw, yy + 5.6, 3.8, C.soft)
+    K.text(bt, x + 6 + mw, py + 5.6, 3.8, C.soft)
     -- (your standing beside it: winning or outbid)
     if L.mine then
       local lead = L.leader == 0
-      pill(T(lead and "auction.winning" or "auction.outbid"), x + 8 + mw + K.width(bt, 3.8), yy + 5.3, 3.4,
-        lead and C.green or C.red, lead and 1 or (0.6 + 0.4 * abs(sin(clock * 4))))
+      local stand = T(lead and "auction.winning" or "auction.outbid")
+      local px = x + 8 + mw + K.width(bt, 3.8)
+      -- (back towards 100% when it would run past the card's edge)
+      local sk = 1
+      if gx > 0 then sk = max(1 / (1 + gx), min(1, (x + w - 3 - px - 3) / K.width(stand, 3.4))) end
+      pill(stand, px, py + 5.3, 3.4 * sk, lead and C.green or C.red, lead and 1 or (0.6 + 0.4 * abs(sin(clock * 4))))
     end
-    yy = yy + 12
+    yy = py + 12
     -- the last bids, newest first (while there's room above the bid controls)
     local room = floor((y + h - 27 - yy) / 4.6)
     local nh = min(L.histN, 5, max(0, room))
@@ -888,7 +954,7 @@ return function(ctx, env)
     K.addHit(K.R(sb[1] + 11, sb[2], 11, 10), "win", STEP_PLUS)
     if stepping then K.focusRing(sb, 3.2) end
     K.text(T("auction.max"), sb[1] + 25, sb[2] + 0.4, 3.4, C.soft)
-    money(amount, sb[1] + 25, sb[2] + 4.2, 5, (stepping or L.mine) and C.goldTop or C.faint)
+    money(amount, sb[1] + 25, sb[2] + 4.2 + gx * 2, 5, (stepping or L.mine) and C.goldTop or C.faint)
     local go = K.R(x + 4, y + h - 13, w - 8, 10)
     local ended = left <= 30
     if ended then
@@ -915,7 +981,7 @@ return function(ctx, env)
   -- in gold, sparkling)
   local function drawMine(x, y, w, h, t, clock)
     pane(K.R(x, y, w, h), 4)
-    st.visible = max(1, floor((h - 2) / ROW_H))
+    st.visible = max(1, floor((h - 2) / st.rowH))
     clampList()
     local clip = K.R(x, y + 1, w, h - 2)
     K.scissor(clip)
@@ -923,8 +989,8 @@ return function(ctx, env)
       K.text(T("auction.none"), x, y + h / 2 - 3, 4.6, C.faint, "center", w)
     end
     if st.mineRows[st.mineCursor] then
-      mv.mineY = glide(mv.mineY, (st.mineCursor - 1 - st.mineTop) * ROW_H, st.mineTop, mv.mineTop)
-      lit(K.R(x + 1.5, y + 1.4 + mv.mineY, w - 3, ROW_H - 0.8), 2.5, C.red, 0.2, 0.45)
+      mv.mineY = glide(mv.mineY, (st.mineCursor - 1 - st.mineTop) * st.rowH, st.mineTop, mv.mineTop)
+      lit(K.R(x + 1.5, y + 1.4 + mv.mineY, w - 3, st.rowH - 0.8), 2.5, C.red, 0.2, 0.45)
     end
     mv.mineTop = st.mineTop
     local first = floor(st.mineTop) + 1
@@ -934,8 +1000,8 @@ return function(ctx, env)
       local e = K.stagger(since, i - first, 0.035, 0.28)
       local f = fadeTo(e)
       local r = st.mineRows[i]
-      local ry = y + 1 + (i - 1 - st.mineTop) * ROW_H + (1 - e) * 4
-      local rb = K.R(x + 1.5, ry + 0.4, w - 3, ROW_H - 0.8)
+      local ry = y + 1 + (i - 1 - st.mineTop) * st.rowH + (1 - e) * 4
+      local rb = K.R(x + 1.5, ry + 0.4, w - 3, st.rowH - 0.8)
       local running = i <= st.mineBids
       local L = running and listingOf(r.key) or nil
       local lead = L and L.leader == 0
@@ -946,28 +1012,35 @@ return function(ctx, env)
       end
       K.col(stripe, (running and not lead and L) and (0.55 + 0.45 * abs(sin(clock * 4))) or 1)
       K.box("fill", K.R(rb[1] + 0.6, rb[2] + 1.6, 1.1, rb[4] - 3.2), 0.5)
-      monIcon(r.sp, x + 3.5, ry + 1.5, 10)
+      -- (as Browse's rows: taller with the text size, the lines apart)
+      local d1, d2 = (st.rowH - ROW_H) * 0.25, (st.rowH - ROW_H) * 0.8
+      monIcon(r.sp, x + 3.5, ry + 1.5 + (st.rowH - ROW_H) * 0.5, 10)
       local ns = K.fit(r.name or "?", 4.6, w - 60)
-      K.bold(r.name or "?", x + 15, ry + 1.8 + (4.6 - ns) * 0.5, ns, C.text)
+      K.bold(r.name or "?", x + 15, ry + 1.8 + d1 + (4.6 - ns) * 0.5, ns, C.text)
+      -- (the pills stop short of the right side's second line)
+      local lt = running and leftText(leftKey((r.finish or 0) - t)) or nil
+      local note = not running and (r.won and T(r.where == "pc" and "auction.toPc" or "auction.toParty") or T("auction.refunded"))
+      local nw = note and K.width(note, 3.6) or 0
+      local rw = lt and K.width(lt, 3.8) or (nw + (r.won and 2 + moneyW(r.price or 0, 3.6) or 0))
+      local tier, lv = T(TIER_KEY[r.tier] or TIER_KEY.common), levelText(r.level or 1)
+      local k = pillsK(tier, lv, r.shiny, nil, w - 21 - rw)
       local px = x + 15
-      px = px + pill(T(TIER_KEY[r.tier] or TIER_KEY.common), px, ry + 7.3, 3.4, TIER_C[r.tier] or TIER_C.common) + 2
-      K.text(levelText(r.level or 1), px, ry + 7.4, 3.8, C.soft)
-      if r.shiny then shinyBadge(px + K.width(levelText(r.level or 1), 3.8) + 2, ry + 7.3, 3.4, clock) end
+      px = px + pill(tier, px, ry + 7.3 + d2, 3.4 * k, TIER_C[r.tier] or TIER_C.common) + 2
+      K.text(lv, px, ry + 7.4 + d2, 3.8 * k, C.soft)
+      if r.shiny then shinyBadge(px + K.width(lv, 3.8 * k) + 2, ry + 7.3 + d2, 3.4 * k, clock) end
       if running then
         local tag = T(L and (lead and "auction.winning" or "auction.outbid") or "auction.ended")
-        K.text(tag, x + w - 4 - 40, ry + 1.8, 4.2, L and (lead and C.green or C.red) or C.soft, "right", 40)
-        K.text(leftText(leftKey((r.finish or 0) - t)), x + w - 4 - 30, ry + 7.4, 3.8, C.soft, "right", 30)
+        K.text(tag, x + w - 4 - 40, ry + 1.8 + d1, 4.2, L and (lead and C.green or C.red) or C.soft, "right", 40)
+        K.text(lt, x + w - 4 - 30, ry + 7.4 + d2, 3.8, C.soft, "right", 30)
       else
-        K.bold(T(r.won and "auction.won" or "auction.lost"), x + w - 4 - 40, ry + 1.8, 4.2,
+        K.bold(T(r.won and "auction.won" or "auction.lost"), x + w - 4 - 40, ry + 1.8 + d1, 4.2,
           r.won and C.gold or C.soft, "right", 40)
-        local note = r.won and T(r.where == "pc" and "auction.toPc" or "auction.toParty") or T("auction.refunded")
-        local nw = K.width(note, 3.6)
-        K.text(note, x + w - 4 - nw, ry + 7.5, 3.6, C.faint)
-        if r.won then money(r.price or 0, x + w - 6 - nw, ry + 7.5, 3.6, C.soft, true) end
+        K.text(note, x + w - 4 - nw, ry + 7.5 + d2, 3.6, C.faint)
+        if r.won then money(r.price or 0, x + w - 6 - nw, ry + 7.5 + d2, 3.6, C.soft, true) end
       end
       if i ~= st.mineCursor then
         K.col(C.line)
-        K.box("fill", K.R(x + 15, ry + ROW_H - 0.2, w - 17, 0.25))
+        K.box("fill", K.R(x + 15, ry + st.rowH - 0.2, w - 17, 0.25))
       end
       K.addHit(rb, "win", MINE + i, clip)
       K.setFade(f)
@@ -1013,18 +1086,22 @@ return function(ctx, env)
     local name = R.name or "?"
     local ns = K.fit(name, 5.4, w - (tx - x) - 3)
     K.bold(name, tx, y + 3.5 + (5.4 - ns) * 0.5, ns, C.text)
-    local pw = pill(T(TIER_KEY[R.tier] or TIER_KEY.common), tx, y + 10.3, 3.6, tc)
-    K.text(levelText(R.level), tx + pw + 2, y + 10.4, 4, C.soft)
-    if R.shiny then shinyBadge(tx + pw + 4 + K.width(levelText(R.level), 4), y + 10.3, 3.6, clock) end
+    local tier, lv = T(TIER_KEY[R.tier] or TIER_KEY.common), levelText(R.level)
+    local k = pillsK(tier, lv, R.shiny, nil, w - (tx - x) - 3, 3.6, 4)
+    local pw = pill(tier, tx, y + 10.3, 3.6 * k, tc)
+    K.text(lv, tx + pw + 2, y + 10.4, 4 * k, C.soft)
+    if R.shiny then shinyBadge(tx + pw + 4 + K.width(lv, 4 * k), y + 10.3, 3.6 * k, clock) end
     if R.types ~= "" and ps >= 22 then K.text(R.types, tx, y + 16, 3.8, C.faint, "left", w - (tx - x) - 3) end
     if R.ivs and y + h - (y + ps + 6) >= 20 then drawIvs(R, x + 4, y + ps + 6, w - 8, clock) end
   end
   -- one line of the result: its label at the left, a hairline under it -> where its value goes
+  -- (factG: the room each line takes more at a bigger text size, as the card has it)
+  local factG = 0
   local function fact(label, x, y, w)
     K.text(label, x + 4, y, 3.8, C.soft)
     K.col(C.line)
-    K.box("fill", K.R(x + 4, y + 4.9, w - 8, 0.25))
-    return y + 5.6
+    K.box("fill", K.R(x + 4, y + 4.9 + factG, w - 8, 0.25))
+    return y + 5.6 + factG
   end
   -- how it ended: won or outbid, the winning bid (and when), the winner, your maximum, what you paid
   -- or got back, where it went, how many bid; the last bids while there's room
@@ -1046,9 +1123,15 @@ return function(ctx, env)
       end
     end
     yy = yy + 7.5
+    -- (at a bigger text size the lines move apart, as far as the card has room for: the facts are
+    -- 5.6 apart, the price 2 under its label)
+    local nf = 1 + (R.max and 1 or 0) + (R.nBidders and 1 or 0) + (R.won and (R.where and 2 or 1) or (R.max and 1 or 0))
+    local kg = 0
+    if gx > 0 then kg = max(0, min(1, (y + h - 1.5 - (yy + 14.1 + nf * 5.6)) / (gx * (2 + nf * 1.5)))) end
+    factG = gx * 1.5 * kg
     K.text(T("auction.recap.final"), x + 4, yy, 3.8, C.soft)
     if R.at then K.text(agoText(agoKey(t - R.at)), x + 4, yy, 3.6, C.faint, "right", w - 8) end
-    yy = yy + 4.6
+    yy = yy + 4.6 + gx * 2 * kg
     local mw = money(R.price, x + 4, yy, 6.5, R.won and C.gold or C.text)
     if R.nbids then K.text(bidsText(R.nbids), x + 6 + mw, yy + 1.9, 3.8, C.soft) end
     yy = yy + 9.5
@@ -1170,6 +1253,9 @@ return function(ctx, env)
     -- (what changed since the last frame starts its motion)
     local dt = mv.lastT and max(0, min(0.1, clock - mv.lastT)) or 0
     mv.lastT, mv.clock, mv.dt = clock, clock, dt
+    -- (the text size: the rows taller with it, so their two lines stay apart)
+    gx = K.textScale() - 1
+    st.rowH = ROW_H + gx * 6
     if mv.tab ~= st.tab then
       mv.tab, mv.tabAt, mv.rowY, mv.mineY = st.tab, clock, nil, nil
     end

@@ -299,7 +299,8 @@ return function(ctx, env)
     K.text(i.natureText, hx + (1 - e2) * 6, y + 10, 4, WHITE, nil, nil, 0.7 * e2)
     K.text(i.ribbonText, x, y + 3.6, 4, WHITE, "right", w - 4 - (1 - e2) * 6, 0.75 * e2)
     local cx, cy = x + w / 2, y + h / 2 + 5
-    local rad = max(4, min(w * 0.36, (h - 34) / 2))
+    -- (a touch smaller as the corners' words grow, clear of the header and the sheen: nothing at 100%)
+    local rad = max(4, min(w * 0.36, (h - 34 - (K.textScale() - 1) * 6) / 2))
     -- (the values easing toward the chosen one's; a fed one's growing)
     for j = 1, 5 do
       st.shown[j] = K.approach(st.shown[j], r.conds[j], dt, 7)
@@ -328,7 +329,10 @@ return function(ctx, env)
       K.box("fill", K.R(lx - 1.2, ly - 1.2, 2.4, 2.4), 1.2)
       local value = num(floor(st.shown[j] + 0.5))
       local lw, vw = K.width(label, 3.4), K.width(value, 3.4)
-      local sx = lx - (lw + vw + 1.2) / 2
+      -- (grown with the text size, the side corners' words grow outward, away from the chart: their inner
+      -- end stays where it is at 100%)
+      local side = lx > cx + 0.5 and 1 or (lx < cx - 0.5 and -1 or 0)
+      local sx = lx - (lw + vw + 1.2) / 2 + side * (lw + vw) * (1 - 1 / K.textScale()) / 2
       K.text(label, sx, ly + 1.6, 3.4, WHITE, nil, nil, 0.8)
       K.bold(value, sx + lw + 1.2, ly + 1.6, 3.4, WHITE)
     end
@@ -509,10 +513,12 @@ return function(ctx, env)
     K.shadow(b, 6, 1.6, 0.25)
     K.glass(b, 6, 0.84)
     local r = row()
-    K.bold(T("cond.blocks"), b[1] + 5, b[2] + 4, 5.4, UI.label)
-    if r then K.text(r.info.feedTo, b[1] + 5, b[2] + 11, 4, UI.secondary) end
-    local ly, lh = b[2] + 18, 10
-    local fits = max(1, floor((sh - 34) / lh))
+    -- (the title, the words under it and the rows apart as the text grows: nothing at 100%)
+    local gs = K.textScale() - 1
+    K.bold(T("cond.blocks"), b[1] + 5, b[2] + 4 - gs * 1.5, 5.4, UI.label)
+    if r then K.text(r.info.feedTo, b[1] + 5, b[2] + 11 + gs * 1.5, 4, UI.secondary) end
+    local ly, lh = b[2] + 18 + gs * 5, 10
+    local fits = max(1, floor((sh - 34 - gs * 5) / lh))
     local top = max(0, min(st.blockCursor - fits, #st.blocks - fits))
     if mv.blockY == nil then mv.blockY = st.blockCursor else mv.blockY = K.approach(mv.blockY, st.blockCursor, dt, 24) end
     if #st.blocks > 0 then

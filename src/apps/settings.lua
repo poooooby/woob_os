@@ -5,6 +5,7 @@
 --   Notifications  the banners over the field and in the screens, then each app that tells the player
 --              things, on or off (with its icon; only the apps installed; the Phone only where calls
 --              come: Emerald), R-Bay's ending-soon alert under R-Bay
+--   Display    the text size: Normal, Large, Larger (the kit's K.setTextScale, through main.lua)
 --   WoobPad    its row in the START menu
 --   (a list of switches taller than the window scrolls: buttons follow the cursor, a drag or the wheel)
 -- A choice takes effect at once and is kept for the installation (src/settings.lua).
@@ -31,7 +32,7 @@ local floor, max, min, abs, sin, pi = math.floor, math.max, math.min, math.abs, 
 -- the sections' tiles (the rest of the look is the kit's K.UI)
 local C = { langTile = { 10, 132, 255 }, wallTile = { 175, 82, 222 }, watchTile = { 255, 69, 58 },
             mapTile = { 46, 170, 120 }, navTile = { 255, 92, 160 }, gameTile = { 255, 149, 0 },
-            notifyTile = { 255, 59, 48 },
+            notifyTile = { 255, 59, 48 }, displayTile = { 88, 86, 214 },
             white = { 255, 255, 255 }, black = { 0, 0, 0 } }
 -- (a switch's track: off, a grey glass; on, green; eased between)
 local OFF_R, OFF_G, OFF_B, OFF_A = 120 / 255, 120 / 255, 128 / 255, 0.3
@@ -39,6 +40,12 @@ local ON_R, ON_G, ON_B = 52 / 255, 199 / 255, 89 / 255
 -- the WoobPad, Map and PokéNav sections' rows: switches (the kept setting, its words, on by default) and a
 -- choice (the values A / a tap / Left / Right step through)
 local SOON_CHOICES = { 5, 10, 15, 30 }
+-- (Display: the text size, percent; each one's words)
+local TEXT_CHOICES = { 100, 115, 130 }
+local TEXT_WORDS = { [100] = "settings.textNormal", [115] = "settings.textLarge", [130] = "settings.textLarger" }
+local DISPLAY_TOGGLES = {
+  { key = "textSize", label = "settings.textSize", choices = TEXT_CHOICES, default = 100, words = TEXT_WORDS },
+}
 local WATCH_TOGGLES = {
   { key = "watchRow", label = "settings.watchRow" },
 }
@@ -57,6 +64,8 @@ local GAME_TOGGLES = { DEX_TOGGLE, SWARM_TOGGLE }
 local ALL_SECTIONS = {
   { id = "language", key = "settings.language", tile = C.langTile },
   { id = "wallpaper", key = "settings.wallpaper", tile = C.wallTile },
+  { id = "display", key = "settings.display", tile = C.displayTile, toggles = DISPLAY_TOGGLES,
+    note = "settings.displayNote" },
   { id = "notify", key = "settings.notifications", tile = C.notifyTile, toggles = NOTIFY_TOGGLES,
     note = "settings.notifyNote" },
   { id = "watch", key = "settings.watch", tile = C.watchTile, toggles = WATCH_TOGGLES, note = "settings.watchNote" },
@@ -345,11 +354,66 @@ return function(ctx, env)
   local offX, bodyNow = 0, nil
   local function clip(x, y, w, h) return K.R(x + offX, y, w, h) end
 
+  -- a note under a card at a bigger text size: as big as lets its lines (wrapped at w) fit down to the
+  -- body's foot, never smaller than at 100%; when no bigger size fits, as it is at 100% (100%: as it was).
+  -- Worked out when the words, the width, the room or the size change, kept per note
+  local noteFits = {}
+  local function noteFits1(s, try, size, w, room, ts)
+    local big = try * ts
+    local f = K.font(big * K.sc)
+    local lh = f:getHeight() / K.sc
+    local n = 1
+    if K.width(s, try / ts) <= w + 0.01 then
+      -- (one that fits its width at `try` the kit keeps on one line, shrunk into it: only when that isn't
+      -- smaller than at 100%)
+      if K.width(s, size / ts) > w + 0.01 then return false end
+    else
+      local ok, _, lines = pcall(f.getWrap, f, s, w * K.sc)
+      n = ok and type(lines) == "table" and #lines or 99
+    end
+    return n * lh - (big - try) * 0.6 <= room
+  end
+  local function drawNote(s, x, y, size, w)
+    local ts = K.textScale()
+    if ts == 1 or not bodyNow then return K.text(s, x, y, size, UI.secondary, "left", w) end
+    local room = bodyNow[2] + bodyNow[4] - 0.5 - y
+    local m = noteFits[s]
+    if not m then
+      m = {}
+      noteFits[s] = m
+    end
+    if not (m.w == w and m.room == room and m.ts == ts and m.sc == K.sc and m.size == size) then
+      local lo = size / ts
+      local out, try = false, size
+      for _ = 1, 16 do
+        if try < lo then break end
+        if noteFits1(s, try, size, w, room, ts) then
+          out = try
+          break
+        end
+        try = try > lo and max(lo, try * 0.96) or lo * 0.5
+      end
+      m.w, m.room, m.ts, m.sc, m.size, m.out = w, room, ts, K.sc, size, out
+    end
+    if m.out then return K.text(s, x, y, m.out, UI.secondary, "left", w) end
+    K.setTextScale(1)
+    K.text(s, x, y, size, UI.secondary, "left", w)
+    K.setTextScale(ts)
+  end
+
   local function tileGlyph(id, x, y, s)
     local cx, cy, u = K.X(x + s / 2), K.Y(y + s / 2), s * K.sc
     K.col(C.white)
     G.setLineWidth(max(1, u * 0.08))
-    if id == "language" then
+    if id == "display" then
+      -- (Aa: a big A and a small one, stroked)
+      G.setLineWidth(max(1, u * 0.09))
+      G.line(cx - u * 0.36, cy + u * 0.26, cx - u * 0.15, cy - u * 0.28, cx + u * 0.06, cy + u * 0.26)
+      G.line(cx - u * 0.27, cy + u * 0.06, cx - u * 0.03, cy + u * 0.06)
+      G.setLineWidth(max(1, u * 0.07))
+      G.line(cx + u * 0.1, cy + u * 0.26, cx + u * 0.23, cy - u * 0.04, cx + u * 0.36, cy + u * 0.26)
+      G.line(cx + u * 0.15, cy + u * 0.15, cx + u * 0.31, cy + u * 0.15)
+    elseif id == "language" then
       local r = u * 0.3
       G.circle("line", cx, cy, r)
       G.ellipse("line", cx, cy, r * 0.42, r)
@@ -435,6 +499,10 @@ return function(ctx, env)
         local wp = st.walls[i]
         if wp.id == current then return wp.key and T(wp.key) or wp.name end
       end
+    elseif id == "display" then
+      local t = DISPLAY_TOGGLES[1]
+      local v = env.setting and tonumber(env.setting(t.key, t.default)) or t.default
+      return T(TEXT_WORDS[v] or TEXT_WORDS[100])
     end
     return nil
   end
@@ -443,14 +511,17 @@ return function(ctx, env)
   -- highlight gliding to it (the accent while the list has the focus); in portrait the whole list, with
   -- what each is set to and a chevron
   local function drawSide(x, y, w, h, clock, dt, live, full)
-    local step = ROW_H + 1
-    -- (in portrait the pane as tall as its rows)
+    -- (beside the setting, every section in the pane: rows a little shorter when there are more than fit;
+    -- in portrait the pane as tall as its rows)
+    local rh = full and ROW_H or min(ROW_H, (h - 5) / #SECTIONS - 1)
+    local step = rh + 1
+    local dy = (rh - ROW_H) / 2
     if full then h = min(h, 5 + #SECTIONS * step) end
     K.glass(K.R(x, y, w, h), 5, 0.42)
     local y0 = y + 3
     mv.sideY = approach(mv.sideY, st.section, dt, 22)
     local sideFocus = st.focus == "side"
-    local hb = K.R(x + 2.5, y0 + (mv.sideY - 1) * step, w - 5, ROW_H)
+    local hb = K.R(x + 2.5, y0 + (mv.sideY - 1) * step, w - 5, rh)
     if sideFocus then
       K.col(UI.accent, 0.92)
       K.box("fill", hb, 3.5)
@@ -460,11 +531,11 @@ return function(ctx, env)
       K.ring(hb, 3.5, C.white, 0.9, 0.35)
     end
     local since = clock - mv.openAt
-    local ts = ROW_H - 4
+    local ts = rh - 4
     for i, sec in ipairs(SECTIONS) do
       local e = stagger(since, i, 0.035, 0.3)
       rise(e, 0, -6)
-      local rb = K.R(x + 2.5, y0 + (i - 1) * step, w - 5, ROW_H)
+      local rb = K.R(x + 2.5, y0 + (i - 1) * step, w - 5, rh)
       local lit = sideFocus and abs(mv.sideY - i) < 0.5
       -- (its tile: the chosen one pops as it's chosen)
       local tb = K.R(rb[1] + 2, rb[2] + 2, ts, ts)
@@ -482,13 +553,13 @@ return function(ctx, env)
       local vw = value and min(K.width(value, 4.2), rb[3] * 0.4) or 0
       local ls = K.fit(label, 4.8, rb[1] + rb[3] - lx - right - vw - (value and 3 or 0))
       local ink = lit and C.white or UI.label
-      if i == st.section then K.bold(label, lx, rb[2] + 3.4 + (4.8 - ls) * 0.5, ls, ink)
-      else K.text(label, lx, rb[2] + 3.4 + (4.8 - ls) * 0.5, ls, ink) end
+      if i == st.section then K.bold(label, lx, rb[2] + 3.4 + dy + (4.8 - ls) * 0.5, ls, ink)
+      else K.text(label, lx, rb[2] + 3.4 + dy + (4.8 - ls) * 0.5, ls, ink) end
       if value then
-        K.text(value, rb[1] + rb[3] - right - vw, rb[2] + 3.9, K.fit(value, 4.2, vw), lit and C.white or UI.secondary,
+        K.text(value, rb[1] + rb[3] - right - vw, rb[2] + 3.9 + dy, K.fit(value, 4.2, vw), lit and C.white or UI.secondary,
           "right", vw, lit and 0.85 or 1)
       end
-      if full then K.chevron(rb[1] + rb[3] - 4, rb[2] + ROW_H / 2, 3.4, lit and C.white or UI.tertiary, 1) end
+      if full then K.chevron(rb[1] + rb[3] - 4, rb[2] + rh / 2, 3.4, lit and C.white or UI.tertiary, 1) end
       settle(e)
       if live then K.addHit(rb, "win", SIDE + i - 1) end
     end
@@ -529,7 +600,8 @@ return function(ctx, env)
       settle(e)
       if live then K.addHit(rb, "win", LANG + i) end
     end
-    K.text(T("settings.languageNote"), x + 2, gb[2] + gb[4] + 3, 4.2, UI.secondary, "left", w - 4)
+    local note, ny = T("settings.languageNote"), gb[2] + gb[4] + 3
+    drawNote(note, x + 2, ny, 4.2, w - 4)
     settle(ce)
   end
 
@@ -602,8 +674,12 @@ return function(ctx, env)
         if popped then G.pop() end
         local name = wp.key and T(wp.key) or wp.name
         local ns = K.fit(name, 4.2, tw)
-        if wp.id == current then K.bold(name, tb[1], tb[2] + th + 1.5, ns, UI.accent, "center", tw)
-        else K.text(name, tb[1], tb[2] + th + 1.5, ns, UI.label, "center", tw) end
+        -- (at a bigger text size it grows down, clear of the rings round the picture, as far as its cell
+        -- has room under it)
+        local g = (K.textScale() - 1) * ns * 0.6
+        local ny = tb[2] + th + 1.5 + max(0, min(g, 5.8 + g - 1.16 * K.textScale() * ns))
+        if wp.id == current then K.bold(name, tb[1], ny, ns, UI.accent, "center", tw)
+        else K.text(name, tb[1], ny, ns, UI.label, "center", tw) end
         settle(e)
         if live then K.addHit(K.R(tb[1], tb[2], tw, cellH - 1), "win", WALL + i, area) end
       end
@@ -617,7 +693,8 @@ return function(ctx, env)
     if st.wallRows > st.wallVisible then
       K.scrollbar(x + w + 2.5, gridY, gridH, mv.wtop, st.wallVisible, st.wallRows)
     end
-    K.text(T("settings.wallpaperNote"), x + 2, y + h - noteH + 1, 4, UI.secondary, "left", w - 4)
+    local note, ny = T("settings.wallpaperNote"), y + h - noteH + 1
+    drawNote(note, x + 2, ny, 4, w - 4)
   end
 
   local minutesText = K.textCache(function(m) return T.f("settings.minutes", m) end)
@@ -674,7 +751,10 @@ return function(ctx, env)
       -- (the new value sliding in from the side it stepped to)
       local ve = outCubic((clock - t.at) / 0.24)
       rise(ve, 0, 3 * (t.dir or 1))
-      K.bold(minutesText(t.shown), vb[1] + 5, vb[2] + 1.4, 4.4, UI.accent, "center", vb[3] - 10)
+      local vt = t.words and T(t.words[t.shown] or "") or minutesText(t.shown)
+      -- (at a bigger text size kept clear of the < >)
+      local vp = K.textScale() > 1 and 2 or 0
+      K.bold(vt, vb[1] + 5 + vp, vb[2] + 1.4, K.fit(vt, 4.4, vb[3] - 10 - vp * 2), UI.accent, "center", vb[3] - 10 - vp * 2)
       settle(ve)
     else
       switch(rb[1] + rb[3] - 19, rb[2] + 2.5, toggled(i), t, dt)
@@ -708,7 +788,10 @@ return function(ctx, env)
     end
     K.scissor(bodyNow)
     if #list > st.toggleVisible then K.scrollbar(gb[1] + gb[3] + 2, gb[2], gb[4], mv.ttop, st.toggleVisible, #list) end
-    if sec.note then K.text(T(sec.note), x + 2, gb[2] + gb[4] + 3, 4.2, UI.secondary, "left", w - 4) end
+    if sec.note then
+      local note, ny = T(sec.note), gb[2] + gb[4] + 3
+      drawNote(note, x + 2, ny, 4.2, w - 4)
+    end
     settle(ce)
   end
 
@@ -717,12 +800,16 @@ return function(ctx, env)
     local sec = SECTIONS[st.section]
     local te = outCubic((clock - mv.secAt) / 0.3)
     rise(te, 0, 8)
-    K.bold(T(sec.key), x + 1.5, y + 1.5, 6.5, UI.label)
+    local title = T(sec.key)
+    local sw = min(64, w * 0.5)
+    local withFit = sec.id == "wallpaper" and picture()
+    -- (at a bigger text size kept clear of Fill | Stretch, and inside the setting)
+    local ts = K.textScale() > 1 and K.fit(title, 6.5, w - 3 - (withFit and sw + 3 or 0)) or 6.5
+    K.bold(title, x + 1.5, y + 1.5 + (6.5 - ts) * 0.5, ts, UI.label)
     settle(te)
     -- a picture: Fill | Stretch, by the title
-    if sec.id == "wallpaper" and picture() then
+    if withFit then
       mv.fitX = approach(mv.fitX, fit() == "fill" and 1 or 2, dt, 18)
-      local sw = min(64, w * 0.5)
       K.glassSwitch(x + w - sw, y + 1, sw, 8, mv.fitX, "win", FIT, T("settings.fill"), FIT + 1, T("settings.stretch"),
         nil, nil, 4.2)
     else

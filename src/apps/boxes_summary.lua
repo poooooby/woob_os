@@ -102,10 +102,26 @@ return function(K, env, T, st, A, TABS)
     S.lines[slot] = { text = text, w = w, size = size, lines = lines }
     return lines
   end
+  -- (a wrapped line's step: as tall as the player's text size draws it)
+  local function lineH(size) return K.lineH(size) * 1.25 end
   local function drawLines(lines, x, y, size, c, a)
-    local lh = size * 1.25
+    local lh = lineH(size)
     for i = 1, #lines do K.text(lines[i], x, y + (i - 1) * lh, size, c, nil, nil, a) end
     return #lines * lh
+  end
+  -- (the player's text size over 100%: 0 at 100%, so every room made of it leaves 100% as it was)
+  local function grown() return K.textScale() - 1 end
+  -- (how much wider s is drawn than at 100%)
+  local function extra(s, size)
+    local w = K.width(s, size)
+    return w - w / K.textScale()
+  end
+  -- (a size keeping s inside `room` at the player's text size, never drawn under its 100% size; at 100%
+  -- just `size`)
+  local function roomy(s, size, room)
+    local ts = K.textScale()
+    if ts == 1 then return size end
+    return max(size / ts, K.fit(s, size, room))
   end
 
   -- something settling in: `(1 - e) * dy` lower and at `e` of itself; settle(e) after, with the same e
@@ -276,17 +292,21 @@ return function(K, env, T, st, A, TABS)
     if R.gender and not K.hasSign(R.name) then sexMark(R.gender, nx, y + 9, 5, fa1) nx = nx + 5 end
     if R.shiny then star(nx + 2.5, y + 11.5, 2.4 + 0.5 * sin(clock * 5), C.gold, fa1) end
     if not R.egg then
+      -- (the lines under the name a little lower as the text grows)
+      local g = grown() * 3
       local ox = (1 - e2) * 8
-      K.label(R.levelText, tx + ox, y + 16.5, 4.2, C.white, nil, nil, e2 * K.getFade())
+      K.label(R.levelText, tx + ox, y + 16.5 + g, 4.2, C.white, nil, nil, e2 * K.getFade())
       if R.speciesName ~= R.name then
-        K.label(R.speciesName, tx + ox + K.width(R.levelText, 4.2) + 3, y + 16.9, K.fit(R.speciesName, 3.6, tw - 24),
-          C.white, nil, nil, 0.8 * e2 * K.getFade())
+        local lw2 = K.width(R.levelText, 4.2) + 3
+        K.label(R.speciesName, tx + ox + lw2, y + 16.9 + g,
+          roomy(R.speciesName, K.fit(R.speciesName, 3.6, tw - 24), tw - lw2 - 1), C.white, nil, nil,
+          0.8 * e2 * K.getFade())
       end
       local cx = tx + (1 - e3) * 8
       for i = 1, #R.types do
-        cx = cx + pill(R.types[i].id, R.types[i].name, cx, y + 23.5, 6, 3.6, e3 * K.getFade(), true) + 1.5
+        cx = cx + pill(R.types[i].id, R.types[i].name, cx, y + 23.5 + g, 6, 3.6, e3 * K.getFade(), true) + 1.5
       end
-      markings(R.markings or 0, tx + (1 - e3) * 8, y + 33, 3, e3 * K.getFade())
+      markings(R.markings or 0, tx + (1 - e3) * 8, y + 33 + g, 3, e3 * K.getFade())
     end
     return h
   end
@@ -297,6 +317,8 @@ return function(K, env, T, st, A, TABS)
     if R.itemName then h = h + 7 end
     if R.friendship then h = h + 7 end
     if R.dmax then h = h + 7 end
+    -- (an egg's one row: a little more room at its foot as the text grows; the full card has room)
+    if R.egg and h > 0 then h = h + grown() * 2 end
     return h
   end
 
@@ -335,7 +357,8 @@ return function(K, env, T, st, A, TABS)
     if R.itemName then
       if R.itemId and env.itemIcon then pcall(env.itemIcon, R.itemId, x + 3.2, yy - 0.8, 5.6, K.getFade()) end
       K.text(word("sum.item"), x + 10, yy, 3.4, C.soft)
-      K.text(R.itemName, x + 10, yy, K.fit(R.itemName, 3.6, w - 34), C.ink, "right", w - 14)
+      K.text(R.itemName, x + 10, yy, K.fit(R.itemName, 3.6, w - 34 - extra(word("sum.item"), 3.4)), C.ink, "right",
+        w - 14)
       yy = yy + 7
     end
     if R.friendship then
@@ -392,13 +415,13 @@ return function(K, env, T, st, A, TABS)
         rh = 6.4
       else
         local lines = wrap(S, INFO_SLOT[i] or "ix", r.value, w - 6, 3.6)
-        rh = 5.2 + #lines * 4.5 + 1.2
+        rh = 5.2 + grown() * 3 + #lines * lineH(3.6) + 1.2
         if i % 2 == 1 then
           K.col(C.track, 0.35)
           K.box("fill", K.R(x, yy - 0.8, w, rh), 2)
         end
         K.text(r.label, x + 1.5, yy + 0.2, 3.4, C.soft)
-        drawLines(lines, x + 4, yy + 5, 3.6, tint)
+        drawLines(lines, x + 4, yy + 5 + grown() * 3, 3.6, tint)
       end
       settle(ein)
       yy = yy + rh
@@ -408,12 +431,13 @@ return function(K, env, T, st, A, TABS)
       rise(ein, 3)
       yy = yy + 2.5
       local lines = wrap(S, "ab", R.abilityDesc, w - 8, 3.5)
-      local bh = 5.5 + #lines * 3.5 * 1.25
+      local g = grown() * 3
+      local bh = 5.5 + g + #lines * lineH(3.5)
       G.setColor(mv.r, mv.g, mv.b, 0.85 * K.getFade())
       K.box("fill", K.R(x + 1.5, yy + 0.3, 1.3, bh - 1), 0.65)
       K.text(word("sum.ability"), x + 5, yy, 3.4, C.soft)
       K.bold(R.abilityName, x + 6 + K.width(word("sum.ability"), 3.4) + 2, yy - 0.2, 3.8, C.ink)
-      drawLines(lines, x + 5, yy + 5.3, 3.5, C.soft)
+      drawLines(lines, x + 5, yy + 5.3 + g, 3.5, C.soft)
       settle(ein)
       yy = yy + bh + 1
     end
@@ -477,10 +501,12 @@ return function(K, env, T, st, A, TABS)
       G.circle("fill", K.X(PX[j]), K.Y(PY[j]), 1.1 * K.sc)
     end
     if not labels then return end
+    -- (the label and its number apart as the text grows)
+    local g = grown() * 1.8
     for j = 1, n do
       local lx, ly = corner(j, n, cx, cy, rad + 6.5, 1)
-      K.text(word(R.radarKeys[j]), lx - 9, ly - 3.8, 3, C.soft, "center", 18, a)
-      K.bold(num(floor(S.shown[j] + 0.5)), lx - 9, ly - 0.6, 3.3, C.ink, "center", 18, a)
+      K.text(word(R.radarKeys[j]), lx - 9, ly - 3.8 - g, 3, C.soft, "center", 18, a)
+      K.bold(num(floor(S.shown[j] + 0.5)), lx - 9, ly - 0.6 + g, 3.3, C.ink, "center", 18, a)
     end
   end
   local function statsTab(x, y, w, R, S, clock, dt)
@@ -494,7 +520,7 @@ return function(K, env, T, st, A, TABS)
     -- (the radar's title, the EV total)
     K.bold(word("sum.evs"), x + 1.5, yy, 3.8, C.ink)
     radar(rx, ry, rad, R, S, true, 1)
-    if not wide then yy = ry + rad + 10 end
+    if not wide then yy = ry + rad + 10 + grown() * 4 end
     local tx = wide and (x + 48) or x
     local tw = x + w - tx
     local ty = wide and y or yy
@@ -509,6 +535,8 @@ return function(K, env, T, st, A, TABS)
     if wide then ty = y + 1 end
     -- (the columns: stat, value, IV, EV; the nature's raised stat red with an up mark, its lowered blue)
     local vx, ivx = tx + tw * 0.34, tx + tw * 0.52
+    -- (the values' right edge: grown, nearer the IV pills, so the stats' names have room; vx + 6 at 100%)
+    local vr = vx + 6 + min(grown() * 20, max(0, ivx - 3 - (vx + 6)))
     K.text(word("sum.col.iv"), ivx - 2, ty, 3, C.faint, "center", 10)
     K.text(word("sum.col.ev"), ivx + 10, ty, 3, C.faint)
     ty = ty + 4.4
@@ -524,9 +552,14 @@ return function(K, env, T, st, A, TABS)
       K.col(STAT_C[i] or C.faint)
       G.circle("fill", K.X(tx + 1.6), K.Y(ry2 + 2.1), 0.9 * K.sc)
       local nc = r.nature == 1 and C.up or (r.nature == -1 and C.down or C.soft)
-      K.text(word(r.key), tx + 3.6, ry2 + 0.2, 3.3, nc)
+      -- (the stat's name kept clear of its value, the nature's mark beside it)
+      local vs = num(r.value)
+      -- (grown, it may go a little under its 100% size: the column is tight even then in some languages)
+      local ns = K.textScale() == 1 and 3.3
+        or K.fit(word(r.key), 3.3, vr - K.width(vs, 3.6) - 1.5 - (tx + 3.6) - (r.nature and 3.4 or 0))
+      K.text(word(r.key), tx + 3.6, ry2 + 0.2, ns, nc)
       if r.nature then
-        local ax = tx + 4.6 + K.width(word(r.key), 3.3)
+        local ax = tx + 4.6 + K.width(word(r.key), ns)
         K.col(nc)
         if r.nature == 1 then
           G.polygon("fill", K.X(ax), K.Y(ry2 + 3.2), K.X(ax + 1.2), K.Y(ry2 + 1.2), K.X(ax + 2.4), K.Y(ry2 + 3.2))
@@ -534,7 +567,7 @@ return function(K, env, T, st, A, TABS)
           G.polygon("fill", K.X(ax), K.Y(ry2 + 1.4), K.X(ax + 2.4), K.Y(ry2 + 1.4), K.X(ax + 1.2), K.Y(ry2 + 3.4))
         end
       end
-      K.bold(num(r.value), tx, ry2, 3.6, C.ink, "right", vx - tx + 6)
+      K.bold(vs, tx, ry2, 3.6, C.ink, "right", vr - tx)
       local best = r.iv >= (R.ivMax or 31)
       local ivw = 8
       K.col(best and C.gold or C.track, best and 1 or 0.9)
@@ -614,7 +647,8 @@ return function(K, env, T, st, A, TABS)
       local bx = x + (j - 1) * (cw + 1.5)
       K.col(C.white, 0.45 * K.getFade())
       K.box("fill", K.R(bx, yy, cw, 11), 2.5)
-      K.text(word(j == 1 and "dex.col.power" or (j == 2 and "dex.col.acc" or "sum.cat")), bx + 2, yy + 1, 2.9, C.soft)
+      local lab = word(j == 1 and "dex.col.power" or (j == 2 and "dex.col.acc" or "sum.cat"))
+      K.text(lab, bx + 2, yy + 1, roomy(lab, 2.9, cw - 4), C.soft)
       local v = j == 1 and m.powerText or (j == 2 and m.accText or cat)
       K.bold(v, bx + 2, yy + 5, K.fit(v, 3.8, cw - 4), C.ink)
     end
@@ -633,14 +667,16 @@ return function(K, env, T, st, A, TABS)
       K.box("fill", K.R(x + 1.5, yy + 0.6, cpw, 5), 2.5)
       K.text(c.categoryName, x + 1.5, yy + 1.2, 3.2, C.white, "center", cpw)
       local hx = x + 4 + cpw
+      -- (Appeal over Jam, apart as the text grows)
+      local g = grown() * 3
       K.text(word("sum.appeal"), hx, yy + 0.2, 3, C.soft)
-      K.text(word("sum.jam"), hx, yy + 4.4, 3, C.soft)
+      K.text(word("sum.jam"), hx, yy + 4.4 + g, 3, C.soft)
       local hx2 = hx + max(K.width(word("sum.appeal"), 3), K.width(word("sum.jam"), 3)) + 2
       for k = 1, 8 do
         heart(hx2 + (k - 1) * 3.6, yy + 0.4, 3, k <= c.appeal and C.heart or C.track)
-        heart(hx2 + (k - 1) * 3.6, yy + 4.6, 3, k <= c.jam and C.ink or C.track)
+        heart(hx2 + (k - 1) * 3.6, yy + 4.6 + g, 3, k <= c.jam and C.ink or C.track)
       end
-      yy = yy + 10
+      yy = yy + 10 + g
       if c.desc ~= "" then
         local lines = wrap(S, "cmv", c.desc, w - 3, 3.4)
         yy = yy + drawLines(lines, x + 1.5, yy, 3.4, C.soft) + 1

@@ -107,6 +107,12 @@ return {
     ["reason.mail.gone"] = "その メールは もう ありません。",
 
     ["settings.language"] = "げんご",
+    ["settings.display"] = "ひょうじ",
+    ["settings.textSize"] = "もじの おおきさ",
+    ["settings.textNormal"] = "ふつう",
+    ["settings.textLarge"] = "おおきい",
+    ["settings.textLarger"] = "もっと おおきい",
+    ["settings.displayNote"] = "すべての アプリの もじが おおきく なります。はいりきらない ことばは すこし ちいさく なります。",
     ["settings.wallpaper"] = "かべがみ",
     ["settings.languageNote"] = "WoobOS の ことばです。ゲームの テキストは かわりません。",
     ["settings.wallpaperNote"] = "じぶんの かべがみ: PNG か JPG の がぞうを mods/woob_os/wallpapers/ に いれてください",

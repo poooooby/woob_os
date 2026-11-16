@@ -178,8 +178,17 @@ return function(deps)
       local back = T and T(r.opts.backKey or "pokenav.back") or "PokeNav"
       K.chevron(5, TOOL / 2, 3.6, UI.accent, -1)
       K.text(back, 8, TOOL / 2 - 2.8, 4.8, UI.accent)
-      K.addHit(K.R(0, 0, K.width(back, 4.8) + 14, TOOL), "back")
-      K.bold(w.title or "", 0, TOOL / 2 - 2.9, 5, UI.label, "center", pw)
+      local bw = K.width(back, 4.8) + 14
+      K.addHit(K.R(0, 0, bw, TOOL), "back")
+      local title = w.title or ""
+      if K.textScale() == 1 then
+        K.bold(title, 0, TOOL / 2 - 2.9, 5, UI.label, "center", pw)
+      else
+        -- (bigger text: the title kept clear of the way back, still in the middle)
+        local tw = max(10, pw - bw * 2)
+        local fs = K.fit(title, 5, tw)
+        K.bold(title, (pw - tw) / 2, TOOL / 2 - 2.9 + (5 - fs) * 0.6, fs, UI.label, "center", tw)
+      end
       b[1], b[2], b[3], b[4] = 0, TOOL + 0.5, pw, ph - TOOL - 0.5 - (r.opts.noHints and 0 or Tm.FOOT)
     else
       b[1], b[2], b[3], b[4] = 0, 0, pw, ph

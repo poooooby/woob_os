@@ -564,7 +564,16 @@ return function(ctx, env)
         K.text(pname, chip[1], chip[2] + 0.4, 3.2, K.dark(c, 0.35), "center", pw)
       end
     end
-    K.scissor(cb)
+    local TS = K.textScale()
+    if TS > 1 then
+      -- (bigger text: its lines cut at a whole line, not through one)
+      local top = dy - 0.6 * (TS - 1) * 3.6
+      local lh = K.font(3.6 * TS * K.sc):getHeight() / K.sc
+      local n = max(1, floor((y + h - top) / lh))
+      K.scissor(K.R(x, y, w, min(h, top + n * lh + 0.2 - y)))
+    else
+      K.scissor(cb)
+    end
     K.text(row.desc, wx, dy, 3.6, C.soft, "left", ww)
     K.scissor(bodyNow)
     unfade()

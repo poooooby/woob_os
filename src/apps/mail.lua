@@ -249,7 +249,7 @@ return function(ctx, env)
   function W.scroll(dy)
     if st.reading then return end
     st.free = true
-    st.top = max(0, min(max(0, #rows() - st.visible), st.top - dy / ROW_H))
+    st.top = max(0, min(max(0, #rows() - st.visible), st.top - dy / (st.rowH or ROW_H)))
   end
 
   function W.hints()
@@ -309,12 +309,16 @@ return function(ctx, env)
       nil, nil, 4.2)
   end
 
-  -- the letters, in a glass pane: the stationery's dot, who from, its design, the first line
+  -- the letters, in a glass pane: the stationery's dot, who from, its design, the first line (a row as
+  -- tall as its two lines: taller at a bigger text size, the second line pushed down)
   local function drawList(x, y, w, h, clock, dt)
     local list = rows()
     local focused = st.focus == "list"
     K.glass(K.R(x, y, w, h), 4, focused and 0.62 or 0.45)
     y, h = y + 1, h - 2
+    local g = K.textScale() - 1
+    local ROW_H = ROW_H + g * 8
+    st.rowH = ROW_H
     st.visible = max(1, floor(h / ROW_H))
     clamp()
     local clip = K.R(x, y, w, h)
@@ -342,16 +346,20 @@ return function(ctx, env)
       local on = i == st.cursor
       if i < n and not on and i + 1 ~= st.cursor then K.hairline(x + 9 + ox, ry + ROW_H - 0.1 + oy, w - 11) end
       local tc = tintOf(row)
-      if on then K.glow(x + 5 + ox, ry + 5 + oy, 3.2, 3.2, tc, 0.35) end
+      local dy = ry + g * 2 + oy
+      if on then K.glow(x + 5 + ox, dy + 5, 3.2, 3.2, tc, 0.35) end
       K.col(tc)
-      G.circle("fill", K.X(x + 5 + ox), K.Y(ry + 5 + oy), (on and 1.9 or 1.6) * K.sc)
-      local fs = K.fit(row.from, 4.8, w * 0.5)
-      K.bold(row.from, x + 9 + ox, ry + 2.2 + (4.8 - fs) * 0.5 + oy, fs, C.ink)
+      G.circle("fill", K.X(x + 5 + ox), K.Y(dy + 5), (on and 1.9 or 1.6) * K.sc)
       local ts = K.fit(row.title, 4, w * 0.42)
-      K.text(row.title, x + w * 0.5 + ox, ry + 2.6 + oy, ts, C.soft, "right", w * 0.5 - 4)
+      -- (bigger text: who from kept clear of the design's name on its right)
+      local fw = w * 0.5
+      if g > 0 then fw = min(fw, w - 13 - K.width(row.title, ts) - 2) end
+      local fs = K.fit(row.from, 4.8, fw)
+      K.bold(row.from, x + 9 + ox, dy + 2.2 + (4.8 - fs) * 0.5, fs, C.ink)
+      K.text(row.title, x + w * 0.5 + ox, dy + 2.6, ts, C.soft, "right", w * 0.5 - 4)
       local line = st.folder == "held" and row.monName or row.preview
       local ps = K.fit(line, 4.2, w - 14)
-      K.text(line, x + 9 + ox, ry + 8.2 + oy, ps, C.soft)
+      K.text(line, x + 9 + ox, dy + 8.2 + g * 3.5, ps, C.soft)
       unfade()
       K.addHit(K.R(x + 1.5, ry + 0.4, w - 3, ROW_H - 0.8), "win", i, clip)
     end
@@ -398,9 +406,12 @@ return function(ctx, env)
     local ly = cb[2] + 16
     local room = cardH - 16 - 10
     local step = min(8, room / max(1, #lines))
+    local TS = K.textScale()
     for i = 1, #lines do
       local le = stagger(t - 0.1, i - 1, 0.05, 0.3)
       local ls = K.fit(lines[i], 5.2, cb[3] - 10)
+      -- (bigger text: no taller than a line's step, or the lines would run into each other)
+      if TS > 1 then ls = min(ls, max(5.2 / TS, step / (TS * 1.05))) end
       K.text(lines[i], cb[1] + 5, ly + (i - 1) * step + (1 - le) * 3, ls, C.ink, "center", cb[3] - 10, le)
     end
     local fe = outCubic((t - 0.2) / 0.3)
@@ -433,7 +444,7 @@ return function(ctx, env)
       K.glass(ab, 6, 0.92)
       local title, words = T("mail.confirmTitle"), T("mail.confirmBody")
       K.bold(title, ab[1], ab[2] + 6, K.fit(title, 5.4, ab[3] - 8), C.ink, "center", ab[3])
-      K.text(words, ab[1], ab[2] + 15, K.fit(words, 4.4, ab[3] - 8), C.soft, "center", ab[3])
+      K.text(words, ab[1], ab[2] + 15 + (K.textScale() - 1) * 4, K.fit(words, 4.4, ab[3] - 8), C.soft, "center", ab[3])
       local bw = (aw - 14) / 2
       for i = 1, 2 do
         local yes = i == 2
@@ -506,8 +517,8 @@ return function(ctx, env)
     if portrait then
       if st.reading then
         local bb = K.R(x + 2, y + 1, 30, SEG_H - 2)
-        K.chevron(bb[1] + 3, bb[2] + bb[4] / 2 + 0.2, 4, UI.accent, -1)
-        K.text(T("nav.back"), bb[1] + 6.5, bb[2] + 1.6, 4.6, UI.accent)
+        -- (the words carry their own "<")
+        K.text(T("nav.back"), bb[1] + 2, bb[2] + 1.6, K.fit(T("nav.back"), 4.6, bb[3] - 2), UI.accent)
         K.addHit(bb, "win", BACK)
         drawReader(x + M - 1.5, y + SEG_H, w - M * 2 + 3, h - SEG_H - 1, clock)
       else

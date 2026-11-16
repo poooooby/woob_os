@@ -165,6 +165,30 @@ return function(deps)
     end
     return h
   end
+  -- the hints in their row (the kit's K.hints): at a bigger text size, drawn only as big as lets all of
+  -- them fit the row (never smaller than at 100%), so none drops off its end that 100% shows
+  local function hintsWidth(list)
+    local n = 0
+    for i = 1, #list do
+      local h = list[i]
+      n = n + max(8, K.width(h[1], 4.5) + 4) + 2 + K.width(h[2], 5) + 6
+    end
+    return n - 6
+  end
+  local function drawHints(list, hb, keyInk, center, wordColor, keyFill)
+    local ts = K.textScale()
+    if ts > 1 then
+      local s = ts
+      for _ = 1, 6 do
+        local need = hintsWidth(list)
+        if need <= hb[3] or s <= 1 then break end
+        s = max(1, s * min(0.99, hb[3] / need))
+        K.setTextScale(s)
+      end
+    end
+    K.hints(list, hb, keyInk, center, wordColor, keyFill)
+    if ts > 1 then K.setTextScale(ts) end
+  end
   local ANY_KEY = { "a", "b", "start", "select", "l", "r", "up", "down", "left", "right" }
   local DIRS = { "up", "down", "left", "right" }
 
@@ -990,13 +1014,15 @@ return function(deps)
   end
   local function sign(x, y, size, c, measure)
     local sc = K.sc
-    local px = size * sc
+    -- (as big as the digits beside it at the text size, grown round its line's middle as they are)
+    local ts = K.textScale()
+    local px = size * ts * sc
     if deps.currency then
       local ok, got
       if measure then
         ok, got = pcall(deps.currencyWidth, px)
       else
-        ok, got = pcall(deps.currency, K.graphics(), K.X(x), K.Y(y), px, rgba(c, 1))
+        ok, got = pcall(deps.currency, K.graphics(), K.X(x), K.Y(y - (ts - 1) * size * 0.6), px, rgba(c, 1))
       end
       if ok and tonumber(got) then return tonumber(got) / sc end
     end
@@ -1864,7 +1890,9 @@ return function(deps)
         local label = labelOf(app)
         local ls = K.fit(label, 4.6, cell.w - 1)
         if not (r.carry and r.carry.ptr and r.carry.app == app) then
-          K.label(label, cx, iy + cell.icon + 2.2 + (4.6 - ls) * 0.5, ls, WHITE, "center", cell.w)
+          -- (at a bigger text size its top stays where it was, clear of the icon and its ring: it grows down)
+          K.label(label, cx, iy + cell.icon + 2.2 + (4.6 - ls) * 0.5 + (K.textScale() - 1) * ls * 0.6, ls, WHITE,
+            "center", cell.w)
         end
         K.addHit(K.R(cx, cy, cell.w, cell.h), "grid", i, area)
       end
@@ -1909,6 +1937,7 @@ return function(deps)
 
   local function drawMenu(L)
     if not r.menuOpen then return end
+    K.auditLayer()
     local sb = L.screen
     K.addHit(sb, "dim")
     local mb = L.menuB
@@ -1921,7 +1950,9 @@ return function(deps)
         K.col(C.accent)
         K.box("fill", row, 2.5)
       end
-      K.text(label, row[1] + 4, row[2] + 2.4, 5, i == r.menuCursor and WHITE or C.ink)
+      -- (at a bigger text size, kept inside the menu)
+      local ms = K.textScale() > 1 and K.fit(label, 5, row[3] - 6) or 5
+      K.text(label, row[1] + 4, row[2] + 2.4 + (5 - ms) * 0.5, ms, i == r.menuCursor and WHITE or C.ink)
       K.addHit(row, "menuRow", i)
     end
   end
@@ -1930,6 +1961,7 @@ return function(deps)
   local function drawNotes(L)
     local sb = L.screen
     if Nd then return end
+    K.auditLayer()
     K.col(C.dim, 0.3)
     K.box("fill", sb, D.SCREEN_RADIUS)
     K.addHit(sb, "dim")
@@ -1956,6 +1988,8 @@ return function(deps)
   local function drawSheet(L)
     if r.sheet == "notes" then return drawNotes(L) end
     if not r.sheet then return end
+    -- (over the dimmed screen: its words aren't the home screen's)
+    K.auditLayer()
     local sb = L.screen
     K.keepHits("power")
     K.col(C.dim, 0.38)
@@ -2260,13 +2294,13 @@ return function(deps)
     else hints = T.list(pages() > 1 and TEXT.hints.gridPages or TEXT.hints.grid)
     end
     if PAD then
-      K.hints(hints, L.hints, C.ink, true, WHITE, WHITE)
+      drawHints(hints, L.hints, C.ink, true, WHITE, WHITE)
     elseif portrait then
-      K.hints(hints, L.hints, C.bar, true, C.ink, C.ink)
+      drawHints(hints, L.hints, C.bar, true, C.ink, C.ink)
     else
       local halves = halvesOf(hints)
-      K.hints(halves[1], L.hints, C.bar, false, C.ink, C.ink)
-      K.hints(halves[2], L.hints2, C.bar, false, C.ink, C.ink)
+      drawHints(halves[1], L.hints, C.bar, false, C.ink, C.ink)
+      drawHints(halves[2], L.hints2, C.bar, false, C.ink, C.ink)
     end
     g.setColor(1, 1, 1, 1)
     if launch and launch.window then

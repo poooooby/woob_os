@@ -24,7 +24,20 @@ local function body(game, log)
     end
     return pred() and true or false
   end
-  local function shot(name) log("shot", name, U.shot(game, dir .. "/" .. name .. ".png") and "ok" or "MISSING") end
+  -- (PROBE_TEXT=<percent>: every shot's texts audited at 100% and at that size first, what's new logged as
+  -- "TEXT" lines, the shot taken at that size: tests/drivers/textaudit.lua)
+  local textPct, audit = tonumber(os.getenv("PROBE_TEXT")), nil
+  local function shot(name)
+    if textPct then
+      local X0 = game.mods and game.mods.exports and game.mods.exports.woob_os
+      if not audit and X0 and X0._test then audit = dofile("mods/woob_os/tests/drivers/textaudit.lua")(U, X0) end
+      if audit then
+        local fresh = audit(textPct)
+        for _, line in ipairs(fresh) do log("TEXT " .. name .. ": " .. line) end
+      end
+    end
+    log("shot", name, U.shot(game, dir .. "/" .. name .. ".png") and "ok" or "MISSING")
+  end
   local GAME_ID = os.getenv("POKEPORT_GAME") or "firered"
   local fails = 0
   local function check(ok, what) if not ok then fails = fails + 1 end; log((ok and "ok   " or "FAIL ") .. what) end

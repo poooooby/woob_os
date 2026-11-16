@@ -118,6 +118,12 @@ return {
 
     -- Settings
     ["settings.language"] = "Language",
+    ["settings.display"] = "Display",
+    ["settings.textSize"] = "Text Size",
+    ["settings.textNormal"] = "Normal",
+    ["settings.textLarge"] = "Large",
+    ["settings.textLarger"] = "Larger",
+    ["settings.displayNote"] = "Bigger text in every app. Words that don't fit get a little smaller to stay in place.",
     ["settings.wallpaper"] = "Wallpaper",
     ["settings.languageNote"] = "WoobOS's own words. The game's text stays as it is.",
     ["settings.wallpaperNote"] = "Add your own: put PNG or JPG pictures in mods/woob_os/wallpapers/",

@@ -106,6 +106,12 @@ return {
     ["reason.mail.gone"] = "Esa carta ya no está.",
 
     ["settings.language"] = "Idioma",
+    ["settings.display"] = "Pantalla",
+    ["settings.textSize"] = "Tamaño del texto",
+    ["settings.textNormal"] = "Normal",
+    ["settings.textLarge"] = "Grande",
+    ["settings.textLarger"] = "Más grande",
+    ["settings.displayNote"] = "Texto más grande en cada app. Lo que no cabe se reduce un poco para quedarse en su sitio.",
     ["settings.wallpaper"] = "Fondo de pantalla",
     ["settings.languageNote"] = "Las palabras de WoobOS. El texto del juego no cambia.",
     ["settings.wallpaperNote"] = "Añade los tuyos: pon imágenes PNG o JPG en mods/woob_os/wallpapers/",

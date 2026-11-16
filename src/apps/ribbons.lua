@@ -200,6 +200,27 @@ return function(ctx, env)
                gx = nil, gy = nil, gs = nil, coloured = false, r = 0.6, g = 0.6, b = 0.6, r2 = 0.6, g2 = 0.6, b2 = 0.6 }
   W.motion = mv
 
+  -- (a paragraph's size at the player's text size: the biggest, from its size grown down to its size at
+  -- 100%, whose lines fit maxH units; worked out when what it's given changes and kept in `rec`)
+  local function paraFit(rec, s, size, w, maxH)
+    local ts = K.textScale()
+    if ts == 1 or not s or s == "" then return size end
+    if rec.s == s and rec.size == size and rec.w == w and rec.h == maxH and rec.ts == ts and rec.sc == K.sc then
+      return rec.out
+    end
+    local drawn = size * ts
+    while drawn > size do
+      local f = K.font(drawn * K.sc)
+      local ok, _, lines = pcall(f.getWrap, f, s, w * K.sc)
+      local n = ok and type(lines) == "table" and #lines or 1
+      if n * f:getHeight() / K.sc <= maxH + 0.01 then break end
+      drawn = max(size, drawn - 0.2)
+    end
+    rec.s, rec.size, rec.w, rec.h, rec.ts, rec.sc, rec.out = s, size, w, maxH, ts, K.sc, drawn / ts
+    return rec.out
+  end
+  local descFit = {}
+
   -- a Ribbon's picture centred on cx, cy, `size` units, turned by `turn` from its top
   local function drawIcon(id, cx, cy, size, big, turn)
     local img, q, px = Rb.icon(id, big)
@@ -349,16 +370,19 @@ return function(ctx, env)
     local e2 = K.outCubic((t - 0.1) / 0.32)
     local name = info and info.name or "?"
     local fs = K.fit(name, 5.4, room)
-    local ty = y + max(2, (h - 21) / 2)
+    -- (the lines apart as the text grows, the pill taller: nothing at 100%)
+    local gs = K.textScale() - 1
+    local ty = y + max(2, (h - 21 - gs * 11) / 2)
     K.label(name, tx + (1 - e1) * 8, ty, fs, C.white, nil, nil, e1 * f0)
-    K.label(r.whereText, tx + (1 - e2) * 8, ty + 7, K.fit(r.whereText, 3.8, room), C.white, nil, nil, 0.85 * e2 * f0)
+    K.label(r.whereText, tx + (1 - e2) * 8, ty + 7 + gs * 4, K.fit(r.whereText, 3.8, room), C.white, nil, nil,
+      0.85 * e2 * f0)
     -- (the count on a gold pill)
     local cw = K.width(r.countText, 3.8) + 5
-    local cb = K.R(tx + (1 - e2) * 8, ty + 12.6, min(cw, room), 5.8)
+    local cb = K.R(tx + (1 - e2) * 8, ty + 12.6 + gs * 7, min(cw, room), 5.8 + gs * 3.8)
     K.setFade(f0 * e2)
     K.grad(cb, 2.9, C.goldTop, C.goldDark)
     K.ring(cb, 2.9, C.white, 0.6, 0.3)
-    K.bold(r.countText, cb[1], cb[2] + 0.6, K.fit(r.countText, 3.8, cb[3] - 3), C.goldInk, "center", cb[3])
+    K.bold(r.countText, cb[1], cb[2] + 0.6 + gs * 1.9, K.fit(r.countText, 3.8, cb[3] - 3), C.goldInk, "center", cb[3])
     K.setFade(f0)
     if tracksW > 0 then
       local rowH = min(5.5, (h - 4) / 5)
@@ -429,7 +453,8 @@ return function(ctx, env)
     K.scissor(bodyNow)
     local f0 = K.getFade()
     local fs = h < 18 and 3.4 or 3.8
-    K.text(r.descs[st.pick], x + 23 + (1 - e) * 6, y + 2.5, fs, C.ink, "left", w - 26, e * f0)
+    local words = r.descs[st.pick]
+    K.text(words, x + 23 + (1 - e) * 6, y + 2.5, paraFit(descFit, words, fs, w - 26, h - 3), C.ink, "left", w - 26, e * f0)
   end
 
   local function drawDetail(x, y, w, h, clock, dt)

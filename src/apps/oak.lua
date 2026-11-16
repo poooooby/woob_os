@@ -41,6 +41,27 @@ return function(ctx, env)
   end
   function W.hints() return T.list(HINTS) end
 
+  -- (a paragraph's size at the player's text size: the biggest, from its size grown down to its size at
+  -- 100%, whose lines fit maxH units; worked out when what it's given changes and kept in `rec`)
+  local function paraFit(rec, s, size, w, maxH)
+    local ts = K.textScale()
+    if ts == 1 or not s or s == "" then return size end
+    if rec.s == s and rec.size == size and rec.w == w and rec.h == maxH and rec.ts == ts and rec.sc == K.sc then
+      return rec.out
+    end
+    local drawn = size * ts
+    while drawn > size do
+      local f = K.font(drawn * K.sc)
+      local ok, _, lines = pcall(f.getWrap, f, s, w * K.sc)
+      local n = ok and type(lines) == "table" and #lines or 1
+      if n * f:getHeight() / K.sc <= maxH + 0.01 then break end
+      drawn = max(size, drawn - 0.2)
+    end
+    rec.s, rec.size, rec.w, rec.h, rec.ts, rec.sc, rec.out = s, size, w, maxH, ts, K.sc, drawn / ts
+    return rec.out
+  end
+  local wordsFit = {}
+
   local function panel(b, rad)
     K.grad(b, rad, C.panelTop, C.panelFoot)
     K.ring(b, rad, C.white, 0.1, 0.4)
@@ -70,7 +91,11 @@ return function(ctx, env)
       K.glow(ex, ey, rad * 0.26, rad * 0.26, C.white, 0.55)
     end
     local fs = rad * 0.62
-    K.bold(pctText(floor(now * 100 + 0.5)), cx - rad, cy - fs * 0.62, fs, accent, "center", rad * 2)
+    -- (the number as big as at 100%, whatever the text size: it's drawn to the ring, inside it, and
+    -- already the biggest words on the window)
+    local ts = K.textScale()
+    K.bold(pctText(floor(now * 100 + 0.5)), cx - rad, cy - fs * 0.62 + (fs - fs / ts) * 0.6, fs / ts, accent,
+      "center", rad * 2)
     if r.complete then
       for i = 1, 5 do
         local t = clock * 0.6 + i * 2 * pi / 5
@@ -81,8 +106,10 @@ return function(ctx, env)
 
   local function stat(x, y, w, h, label, value)
     panel(K.R(x, y, w, h), 3)
-    K.text(label, x, y + 1.4, K.fit(label, 3.6, w - 2), C.soft, "center", w)
-    K.bold(numText(value), x, y + 5.6, 7, C.white, "center", w)
+    -- (the word and the number apart as they grow; nothing at 100%)
+    local gs = K.textScale() - 1
+    K.text(label, x, y + 1.4 - gs * 1.5, K.fit(label, 3.6, w - 2), C.soft, "center", w)
+    K.bold(numText(value), x, y + 5.6 + gs, 7, C.white, "center", w)
     K.text(ofText, x, y + h - 5, 3.2, C.soft, "center", w)
   end
 
@@ -138,8 +165,8 @@ return function(ctx, env)
     end
     local tx = px + ps + 4
     local tw = x + w - tx - 4
-    K.bold(T("oak.rating"), tx, y + 3, 4.6, accent)
-    K.text(r.words, tx, y + 9.5, 4.3, C.text, "left", tw)
+    K.bold(T("oak.rating"), tx, y + 3, K.fit(T("oak.rating"), 4.6, tw), accent)
+    K.text(r.words, tx, y + 9.5, paraFit(wordsFit, r.words, 4.3, tw, h - 19), C.text, "left", tw)
     -- how far to his next rating
     local by = y + h - 9
     K.text(nextText, tx, by, K.fit(nextText, 3.6, tw), C.soft)

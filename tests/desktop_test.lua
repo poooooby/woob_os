@@ -2686,6 +2686,43 @@ VP.width, VP.height = 480, 320
 draw(120)
 local perS = garbageOf(120)
 T.check(perS < 0.3, ("the Settings window draws next to no garbage (%.3f KB a frame)"):format(perS))
+-- the text size: Settings > Display steps it, the kit follows at once; the mod option or the app,
+-- whichever changed last
+do
+  local Kt = X._test.kit
+  press("b")
+  for i, sec in ipairs(SW.SECTIONS) do if sec.id == "display" then SW.state.section = i end end
+  SW.state.focus = "side"
+  press("a")
+  T.eq(SW.state.focus, "detail", "A: Display")
+  press("a")
+  T.check(Set.get("textSize") == 115 and math.abs(Kt.textScale() - 1.15) < 1e-9, "A: Large, the kit at 115%")
+  press("right")
+  T.check(Set.get("textSize") == 130 and math.abs(Kt.textScale() - 1.3) < 1e-9, "Right: Larger, 130%")
+  local w13 = Kt.width("Pokémon Center", 5)
+  Kt.setTextScale(1)
+  local w10 = Kt.width("Pokémon Center", 5 * 1.3)
+  Kt.setTextScale(1.3)
+  T.check(math.abs(w13 - w10) < 1e-9, "the kit measures text at the size")
+  local fs = Kt.fit("A long name that won't fit", 5, 70)
+  T.check(Kt.width("A long name that won't fit", fs) <= 70.01, "a fitted text still fits at 130%")
+  for _, shape in ipairs({ { 480, 320 }, { 320, 480 } }) do
+    VP.width, VP.height = shape[1], shape[2]
+    draw(2)
+    T.check(not D.state().winFailed, "Settings at 130% draws " .. shape[1] .. "x" .. shape[2])
+  end
+  VP.width, VP.height = 480, 320
+  -- (the mod option changed since: it wins; then the app again)
+  Set.set("textSizeOpt", nil)
+  Set.set("textSize", nil)
+  T.eq(Set.textSize(100), 100, "nothing chosen: the option's Normal")
+  Set.set("textSize", 130)
+  T.eq(Set.textSize(100), 130, "the app's Larger over an unchanged option")
+  T.eq(Set.textSize(115), 115, "the option changed to Large: it counts")
+  T.eq(Set.get("textSize"), 115, "and the app shows it")
+  X._test.env.setSetting("textSize", 100)
+  T.check(Kt.textScale() == 1, "(back to Normal)")
+end
 press("b")
 press("b")
 T.check(D.window() == nil, "B, B: closed")

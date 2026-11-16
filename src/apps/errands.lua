@@ -268,7 +268,7 @@ return function(ctx, env)
   end
 
   function W.scroll(dy)
-    if st.picking then st.top = max(0, min(max(0, #st.rows - st.visible), st.top - dy / ROW_H)) end
+    if st.picking then st.top = max(0, min(max(0, #st.rows - st.visible), st.top - dy / (st.rowH or ROW_H))) end
   end
 
   function W.hints()
@@ -351,6 +351,29 @@ return function(ctx, env)
     pcall(env.amount, n, right and x - w or x, y, size, c)
     return w
   end
+  -- a paragraph's size for K.text so that, at the text size, its lines fit `room` tall: smaller when
+  -- they must, never drawn under its 100% size (worked out when the words, the room or the size change)
+  local fitMemo = {}
+  local function fitWrap(s, size, w, room)
+    local ts = K.textScale()
+    if ts == 1 then return size end
+    local m = fitMemo[s]
+    if not (m and m.w == w and m.room == room and m.ts == ts and m.sc == K.sc and m.base == size) then
+      local sz = size
+      for _ = 1, 12 do
+        local f = K.font(sz * ts * K.sc)
+        local ok, _, lines = pcall(f.getWrap, f, s, w * K.sc)
+        local n = ok and type(lines) == "table" and #lines or 1
+        local okH, fh = pcall(f.getHeight, f)
+        if not (okH and tonumber(fh)) or n * fh / K.sc <= room or sz <= size / ts then break end
+        sz = max(size / ts, sz * 0.94)
+      end
+      m = m or {}
+      m.w, m.room, m.ts, m.sc, m.base, m.size = w, room, ts, K.sc, size, sz
+      fitMemo[s] = m
+    end
+    return m.size
+  end
   -- a job's tile: its colour, a gloss, its picture
   local function tile(job, x, y, size, a)
     a = a or 1
@@ -374,11 +397,13 @@ return function(ctx, env)
     return pw
   end
   -- (a: the whole chip's)
+  -- (as much taller as the text size makes its words, its words kept in its middle)
   local function chip(text, x, y, size, ink, a)
     local w = K.width(text, size) + 4
+    local g = (K.textScale() - 1) * size
     K.col(C.track, a)
-    K.box("fill", K.R(x, y, w, size + 2.4), (size + 2.4) / 2)
-    K.text(text, x + 2, y + 1.2, size, ink or C.soft, nil, nil, a)
+    K.box("fill", K.R(x, y, w, size + 2.4 + g), (size + 2.4 + g) / 2)
+    K.text(text, x + 2, y + 1.2 + g / 2, size, ink or C.soft, nil, nil, a)
     return w
   end
   local function medal(cx, cy, r, grade, clock)
@@ -475,7 +500,9 @@ return function(ctx, env)
       local nx = b[1] + ts + 6
       K.bold(name, nx, b[2] + b[4] / 2 - 5.4, K.fit(name, 4.4, b[1] + b[3] - nx - 3), C.ink, nil, nil, a)
       local cw = chip(hoursText(p.hours), nx, b[2] + b[4] / 2 + 0.6, 3.2, on and C.ink or C.soft, a)
-      if p.taken then K.text(T("errands.taken"), nx + cw + 2, b[2] + b[4] / 2 + 1.8, 3.2, C.soft) end
+      if p.taken then
+        K.text(T("errands.taken"), nx + cw + 2, b[2] + b[4] / 2 + 1.8 + (K.textScale() - 1) * 1.6, 3.2, C.soft)
+      end
     else
       local ts = min(12, b[4] - 9)
       tile(job, b[1] + (b[3] - ts) / 2, b[2] + 2 - bob, ts, a)
@@ -510,29 +537,34 @@ return function(ctx, env)
     -- (what it is)
     local e2 = K.stagger(since, 2, 0.04, 0.3)
     K.rise(e2, 3)
-    K.text(T("errands.desc." .. job.id), x + 4, y + 26, 3.5, C.soft, "left", w - 8)
+    -- (g: what the text size adds to a line of 1 unit; the lines at the foot stacked that much
+    -- further apart, from as much higher up; the words above shrunk, when they must, to stay clear)
+    local g = K.textScale() - 1
+    local ty = y + h - 40 - g * 17
+    local desc = T("errands.desc." .. job.id)
+    K.text(desc, x + 4, y + 26, fitWrap(desc, 3.5, w - 8, ty - y - 26.5), C.soft, "left", w - 8)
     K.settle(e2)
     -- (the types it favours, popping in in turn; the level; the pay)
-    local ty = y + h - 40
     local e3 = K.stagger(since, 3, 0.04, 0.3)
     K.rise(e3, 3)
-    K.text(T("errands.favours"), x + 4, ty, 3.2, C.faint)
+    K.text(T("errands.favours"), x + 4, ty + g * 1.3, 3.2, C.faint)
     K.settle(e3)
     local cx = x + 4
     for k = 1, #job.types do
       local ek = K.stagger(since, 3 + k, 0.04, 0.26)
       K.rise(ek, 2.5)
-      cx = cx + pill(job.types[k], cx, ty + 4.2, 5.4, 3.3) + 1.5
+      cx = cx + pill(job.types[k], cx, ty + 4.2 + g * 3.2, 5.4 + g * 3.3, 3.3) + 1.5
       K.settle(ek)
     end
     local e4 = K.stagger(since, 5, 0.04, 0.3)
     K.rise(e4, 3)
-    chip(bestText(job.level), x + 4, ty + 11.5, 3.3, C.soft)
+    chip(bestText(job.level), x + 4, ty + 11.5 + g * 6.5, 3.3, C.soft)
     local f = p.hours >= 8 and 5 or (p.hours >= 4 and 3 or 1)
-    K.text(T("errands.pays"), x + 4, ty + 18.2, 3.2, C.faint)
-    local lw2 = money(job.money[1] * f, x + 4, ty + 22, 4, C.gold)
-    K.text("-", x + 5.5 + lw2, ty + 22, 4, C.soft)
-    money(job.money[2] * f, x + 9 + lw2, ty + 22, 4, C.gold)
+    K.text(T("errands.pays"), x + 4, ty + 18.2 + g * 11.1, 3.2, C.faint)
+    local my = ty + 22 + g * 14.6
+    local lw2 = money(job.money[1] * f, x + 4, my, 4, C.gold)
+    K.text("-", x + 5.5 + lw2, my, 4, C.soft)
+    money(job.money[2] * f, x + 9 + lw2 + K.width("-", 4) * g / (1 + g) + g * 2, my, 4, C.gold)
     K.settle(e4)
     local gb = K.R(x + 4, y + h - 13, w - 8, 10)
     local can = not p.taken and #Er.out() < Er.MAX
@@ -607,7 +639,11 @@ return function(ctx, env)
     K.hairline(x + 2, y + 10, w - 4)
     local top = y + 10.5
     local lh = y + h - 1 - top
-    st.visible = max(1, floor(lh / ROW_H))
+    -- (a row as much taller as the text size makes its words; the same step for the scroll and the hits)
+    local g = K.textScale() - 1
+    local rh = ROW_H + g * 6
+    st.rowH = rh
+    st.visible = max(1, floor(lh / rh))
     if st.cursor > st.top + st.visible then st.top = st.cursor - st.visible end
     if st.cursor <= st.top then st.top = st.cursor - 1 end
     st.top = max(0, min(st.top, max(0, #st.rows - st.visible)))
@@ -618,7 +654,7 @@ return function(ctx, env)
     if #st.rows > 0 then
       if mv.curY == nil then mv.curY = st.cursor end
       mv.curY = K.approach(mv.curY, st.cursor, mv.dt, 24)
-      local hb = K.R(x + 1.5, top + (mv.curY - 1 - mv.top) * ROW_H + 0.4, w - 3, ROW_H - 0.8)
+      local hb = K.R(x + 1.5, top + (mv.curY - 1 - mv.top) * rh + 0.4, w - 3, rh - 0.8)
       K.col(C.accent, 0.12)
       K.box("fill", hb, 3)
       K.ring(hb, 3, C.accent, 0.85, 0.5)
@@ -628,25 +664,25 @@ return function(ctx, env)
     local right = x + w - 4
     for i = first, min(#st.rows, first + st.visible + 1) do
       local r = st.rows[i]
-      local ry = top + (i - 1 - mv.top) * ROW_H
+      local ry = top + (i - 1 - mv.top) * rh
       local e = K.stagger(since, i - first, 0.025, 0.24)
       K.rise(e, mv.boxDir == 0 and 3 or 0, mv.boxDir * 8)
-      local rb = K.R(x + 1.5, ry + 0.4, w - 3, ROW_H - 0.8)
+      local rb = K.R(x + 1.5, ry + 0.4, w - 3, rh - 0.8)
       local at = chosen(r.addr)
       if at then
         K.col(TINT, 0.24)
         K.box("fill", rb, 3)
       end
       if env.monIconOf then
-        pcall(env.monIconOf, r.mon, x + 3, ry + 0.5, 11, floor(clock * 3) % 2, (r.ok and 1 or 0.4) * K.getFade())
+        pcall(env.monIconOf, r.mon, x + 3, ry + 0.5 + g * 3, 11, floor(clock * 3) % 2, (r.ok and 1 or 0.4) * K.getFade())
       end
-      K.text(r.name, x + 15, ry + (r.why and 1.2 or 3.4), K.fit(r.name, 4.4, w - 44), r.ok and C.ink or C.faint)
-      if r.why then K.text(r.why, x + 15, ry + 6.6, K.fit(r.why, 3.1, w - 40), C.warn) end
-      K.text(levelText(r.level), right - 18, ry + 3.4, 3.6, C.soft, "right", 18)
-      if r.fit then star(right - 22, ry + ROW_H / 2, 1.6 + 0.3 * sin(clock * 5 + i)) end
+      K.text(r.name, x + 15, ry + (r.why and 1.2 + g * 1.5 or 3.4 + g * 3), K.fit(r.name, 4.4, w - 44), r.ok and C.ink or C.faint)
+      if r.why then K.text(r.why, x + 15, ry + 6.6 + g * 4.5, K.fit(r.why, 3.1, w - 40), C.warn) end
+      K.text(levelText(r.level), right - 18, ry + 3.4 + g * 3, 3.6, C.soft, "right", 18)
+      if r.fit then star(right - 22, ry + rh / 2, 1.6 + 0.3 * sin(clock * 5 + i)) end
       if at then
         -- (its place on the team)
-        local dcx, dcy = x + 13.2, ry + 2.6
+        local dcx, dcy = x + 13.2, ry + 2.6 + g * 3
         K.col(TINT)
         G.circle("fill", K.X(dcx), K.Y(dcy), 2.3 * K.sc)
         K.text(num(at), dcx - 2.5, dcy - 3 * 0.6, 3, C.white, "center", 5)
@@ -713,8 +749,9 @@ return function(ctx, env)
     K.grad(hero, 4.5, K.light(job.color, 0.12), K.dark(job.color, 0.22))
     tile(job, hero[1] + 2, hero[2] + 2, 11)
     local name = T("errands.job." .. job.id)
-    K.label(name, hero[1] + 16, hero[2] + 2.2, K.fit(name, 4.6, hero[3] - 19), C.white)
-    K.label(hoursText(p.hours), hero[1] + 16, hero[2] + 8.4, 3.3, C.white, nil, nil, 0.9)
+    local g = K.textScale() - 1
+    K.label(name, hero[1] + 16, hero[2] + 2.2 - g * 0.8, K.fit(name, 4.6, hero[3] - 19), C.white)
+    K.label(hoursText(p.hours), hero[1] + 16, hero[2] + 8.4 + g * 1.6, 3.3, C.white, nil, nil, 0.9)
     K.text(T("errands.team"), x + 4, y + 20, 3.4, C.faint)
     local slot = min(32, (w - 8 - 2 * GAP) / 3)
     drawSlots(x + 4, y + 25, slot, clock)

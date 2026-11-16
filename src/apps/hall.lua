@@ -240,11 +240,14 @@ return function(ctx, env)
     K.box("fill", b, 5)
     K.grad(b, 5, SHADE_TOP, SHADE_FOOT)
     K.ring(b, 5, C.white, 0.6, 0.4)
-    -- (where its picture goes, the words' block centred with it: the words' height, roughly)
-    local words = 21.5 + (m.sameName and 0 or 5) + (#m.types > 0 and 6 or 0)
+    -- (where its picture goes, the words' block centred with it: the words' height, roughly; each line's
+    -- step grows with the text size, by nothing at 100%)
+    local gs = K.textScale() - 1
+    local wg = gs * ((6 + 4.2 + 3.4 + (m.sameName and 0 or 3.8) + (#m.types > 0 and 3.4 or 0)) * 1.25 + 3)
+    local words = 21.5 + (m.sameName and 0 or 5) + (#m.types > 0 and 6 or 0) + wg
     local ps, pcx, pcy
     if tall then
-      ps = max(16, min(w - 12, h - 44, 58))
+      ps = max(16, min(w - 12, h - 44 - wg, 58))
       pcx, pcy = x + w / 2, y + max(3, (h - ps - words - 3) / 2) + ps / 2
     else
       ps = max(16, min(44, h - 6, w * 0.42))
@@ -276,31 +279,32 @@ return function(ctx, env)
     local e1, e2, e3 = enter(clock, 0.04), enter(clock, 0.08), enter(clock, 0.12)
     local f0 = K.getFade()
     if tall then
-      local ty = pcy + ps / 2 + 3
+      local ty = pcy + ps / 2 + 3 + gs * 3
       local fs = K.fit(m.nickname, 6, w - 16)
       local d1 = (1 - e1) * 5
       K.label(m.nickname, x, ty + d1, fs, C.white, "center", w, e1 * f0)
       local nx = x + (w + K.width(m.nickname, fs)) / 2 + 1.2
       if m.gender and m.sameName and not K.hasSign(m.nickname) then sexMark(m.gender, nx, ty + 1 + d1, 5, e1 * f0) nx = nx + 5 end
       if m.shiny then star(nx + 2.5, ty + 3.4 + d1, 2.2 + 0.5 * sin(clock * 5), C.gold, e1 * f0) end
-      ty = ty + fs * 1.25 + 0.5
+      ty = ty + fs * 1.25 * (1 + gs) + 0.5
       local d2 = (1 - e2) * 5
       if not m.sameName then
         local sw = K.width(m.name, 3.8)
         local sx = x + (w - sw - ((m.gender and not K.hasSign(m.name)) and 5 or 0)) / 2
         K.label(m.name, sx, ty + d2, 3.8, C.white, nil, nil, 0.85 * e2 * f0)
         if m.gender and not K.hasSign(m.name) then sexMark(m.gender, sx + sw + 1.2, ty + 0.2 + d2, 4.2, e2 * f0) end
-        ty = ty + 5.2
+        ty = ty + 5.2 + gs * 3.8 * 1.25
       end
       K.label(m.levelText, x, ty + d2, 4.2, C.white, "center", w, e2 * f0)
-      ty = ty + 5.4
+      ty = ty + 5.4 + gs * 4.2 * 1.25
       local d3 = (1 - e3) * 5
       K.label(m.idText, x, ty + d3, 3.4, C.white, "center", w, 0.8 * e3 * f0)
-      ty = ty + 5.2
-      if #m.types > 0 and ty + 6 <= y + h - 1 then
+      ty = ty + 5.2 + gs * 3.4 * 1.25
+      local ph = 5.6 + gs * 3.4 * 1.2
+      if #m.types > 0 and ty + ph + 0.4 <= y + h - 1 then
         local cx = x + (w - pillsWidth(m, 3.4)) / 2
         for i = 1, #m.types do
-          cx = cx + pill(m.types[i].id, m.types[i].name or "", cx, ty + d3, 5.6, 3.4, e3 * f0) + 1.5
+          cx = cx + pill(m.types[i].id, m.types[i].name or "", cx, ty + d3, ph, 3.4, e3 * f0) + 1.5
         end
       end
       return
@@ -314,23 +318,24 @@ return function(ctx, env)
     local nx = tx + o1 + K.width(m.nickname, fs) + 1.2
     if m.gender and m.sameName and not K.hasSign(m.nickname) then sexMark(m.gender, nx, wy + 1, 5, e1 * f0) nx = nx + 5 end
     if m.shiny then star(nx + 2.5, wy + 3.5, 2.2 + 0.5 * sin(clock * 5), C.gold, e1 * f0) end
-    local yy = wy + fs * 1.25 + 0.6
+    local yy = wy + fs * 1.25 * (1 + gs) + 0.6
     local o2 = (1 - e2) * 8
     if not m.sameName then
       local sw = K.width(m.name, 3.6)
       K.label(m.name, tx + o2, yy, K.fit(m.name, 3.6, tw - 6), C.white, nil, nil, 0.85 * e2 * f0)
       if m.gender and not K.hasSign(m.name) then sexMark(m.gender, tx + o2 + min(sw, tw - 6) + 1.2, yy + 0.1, 4, e2 * f0) end
-      yy = yy + 4.8
+      yy = yy + 4.8 + gs * 3.6 * 1.25
     end
     K.label(m.levelText, tx + o2, yy, 4.2, C.white, nil, nil, e2 * f0)
-    yy = yy + 5.4
+    yy = yy + 5.4 + gs * 4.2 * 1.25
     local o3 = (1 - e3) * 8
     K.label(m.idText, tx + o3, yy, 3.4, C.white, nil, nil, 0.8 * e3 * f0)
-    yy = yy + 5
-    if #m.types > 0 and yy + 6 <= y + h - 1 then
+    yy = yy + 5 + gs * 3.4 * 1.25
+    local ph = 5.6 + gs * 3.4 * 1.2
+    if #m.types > 0 and yy + ph + 0.4 <= y + h - 1 then
       local cx = tx + o3
       for i = 1, #m.types do
-        cx = cx + pill(m.types[i].id, m.types[i].name or "", cx, yy, 5.6, 3.4, e3 * f0) + 1.5
+        cx = cx + pill(m.types[i].id, m.types[i].name or "", cx, yy, ph, 3.4, e3 * f0) + 1.5
       end
     end
   end
@@ -365,7 +370,9 @@ return function(ctx, env)
         K.ring(b, 3.5, C.white, 0.75, 0.3)
         local on = i == p
         local small = ch < 30
-        local s = max(8, min(cw - 4, ch - (small and 7 or 11)))
+        -- (the words' growth at the text size, nothing at 100%: the picture gives it up)
+        local gw = (K.textScale() - 1) * (small and 4.6 or 9)
+        local s = max(8, min(cw - 4, ch - (small and 7 or 11) - gw))
         local py = cy + 1.5 - (on and hop or 0)
         if env.monPic then pcall(env.monPic, m.species, cx + (cw - s) / 2, py, s, K.getFade(), m.picMon) end
         K.rescissor()
@@ -374,8 +381,8 @@ return function(ctx, env)
         if small then
           K.text(m.nickname, cx, cy + ch - fs * 1.2 - 0.8, fs, C.ink, "center", cw)
         else
-          K.bold(m.nickname, cx, cy + ch - 9.4, fs, C.ink, "center", cw)
-          K.text(m.levelText, cx, cy + ch - 4.9, 3, C.soft, "center", cw)
+          K.bold(m.nickname, cx, cy + ch - 9.4 - gw * 0.6, fs, C.ink, "center", cw)
+          K.text(m.levelText, cx, cy + ch - 4.9 - gw * 0.12, 3, C.soft, "center", cw)
         end
         K.addHit(b, "win", CARD + i)
       else

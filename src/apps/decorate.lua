@@ -217,6 +217,26 @@ return function(ctx, env)
     K.setFade(FADES[nFade])
     nFade = nFade - 1
   end
+  -- (a paragraph's size at the player's text size: the biggest, from its size grown down to its size at
+  -- 100%, whose lines fit maxH units; worked out when what it's given changes and kept in `rec`)
+  local function paraFit(rec, s, size, w, maxH)
+    local ts = K.textScale()
+    if ts == 1 or not s or s == "" then return size end
+    if rec.s == s and rec.size == size and rec.w == w and rec.h == maxH and rec.ts == ts and rec.sc == K.sc then
+      return rec.out
+    end
+    local drawn = size * ts
+    while drawn > size do
+      local f = K.font(drawn * K.sc)
+      local ok, _, lines = pcall(f.getWrap, f, s, w * K.sc)
+      local n = ok and type(lines) == "table" and #lines or 1
+      if n * f:getHeight() / K.sc <= maxH + 0.01 then break end
+      drawn = max(size, drawn - 0.2)
+    end
+    rec.s, rec.size, rec.w, rec.h, rec.ts, rec.sc, rec.out = s, size, w, maxH, ts, K.sc, drawn / ts
+    return rec.out
+  end
+  local descFit = {}
   local function catColour(i)
     local r = st.list.cats[i]
     return r and CAT_C[r.cat + 1] or C.slate
@@ -441,20 +461,27 @@ return function(ctx, env)
     fade(e)
     local fs = K.fit(item.name, 6, w)
     K.bold(item.name, x + ox, y, fs, C.ink)
-    local py = y + 7.5
+    -- (the lines apart as the text grows, the pill taller, the words fitted above the buttons: nothing at
+    -- 100%)
+    local gs = K.textScale() - 1
+    local py = y + 7.5 + gs * 3
     local words = T(WHERE[item.where])
     local pw = min(w * 0.68, K.width(words, 3.8) + 7)
     local c = C[item.where]
+    local ph = 6.6 + gs * 3.8
     K.col(c, 0.18)
-    K.box("fill", K.R(x + ox, py, pw, 6.6), 3.3)
+    K.box("fill", K.R(x + ox, py, pw, ph), ph / 2)
     K.col(c)
-    G.circle("fill", K.X(x + 3 + ox), K.Y(py + 3.3), 1.1 * K.sc)
-    K.text(words, x + 5.2 + ox, py + 1.2, K.fit(words, 3.8, pw - 6.5), C.ink)
-    K.text(st.roomText, x + pw + 1 + ox, py + 1.3, K.fit(st.roomText, 3.6, w - pw - 1), C.soft, "right", w - pw - 1)
-    K.text(item.desc, x + ox, py + 8.8, 3.8, C.soft, "left", w)
-    unfade()
+    G.circle("fill", K.X(x + 3 + ox), K.Y(py + ph / 2), 1.1 * K.sc)
+    K.text(words, x + 5.2 + ox, py + 1.2 + gs * 1.9, K.fit(words, 3.8, pw - 6.5), C.ink)
+    K.text(st.roomText, x + pw + 1 + ox, py + 1.3 + gs * 1.9, K.fit(st.roomText, 3.6, w - pw - 1), C.soft, "right",
+      w - pw - 1)
     local n = #st.acts
     local bh, footY = 10, y + h - 10
+    local dy = py + 8.8 + gs * 3.8
+    K.text(item.desc, x + ox, dy, paraFit(descFit, item.desc, 3.8, w, (st.note and footY - 5.4 or footY) - dy - 0.6),
+      C.soft, "left", w)
+    unfade()
     if st.note then
       local note = T(st.note)
       K.text(note, x, footY - 5.4, K.fit(note, 3.6, w), C.warn, "left", w)
@@ -472,7 +499,9 @@ return function(ctx, env)
     local e = outCubic((clock - mv.confirmAt) / 0.22)
     K.dim(body, 0.26 * e)
     K.addHit(body, "win", DIM)
-    local mw, mh = min(w - 16, 124), 42
+    -- (taller as the words grow, the note lower: nothing at 100%)
+    local gs = K.textScale() - 1
+    local mw, mh = min(w - 16, 124), 42 + gs * 6
     local mx, my = x + (w - mw) / 2, y + (h - mh) / 2 + (1 - e) * 8
     local b = K.R(mx, my, mw, mh)
     fade(e)
@@ -481,7 +510,7 @@ return function(ctx, env)
     K.addHit(b, "win", CARD)
     K.bold(c.title, mx + 4, my + 5, K.fit(c.title, 5.4, mw - 8), C.ink, "center", mw - 8)
     local note = T("decor.tossNote")
-    K.text(note, mx + 4, my + 13.5, K.fit(note, 4.2, mw - 8), C.soft, "center", mw - 8)
+    K.text(note, mx + 4, my + 13.5 + gs * 3, K.fit(note, 4.2, mw - 8), C.soft, "center", mw - 8)
     local bw, by = (mw - 8 - GAP) / 2, my + mh - 15
     for i = 1, 2 do
       local bb = K.R(mx + 4 + (i - 1) * (bw + GAP), by, bw, 11)
@@ -527,7 +556,8 @@ return function(ctx, env)
     K.backdrop(body, clock, mv.r, mv.g, mv.b, mv.r2, mv.g2, mv.b2)
     K.scissor(body)
     if portrait then
-      local chipsH, infoH = 24, min(72, floor(h * 0.4))
+      -- (the chips taller as their words grow: nothing at 100%)
+      local chipsH, infoH = 24 + (K.textScale() - 1) * 16, min(72, floor(h * 0.4))
       drawChips(x + M, y + M, w - M * 2, chipsH, clock, dt)
       local gy = y + M + chipsH + GAP
       local gridH = y + h - M - infoH - GAP - gy

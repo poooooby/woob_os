@@ -107,6 +107,12 @@ return {
     ["reason.mail.gone"] = "Dieser Brief ist nicht mehr da.",
 
     ["settings.language"] = "Sprache",
+    ["settings.display"] = "Anzeige",
+    ["settings.textSize"] = "Textgröße",
+    ["settings.textNormal"] = "Normal",
+    ["settings.textLarge"] = "Groß",
+    ["settings.textLarger"] = "Größer",
+    ["settings.displayNote"] = "Größere Schrift in jeder App. Was nicht passt, wird etwas kleiner, damit es an seinem Platz bleibt.",
     ["settings.wallpaper"] = "Hintergrund",
     ["settings.languageNote"] = "Die Wörter von WoobOS. Der Text des Spiels bleibt, wie er ist.",
     ["settings.wallpaperNote"] = "Eigene hinzufügen: PNG- oder JPG-Bilder in mods/woob_os/wallpapers/ legen",

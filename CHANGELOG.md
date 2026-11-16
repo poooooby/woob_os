@@ -6,6 +6,9 @@ All notable changes to this mod are documented here, in
 ## [Unreleased]
 
 ### Added
+- **Text size.** Settings > Display, or the mod option Text Size: Normal, Large (115%) or Larger
+  (130%), for the text in every app, the desktop, WoobPad and notifications. Words that would run out
+  of their space get a little smaller to stay in it, and rows grow where the text needs the room.
 - **R-Bay: an ended auction's recap.** In My Bids, A on an ended auction (or a second tap) tells it
   again, as eBay does: a note that the auction is over, the Pokémon (its picture, tier, level, types,
   IVs), the winning bid and when it ended, who won it, your maximum, what you paid or got back, where

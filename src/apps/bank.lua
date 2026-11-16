@@ -155,7 +155,7 @@ return function(ctx, env)
   end
 
   function W.scroll(dy)
-    st.top = max(0, min(max(0, #Bk.log() - st.visible), st.top - dy / ROW_H))
+    st.top = max(0, min(max(0, #Bk.log() - st.visible), st.top - dy / (st.rowH or ROW_H)))
   end
 
   function W.hints() return T.list(HINTS.main) end
@@ -242,7 +242,8 @@ return function(ctx, env)
     if math.abs(target - st.shown) < 1 then st.shown = target end
     local pulse = max(0, 1 - (now() - st.flash) / 0.6)
     local size = K.fit("000,000,000", 8, w - 10) * (1 + 0.08 * pulse)
-    money(floor(st.shown + 0.5), x + 5, y + h - 11, size, WHITE)
+    -- (bigger text: a little lower, clear of the label over it)
+    money(floor(st.shown + 0.5), x + 5, y + h - 11 + (K.textScale() - 1) * 2.5, size, WHITE)
     st.cardX, st.cardY = x + w * 0.5, y + h * 0.5
   end
 
@@ -300,7 +301,8 @@ return function(ctx, env)
       local digitW = K.width("0", size)
       local cx = ax + sw + placeAt(st.amount * 16 + st.place) * size / 10
       K.col(MINT_DEEP, 0.6 + 0.4 * sin(clock * 6))
-      K.box("fill", K.R(cx, y + 14 + size * 1.15, digitW, 0.8), 0.4)
+      -- (bigger text: as much lower as the digits' foot came down)
+      K.box("fill", K.R(cx, y + 14 + size * 1.15 + (K.textScale() - 1) * size * 0.45, digitW, 0.8), 0.4)
     end
     K.text(upToText(most()), x, y + 27.5, 3.4, SOFT, "center", w)
     -- (the chips: +1,000 +10,000 +100,000 All, clear glass tinted mint, and Clear)
@@ -371,6 +373,10 @@ return function(ctx, env)
     local lb = K.R(x, y + 6.5, w, h - 6.5)
     K.glass(lb, 5, 0.5)
     local log = Bk.log()
+    -- (a line as tall as its two lines of words: taller at a bigger text size)
+    local g = K.textScale() - 1
+    local ROW_H = ROW_H + g * 6
+    st.rowH = ROW_H
     st.visible = max(1, floor((lb[4] - 1) / ROW_H))
     st.top = max(0, min(st.top, max(0, #log - st.visible)))
     -- (a new line at the top: it slides in)
@@ -404,12 +410,20 @@ return function(ctx, env)
       K.setFade(f0 * k)
       if i > first then K.hairline(x + 13, ry - 0.3, w - 17) end
       badge(e.kind, rx + 7, ry + ROW_H / 2, 3.4)
-      K.text(T(KIND[e.kind] or "bank.kind.in"), rx + 13, ry + 1.6, 4, INK)
-      K.text(agoText(max(0, floor((t - (e.at or t)) / 60))), rx + 13, ry + 6.3, 3.1, SOFT)
+      local kind = T(KIND[e.kind] or "bank.kind.in")
       local plus = e.kind ~= "out"
       local c = e.kind == "in" and INK or (plus and IN_C or OUT_C)
-      local mw = money(e.amount, rx + w - 4, ry + 3, 4.2, c, true)
-      K.text(e.kind == "in" and "" or (plus and "+" or "-"), rx + w - 4 - mw - 3, ry + 3, 4.2, c)
+      local sign = e.kind == "in" and "" or (plus and "+" or "-")
+      -- (bigger text: the sign as much further left as it grew, the kind kept clear of the amount)
+      local ks, sx = 4, nil
+      if g > 0 then
+        sx = rx + w - 4 - measure(e.amount, 4.2) - 3 - K.width(sign, 4.2) * g / (g + 1)
+        ks = K.fit(kind, 4, sx - 2 - (rx + 13))
+      end
+      K.text(kind, rx + 13, ry + 1.6 + g * 1.5, ks, INK)
+      K.text(agoText(max(0, floor((t - (e.at or t)) / 60))), rx + 13, ry + 6.3 + g * 4.4, 3.1, SOFT)
+      local mw = money(e.amount, rx + w - 4, ry + 3 + g * 3, 4.2, c, true)
+      K.text(sign, sx or (rx + w - 4 - mw - 3), ry + 3 + g * 3, 4.2, c)
       K.setFade(f0)
     end
     K.scrollbar(lb[1] + lb[3], lb[2], lb[4], st.top, st.visible, #log)

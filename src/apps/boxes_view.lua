@@ -87,6 +87,13 @@ return function(K, env, T, Bx, st, A)
   local V = { C = C, modeColor = { C.red, C.blue, C.green } }
   local countText = K.textCache(function(n) return tostring(n) .. "/" .. Bx.SLOTS end)
   local function session() return env.session and env.session() end
+  -- (a size keeping s inside `room` at the player's text size, never drawn under its 100% size; at 100%
+  -- just `size`)
+  local function roomy(s, size, room)
+    local ts = K.textScale()
+    if ts == 1 then return size end
+    return max(size / ts, K.fit(s, size, room))
+  end
 
   -- the motion's numbers (see the top)
   local mv = {
@@ -241,7 +248,7 @@ return function(K, env, T, Bx, st, A)
           icon(mon, sx - 1, sy + (sh - is) / 2 - 0.5, is, frame)
           mark(mon, sx + is - 2 - sh, sy, sh)
           local info = Bx.info(mon, T)
-          K.bold(info.levelText, sx + is - 1, sy + 1.6, 3.8, C.ink)
+          K.bold(info.levelText, sx + is - 1, sy + 1.6, roomy(info.levelText, 3.8, sw - is), C.ink)
           hpBar(mon, sx + is - 1, sy + sh - 3.2, sw - is - 1)
         end
       end
@@ -485,12 +492,14 @@ return function(K, env, T, Bx, st, A)
 
   -- ------- the preview
 
+  -- (a line of the card's step: a little more as the player's text size grows; 5.4 at 100%)
+  local function lineStep() return 5.4 + (K.textScale() - 1) * 3 end
   -- a labelled line of the card -> the next line's y
   local function previewLine(label, value, tx, ty, tw)
     K.text(label, tx, ty, 3.6, C.faint)
     local lw = K.width(label, 3.6) + 2
     K.text(value, tx + lw, ty, K.fit(value, 3.8, tw - lw), C.ink)
-    return ty + 5.4
+    return ty + lineStep()
   end
 
   -- the Dynamax row: its label and the level as ten segments -> the next line's y
@@ -504,7 +513,7 @@ return function(K, env, T, Bx, st, A)
       K.col(i <= level and C.dmax or C.dmaxEmpty)
       K.box("fill", K.R(gx + (i - 1) * seg, ty + 0.6, seg - 0.5, 3), 0.6)
     end
-    return ty + 5.4
+    return ty + lineStep()
   end
   -- the G-Max badge (the Gigantamax Factor), over the picture's foot
   local function gmaxBadge(cx, by)
@@ -557,14 +566,16 @@ return function(K, env, T, Bx, st, A)
     rise(e1, horizontal and 0 or 4, horizontal and 6 or 0)
     local ns = K.fit(info.name, 5, tw - 8)
     K.bold(info.name, tx, ty, ns, C.ink, horizontal and "left" or "center", tw)
-    ty = ty + 6.5
+    -- (the lines under the name apart as the text grows; 0 at 100%)
+    local g = (K.textScale() - 1) * 3
+    ty = ty + 6.5 + g
     if not info.egg then
       local lw = K.width(info.levelText, 4.2)
       local lx = horizontal and tx or tx + (tw - lw - 10) / 2
       K.text(info.levelText, lx, ty, 4.2, C.soft)
       if not K.hasSign(info.name) then genderMark(G, info.gender, lx + lw + 2, ty + 0.4, 4) end
       if info.shiny then sparkle(G, lx + lw + 7, ty - 0.3, 5) end
-      ty = ty + 6
+      ty = ty + 6 + g
       -- the types
       local total = 0
       for i = 1, #info.types do total = total + K.width(info.types[i].name, 3.8) + 6 + 1.5 end
@@ -577,8 +588,9 @@ return function(K, env, T, Bx, st, A)
         K.text(t.name, cx, ty + 1, 3.8, K.WHITE, "center", pw)
         cx = cx + pw + 1.5
       end
-      ty = ty + 8
-      local room = floor((y + h - 2 - ty) / 5.4)
+      ty = ty + 8 + g * 0.5
+      local step = lineStep()
+      local room = floor((y + h - 2 - ty) / step)
       local lines = 0
       if room > lines and info.dmax then lines, ty = lines + 1, dynamaxLine(info.dmax, tx, ty, tw) end
       if room > lines and info.nature then lines, ty = lines + 1, previewLine(T("boxes.nature"), info.nature, tx, ty, tw) end
@@ -588,7 +600,7 @@ return function(K, env, T, Bx, st, A)
         if lines >= room then break end
         lines = lines + 1
         K.text(info.moves[i], tx + 2, ty, K.fit(info.moves[i], 3.8, tw - 2), C.soft)
-        ty = ty + 5.4
+        ty = ty + step
       end
     end
     settle(e1)

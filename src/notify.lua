@@ -152,6 +152,7 @@ return function(deps)
   local INK, SOFT, CARD, EDGE = { 255, 255, 255 }, { 170, 172, 184 }, { 30, 31, 38 }, { 255, 255, 255, 0.1 }
   local GLASS, GLASS_EDGE, GLASS_SOFT = { 255, 255, 255, 0.16 }, { 255, 255, 255, 0.14 }, { 225, 228, 238 }
   function Nt.drawCard(rec, b, a, when, glass)
+    K.auditLayer()
     a = a or 1
     local G = K.graphics()
     local rad = min(b[4] / 2, 6)
@@ -177,8 +178,11 @@ return function(deps)
     local right = b[1] + b[3] - (rec.sp and (b[4] + 1) or 5)
     local ts = min(4.2, b[4] * 0.2)
     local soft = glass and GLASS_SOFT or SOFT
-    K.bold(T(rec.title), tx, b[2] + 3, ts, soft, nil, nil, a)
-    K.text(when or T("notify.now"), tx, b[2] + 3, ts, soft, "right", right - tx, a)
+    local whenS = when or T("notify.now")
+    -- (at a bigger text size the app's name kept clear of the time)
+    local ns = K.textScale() > 1 and K.fit(T(rec.title), ts, right - tx - K.width(whenS, ts) - 2) or ts
+    K.bold(T(rec.title), tx, b[2] + 3 + (ts - ns) * 0.5, ns, soft, nil, nil, a)
+    K.text(whenS, tx, b[2] + 3, ts, soft, "right", right - tx, a)
     local fs = K.fit(rec.text, min(5, b[4] * 0.24), right - tx)
     K.text(rec.text, tx, b[2] + b[4] - fs * 1.25 - 3, fs, INK, nil, nil, a)
     if rec.sp and deps.monIcon then deps.monIcon(rec.sp, b[1] + b[3] - b[4] + 1, b[2] + 1, b[4] - 2) end
