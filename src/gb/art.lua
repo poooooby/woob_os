@@ -51,13 +51,13 @@ return function(H, Gd, K, deps)
 
   -- paint `img` (a quad of it, or all of it) into a new canvas w x h in the species' colours; nil without
   -- canvases (the caller keeps the grey image)
-  local function paint(img, w, h, sp, shiny, trueColor, drawFn)
+  local function paint(img, w, h, sp, shiny, trueColor, drawFn, given)
     local G = love and love.graphics
     if not (G and G.newCanvas) then return nil end
     local okC, canvas = pcall(G.newCanvas, w, h)
     if not (okC and canvas) then return nil end
     pcall(canvas.setFilter, canvas, "nearest", "nearest")
-    local cols = not trueColor and colours(sp, shiny) or nil
+    local cols = given or (not trueColor and colours(sp, shiny)) or nil
     G.push("all")
     local ok = pcall(function()
       G.setCanvas(canvas)
@@ -87,6 +87,14 @@ return function(H, Gd, K, deps)
     G.pop()
     K.rescissor()
     return ok and canvas or nil
+  end
+
+  -- an overworld sprite's whole sheet painted once in four colours (lightest first): the Mart's clerk
+  function Art.colourSheet(img, cols)
+    if not (img and cols) then return nil end
+    local w, h = img:getDimensions()
+    local G = love and love.graphics
+    return paint(img, w, h, nil, nil, false, function() G.draw(img, 0, 0) end, cols)
   end
 
   -- ------- icons

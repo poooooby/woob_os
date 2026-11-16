@@ -5,6 +5,33 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **The real shops.** Every shop counter opens the Mart full screen with that shop's own goods, at the
+  game's prices and by its rules, on every game: Poké Marts, every department store floor (Celadon,
+  Goldenrod, Lilycove), herb shops, Cianwood's pharmacy, souvenir shops, Lilycove's and Fortree's
+  decorations (bought into your PC) and the Underground's bargain stall (one of each). Each is dressed
+  for its place and what it sells (a TM floor violet, the drugstore mint, the herb shop green on wood,
+  the bargain stall neon), with its own clerk behind the counter. The mod option Real Shops turns it
+  off.
+- **Gold, Silver and Crystal's Pokégear, taken over** as the PokéNav was on Ruby, Sapphire and
+  Emerald: WoobPad takes its place in the START menu, and its apps do the Pokégear's jobs.
+  - **Radio:** a new app. The dial finds the stations the game has here and now, the shows are the
+    game's own, word for word, and so is the music. Leave it playing and it stays the map's music, as
+    in the game: the Pokémon March brings more wild Pokémon, the Lullaby fewer, the Poké Flute wakes
+    Snorlax. The wall radios play here too. Each station has its own artwork, and the Pokémon Oak or
+    the Pokédex Show is talking about appears on it; the show runs as a live transcript, with preset
+    buttons for every station on the air and a tuner across the bottom.
+  - **Phone:** your Pokégear's phone book in the Phone app, and calls that are the game's own (its
+    words, rematches and gifts), shown as chat bubbles.
+  - **Map:** Fly from the party menu, the walls' Town Map and the Map app's Fly open the 3D map.
+  - The mod option Pokégear turns it off.
+
+### Changed
+- **TMs and HMs on Red, Blue, Yellow, Gold, Silver and Crystal** show the move they teach in every list
+  (TM41 Thunderpunch) and what it does: the move's description on Gold, Silver and Crystal, its type,
+  power, accuracy and PP on Red, Blue and Yellow.
+- **PkMn** is drawn as the Game Boy games' small staggered letters, as in Oak's PkMn Talk.
+
 ## [0.14.0] - 2026-11-15
 
 ### Added

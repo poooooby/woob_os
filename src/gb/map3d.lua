@@ -3,7 +3,9 @@
 -- Gen 3's: every town and route put where its connections join it to its neighbours, each 16 px square
 -- read for what it is (the collision, the tiles; Gen 2's colours from the map's own palettes), the doors
 -- (where each leads) for the buildings. The same interface as src/map3d/model.lua, so src/map3d/scene.lua
--- and render.lua draw it unchanged. No Fly from it, no weather.
+-- and render.lua draw it unchanged. No weather. Fly on Gold / Silver / Crystal: a town holding one of the
+-- game's fly points the player has visited (FieldMoves.flyPoints) can be flown to; the point's spawn is
+-- what the Pokégear's Fly map hands back (M.pickArgs), and from the app World:flyTo flies there.
 --
 --   Mdl = map3d(host, Gd, deps)   deps.world: a src/map3d/world.lua made with no engine (its classes,
 --                                 heights, unit and terrain); deps.place(mapId) -> its name (src/gb/play.lua)
@@ -497,8 +499,42 @@ return function(H, Gd, deps)
   function M.storm() return nil end
   function M.weather() return nil end
   function M.weatherData() return nil end
-  function M.flyCheck() return nil, "none" end
-  function M.pickArgs() return nil end
+  -- (Gen 2 Fly: the party's Pokémon that knows it, as the field allows: the Storm Badge, outdoors, nothing
+  -- going on; why not: "badge" | "mon" | "indoors" | "none")
+  local FLY_MOVE = 19
+  function M.flyCheck(s)
+    if gen ~= 2 or type(s) ~= "table" then return nil, "none" end
+    local g = H.game()
+    local w = g and g.world
+    if type(w) ~= "table" then return nil, "none" end
+    local mon
+    for _, m in ipairs(s.party or {}) do
+      for _, mv in ipairs(type(m) == "table" and m.moves or {}) do
+        local id = type(mv) == "table" and (mv.id or mv.move) or mv
+        if tonumber(id) == FLY_MOVE or id == "FLY" then mon = mon or m end
+      end
+    end
+    if not mon then return nil, "mon" end
+    local FM = engine("src.world.gen2.FieldMoves")
+    if not (FM and FM.flyFromMenu and w.fieldContext) then return nil, "none" end
+    local okC, ctx = pcall(w.fieldContext, w, mon)
+    if not okC then return nil, "none" end
+    local okF, res = pcall(FM.flyFromMenu, ctx)
+    if not (okF and type(res) == "table") then return nil, "none" end
+    if res.ok then return mon end
+    if res.badge then return nil, "badge" end
+    return nil, "indoors"
+  end
+  -- (the Pokégear's Fly map hands back the place's fly point: its spawn)
+  function M.pickArgs(region, place) return place and place.spawn or nil end
+  -- the game's flight to the place's fly point, from the app (Model.flyCheck's Pokémon)
+  function M.flyTo(place, mon)
+    local g = H.game()
+    local w = g and g.world
+    if not (place and place.spawn and type(w) == "table" and w.flyTo) then return false end
+    local ok, done = pcall(w.flyTo, w, place.spawn, mon)
+    return ok and done ~= false
+  end
 
   local function regionOf(id, background)
     local p = progress[key(id)] or { m = 0 }
@@ -604,14 +640,37 @@ return function(H, Gd, deps)
     end
     return out
   end
+  -- (Gen 2: the region's fly points the player has visited, spawn by map, as the game's Fly map has them)
+  local flyByMap = {}
+  local function flyPoints(s, regionId)
+    for k in pairs(flyByMap) do flyByMap[k] = nil end
+    if gen ~= 2 or not s then return flyByMap end
+    local d = data()
+    local FM = engine("src.world.gen2.FieldMoves")
+    local lm = d and d.gen2Landmarks
+    local spawns = lm and lm.spawns
+    if not (FM and FM.flyPoints and type(spawns) == "table") then return flyByMap end
+    local ok, points = pcall(FM.flyPoints, s, lm, regionId)
+    for _, pt in ipairs(ok and type(points) == "table" and points or {}) do
+      local sp = spawns[pt.spawn]
+      if type(sp) == "table" and sp.map and not flyByMap[sp.map] then flyByMap[sp.map] = pt.spawn end
+    end
+    return flyByMap
+  end
   function M.live(region, s)
     if not region then return end
     local seen = visitedMaps(s)
+    local fly = flyPoints(s, region.id)
     for _, p in ipairs(region.places) do
       p.shown = true
       p.visited = false
-      for id in pairs(p.maps or {}) do if seen[id] then p.visited = true end end
-      p.canFly = false
+      p.spawn = nil
+      for id in pairs(p.maps or {}) do
+        if seen[id] then p.visited = true end
+        if fly[id] then p.spawn = fly[id] end
+      end
+      -- (M.flyOnly: the Pokégear's Fly map, only its own points)
+      p.canFly = p.spawn ~= nil and (not M.flyOnly or M.flyOnly[p.spawn] == true)
       p.badgeOwned = badgeOwned(s, p.badge)
     end
   end

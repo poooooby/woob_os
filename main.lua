@@ -69,6 +69,10 @@ return function(mod)
   local boxesSummary = loadSibling(mod, "src/apps/boxes_summary.lua")
   local Arrange = loadSibling(mod, "src/arrange.lua")
   local makeMart, martWindow = loadSibling(mod, "src/mart.lua"), loadSibling(mod, "src/apps/mart.lua")
+  -- the real shops: every shop counter opens the Mart full screen (src/realshop.lua; src/shop.lua the
+  -- counter's model, src/shop_themes.lua its look)
+  local makeRealShop, makeShop = loadSibling(mod, "src/realshop.lua"), loadSibling(mod, "src/shop.lua")
+  local ShopThemes = loadSibling(mod, "src/shop_themes.lua")
   local makeAuction, auctionWindow = loadSibling(mod, "src/auction.lua"), loadSibling(mod, "src/apps/auction.lua")
   local makeSlots, slotsWindow = loadSibling(mod, "src/slots.lua"), loadSibling(mod, "src/apps/slots.lua")
   local makePcGames, pcGamesWindow = loadSibling(mod, "src/pcgames.lua"), loadSibling(mod, "src/apps/pcgames.lua")
@@ -1232,7 +1236,17 @@ return function(mod)
 
   local okI, errI = pcall(Sh.install)
   if not okI then mod.log:warn("the desktop's hooks failed: %s", tostring(errI)) end
+  local RealShop = makeRealShop and makeShop and ShopThemes and env.mart and makeRealShop(engine, {
+    Sh = Sh, base = env.mart, T = T, makeShop = makeShop, themes = ShopThemes, clerk = env.clerk, place = placeName,
+    on = function() return option("realShops", true) ~= false end,
+    log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+  }) or nil
+  env.realShop = RealShop
   mod.events:on("game.ready", function()
+    if RealShop then
+      local okR, errR = pcall(RealShop.wrap)
+      if not okR then mod.log:warn("the shops keep their own menus: %s", tostring(errR)) end
+    end
     if env.pcgames then env.pcgames.reset() end
     if env.decorate then env.decorate.reset() end
     if env.map3d then env.map3d.lastStorm = nil end

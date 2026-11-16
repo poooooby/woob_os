@@ -321,41 +321,74 @@ return function(deps)
   function K.inside(q, x, y) return x >= q[1] and y >= q[2] and x < q[1] + q[3] and y < q[2] + q[4] end
 
   -- ♀ / ♂: the fonts have neither (NIDORAN♀ drew a box), so a text with one is split once into runs and
-  -- signs (kept, bounded; false: no sign after all) and each sign drawn as a mark in the text's colour
+  -- signs (kept, bounded; false: no sign after all) and each sign drawn as a mark in the text's colour.
+  -- So is the Game Boy games' PkMn (their <PK><MN> tiles): K.PKMN in a text (a private-use character)
+  -- draws as the small staggered P K M N
   local SIGN = "\226\153"
+  local PKMN = "\238\128\128"
+  K.PKMN = PKMN
   local SIGN_F, SIGN_M = { 255, 85, 140 }, { 60, 135, 255 }
   local signCache, signCount = {}, 0
   local function signsOf(s)
     local p = signCache[s]
     if p ~= nil then return p end
     if signCount > 300 then signCache, signCount = {}, 0 end
-    local runs, sex, i, from = {}, {}, 1, 1
+    local runs, sex, plain, i, from, nG, nP = {}, {}, {}, 1, 1, 0, 0
     while true do
-      local at = s:find(SIGN, i, true)
-      if not at then break end
-      local b = s:byte(at + 2)
-      if b == 128 or b == 130 then
-        runs[#runs + 1] = s:sub(from, at - 1)
-        sex[#runs] = b == 128 and "F" or "M"
-        from = at + 3
+      local at, atP = s:find(SIGN, i, true), s:find(PKMN, i, true)
+      if atP and (not at or atP < at) then
+        runs[#runs + 1] = s:sub(from, atP - 1)
+        plain[#plain + 1] = runs[#runs]
+        plain[#plain + 1] = "PkMn"
+        sex[#runs], nP = "P", nP + 1
+        from, i = atP + 3, atP + 3
+      elseif at then
+        local b = s:byte(at + 2)
+        if b == 128 or b == 130 then
+          runs[#runs + 1] = s:sub(from, at - 1)
+          plain[#plain + 1] = runs[#runs]
+          sex[#runs], nG = b == 128 and "F" or "M", nG + 1
+          from = at + 3
+        end
+        i = at + 3
+      else
+        break
       end
-      i = at + 3
     end
     if #runs == 0 then
       p = false
     else
       runs[#runs + 1] = s:sub(from)
-      p = { runs = runs, sex = sex, plain = table.concat(runs) }
+      plain[#plain + 1] = runs[#runs]
+      p = { runs = runs, sex = sex, plain = table.concat(plain), nG = nG, nP = nP }
     end
     signCache[s], signCount = p, signCount + 1
     return p
   end
   local function signed(s)
-    if type(s) ~= "string" or not s:find(SIGN, 1, true) then return nil end
+    if type(s) ~= "string" or not (s:find(SIGN, 1, true) or s:find(PKMN, 1, true)) then return nil end
     return signsOf(s) or nil
   end
   -- (a sign's width in a text of `size` units, its gap before included)
   local function signW(size) return size * 0.7 end
+  -- (PkMn's: its four small letters, each tucked in under the one before)
+  local PK_K, PK_ADV = 0.62, 0.86
+  local function pkW(size) return font(size * PK_K * sc):getWidth("PKMN") / sc * PK_ADV + size * 0.1 end
+  local function marksW(p, size) return p.nG * signW(size) + (p.nP > 0 and p.nP * pkW(size) or 0) end
+  -- (PkMn drawn at x in a text of `size` at y, in the colour set; the text's font f set back after)
+  local PK_CH = { "P", "K", "M", "N" }
+  local function pkLetters(x, y, size, f)
+    local sf = font(size * PK_K * sc)
+    G.setFont(sf)
+    local cx = x + size * 0.05
+    for k = 1, 4 do
+      local ch = PK_CH[k]
+      -- (P and M high, K and N low, as the tiles have them)
+      G.print(ch, X(cx), Y(y + (k % 2 == 1 and size * 0.06 or size * 0.38)))
+      cx = cx + sf:getWidth(ch) / sc * PK_ADV
+    end
+    G.setFont(f)
+  end
   -- a ♀ ("F") or ♂ ("M") s units tall, its top left at x, y, in the colour set
   local function sexLines(sex, x, y, s)
     G.setLineWidth(max(1, s * 0.15 * sc))
@@ -385,7 +418,10 @@ return function(deps)
     G.setLineWidth(lw)
   end
   -- does s carry a ♀ / ♂ (a name that shows its own sign: no separate mark beside it, as the games do)
-  function K.hasSign(s) return signed(s) ~= nil end
+  function K.hasSign(s)
+    local p = signed(s)
+    return p ~= nil and p.nG > 0
+  end
 
   -- the player's text size (Settings > Display or the mod option, set by main.lua): every text drawn this
   -- much bigger and measured at it (K.width, K.fit), so what's laid out after a text moves with it and
@@ -403,7 +439,7 @@ return function(deps)
     if p then
       local f, n = font(size * sc), 0
       for i = 1, #p.runs do n = n + f:getWidth(p.runs[i]) end
-      return n / sc + #p.sex * signW(size)
+      return n / sc + marksW(p, size)
     end
     return font(size * sc):getWidth(s) / sc
   end
@@ -413,7 +449,7 @@ return function(deps)
   local function signedText(p, f, x, y, size, align, w)
     local tw = 0
     for i = 1, #p.runs do tw = tw + f:getWidth(p.runs[i]) / sc end
-    tw = tw + #p.sex * signW(size)
+    tw = tw + marksW(p, size)
     if align and w and tw > w + 0.01 then
       G.printf(p.plain, X(x), Y(y), w * sc, align)
       return
@@ -429,7 +465,10 @@ return function(deps)
         cx = cx + f:getWidth(run) / sc
       end
       local sx = p.sex[i]
-      if sx then
+      if sx == "P" then
+        pkLetters(cx, y, size, f)
+        cx = cx + pkW(size)
+      elseif sx then
         sexLines(sx, cx + size * 0.14, y + size * 0.16, ms)
         cx = cx + signW(size)
       end

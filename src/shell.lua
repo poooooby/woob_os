@@ -409,16 +409,71 @@ return function(mod, deps)
     return true
   end
 
+  -- the 3D map over one of the host's own screens (Gold / Silver / Crystal's Pokégear: its Fly map and the
+  -- walls' Town Map). o: { session, mode = "fly" | "town", onPick(region, place) (fly: the place chosen),
+  -- onClose() (B; not after a pick) } -> true when it opened
+  function Sh.openMapScreen(o)
+    if not Tm or Tm.isOpen() or D.isOpen() or (Wt and Wt.isOpen()) then return false end
+    if deps.map3dOn and not deps.map3dOn() then return false end
+    local ctx = { session = o.session, mode = "townmap", family = familyOf(gameId()), rows = {} }
+    function ctx.row() return nil end
+    local closed = false
+    local function close()
+      if closed then return false end
+      closed = true
+      Tm.close()
+      pop(Sh.MAP_ID)
+      return true
+    end
+    ctx.finish, ctx.done, ctx.logoff = close, close, close
+    function ctx.over() end
+    function ctx.original() end
+    function ctx.sheet() end
+    local so = { mode = o.mode == "fly" and "fly" or "town" }
+    -- (Fly: only where the game's own Fly map would go, o.only = { [spawn] = true })
+    local Model = deps.map3d and deps.map3d.model
+    if Model then Model.flyOnly = o.only end
+    local close0 = close
+    close = function()
+      if Model then Model.flyOnly = nil end
+      return close0()
+    end
+    ctx.finish, ctx.done, ctx.logoff = close, close, close
+    function so.pick(region, place)
+      if not close() then return end
+      if o.onPick then o.onPick(region, place) end
+    end
+    function so.cancel()
+      if not close() then return end
+      if o.onClose then o.onClose() end
+    end
+    -- (START: the game's own map, as it would have opened)
+    if o.classic then
+      function so.classic()
+        if not close() then return end
+        o.classic()
+      end
+    end
+    if not Tm.open(ctx, so) then return false end
+    if not push(Sh.MAP_ID, MapLayer) then
+      Tm.close()
+      return false
+    end
+    return true
+  end
+
   -- an app full screen over one of the game's screens (the PokéNav's Phone and Condition,
   -- src/pokenav.lua; the START menu's Pokédex); onClose() when it closes -> true when it opened.
   -- o: { mode (ctx.mode, "pokenav" by default), backKey (the toolbar's way back), classic (the game's
-  -- own screen instead: ctx.classic() closes ours and calls it) }
+  -- own screen instead: ctx.classic() closes ours and calls it), shop (a real shop counter's model,
+  -- src/shop.lua: the Mart in shop mode, ctx.shop) }
   function Sh.openFull(appId, s, onClose, state, o)
     if not Tm or Tm.isOpen() or D.isOpen() or (Wt and Wt.isOpen()) then return false end
     local app = A.byId(appId)
     if not (app and app.window) then return false end
     o = o or {}
-    local ctx = { session = s, mode = o.mode or "pokenav", family = familyOf(gameId()), rows = {}, app = appId }
+    local ctx = { session = s, mode = o.mode or "pokenav", family = familyOf(gameId()), rows = {}, app = appId,
+                  shop = o.shop }
     if state then ctx.resume = { app = appId, state = state } end
     function ctx.row() return nil end
     local closed = false

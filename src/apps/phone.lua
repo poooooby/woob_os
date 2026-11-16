@@ -24,6 +24,7 @@ local floor, max, min, abs, sin, pi = math.floor, math.max, math.min, math.abs, 
 local ROW_H, M, GAP = 15, 3, 2
 local TAB_FAV, TAB_REC, TAB_CON, FILTER, CALL, FAV, END, NEXT, BACK = 2001, 2002, 2003, 2004, 2010, 2011, 2012, 2013,
   2014
+local CHOICE = 2020 -- (a live call's YES / NO: CHOICE + 1, CHOICE + 2)
 local DIAL = 0.9    -- seconds of "Calling ..."
 local TYPING = 0.45 -- seconds of the "..." bubble before each one
 local CPS = 46      -- letters a second, typed out
@@ -160,13 +161,15 @@ return function(ctx, env)
       se("SE_FAILURE")
       return toast("phone.noCalls")
     end
-    local text, ok = Ph.call(session(), c)
+    local text, ok, live = Ph.call(session(), c)
     if not ok then
       se("SE_FAILURE")
       return toast("phone.failed")
     end
-    se("SE_POKENAV_CALL")
-    startCall({ contact = c, text = text, t0 = now(), name = c.name, pic = c.pic })
+    -- (Gold / Silver / Crystal: the game rang already; a live call is the game's own script, its words
+    -- followed as they come)
+    if not live then se("SE_POKENAV_CALL") end
+    startCall({ contact = c, text = text, t0 = now(), name = c.name, pic = c.pic, live = live })
     refresh()
   end
   local function fav()
@@ -180,6 +183,8 @@ return function(ctx, env)
   end
   local function endCall()
     if not st.call then return end
+    -- (a live call ends when the game's script does)
+    if st.call.live and not st.call.live.done then return end
     se("SE_POKENAV_HANG_UP")
     st.view = st.call.contact and "card" or "list"
     st.call, st.bubbles = nil, nil
@@ -187,6 +192,10 @@ return function(ctx, env)
   -- A / a tap: the rest of the bubble at once, then the next one, then the call ends
   local function nextPage()
     local cl = st.call
+    if cl and cl.live and not cl.live.done then
+      -- (a tap: the game's A, to its box)
+      return cl.live.press("a")
+    end
     if not cl or not st.bubbles then return end
     local t = now()
     if t - cl.t0 < DIAL then return end
@@ -250,6 +259,12 @@ return function(ctx, env)
     if arg == FAV then return fav() end
     if arg == END then return endCall() end
     if arg == NEXT then return nextPage() end
+    if (arg == CHOICE + 1 or arg == CHOICE + 2) and st.call and st.call.live and st.call.live.choice then
+      -- (the YES / NO box's own cursor, then its A)
+      local box = st.call.live.choice
+      box.index = arg - CHOICE
+      return st.call.live.press("a")
+    end
     if arg == BACK then
       if st.view == "card" then
         st.view = "list"
@@ -772,6 +787,22 @@ return function(ctx, env)
     end
   end
 
+  -- a live call's YES / NO (the game's box under ours): two glass pills, the one its cursor is on lit
+  local function choiceRow(box, x, y, w, clock)
+    local labels = box.labels or {}
+    local pw = min(44, (w - 20) / 2)
+    local x0 = x + (w - pw * 2 - 4) / 2
+    for i = 1, 2 do
+      local b = K.R(x0 + (i - 1) * (pw + 4), y, pw, 9)
+      local on = box.index == i
+      K.glass(b, 4.5, on and 0.95 or 0.55)
+      if on then K.ring(b, 4.5, C.green, 0.6 + 0.3 * K.pulse(), 0.6) end
+      local word = tostring(labels[i] or (i == 1 and "YES" or "NO"))
+      K.bold(word, b[1], b[2] + 2.2, K.fit(word, 4.4, pw - 6), on and C.ink or C.soft, "center", pw)
+      K.addHit(b, "win", CHOICE + i)
+    end
+  end
+
   -- a hang-up button: red, round, a handset lying across it; a ring calling for it once all is said
   local function endButton(cx, cy, r, glow, clock)
     if glow then
@@ -951,10 +982,18 @@ return function(ctx, env)
         K.col(tint, 0.85 * e)
         K.box("fill", K.R(wx + i * 1.9, y + M + 8 - bh / 2, 1, bh), 0.5)
       end
-      drawBubbles(cl, x, y + M + 17.5, y + h - 20, w, e, t, clock)
+      if cl.live then
+        -- (the game's box on top, its words so far: every bubble shown whole, the newest last)
+        if cl.live.step() then
+          cl.text = withoutName(cl.live.text, cl.name)
+          st.bubbles, cl.full, cl.idx = nil, true, 1000
+        end
+        if cl.live.choice then choiceRow(cl.live.choice, x, y + h - 30, w, clock) end
+      end
+      drawBubbles(cl, x, y + M + 17.5, y + h - (cl.live and cl.live.choice and 32 or 20), w, e, t, clock)
     end
     -- (End)
-    local last = st.bubbles and cl.idx >= #st.bubbles and e >= 1
+    local last = st.bubbles and cl.idx >= #st.bubbles and e >= 1 and not (cl.live and not cl.live.done)
     local done = last and st.bubbles[cl.idx] and shownOf(cl, st.bubbles[cl.idx], t) >= st.bubbles[cl.idx].n
     endButton(cx, y + h - 10, 6, done, clock)
     K.setFade(f0)

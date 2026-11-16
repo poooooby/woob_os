@@ -39,6 +39,20 @@ return {
     description = "WoobOS's modern Pokédex, from the START menu and as an app on the PC and WoobPad. Off: the game's own Pokédex, and no app.",
   },
   {
+    key = "pokegear",
+    label = "Pokégear",
+    type = "toggle",
+    default = true,
+    description = "Gold, Silver and Crystal: WoobPad takes the Pokégear's place in the START menu, and its Map, Phone and Radio do the Pokégear's jobs (Fly and the wall maps open the 3D map). Off: the game's own Pokégear.",
+  },
+  {
+    key = "realShops",
+    label = "Real Shops",
+    type = "toggle",
+    default = true,
+    description = "Every shop counter opens the WoobOS Mart full screen, with that shop's own goods and look. Off: the game's own shop menus.",
+  },
+  {
     key = "mapInvertX",
     label = "Map: Invert X",
     type = "toggle",

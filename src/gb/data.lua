@@ -138,17 +138,48 @@ return function(H)
     return d and d.items and d.items[id] or nil
   end
   -- an item's words on one line (the game's breaks, and the hyphens it broke words with, taken out)
-  function Gd.itemDesc(id)
+  -- the move a TM / HM teaches (Gen 2's `teaches`, Gen 1's `machine.move`) | nil
+  function Gd.tmMove(id)
     local it = Gd.item(id)
-    local d = tostring(it and it.description or "")
-    d = d:gsub("%-%s*<NEXT>%s*", ""):gsub("%-\n", ""):gsub("<NEXT>", " "):gsub("[\n\f]", " "):gsub("%s+", " ")
+    if type(it) ~= "table" then return nil end
+    return it.teaches or (type(it.machine) == "table" and it.machine.move) or nil
+  end
+  -- a move's line where the game has none (Gen 1): set by main.lua with the words ("Normal · Power 40 ...")
+  Gd.moveLine = nil
+  local function clean(d)
+    d = tostring(d or ""):gsub("%-%s*<NEXT>%s*", ""):gsub("%-\n", ""):gsub("<NEXT>", " "):gsub("[\n\f]", " "):gsub("%s+", " ")
     return (d:gsub("^%s+", ""):gsub("%s+$", ""))
   end
+  -- (a TM / HM's: its move's description, as the games' TM pockets and marts show it)
+  local tmDesc = {}
+  function Gd.itemDesc(id)
+    local mv = Gd.tmMove(id)
+    if mv then
+      local got = tmDesc[id]
+      if got then return got end
+      local d = Gd.data()
+      local m = d and d.moves and d.moves[mv]
+      got = m and m.description and clean(m.description) or ""
+      if got == "" and Gd.moveLine then got = Gd.moveLine(mv, m) or "" end
+      tmDesc[id] = got
+      return got
+    end
+    local it = Gd.item(id)
+    return clean(it and it.description)
+  end
+  -- (TMs and HMs keep their numbers as the game writes them, and name the move they teach: "TM41 Ice Punch")
+  local tmNames = {}
   function Gd.itemName(id)
     local it = Gd.item(id)
     local name = it and it.name or tostring(id or "?"):gsub("_", " ")
-    -- (TMs and HMs keep their numbers as the game writes them)
-    if name:match("^[TH]M%d") then return name end
+    if name:match("^[TH]M%d") then
+      local got = tmNames[id]
+      if got then return got end
+      local mv = Gd.tmMove(id)
+      got = mv and (name .. " " .. Gd.moveName(mv)) or name
+      tmNames[id] = got
+      return got
+    end
     return Gd.title(name)
   end
 

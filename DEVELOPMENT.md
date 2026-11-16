@@ -1078,9 +1078,37 @@ states on `game.stack`, the save is plain tables on `game.save`. `main.lua` retu
   through `GbcPalette` and the species' palette, Gen 1 through the palette shader), padded to one box.
 - **The Pokédex:** the START menu's `PokedexMenu` / `Gen2PokedexMenu` registered as a carrier that opens
   ours full screen (`Sh.openFull`).
-- **Gen 2's own screens as apps:** Phone pushes `Gen2Pokegear` on its phone card (calls run through
-  `Game2:runPokegearCall`); Decorate pushes `Gen2DecorationMenu` from the bedroom's desktop and marks the
-  carrier `changed`.
+- **Gen 2's own screens as apps:** Decorate pushes `Gen2DecorationMenu` from the bedroom's desktop and
+  marks the carrier `changed`.
+- **The Pokégear** (the mod option `pokegear`): one screen id, `Gen2Pokegear`, serves four callers with
+  different contracts, so ours (registered in `src/gb/host.lua`, a carrier like the PC's) branches:
+  `opts.fly` (`World:openFlyMap`): our map in Fly mode (`Sh.openMapScreen`), only the game's own points
+  (`opts.fly`'s spawns: `Model.flyOnly`), a pick answers `opts.onFly(spawn)` and the World pops;
+  `opts.townMap` (the walls' map): our map, popped by us then `opts.onClose()` (START: the game's own in
+  ours' place); the START menu's: `onClose()` and WoobPad (rare: the START row is WoobPad's,
+  `H.startRows` swaps the `pokegear` row while the option's on). Anything else, or a failure, builds
+  `src.ui.gen2.Pokegear` directly (never through the registry). The wall radios (`Gen2MapRadio`) are
+  ours too: the game's `MapRadio` built off-stack only to resolve its station, our Radio full screen
+  (`Sh.openFull("radio", ..., { station })`), then pop and `opts.onDone()`.
+  - **The off-stack Pokégear** (`H.gear()`, made fresh each time so it knows where the player is) runs
+    the game's own card code for the Phone and the Radio: nothing copied.
+  - **Phone** (`src/gb/phone.lua`, the Phone window unchanged but for live calls): the phone book from
+    `src/core/gen2/Phone.lua`; a call is `gear:callContact`, so the signal check, the ring and the
+    one-line answers are the game's, and a call that connects runs the contact's script
+    (`Game2:runPokegearCall`). Its text boxes are pushed over our window and hidden under it: the live
+    call mirrors the box on top (the page's lines so far, a YES / NO box's labels and cursor) as bubbles;
+    the buttons go to the game's boxes; a tap is `mod.input:tap("a")`.
+  - **Radio** (`src/gb/radio.lua`, `src/apps/radio.lua`; the window: now playing (artwork from the
+    station's `EMBLEM`, `Rd.featured()` = the radio's `vars.species` on Oak's talk / the Pokédex Show,
+    `Rd.lucky()` = `data.luckyNumber`), the transcript (`Rd.history(i)`: the game radio's `log`, the last
+    12, cleared when its log starts again), presets (the tuned one eased wider), the tuner; station
+    names and lines carry the game's `<PK><MN>` as the kit's `K.PKMN`): `gear.tuningKnob` / `tuneRadio` / `tickRadio`
+    (60 steps a second of the clock) / `stopRadio` (which leaves the music as the game does: a station's
+    song becomes the map song, so March / Lullaby and the Poké Flute keep their effects). A wall radio's
+    station runs `Pokegear.Radio` directly. Station names are the registry's, their codes made words.
+- **The 3D map's Fly on Gen 2:** places carry the spawn of a visited fly point (`FieldMoves.flyPoints`
+  for the region); `Model.flyCheck` = a party Pokémon with FLY and `FieldMoves.flyFromMenu`'s answer
+  (badge, outdoors); `Model.flyTo` = `World:flyTo(spawn, mon)`.
 - **The 3D map** (`src/gb/map3d.lua`): each region's outdoor maps (Gen 2 environment TOWN / ROUTE,
   Gen 1 the OVERWORLD / PLATEAU tilesets) placed by their connections from its town (north / south:
   `offset` blocks across; east / west: down), 16 px squares classed from Gen 2's collision bytes
@@ -1093,6 +1121,30 @@ states on `game.stack`, the save is plain tables on `game.save`. `main.lua` retu
 - **In-engine:** Gen 2 runs rewrite the engine's `options.lua` (a seed): back it up and restore it. The
   engine itself makes 30-120 KB of garbage a frame in the field and its own menus; measure ours as the
   difference (the pad, the Map: none over the engine's).
+
+## The real shops
+
+Every shop counter opens the Mart window full screen with that counter's model (`src/shop.lua`: the
+Mart model's interface for one shop; selling stays the app's model's) in shop mode (`ctx.shop`: its
+title and sign, its theme's colours, its clerk, buy-only shops without Sell, decorations' pictures).
+The mod option `realShops`; with it off, or anything failing, the game's own screen.
+
+- **Gen 3** (`src/realshop.lua`): `src.ui.game3.shop_menu`'s `show(opts)` wrapped once per process
+  (`ShopMenu.__woobOs`); `opts.items` (the mart entry found by identity in `Marts._byKey`: its
+  `martType` DECOR / DECOR2 is a decoration shop, Ruby / Sapphire / Emerald only), `opts.onClose()` once
+  (the adapter's `finish` hides the money box and resumes the VM). Bought as the game's shop buys:
+  Ruby / Sapphire / Emerald's Premier Ball (ten Poké Balls), `GAME_STAT_SHOPPED`, the Smart Shopper
+  history told to the TV on the way out (`tryPutSmartShopperOnAir`), Slateport's PokéNews half price;
+  decorations one at a time through `decoration_inventory.add`; FireRed / LeafGreen's quest log event.
+  The clerk: the last talked-to object's own sprite (`VAR_LAST_TALKED`, `Objects.find`, `OwSprites`).
+- **Game Boy** (`src/gb/realshop.lua`): the registry's `ShopMenu` (Gen 1: `new(game, stock, onQuit)`;
+  ours pops itself, `onQuit` may be nil) and `Gen2MartMenu` (`opts.martType` STANDARD / BITTER /
+  BARGAIN / PHARMACY, Crystal's rooftop as STANDARD; `opts.onClose` pops the screen on top: ours). The
+  stock is `MartMenu.inventory` / `bargainRows` (one of each, `save.bargainShop`).
+- **Looks** (`src/shop_themes.lua`): the counter's kind first (decorations, the bargain stall, herbs,
+  the pharmacy, a rooftop), then its place (souvenir shops, the Indigo Plateau, department stores), a
+  department store's floor by what its shelves mostly hold (balls, medicine, battle items, TMs, gifts),
+  else the Mart's blue. The sign: the kind of shop, and the floor for department stores.
 
 ## Words
 

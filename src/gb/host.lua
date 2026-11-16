@@ -287,8 +287,8 @@ return function(mod, deps)
   end
   H.carrier = carrier
 
-  -- ------- Gen 2's own screens, opened from an app (src/gb/main.lua): the room's decorations and the
-  -- Pokégear's phone. onClose: the desktop (or the pad) back
+  -- ------- Gen 2's own screens, opened from an app (src/gb/main.lua): the room's decorations. onClose: the
+  -- desktop (or the pad) back
 
   -- the bedroom's decorations: the game's menu; a moved one makes the bedroom script reload the room
   -- once the PC closes (the carrier answers `changed`)
@@ -305,8 +305,8 @@ return function(mod, deps)
                                                  onClose()
                                                end })
   end
-  -- the Pokégear's phone card (its contacts, the game's calls and their scripts)
-  local PHONE_FLAG, GEAR_FLAG = 2, 4
+  -- the Pokégear's cards: the phone's (Mom's), the radio's (the Radio Tower's quiz)
+  local RADIO_FLAG, PHONE_FLAG, GEAR_FLAG = 0, 2, 4
   function H.hasPhone(s)
     s = s or H.session()
     if gen ~= 2 or type(s) ~= "table" then return false end
@@ -315,32 +315,30 @@ return function(mod, deps)
       or s.pokegearReceived == true
     return gear and (f.phone == true or e[PHONE_FLAG] == true)
   end
-  function H.pokegear(onClose)
+  function H.hasRadio(s)
+    s = s or H.session()
+    if gen ~= 2 or type(s) ~= "table" then return false end
+    local f, e = s.pokegearFlags or {}, s.engineFlags or {}
+    local gear = e[GEAR_FLAG] == true or (s.inventory and (tonumber(s.inventory.POKEGEAR) or 0) > 0)
+      or s.pokegearReceived == true
+    return gear and (f.radio == true or e[RADIO_FLAG] == true)
+  end
+  -- an off-stack Pokégear (never pushed: the game's own card code, for the Phone's calls and the Radio's
+  -- shows; made fresh each time, so it knows where the player is now)
+  function H.gear()
     local game = H.game()
-    local Screens = engine("src.ui.Screens")
-    if not (game and Screens and gen == 2) then error("no Pokégear here") end
+    local M = engine("src.ui.gen2.Pokegear")
+    if not (game and M and M.new and gen == 2) then return nil end
     local lm = nil
     if game.currentLandmark then
       local ok, id = pcall(game.currentLandmark, game)
       if ok then lm = id end
     end
-    local gear
-    gear = Screens.push(game, "Gen2Pokegear", {
-      currentLandmark = lm,
-      onCall = game.runPokegearCall and function(call) return game:runPokegearCall(call) end or nil,
-      onClose = function()
-        local stk = stack()
-        if stk and stk:top() == gear then pcall(stk.pop, stk) end
-        onClose()
-      end,
-    })
-    -- (straight onto the phone card)
-    if type(gear) == "table" and type(gear.cards) == "table" then
-      for i, card in ipairs(gear.cards) do
-        if card.id == "phone" then gear.cardIndex, gear.mode = i, "card" end
-      end
-    end
+    local ok, gear = pcall(M.new, game, { save = game.save, currentLandmark = lm, onClose = function() end })
+    if not ok and log then log:warn("the Pokégear couldn't be made: %s", tostring(gear)) end
+    return ok and gear or nil
   end
+  function H.log(fmt, ...) if log then log:warn(fmt, ...) end end
 
   -- the game's own PC menu over the desktop (o.bedroom: the bedroom's)
   function H.original(o, opts, onClose)
@@ -475,11 +473,138 @@ return function(mod, deps)
     return true
   end
 
+  -- ------- Gold / Silver / Crystal's Pokégear (deps.gearOn: the Pokégear option). One screen serves four
+  -- callers, each with its own contract (src/ui/gen2/Pokegear.lua):
+  --   Fly (opts.fly, World:openFlyMap): our map in its Fly mode, only the game's own points; a pick
+  --     answers opts.onFly(spawn), B opts.onClose(); the World pops the screen in both
+  --   the walls' Town Map (opts.townMap): our map; it pops itself, then opts.onClose() (the script goes on)
+  --   the START menu's (no fly / townMap): WoobPad, which has the Map, Phone and Radio (onClose() closes the
+  --     START menu's item; the START row is WoobPad's already, so this is rare)
+  -- With the option off, without the desktop, or anything failing: the game's own Pokégear
+  local function gearBuiltin(game, opts)
+    local M = engine("src.ui.gen2.Pokegear")
+    return M.new(game, opts)
+  end
+  local function gearCarrierUpdate(self)
+    if self.done then return end
+    if self.opened then
+      if not (Sh and Sh.hostOpen and Sh.hostOpen()) then
+        -- (the map went away without a word: as B)
+        self.done = true
+        self.cancel()
+      end
+      return
+    end
+    self.opened = true
+    local ok, got = pcall(self.open, self)
+    if not (ok and got) then
+      if not ok and log then log:warn("the Pokégear's screen failed: %s", tostring(got)) end
+      self.done = true
+      local stk = stack()
+      if stk and stk:top() == self then pcall(stk.pop, stk) end
+      local okB, gear = pcall(self.fallback or gearBuiltin, self.game, self.opts)
+      if okB and gear and stk then stk:push(gear) end
+    end
+  end
+  local function gearScreen()
+    local reg = mod.content and mod.content.screens
+    if not (reg and reg.register) then return false end
+    reg:register("Gen2Pokegear", { new = function(game, opts)
+      opts = opts or {}
+      local wanted = Sh and (not deps.enabled or deps.enabled()) and (not deps.gearOn or deps.gearOn())
+      if not wanted then return gearBuiltin(game, opts) end
+      local c = { isMenu = true, update = gearCarrierUpdate, draw = stateDraw, isOpaque = true, game = game,
+                  opts = opts }
+      local function popSelf()
+        local stk = stack()
+        if stk and stk:top() == c then pcall(stk.pop, stk) end
+      end
+      if opts.fly then
+        local only = {}
+        for _, pt in ipairs(type(opts.fly) == "table" and opts.fly or {}) do
+          if type(pt) == "table" and pt.spawn then only[pt.spawn] = true end
+        end
+        c.cancel = function() if opts.onClose then opts.onClose() end end
+        c.open = function()
+          return Sh.openMapScreen({ session = game.save, mode = "fly", only = only,
+            onPick = function(_, place)
+              c.done = true
+              if place and place.spawn and opts.onFly then opts.onFly(place.spawn) else c.cancel() end
+            end,
+            onClose = function()
+              c.done = true
+              c.cancel()
+            end })
+        end
+      elseif opts.townMap then
+        c.cancel = function()
+          popSelf()
+          if opts.onClose then opts.onClose() end
+        end
+        c.open = function()
+          return Sh.openMapScreen({ session = game.save, mode = "town",
+            onClose = function()
+              c.done = true
+              c.cancel()
+            end,
+            -- (START: the game's own, in ours' place: it closes itself, as it would have)
+            classic = function()
+              c.done = true
+              popSelf()
+              local okB, gear = pcall(gearBuiltin, game, opts)
+              local stk = stack()
+              if okB and gear and stk then stk:push(gear) elseif opts.onClose then opts.onClose() end
+            end })
+        end
+      else
+        c.cancel = function() end
+        c.open = function()
+          c.done = true
+          if opts.onClose then opts.onClose() end
+          if Sh.openWatch then Sh.openWatch(nil) end
+          return true
+        end
+      end
+      return c
+    end })
+    -- the walls' radios: our Radio, full screen, on the station the game resolves for this one (its
+    -- MapRadio built, never pushed: the same reads); closing it leaves the music as the game's does
+    -- (the window's Radio.close), then pops it and lets the script go on
+    reg:register("Gen2MapRadio", { new = function(game, opts)
+      opts = opts or {}
+      local M = engine("src.ui.gen2.MapRadio")
+      local wanted = Sh and Sh.openFull and (not deps.enabled or deps.enabled()) and (not deps.gearOn or deps.gearOn())
+      if not wanted then return M.new(game, opts) end
+      local okB, mr = pcall(M.new, game, opts)
+      if not (okB and mr and mr.station) then return M.new(game, opts) end
+      local c = { isMenu = true, update = gearCarrierUpdate, draw = stateDraw, isOpaque = false, game = game,
+                  opts = opts }
+      local function finish()
+        if c.done then return end
+        c.done = true
+        local stk = stack()
+        if stk and stk:top() == c then pcall(stk.pop, stk) end
+        if opts.onDone then opts.onDone() end
+      end
+      c.cancel = finish
+      c.fallback = function(g, o) return M.new(g, o) end
+      c.open = function()
+        return Sh.openFull("radio", game.save, finish, { station = mr.station }, { mode = "radio", backKey = "hint.close" })
+      end
+      return c
+    end })
+    return true
+  end
+
   function H.install()
     local ok, err = pcall(gen == 2 and gen2Screens or gen1Screens)
     if not ok and log then log:warn("the PC screens weren't taken over: %s", tostring(err)) end
     local okD, errD = pcall(dexScreen)
     if not okD and log then log:warn("the Pokédex wasn't taken over: %s", tostring(errD)) end
+    if gen == 2 then
+      local okG, errG = pcall(gearScreen)
+      if not okG and log then log:warn("the Pokégear wasn't taken over: %s", tostring(errG)) end
+    end
   end
 
   -- (Gen 1: OverworldState:openPC wrapped once per process; this instance's impl swapped in)
@@ -524,19 +649,27 @@ return function(mod, deps)
 
   -- the START menu: WoobPad's row before SAVE (Gen 2's rows carry ids in `value` and a two-line `desc`;
   -- Gen 1's are labels)
+  -- (Gold / Silver / Crystal with the Pokégear option on: in the POKéGEAR row's place, as WoobPad takes the
+  -- PokéNav's on Ruby / Sapphire / Emerald; its Map, Phone and Radio do the Pokégear's jobs)
   function H.startRows(list, row)
     if type(list) ~= "table" then return list end
-    local at = nil
+    local at, gear = nil, nil
     for i, e in ipairs(list) do
       if type(e) == "table" then
         if e.woobOs then return list end
         local id = e.value or e.id or e.label
         if type(id) == "string" and id:upper() == "SAVE" and not at then at = i end
+        if type(id) == "string" and id:lower() == "pokegear" then gear = i end
       end
     end
-    if not at then return list end
     local entry = { label = row.label, keepOpen = true, woobOs = true, onSelect = function() row.onSelect() end }
     if gen == 2 then entry.desc = row.desc or { "WOOBOS", "" } end
+    if gen == 2 and gear and (not deps.gearOn or deps.gearOn()) then
+      -- (no value or id: the menu runs a mod's row by its onSelect)
+      list[gear] = entry
+      return list
+    end
+    if not at then return list end
     table.insert(list, at, entry)
     return list
   end

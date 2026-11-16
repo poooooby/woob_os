@@ -52,7 +52,7 @@ return function(deps)
   -- (the pictures only the built-in apps draw, in src/desktop.lua)
   local BUILT_IN = { ball = true, mail = true, cart = true, rocket = true, slots = true, globe = true, map = true,
                      phone = true, radar = true, ribbon = true, gamepad = true, home = true, trophy = true,
-                     dex = true, power = true, logo = true, gear = true }
+                     dex = true, power = true, logo = true, gear = true, radio = true }
 
   local function badGlyph(g)
     if type(g) == "function" then return nil end

@@ -20,6 +20,9 @@ controller, a touch screen, or a mouse and keyboard.
 - 🔔 **Notifications:** when you're outbid or win on R-Bay, your GTS deposit is traded, a team is back
   from an errand, a challenge is done, and more. Pull down from the top of the screen to see them all.
 - 🛍️ **App Store:** remove the apps you don't want from your home screen, and get them back later.
+- 🏪 **Real shops:** every shop counter opens the Mart full screen with that shop's own goods: Poké
+  Marts, every department store floor, herb shops, the pharmacy, souvenir and decoration shops and the
+  Underground's bargain stall, each dressed for its place and what it sells.
 
 ### Apps
 
@@ -30,8 +33,12 @@ controller, a touch screen, or a mouse and keyboard.
 - 📕 **Pokédex:** a modern Pokédex in place of the game's, from the START menu and as an app.
 - 🗺️ **Map:** your region in 3D, built from the game's own maps, in place of the Town Map and the Fly
   map. Emerald shows Kyogre's and Groudon's storms where they're rumoured.
-- 📞 **Phone:** Match Call (Emerald), Trainer's Eyes (Ruby and Sapphire) or the Pokégear's phone (Gold,
-  Silver and Crystal).
+- 📞 **Phone:** Match Call (Emerald), Trainer's Eyes (Ruby and Sapphire) or the Pokégear's phone book
+  (Gold, Silver and Crystal). Calls are the game's own.
+- 📻 **Radio** (Gold, Silver and Crystal): the Pokégear's radio, with each station's artwork, a live
+  transcript of the show, presets and a tuner. Every station and show is the game's,
+  and the music you leave playing keeps doing what it does in the game (the Poké Flute, the March and
+  the Lullaby).
 - 🎀 **Condition** and **Ribbons:** your Pokémon's contest conditions and Ribbons (Ruby, Sapphire and
   Emerald).
 - 🌐 **GTS:** Wonder Trade, other Trainers' offers, and a deposit of your own. Traded Pokémon act like
@@ -51,9 +58,11 @@ controller, a touch screen, or a mouse and keyboard.
 
 ### On Red, Blue, Yellow, Gold, Silver and Crystal
 
-The same desktop, WoobPad and most apps, with each game's own Pokémon, items and moves. Condition,
-Ribbons and the PokéNav are Ruby, Sapphire and Emerald's only. Red, Blue and Yellow have no Mail,
-Phone or shiny Pokémon, and the Map can't Fly on these games.
+The same desktop, WoobPad and most apps, with each game's own Pokémon, items and moves. On Gold,
+Silver and Crystal, WoobPad takes the Pokégear's place in the START menu: its Map, Phone and Radio do
+the Pokégear's jobs, and Fly and the wall maps open the 3D map. Condition, Ribbons and the PokéNav are
+Ruby, Sapphire and Emerald's only. Red, Blue and Yellow have no Mail, Phone, Radio or shiny Pokémon, and
+their Map can't Fly.
 
 ## 📸 Gallery
 
@@ -101,6 +110,8 @@ Phone or shiny Pokémon, and the Map can't Fly on these games.
 | 24-Hour Clock | On / Off | Off | The clock as 15:30 instead of 3:30 PM. |
 | Text Size | Normal / Large / Larger | Normal | Bigger text in every app. Also in Settings; whichever you changed last counts. |
 | Pokédex | On / Off | On | Off: the game's own Pokédex, and no Pokédex app. |
+| Pokégear | On / Off | On | Gold, Silver and Crystal. Off: the game's own Pokégear. |
+| Real Shops | On / Off | On | Off: every shop counter opens the game's own shop menu. |
 | Map: Invert X | On / Off | Off | The 3D map's camera turns the other way. |
 | Map: Invert Y | On / Off | Off | The 3D map's camera tilts the other way. |
 

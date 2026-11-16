@@ -1226,6 +1226,17 @@ return function(deps)
         G.pop()
       end
       G.pop()
+    elseif kind == "radio" then
+      -- (a radio: its body's outline, an antenna, the speaker's grille on the left, the dial's knob right)
+      local w, h = s * 0.62, s * 0.4
+      local x0, y0 = cx - w / 2, cy - h / 2 + s * 0.08
+      G.setLineWidth(s * 0.055)
+      G.line(x0 + w * 0.22, y0, x0 + w * 0.68, y0 - s * 0.2)
+      G.rectangle("line", x0, y0, w, h, s * 0.08, s * 0.08)
+      for i = 0, 2 do
+        for j = 0, 1 do G.circle("fill", x0 + w * (0.16 + i * 0.13), y0 + h * (0.34 + j * 0.34), s * 0.035) end
+      end
+      G.circle("fill", x0 + w * 0.76, y0 + h * 0.5, s * 0.09)
     elseif kind == "radar" then
       -- (a pentagon chart: its outline and a filled shape inside)
       local rad = s * 0.3

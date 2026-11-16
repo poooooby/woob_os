@@ -78,7 +78,8 @@ local input = {
   isDown = function() return false end,
 }
 local accepts = true
-local world = { acceptsMenuInput = function() return accepts end, events = { get = function() return false end } }
+local world = { acceptsMenuInput = function() return accepts end, events = { get = function() return false end },
+                playSfxNamed = function() end }
 local overworld = setmetatable({ isOverworld = true, player = {}, update = function() end, draw = function() end },
   { __index = require("src.world.OverworldController") })
 local game = { data = data, save = save, stack = stack, input = input, phase = "play" }
@@ -166,15 +167,83 @@ if GEN == 2 then
   frame(2)
   if D.skipBoot then D.skipBoot() end
   frame(30)
+  -- (ours: the phone book from the save, a call the game's own -- here, with no map, out of service)
+  local GPhone = require("src.core.gen2.Phone")
+  pcall(GPhone.addContact, save, GPhone.PHONECONTACT_MOM)
+  local Ph = X._test.env.phone
+  local book = Ph and Ph.contacts(save) or {}
+  T.check(#book >= 1 and book[1].name ~= "?" and book[1].canCall, "the phone book: " .. tostring(book[1] and book[1].name))
+  local words, okCall = Ph.call(save, book[1])
+  T.check(okCall and type(words) == "string" and words ~= "", "a call: the game's own answer (" .. tostring(words) .. ")")
+  T.check(#Ph.recents() >= 1 and Ph.recents()[1].name == book[1].name, "logged in the recents")
   T.check(D.launchApp("phone"), "the Phone opens")
-  local gear = stack:top()
-  local card = type(gear) == "table" and gear.card and gear:card()
-  T.check(card and card.id == "phone" and gear.mode == "card", "the Pokégear, on its phone card")
-  if type(gear) == "table" and gear.onClose then gear.onClose() end
-  frame(3)
-  T.check(D.isOpen(), "the desktop back after the Pokégear")
+  frame(30)
+  local PW = D.window()
+  T.check(PW and PW.title == "Phone" and stack:top() ~= nil and not D.state().winFailed, "our Phone window, drawing")
   logOff()
   T.eq(#stack.states, base, "the stack as it was")
+  -- (the Pokégear's screen: ours for Fly and the walls' map, the game's with the option off)
+  local gearOn = true
+  local Opt = run.loader.mods and run.loader.mods.woob_os
+  local flyClosed, flown = false, nil
+  local fly = Screens.build(game, "Gen2Pokegear", { save = save, fly = { { spawn = "SPAWN_NEW_BARK", landmark = "NEW_BARK_TOWN" } },
+                                                     onFly = function(sp) flown = sp end,
+                                                     onClose = function() flyClosed = true end })
+  T.check(type(fly) == "table" and fly.open ~= nil and fly.update ~= nil, "Fly's Pokégear: ours (a carrier)")
+  local town = Screens.build(game, "Gen2Pokegear", { save = save, townMap = true, onClose = noop })
+  T.check(type(town) == "table" and town.open ~= nil, "the walls' Town Map: ours too")
+  -- (the START menu's row: WoobPad in the Pokégear's place)
+  local rows = { { id = "pokedex" }, { id = "pokemon" }, { id = "pack" }, { id = "pokegear" }, { id = "status" },
+                 { id = "save" } }
+  rows = Sh.startRows(rows)
+  T.check(rows[4] and rows[4].woobOs and rows[4].onSelect ~= nil and rows[4].value == nil and #rows == 6,
+          "START: WoobPad in the POKéGEAR row's place")
+  -- (the Radio: the Pokégear's card, its stations and shows the game's own)
+  local Rd = X._test.env.radio
+  local radioApp = X._test.apps.byId("radio")
+  save.engineFlags[0] = nil
+  T.check(radioApp and not radioApp.available({ session = save }), "no Radio before the Radio Card")
+  save.engineFlags[0] = true
+  T.check(radioApp and radioApp.available({ session = save }), "the Radio with it")
+  T.check(Rd.open(), "the radio tunes in")
+  local stations = 0
+  for _, row in ipairs(Rd.stations()) do if row.station then stations = stations + 1 end end
+  T.check(#Rd.stations() > 5 and stations >= 1, "the dial's stations here (" .. stations .. " on the air)")
+  local oak
+  for _, row in ipairs(Rd.stations()) do if row.station and not oak then oak = row end end
+  Rd.setKnob(oak.knob)
+  local sta, nm = Rd.current()
+  T.check(sta == oak.station and nm ~= nil, "tuned to " .. tostring(nm))
+  for i = 1, 400 do Rd.step(100 + i / 60) end
+  local top, bottom = Rd.lines()
+  T.check((top .. bottom) ~= "", "the show's lines: " .. top .. " / " .. bottom)
+  local nH = Rd.historyCount()
+  T.check(nH >= 2 and Rd.history(1) ~= nil and not Rd.history(1):find("<", 1, true),
+          "the transcript: " .. nH .. " lines, the newest " .. tostring(Rd.history(1)))
+  -- (the game's <PK><MN> as the kit's PkMn mark, never the codes)
+  local codes, marks = 0, 0
+  for _, row in ipairs(Rd.stations()) do
+    if row.name and row.name:find("<", 1, true) then codes = codes + 1 end
+    if row.name and row.name:find(X._test.kit.PKMN, 1, true) then marks = marks + 1 end
+  end
+  T.check(codes == 0, "station names without the game's codes")
+  if oak.station == "OAKS_POKEMON_TALK" then
+    T.check(marks >= 1 and X._test.kit.hasSign(oak.name) == false, "Oak's talk named with the PkMn mark (not a ♀ / ♂)")
+  end
+  Rd.close()
+  T.check(not Rd.isOpen() and Rd.historyCount() == 0, "closed, the transcript cleared")
+  Screens.push(game, "Gen2CenterPcMenu", { save = save, events = {}, onClose = function() stack:pop() end })
+  frame(2)
+  if D.skipBoot then D.skipBoot() end
+  frame(30)
+  T.check(D.launchApp("radio"), "the Radio opens")
+  frame(60)
+  T.check(D.window() and D.window().title == "Radio" and not D.state().winFailed and Rd.isOpen(), "our Radio, playing")
+  logOff()
+  T.check(not Rd.isOpen() and #stack.states == base, "log off: the radio off, the stack as it was")
+  -- (a wall radio: ours, on its station)
+  local wall = Screens.build(game, "Gen2MapRadio", { channel = 0, onDone = noop })
+  T.check(type(wall) == "table" and wall.open ~= nil, "a wall radio: ours (a carrier)")
   -- (the player's PC from the which-PC menu stays the game's)
   local plain = Screens.build(game, "Gen2ItemPcMenu", { save = save, events = {}, onClose = noop })
   T.check(plain and plain.dopts == nil, "the item PC from the which-PC menu: the game's own")
@@ -664,8 +733,8 @@ do
   if D.skipBoot then D.skipBoot() end
   frame(30)
   for _, id in ipairs({ "storage", "items", "mail", "hall", "oak", "settings", "mart", "bank", "auction", "slots",
-                        "gts", "errands", "challenges", "news", "pokedex", "map" }) do
-    if id ~= "mail" or GEN == 2 then
+                        "gts", "errands", "challenges", "news", "pokedex", "map", "radio", "phone" }) do
+    if (id ~= "mail" and id ~= "radio" and id ~= "phone") or GEN == 2 then
       local okO = D.openApp(id)
       T.check(okO, "the " .. id .. " app opens")
       -- (every window's cards and rows settle in for half a second in glass: frames past that, and past the
@@ -676,6 +745,7 @@ do
         opened = opened + 1
         local kb = garbageOf(30, function() frame() end)
         T.check(kb < 0.5, ("the %s window: next to no garbage (%.3f KB/frame)"):format(id, kb))
+        if os.getenv("GB_KB") then print(("KB %s %.3f"):format(id, kb)) end
       end
       -- (Boxes: the summary's three tabs draw)
       local W = id == "storage" and D.window()
@@ -722,6 +792,64 @@ if padRow then
   local st = Wt.state()
   if st and st.ctx then st.ctx.done() end
   T.check(not Wt.isOpen() and #stack.states == base, "put away: the stack as it was")
+end
+
+-- ------- the real shops: a counter's screen opens our Mart full screen with its own goods; the game hears
+-- what its screen would say
+do
+  local Tm = X._test.townmap
+  local Gd = X._test.gd
+  -- (a TM names its move, and says what the move does as the game's TM pocket does)
+  local tmId
+  for id, it in pairs(data.items or {}) do
+    if not tmId and type(it) == "table" and tostring(it.name or ""):match("^TM%d") and Gd.tmMove(id) then tmId = id end
+  end
+  local tmName, tmDesc = tmId and Gd.itemName(tmId) or "", tmId and Gd.itemDesc(tmId) or ""
+  T.check(tmId ~= nil and tmName:match("^TM%d+ %a") ~= nil and tmDesc ~= "" and tmDesc ~= "?",
+          "a TM: " .. tmName .. " (" .. tmDesc .. ")")
+  if os.getenv("GB_KB") then print("TM " .. tmName .. " | " .. tmDesc) end
+  local closed = 0
+  local c
+  if GEN == 2 then
+    c = Screens.build(game, "Gen2MartMenu", { save = save, items = data.items, marts = data.gen2Marts, martType = 0,
+                                              martId = 0, onClose = function() stack:pop(); closed = closed + 1 end })
+  else
+    c = Screens.build(game, "ShopMenu", { "POKE_BALL", "POTION", "ANTIDOTE" }, function() closed = closed + 1 end)
+  end
+  T.check(type(c) == "table" and c.open ~= nil, "a shop counter: ours (a carrier)")
+  stack:push(c)
+  frame(2)
+  T.check(Tm.isOpen() and Tm.state().ctx.shop ~= nil, "the Mart opens full screen")
+  local shopM = Tm.isOpen() and Tm.state().ctx.shop
+  local first = shopM and shopM.tabs()[1].rows[1]
+  T.check(first ~= nil and first.price > 0, "its goods: " .. tostring(first and first.name))
+  Gd.setMoney(save, 100000)
+  local had = X._test.mart.inBag(save, first.id)
+  local okB = shopM.buy(save, first.id, 2)
+  T.check(okB and X._test.mart.inBag(save, first.id) == had + 2 and Gd.money(save) == 100000 - first.price * 2,
+          "two bought, at its price")
+  frame(30)
+  T.check(not Tm.state().winFailed, "the shop draws")
+  Tm.state().ctx.done()
+  frame(2)
+  T.check(not Tm.isOpen() and closed == 1 and #stack.states == base, "closed: the game's own answer, the stack as it was")
+  if GEN == 2 then
+    -- (the Underground's bargain stall: its own prices, one of each, buy only)
+    local bc = Screens.build(game, "Gen2MartMenu", { save = save, items = data.items, marts = data.gen2Marts,
+                                                     martType = 2, onClose = function() stack:pop() end })
+    stack:push(bc)
+    frame(2)
+    local bm = Tm.isOpen() and Tm.state().ctx.shop
+    T.check(bm and bm.buyOnly and bm.oneEach and bm.MAX_QTY == 1, "the bargain stall: buy only, one of each")
+    local row = bm and bm.tabs()[1].rows[1]
+    if row then
+      T.check(bm.buy(save, row.id, 5) and save.bargainShop and save.bargainShop[row.id] == true, "bought: marked, as the game marks it")
+      T.check(select(2, bm.buy(save, row.id, 1)) == "gone", "then sold out")
+    end
+    if Tm.isOpen() then Tm.state().ctx.done() end
+    frame(2)
+    T.eq(#stack.states, base, "the stack as it was")
+  end
 end
 
 T.finish("woob_os gb (" .. GAME .. ")")

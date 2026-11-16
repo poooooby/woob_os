@@ -42,6 +42,12 @@ return function(mod, loadSibling)
   -- the 3D map: the Game Boy maps built to scale (src/gb/map3d.lua), drawn by Gen 3's renderer and window
   local makeGbMap, makeWorld = loadSibling(mod, "src/gb/map3d.lua"), loadSibling(mod, "src/map3d/world.lua")
   local makeMapRender, mapScene = loadSibling(mod, "src/map3d/render.lua"), loadSibling(mod, "src/map3d/scene.lua")
+  -- Gold / Silver / Crystal's Pokégear: the Phone (its phone book, the game's calls) and the Radio
+  local makePhone, phoneWindow = loadSibling(mod, "src/gb/phone.lua"), loadSibling(mod, "src/apps/phone.lua")
+  local makeRadio, radioWindow = loadSibling(mod, "src/gb/radio.lua"), loadSibling(mod, "src/apps/radio.lua")
+  -- the real shops: every shop counter opens the Mart full screen
+  local makeGbShop, makeShop = loadSibling(mod, "src/gb/realshop.lua"), loadSibling(mod, "src/shop.lua")
+  local ShopThemes = loadSibling(mod, "src/shop_themes.lua")
   local makeTowns = loadSibling(mod, "src/map3d/towns.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell and makeHost) then return end
 
@@ -71,6 +77,7 @@ return function(mod, loadSibling)
     return option("pokedex", true) ~= false and (not Settings or Settings.get("pokedexApp", true) ~= false)
   end
   local Host = makeHost(mod, { gen = gen, require = require, log = mod.log, dexOn = dexOn,
+                               gearOn = function() return option("pokegear", true) ~= false end,
                                enabled = function() return option("desktop", true) ~= false end })
   local engine = Host.engine
   local FALLBACK_FONT = "assets/fonts/plainpixel/PlainPixel-Regular.ttf"
@@ -158,6 +165,14 @@ return function(mod, loadSibling)
         return Gd.typeName(TYPE_KEY[t] or "NORMAL")
       end
       return Gd.typeName(t)
+    end
+    -- a TM's move where the game has no words for it (Red / Blue / Yellow): "Fighting · Power 75 · Acc. 100% · PP 15"
+    Gd.moveLine = function(_, m)
+      if type(m) ~= "table" or not T then return nil end
+      local power = tonumber(m.power) or 0
+      return string.format("%s · %s %s · %s %d%% · %s %d", env.typeName(m.type), T("dex.col.power"),
+        power > 1 and tostring(power) or "—", T("dex.col.acc"), tonumber(m.accuracy) or 0, T("dex.col.pp"),
+        tonumber(m.pp) or 0)
     end
     -- a species' icon (frame 0 / 1, tinted r, g, b, a), a Pokémon's own, a species' front picture
     env.monIcon = function(sp, x, y, size, frame, r, g, b, a) if Art then Art.drawIcon(sp, x, y, size, frame, r, g, b, a) end end
@@ -253,8 +268,16 @@ return function(mod, loadSibling)
         local t = os.date("*t")
         return t.hour, t.min
       end,
-      flyCheck = function() return nil, "none" end,
-      fly = function() return false, "none" end,
+      -- (Gold / Silver / Crystal: Fly from the app, as the party menu's; Red / Blue / Yellow: none)
+      flyCheck = function(ctx, s) return Model.flyCheck(s or (ctx and ctx.session) or session()) end,
+      fly = function(ctx, region, place)
+        local s = ctx.session or session()
+        local mon, why = Model.flyCheck(s)
+        if not mon then return false, why end
+        if not (place and place.spawn) then return false, "none" end
+        ctx.done()
+        return Model.flyTo(place, mon), "none"
+      end,
       invert = function()
         return option("mapInvertX", false) == true, option("mapInvertY", false) == true
       end,
@@ -280,11 +303,6 @@ return function(mod, loadSibling)
       soon = function() return (tonumber(Settings and Settings.get("soonMinutes", 10)) or 10) * 60 end,
     }) or nil
     local function hasItem(id) return Gd.item(id) ~= nil end
-    local function tmMove(id)
-      local it = Gd.item(id)
-      local mv = it and (it.teaches or (it.machine and it.machine.move))
-      return mv and Gd.moveName(mv) or nil
-    end
     local PRIZES = Host.gen == 1 and {
       { kind = "item", id = "NUGGET", cost = 10 }, { kind = "item", id = "RARE_CANDY", cost = 15 },
       { kind = "mon", dex = 63, cost = 40 }, { kind = "mon", dex = 35, cost = 40 },
@@ -303,7 +321,7 @@ return function(mod, loadSibling)
       { kind = "mon", dex = 137, cost = 200 }, { kind = "item", id = "MASTER_BALL", cost = 600 },
     }
     env.slots = makeSlots and makeSlots(noEngine, { save = mod.save, badges = badges, port = Port, prizes = PRIZES,
-                                               hasItem = hasItem, tmMove = tmMove }) or nil
+                                               hasItem = hasItem }) or nil
     if makeGts and env.auction and env.bx then
       env.gts = makeGts(noEngine, {
         save = mod.save, now = os.time, port = Port, hasItem = hasItem,
@@ -399,6 +417,19 @@ return function(mod, loadSibling)
     local Assets = engine("src.render.Assets")
     local ok, img = pcall(Assets and Assets.image or error, spr and spr.image)
     local G = love and love.graphics
+    -- (the game's grey sheet painted in its colours: Gen 2 the clerk's own palette, Gen 1 a shopkeeper's)
+    if ok and img and Art and Art.colourSheet then
+      local cols
+      if Host.gen == 2 then
+        local Pal = engine("src.world.gen2.Palettes")
+        local okP, c = pcall(Pal and Pal.spritePalette or error, d.gen2Palettes, "DAY", spr)
+        cols = okP and c or nil
+      else
+        cols = { { 248, 248, 248 }, { 248, 200, 152 }, { 72, 120, 216 }, { 24, 24, 40 } }
+      end
+      local okC, painted = pcall(Art.colourSheet, img, cols)
+      if okC and painted then img = painted end
+    end
     if ok and img and G and G.newQuad then
       local iw, ih = img:getDimensions()
       local n = math.max(1, math.floor(ih / 16))
@@ -431,6 +462,14 @@ return function(mod, loadSibling)
     return anchorArt[key] or nil
   end
 
+  -- (Gold / Silver / Crystal: the Pokégear's phone book; a tap stands in for A in a call's boxes)
+  if gen == 2 and makePhone then
+    env.phone = makePhone(Host, { save = mod.save, now = os.time, place = Play and Play.place or nil,
+                                  tap = function(btn)
+                                    local g = Host.game()
+                                    if g and mod.input and mod.input.tap then mod.input:tap(g, btn) end
+                                  end })
+  end
   local Watch
   local Apps = makeApps({
     icons = Icons,
@@ -441,6 +480,8 @@ return function(mod, loadSibling)
       and function(ctx, e) return boxesWindow(ctx, e, boxesView, boxesSummary) end or nil,
     items = env.inv and itemsWindow or nil,
     mail = env.mb and mailWindow or nil,
+    phone = env.phone and phoneWindow or nil,
+    phoneAvailable = env.phone and function(ctx) return env.phone.available(ctx.session or session()) end or nil,
     hall = env.hall and hallWindow or nil,
     oak = env.oak and oakWindow or nil,
     oakAvailable = env.oak and function(ctx) return env.oak.available(ctx.session or session()) end or nil,
@@ -466,16 +507,19 @@ return function(mod, loadSibling)
     settings = T and Settings and settingsWindow or nil,
   })
   -- Gen 2's own screens as apps: the bedroom's decorations (the room reloads after the PC when one
-  -- moved) and the Pokégear's phone (the game's calls, their scripts and all)
+  -- moved); the Radio, once the Pokégear has its card (the game's shows and music)
+  if gen == 2 and makeRadio and radioWindow then
+    env.radio = makeRadio(Host)
+    Apps.register({ id = "radio", labelKey = "app.radio", label = "Radio", glyph = "radio",
+                    color = { 255, 120, 60 }, order = 31.5,
+                    available = function(ctx) return env.radio.available(ctx.session or session()) end,
+                    window = radioWindow })
+  end
   if gen == 2 then
     Apps.register({ id = "decorate", labelKey = "app.decorate", label = "Decorate", glyph = "home",
                     color = { 156, 112, 220 }, order = 50,
                     available = function(ctx) return ctx.mode == "bedroom" end,
                     open = function(ctx) ctx.over(function(back) Host.decorate(back) end) end })
-    Apps.register({ id = "phone", labelKey = "app.phone", label = "Phone", glyph = "phone",
-                    color = { 52, 199, 89 }, order = 31,
-                    available = function(ctx) return Host.hasPhone(ctx.session or session()) end,
-                    open = function(ctx) ctx.over(function(back) Host.pokegear(back) end) end })
   end
   Nt = makeNotify and makeNotify({
     K = Kit, T = T, now = env.now, epoch = os.time, se = env.se, apps = Apps, monIcon = env.monIcon,
@@ -518,7 +562,7 @@ return function(mod, loadSibling)
   Watch = makeDesktop(setmetatable({ device = "pad" }, { __index = deskDeps }))
   Desktop0, Watch0 = Desktop, Watch
   local TownMap = makeTownMap and makeTownMap({
-    kit = Kit, T = T, env = env, se = env.se, log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+    kit = Kit, T = T, env = env, se = env.se, scene = mapScene, log = function(fmt, ...) mod.log:warn(fmt, ...) end,
   }) or nil
   env.pad = { transfer = function(id, dir, kind)
     if Desktop.isOpen() then Desktop.padTransfer(id, dir, kind) end
@@ -582,11 +626,22 @@ return function(mod, loadSibling)
 
   Sh = makeShell(mod, { require = require, log = mod.log, desktop = Desktop, apps = Apps, watch = Watch,
                         notify = Nt, tick = tick, session = session, townmap = TownMap, host = Host, frame = frame,
+                        map3d = env.map3d,
                         watchRow = function() return not Settings or Settings.get("watchRow", true) ~= false end,
                         watchLabel = function() return T and T("watch.start") or "WATCH" end })
   Sh.enabled = function() return option("desktop", true) ~= false end
 
   Host.install()
+  if makeGbShop and makeShop and ShopThemes and env.mart and Gd then
+    env.realShop = makeGbShop(Host, Gd, {
+      Sh = Sh, base = env.mart, T = T, makeShop = makeShop, themes = ShopThemes, clerk = env.clerk,
+      place = Play and Play.place or nil, screens = mod.content and mod.content.screens,
+      on = function() return option("realShops", true) ~= false end,
+      log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+    })
+    local okS, errS = pcall(env.realShop.install)
+    if not okS then mod.log:warn("the shops keep their own screens: %s", tostring(errS)) end
+  end
   local okI, errI = pcall(Sh.install)
   if not okI then mod.log:warn("the desktop's hooks failed: %s", tostring(errI)) end
   mod.events:on("game.ready", function(ev)

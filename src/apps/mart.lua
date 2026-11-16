@@ -13,6 +13,9 @@
 --            bubble (the rest of the words); drag (or the wheel) scrolls the list
 -- The model is src/mart.lua (env.mart); rows are made again only after a change. The clerk is the
 -- game's overworld sprite (env.clerk), drawn at whole pixels; without it the bubble speaks alone.
+-- Shop mode (ctx.shop, src/shop.lua: a real shop counter, full screen): that counter's goods and model,
+-- its place for the title and a sign on the awning, its look (src/shop_themes.lua's colours for the
+-- awning, the shelves and the lights), its own clerk, buy-only shops without Sell, decorations' pictures.
 --
 --   window(ctx, env) -> win (src/apps.lua)
 
@@ -34,6 +37,7 @@ local COINS = 9
 -- (the words are keys of lang/*.lua, through env.T)
 local HINTS = {
   buy = { { "A", "hint.choose" }, { "L R", "hint.tab" }, { "START", "hint.sell" } },
+  buyOnly = { { "A", "hint.choose" }, { "L R", "hint.tab" }, { "B", "hint.close" } },
   sell = { { "A", "hint.choose" }, { "L R", "hint.pocket" }, { "START", "hint.buy" } },
   stepBuy = { { "< >", "hint.one" }, { "^ v", "hint.ten" }, { "A", "hint.buy" }, { "B", "hint.back" } },
   stepSell = { { "< >", "hint.one" }, { "^ v", "hint.ten" }, { "A", "hint.sell" }, { "B", "hint.back" } },
@@ -45,7 +49,7 @@ local SAY = {
   buy = { "mart.say.buy1", "mart.say.buy2", "mart.say.buy3" },
   bulk = "mart.say.bulk", premier = "mart.say.premier",
   sell = { "mart.say.sell1", "mart.say.sell2" }, sellBig = "mart.say.sellBig", sellRare = "mart.say.sellRare",
-  short = "mart.say.short", shortBank = "mart.say.shortBank", bag_full = "mart.say.bagFull",
+  short = "mart.say.short", shortBank = "mart.say.shortBank", bag_full = "mart.say.bagFull", decor_full = "mart.say.decorFull",
   badges = "mart.say.badges", badgesOne = "mart.say.badgesOne", cant_sell = "mart.say.cantSell",
   gone = "mart.say.gone", toSell = "mart.say.toSell", toBuy = "mart.say.toBuy",
   tips = { "mart.say.tip1", "mart.say.tip2", "mart.say.tip3", "mart.say.tip4", "mart.say.tip5", "mart.say.tip6" },
@@ -66,9 +70,12 @@ local function nice(name)
 end
 
 return function(ctx, env)
-  local K, mart, T = env.K, env.mart, env.T or NO_T
-  -- (pad: the shelf's item pad lights up while the window is open)
-  local W = { title = "Mart", pad = true }
+  local K, T = env.K, env.T or NO_T
+  -- (a real shop counter's model, or the app's Mart)
+  local shop = ctx.shop
+  local mart = shop or env.mart
+  -- (pad: the shelf's item pad lights up while the window is open; not for a real shop, full screen)
+  local W = { title = shop and shop.title or "Mart", pad = not shop }
   local function session() return ctx.session or (env.session and env.session()) end
   local function se(name) if env.se then pcall(env.se, name) end end
   local function now() return env.now and env.now() or 0 end
@@ -232,6 +239,7 @@ return function(ctx, env)
   end
   local function setMode(mode)
     if st.mode == mode then return end
+    if mode == "sell" and mart.buyOnly then return end
     st.mode, st.cursor, st.top, st.qty, st.focus = mode, 1, 0, 1, "list"
     refresh()
     se("SE_SELECT")
@@ -271,11 +279,11 @@ return function(ctx, env)
         return refuse(got, r)
       end
       -- (it appears on the pad, then goes up into the Bag)
-      if env.pad and env.pad.transfer then pcall(env.pad.transfer, r.id, "in") end
+      if not shop and env.pad and env.pad.transfer then pcall(env.pad.transfer, r.id, "in") end
       se("SE_SHOP")
       st.lastTotal = before - mart.money(s)
       st.coins = { t = now(), out = false }
-      st.fly = { t = now(), id = r.id, sell = false, n = min(qty, 5) }
+      st.fly = { t = now(), id = r.id, sell = false, n = min(qty, 5), decor = r.decor }
       st.n = st.n + 1
       if got then say(SAY.premier, "hop")
       elseif qty >= BULK then say(SAY.bulk, "hop", false, qty)
@@ -284,7 +292,7 @@ return function(ctx, env)
     else
       local ok, got = mart.sell(s, r.id, qty)
       if not ok then return refuse(got, r) end
-      if env.pad and env.pad.transfer then pcall(env.pad.transfer, r.id, "out") end
+      if not shop and env.pad and env.pad.transfer then pcall(env.pad.transfer, r.id, "out") end
       se("SE_SHOP")
       st.lastTotal = got
       st.coins = { t = now(), out = true }
@@ -380,6 +388,7 @@ return function(ctx, env)
 
   function W.hints()
     if st.focus == "step" then return T.list(st.mode == "buy" and HINTS.stepBuy or HINTS.stepSell) end
+    if mart.buyOnly then return T.list(HINTS.buyOnly) end
     return T.list(st.mode == "buy" and HINTS.buy or HINTS.sell)
   end
 
@@ -401,6 +410,32 @@ return function(ctx, env)
                      BERRY_POUCH = { 130, 206, 80 } }
   local GOODS = { { 255, 104, 104 }, { 72, 206, 150 }, { 255, 168, 60 }, { 96, 164, 255 }, { 240, 196, 80 },
                   { 180, 126, 255 } }
+  -- (a real shop: its own look -- the awning's stripes, the shelves' goods, the lights behind)
+  local LIGHT = { 0.3, 0.56, 1 }
+  local theme = shop and shop.theme
+  if theme then
+    for i = 1, 3 do
+      MART[i], MART_DEEP[i], AWN_WHITE[i] = theme.stripe[i], theme.stripeDeep[i], theme.stripe2[i]
+      LIGHT[i] = theme.light[i] / 255
+    end
+    if theme.goods then GOODS = theme.goods end
+  end
+  -- an item's picture (a decoration's, for a decoration shop), size units square at x, y
+  local function goodsIcon(id, decor, x, y, size, a)
+    if decor then
+      local Dc = env.decorate
+      local ok, img = pcall(Dc and Dc.picture or error, decor)
+      K.rescissor()
+      if not (ok and img) then return end
+      local pw, ph = img:getDimensions()
+      local k = size * K.sc / max(pw, ph)
+      local G = K.graphics()
+      G.setColor(1, 1, 1, a or 1)
+      G.draw(img, K.X(x + size / 2) - pw * k / 2, K.Y(y + size / 2) - ph * k / 2, 0, k, k)
+      return
+    end
+    if env.itemIcon then pcall(env.itemIcon, id, x, y, size, a) end
+  end
   -- the motion's numbers (the view's own: st is the window's)
   local mv = { lastT = nil, dt = 0, coloured = false, r2 = 0.4, g2 = 0.64, b2 = 1, sw = nil, tabK = nil,
                tabMode = nil, hl = nil, listKey = nil, listMode = nil, listAt = -10, itemId = nil, itemMode = nil,
@@ -415,6 +450,12 @@ return function(ctx, env)
     return w
   end
   local function tabColor(i)
+    if st.mode == "buy" and shop then
+      -- (a real shop's: a pocket's colour, else its awning's)
+      local t = st.tabs[i]
+      local p = t and t.key and t.key:match("^pocket%.(.+)$")
+      return p and POCKET_C[p] or MART
+    end
     if st.mode == "buy" then return TAB_C[(i - 1) % #TAB_C + 1] end
     local p = st.pockets[i]
     return p and POCKET_C[p.id] or TAB_C[4]
@@ -449,7 +490,7 @@ return function(ctx, env)
     else
       mv.r2, mv.g2, mv.b2, mv.coloured = c[1] / 255, c[2] / 255, c[3] / 255, true
     end
-    K.backdrop(body, clock, 0.3, 0.56, 1, mv.r2, mv.g2, mv.b2)
+    K.backdrop(body, clock, LIGHT[1], LIGHT[2], LIGHT[3], mv.r2, mv.g2, mv.b2)
     for i = 0, 2 do
       K.glow(x + w * (0.18 + i * 0.32), y + AW + 2, w * 0.16, BAND * 0.8, WHITE, 0.1 + 0.03 * sin(clock * 1.3 + i))
     end
@@ -489,6 +530,15 @@ return function(ctx, env)
     end
     K.col(WHITE, 0.6)
     K.box("fill", K.R(x, y, w, 0.5))
+    if shop and shop.sub then
+      local word = shop.sub
+      local fs = K.fit(word, 3.6, w * 0.5)
+      local pw = K.width(word, fs) + 8
+      local pb = K.R(x + (w - pw) / 2, y + 0.6, pw, 5.8)
+      K.shadow(pb, 2.9, 0.6, 0.18)
+      K.glass(pb, 2.9, 0.92)
+      K.bold(word, pb[1], pb[2] + (pb[4] - fs * 1.2) / 2 + 0.2, fs, MART_DEEP, "center", pw)
+    end
     local p = (clock * 0.22) % 1.8
     if p < 1 then
       local gx = x - 12 + p * (w + 24)
@@ -500,7 +550,7 @@ return function(ctx, env)
   -- the clerk: the game's sprite at whole pixels; a hop for a sale, a shake of the head for a no, a
   -- turn round for Buy / Sell, a glance along the shelves now and then, a nod while talking
   local function drawClerk(cx, foot, hU, clock)
-    local spr = env.clerk and env.clerk()
+    local spr = (shop and shop.clerk) or (env.clerk and env.clerk())
     local sw0, sh0 = spr and (spr.width or spr.w), spr and (spr.height or spr.h)
     if not (spr and spr.image and spr.quads and sw0 and sh0) then return end
     local G = K.graphics()
@@ -678,6 +728,14 @@ return function(ctx, env)
   -- Buy | Sell: the glass switch, its thumb sliding to the chosen side, a line of blue (to buy) or green
   -- (to sell) under it
   local function drawSwitch(x, y, w, h)
+    if mart.buyOnly then
+      -- (a shop that only sells: a plain glass label)
+      local b = K.R(x, y, w, h)
+      K.glass(b, h / 2, 0.75)
+      local word = T("mart.buy")
+      K.bold(word, x, y + (h - 4.2 * 1.2) / 2 + 0.2, K.fit(word, 4.2, w - 4), MART_DEEP, "center", w)
+      return
+    end
     local want = st.mode == "buy" and 1 or 2
     mv.sw = mv.sw and K.approach(mv.sw, want, mv.dt, 16) or want
     K.glassSwitch(x, y, w, h, mv.sw, "win", SEG_BUY, T("mart.buy"), SEG_SELL, T("mart.sell"), nil, nil, 4.2)
@@ -775,7 +833,7 @@ return function(ctx, env)
       if i > first and not on and i - 1 ~= st.cursor then K.hairline(x + 14, ry, w - 17) end
       K.col(tc, off and 0.1 or (on and 0.3 or 0.18))
       G.circle("fill", K.X(x + 8), K.Y(ry + ROW_H / 2), 4.1 * K.sc)
-      if env.itemIcon then pcall(env.itemIcon, r.id, x + 4, ry + 1, 8, (off and 0.45 or 1) * K.getFade()) end
+      goodsIcon(r.id, r.decor, x + 4, ry + 1, 8, (off and 0.45 or 1) * K.getFade())
       local rw = 0
       if locked(r) then
         local bt = badgeText(r.badges)
@@ -888,7 +946,7 @@ return function(ctx, env)
     local pop = 0.7 + 0.3 * K.outBack(pt / 0.38)
     local ps = is * pop
     local bob = sin(clock * 2.2) * 0.7
-    if env.itemIcon then pcall(env.itemIcon, r.id, sx - ps / 2, sy + is / 2 - ps + bob - 0.6, ps, K.getFade()) end
+    goodsIcon(r.id, r.decor, sx - ps / 2, sy + is / 2 - ps + bob - 0.6, ps, K.getFade())
     st.standX, st.standY = sx, sy
     local e1 = ease((pt - 0.04) / 0.3)
     local f0 = K.getFade()
@@ -962,7 +1020,7 @@ return function(ctx, env)
             local px = ax + (bx - ax) * k
             local py = ay + (by - ay) * k - sin(k * pi) * 12
             local sz = 8 * (1 + 0.3 * sin(k * pi))
-            if env.itemIcon then pcall(env.itemIcon, f.id, px - sz / 2, py - sz / 2, sz, 1 - 0.25 * k) end
+            goodsIcon(f.id, f.decor, px - sz / 2, py - sz / 2, sz, 1 - 0.25 * k)
           end
         end
       end

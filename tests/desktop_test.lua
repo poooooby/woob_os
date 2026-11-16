@@ -3014,5 +3014,30 @@ end)()
 end)()
 
 st.ctx.logoff()
+-- ------- a real shop counter (src/realshop.lua): the game's shop screen opens ours, full screen, that
+-- counter's goods at its prices, bought by the game's rules; its onClose once
+do
+  local Rs, Tm = X._test.env.realShop, X._test.townmap
+  T.check(Rs ~= nil, "the real shops are made")
+  local closedN = 0
+  s.money = 5000
+  local balls0 = Bag.get(s.bag, 4) or 0
+  local opened = Rs and Rs.open({ items = { 4, POTION }, session = s, onClose = function() closedN = closedN + 1 end })
+  T.check(opened and Tm.isOpen(), "a shop counter: ours, full screen")
+  local SW = Tm.isOpen() and Tm.state().win
+  local shopM = Tm.isOpen() and Tm.state().ctx.shop
+  T.check(SW and shopM and SW.state.rows[1] and SW.state.rows[1].id == 4 and #SW.state.rows == 2,
+          "its own goods: the counter's two")
+  local ok, bonus = shopM.buy(s, 4, 10)
+  T.check(ok and (Bag.get(s.bag, 4) or 0) == balls0 + 10 and s.money == 5000 - 2000, "ten Poké Balls bought")
+  T.check(bonus == rse, rse and "a Premier Ball with them (Ruby / Sapphire / Emerald)" or "no Premier Ball (FireRed / LeafGreen, as the game)")
+  for _ = 1, 30 do clock = clock + 1 / 60; Tm.draw(G, VP) end
+  T.check(not Tm.state().winFailed, "the shop draws")
+  Tm.state().ctx.done()
+  T.check(not Tm.isOpen() and closedN == 1, "closed: the game's onClose, once")
+  Tm.close()
+  T.eq(closedN, 1, "(not twice)")
+end
+
 run.release()
 T.finish("woob_os desktop (" .. GAME .. ")")
