@@ -460,8 +460,28 @@ return function(mod)
   -- Rocket Slots: its tickets kept in the save; a Pokémon prize's level from the badges
   if makeSlots then
     env.slots = makeSlots(engine, {
-      save = mod.save,
+      save = mod.save, T = T, gameId = gameId,
       badges = function(s) return env.mart and env.mart.badges(s) or 0 end,
+      -- (the limited prizes: the playthrough's seed, the local day, the game's own ids and flags)
+      seed = function(s) return env.auction and env.auction.seedOf and env.auction.seedOf(s) or 1 end,
+      day = function(t) return env.journal and env.journal.day(t) or math.floor(t / 86400) end,
+      untilNext = function(t)
+        local lt = env.journal and env.journal.localTime(t) or t
+        return 86400 - lt % 86400
+      end,
+      const = function(kind, name)
+        local Constants = engine("src.core.game3.constants")
+        local C = Constants and Constants.of(gameId())
+        return C and C:id(kind, name)
+      end,
+      flag = function(name)
+        local R = engine("src.core.game3.rse.init")
+        return R and R.flag(name, session()) or false
+      end,
+      setFlag = function(name, on)
+        local R = engine("src.core.game3.rse.init")
+        if R then R.setFlag(name, on, session()) end
+      end,
     })
   end
   -- the GTS: strangers' Pokémon (R-Bay's species and tiers), the deposit kept in the save

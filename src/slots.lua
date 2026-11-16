@@ -84,11 +84,91 @@ local PRIZES = {
   { kind = "item", id = 1, cost = 600 },
 }
 
+-- the limited prizes (src/slots.lua's "limited" section). The specials: each game's event tickets (the
+-- flags the game's own distribution sets: the ferry's first; where the harbor is), and event Pokémon as
+-- they were given out (OT, ID, level, moves, held item; Serebii's event pages)
+local LILYCOVE, VERMILION = "slots.harbor.lilycove", "slots.harbor.vermilion"
+local SPECIALS = {
+  { key = "eon", cost = 500, ticket = { item = "ITEM_EON_TICKET", where = { all = LILYCOVE },
+    flags = { emerald = { "FLAG_ENABLE_SHIP_SOUTHERN_ISLAND" }, ruby = { "FLAG_SYS_HAS_EON_TICKET" },
+              sapphire = { "FLAG_SYS_HAS_EON_TICKET" } } } },
+  { key = "mystic", cost = 500, ticket = { item = "ITEM_MYSTIC_TICKET", where = { emerald = LILYCOVE, all = VERMILION },
+    flags = { emerald = { "FLAG_ENABLE_SHIP_NAVEL_ROCK", "FLAG_RECEIVED_MYSTIC_TICKET" },
+              firered = { "FLAG_ENABLE_SHIP_NAVEL_ROCK", "FLAG_RECEIVED_MYSTIC_TICKET" },
+              leafgreen = { "FLAG_ENABLE_SHIP_NAVEL_ROCK", "FLAG_RECEIVED_MYSTIC_TICKET" } } } },
+  { key = "aurora", cost = 500, ticket = { item = "ITEM_AURORA_TICKET", where = { emerald = LILYCOVE, all = VERMILION },
+    flags = { emerald = { "FLAG_ENABLE_SHIP_BIRTH_ISLAND", "FLAG_RECEIVED_AURORA_TICKET" },
+              firered = { "FLAG_ENABLE_SHIP_BIRTH_ISLAND", "FLAG_RECEIVED_AURORA_TICKET" },
+              leafgreen = { "FLAG_ENABLE_SHIP_BIRTH_ISLAND", "FLAG_RECEIVED_AURORA_TICKET" } } } },
+  { key = "oldSeaMap", cost = 500, ticket = { item = "ITEM_OLD_SEA_MAP", where = { all = LILYCOVE },
+    flags = { emerald = { "FLAG_ENABLE_SHIP_FARAWAY_ISLAND", "FLAG_RECEIVED_OLD_SEA_MAP" } } } },
+  { key = "auraMew", cost = 800, dex = 151, ot = "Aura", id = 20078, level = 10, moves = { "POUND", "TRANSFORM" } },
+  { key = "mystryMew", cost = 800, dex = 151, ot = "MYSTRY", id = 6930, level = 10, moves = { "POUND", "TRANSFORM" } },
+  { key = "spaceDeoxys", cost = 1000, dex = 386, ot = "SPACE C", id = 10, level = 70,
+    moves = { "COSMIC_POWER", "RECOVER", "PSYCHO_BOOST", "HYPER_BEAM" } },
+  { key = "doelDeoxys", cost = 1000, dex = 386, ot = "DOEL", id = 28606, level = 70,
+    moves = { "COSMIC_POWER", "RECOVER", "PSYCHO_BOOST", "HYPER_BEAM" } },
+}
+-- the 10th Anniversary ("10 ANIV", ID 00010, level 70) Pokémon, each with its own moves and item
+local function aniv(dex, item, a, b, c, d)
+  return { key = "aniv" .. dex, cost = 700, dex = dex, ot = "10 ANIV", id = 10, level = 70, item = item, moves = { a, b, c, d } }
+end
+local ANIV = {
+  aniv(145, nil, "AGILITY", "DETECT", "DRILL_PECK", "CHARGE"),
+  aniv(197, nil, "FAINT_ATTACK", "MEAN_LOOK", "SCREECH", "MOONLIGHT"),
+  aniv(248, nil, "THRASH", "SCARY_FACE", "CRUNCH", "EARTHQUAKE"),
+  aniv(157, nil, "QUICK_ATTACK", "FLAME_WHEEL", "SWIFT", "FLAMETHROWER"),
+  aniv(245, nil, "GUST", "AURORA_BEAM", "MIST", "MIRROR_COAT"),
+  aniv(243, nil, "QUICK_ATTACK", "SPARK", "REFLECT", "CRUNCH"),
+  aniv(25, "LIGHT_BALL", "THUNDERBOLT", "THUNDER", "LIGHT_SCREEN", "AGILITY"),
+  aniv(146, nil, "AGILITY", "ENDURE", "FLAMETHROWER", "SAFEGUARD"),
+  aniv(381, "SOUL_DEW", "LUSTER_PURGE", "PSYCHIC", "RECOVER", "DRAGON_DANCE"),
+  aniv(380, "SOUL_DEW", "MIST_BALL", "PSYCHIC", "RECOVER", "CHARM"),
+  aniv(196, nil, "PSYBEAM", "PSYCH_UP", "PSYCHIC", "MORNING_SUN"),
+  aniv(244, nil, "FIRE_SPIN", "STOMP", "FLAMETHROWER", "SWAGGER"),
+  aniv(149, nil, "AGILITY", "SAFEGUARD", "WING_ATTACK", "OUTRAGE"),
+  aniv(6, nil, "WING_ATTACK", "SLASH", "DRAGON_RAGE", "FIRE_SPIN"),
+  aniv(1, nil, "SWEET_SCENT", "GROWTH", "SOLAR_BEAM", "SYNTHESIS"),
+  aniv(257, nil, "BLAZE_KICK", "SLASH", "MIRROR_MOVE", "SKY_UPPERCUT"),
+  aniv(9, nil, "PROTECT", "RAIN_DANCE", "SKULL_BASH", "HYDRO_PUMP"),
+  aniv(144, nil, "AGILITY", "MIND_READER", "ICE_BEAM", "REFLECT"),
+  aniv(65, nil, "FUTURE_SIGHT", "CALM_MIND", "PSYCHIC", "TRICK"),
+  aniv(359, nil, "DOUBLE_TEAM", "SLASH", "FUTURE_SIGHT", "PERISH_SONG"),
+}
+-- sought-after Pokémon (at the prize corner's level) and held items, a new one each day
+local HIGH_MONS = {
+  { key = "m371", dex = 371, cost = 350 }, { key = "m374", dex = 374, cost = 350 }, { key = "m246", dex = 246, cost = 350 },
+  { key = "m131", dex = 131, cost = 300 }, { key = "m143", dex = 143, cost = 300 }, { key = "m142", dex = 142, cost = 300 },
+  { key = "m133", dex = 133, cost = 250 }, { key = "m359", dex = 359, cost = 250 }, { key = "m349", dex = 349, cost = 250 },
+  { key = "m113", dex = 113, cost = 250 }, { key = "m175", dex = 175, cost = 250 },
+  { key = "m1", dex = 1, cost = 300 }, { key = "m4", dex = 4, cost = 300 }, { key = "m7", dex = 7, cost = 300 },
+  { key = "m152", dex = 152, cost = 300 }, { key = "m155", dex = 155, cost = 300 }, { key = "m158", dex = 158, cost = 300 },
+  { key = "m252", dex = 252, cost = 300 }, { key = "m255", dex = 255, cost = 300 }, { key = "m258", dex = 258, cost = 300 },
+}
+local HIGH_ITEMS = {
+  { key = "leftovers", id = "ITEM_LEFTOVERS", cost = 250 }, { key = "luckyEgg", id = "ITEM_LUCKY_EGG", cost = 250 },
+  { key = "choiceBand", id = "ITEM_CHOICE_BAND", cost = 300 }, { key = "shellBell", id = "ITEM_SHELL_BELL", cost = 200 },
+  { key = "focusBand", id = "ITEM_FOCUS_BAND", cost = 200 }, { key = "scopeLens", id = "ITEM_SCOPE_LENS", cost = 150 },
+  { key = "amuletCoin", id = "ITEM_AMULET_COIN", cost = 200 }, { key = "expShare", id = "ITEM_EXP_SHARE", cost = 200 },
+  { key = "kingsRock", id = "ITEM_KINGS_ROCK", cost = 150 }, { key = "quickClaw", id = "ITEM_QUICK_CLAW", cost = 150 },
+  { key = "brightPowder", id = "ITEM_BRIGHT_POWDER", cost = 150 }, { key = "ppMax", id = "ITEM_PP_MAX", cost = 120 },
+  { key = "sacredAsh", id = "ITEM_SACRED_ASH", cost = 300 },
+}
+local HIGH_ITEMS_GB = {
+  { key = "leftovers", id = "LEFTOVERS", cost = 250 }, { key = "luckyEgg", id = "LUCKY_EGG", cost = 250 },
+  { key = "amuletCoin", id = "AMULET_COIN", cost = 200 }, { key = "expShare", id = "EXP_SHARE", cost = 200 },
+  { key = "kingsRock", id = "KINGS_ROCK", cost = 150 }, { key = "quickClaw", id = "QUICK_CLAW", cost = 150 },
+  { key = "scopeLens", id = "SCOPE_LENS", cost = 150 }, { key = "focusBand", id = "FOCUS_BAND", cost = 200 },
+  { key = "expAll", id = "EXP_ALL", cost = 250 }, { key = "ppUp", id = "PP_UP", cost = 100 },
+  { key = "maxElixer", id = "MAX_ELIXER", cost = 150 },
+}
+
 return function(engine, deps)
   deps = deps or {}
   local Sl = { BETS = BETS, SYMBOLS = SYMBOLS, REELS = REELS, PAYS = PAYS, ROCKET = ROCKET, WILD = WILD, BONUS = BONUS,
                BONUS_PAY = BONUS_PAY, FREE = FREE, FREE_MULT = FREE_MULT,
-               LINES = LINES, LINE_SETS = LINE_SETS, store = deps.save, rng = deps.rng }
+               LINES = LINES, LINE_SETS = LINE_SETS, store = deps.save, rng = deps.rng,
+               SPECIALS = SPECIALS, ANIV = ANIV, HIGH_MONS = HIGH_MONS, HIGH_ITEMS = HIGH_ITEMS, HIGH_ITEMS_GB = HIGH_ITEMS_GB }
 
   local loose
   local function data()
@@ -278,6 +358,19 @@ return function(engine, deps)
 
   -- ------- the prize corner
 
+  -- (a name in the game's capitals, as the list shows them: "PP MAX" -> "PP Max", "TM24 THUNDERBOLT" ->
+  -- "TM24 Thunderbolt", "HO-OH" -> "Ho-Oh", "MR. MIME" -> "Mr. Mime"; an abbreviation or a word with a
+  -- digit kept)
+  local KEEP = { PP = true, TM = true, HM = true, X = true }
+  local function part(w)
+    if w:find("%d") or KEEP[w] then return w end
+    return w:sub(1, 1):upper() .. w:sub(2):lower()
+  end
+  local function titled(name)
+    return (tostring(name):gsub("[^%s%-]+", part))
+  end
+  Sl.titled = titled
+
   local prizes
   -- (the Game Boy games' prize corner: their own items and the Pokémon there are)
   local function portPrizes()
@@ -304,7 +397,7 @@ return function(engine, deps)
     end
     return out
   end
-  function Sl.prizes()
+  local function basePrizes()
     if prizes then return prizes end
     if Port then
       local out = portPrizes()
@@ -318,13 +411,13 @@ return function(engine, deps)
       if p.kind == "item" then
         local ok, info = pcall(I and I.info or error, p.id)
         if ok and info and info.name then
-          e.id, e.name = p.id, tostring(info.name)
+          e.id, e.name = p.id, titled(info.name)
           e.desc = ((info.description or ""):gsub("\\n", " "):gsub("\\p", " "):gsub("\n", " "))
           -- (a TM: its move's name after the number, as the TM Case shows it)
           local okT, tm = pcall(I.isTm or error, p.id)
           if okT and tm and P and P.moveFromTmItem and P.moveName then
             local okM, mv = pcall(function() return P.moveName(P.moveFromTmItem(p.id)) end)
-            if okM and mv and mv ~= "" then e.name = e.name .. " " .. tostring(mv) end
+            if okM and mv and mv ~= "" then e.name = e.name .. " " .. titled(mv) end
           end
           out[#out + 1] = e
         end
@@ -332,7 +425,7 @@ return function(engine, deps)
         local ok, sp = pcall(P and P.speciesFromNational or error, p.dex)
         local okN, name = pcall(P and P.name or error, ok and sp or 0)
         if ok and sp and okN and name then
-          e.id, e.name, e.desc = sp, tostring(name), ""
+          e.id, e.name, e.desc = sp, titled(name), ""
           out[#out + 1] = e
         end
       end
@@ -346,13 +439,250 @@ return function(engine, deps)
     return min(100, 10 + 3 * (tonumber(b) or 0))
   end
 
+  -- ------- the limited prizes: four that change at local midnight, the same all day for this save
+  -- (seeded by its playthrough and the day, so reloading never rerolls them). A special (an event
+  -- ticket or a named event Pokémon) and a 10th Anniversary Pokémon, each once per save; a sought-after
+  -- Pokémon and a held item, once per day. A ticket sets what the game's own distribution sets (the
+  -- ticket, the ferry's flag, its "received" flag), so the harbor sails; an event Pokémon has the
+  -- event's OT, ID, level, moves and item, met in a fateful encounter (Mew and Deoxys obey)
+
+  -- (a key -> a number, then a pick from it: the day's choice. Park-Miller steps: every product stays
+  -- under 2^53, so no low bits are lost to the doubles)
+  local function hash(...)
+    local h = 1
+    for i = 1, select("#", ...) do
+      local v = tostring((select(i, ...)))
+      for k = 1, #v do h = (h * 48271 + v:byte(k)) % 2147483647 end
+      h = (h * 48271 + 101) % 2147483647
+    end
+    for _ = 1, 4 do h = (h * 48271) % 2147483647 end
+    return h
+  end
+  local function claimed(d) d.claimed = type(d.claimed) == "table" and d.claimed or {} return d.claimed end
+  local function C(kind, name)
+    local ok, id = pcall(deps.const or error, kind, name)
+    return ok and tonumber(id) or nil
+  end
+  local function flagOn(name)
+    local ok, on = pcall(deps.flag or error, name)
+    return ok and on == true
+  end
+  local function gameOf() return deps.gameId and deps.gameId() or "" end
+  local function ticketFlags(t, g) return t.flags[g] or t.flags.all end
+
+  -- a ticket is had once its ferry's flag is set; an event Pokémon once it's claimed
+  local function isClaimed(s, e, d)
+    if e.ticket then
+      local fl = ticketFlags(e.ticket, gameOf())
+      return fl and flagOn(fl[1]) or false
+    end
+    return claimed(d)[e.key] ~= nil
+  end
+
+  local function eventDesc(e, sp)
+    local P = engine("src.core.game3.pokemon")
+    local names = {}
+    for i, mv in ipairs(e.moves or {}) do
+      local num = C("moves", "MOVE_" .. mv)
+      local ok, n = pcall(P and P.moveName or error, num)
+      names[i] = ok and n and n ~= "" and titled(n) or mv
+    end
+    local T = deps.T
+    if not T then return "" end
+    return T.f("slots.event.desc", e.ot, ("%05d"):format(e.id), e.level, table.concat(names, ", "))
+  end
+  local function speciesName(sp)
+    if Port then return Port.name(sp) end
+    local P = engine("src.core.game3.pokemon")
+    local ok, n = pcall(P and P.name or error, sp)
+    if not (ok and n) then return "?" end
+    return titled(n)
+  end
+  local function speciesOfDex(dex)
+    if Port then return Port.species(dex) end
+    local P = engine("src.core.game3.pokemon")
+    local ok, sp = pcall(P and P.speciesFromNational or error, dex)
+    return ok and sp or nil
+  end
+  local function itemEntry(id, cost)
+    if Port then
+      local pid = Port.item(id)
+      if not (pid and (deps.hasItem == nil or deps.hasItem(pid))) then return nil end
+      return { kind = "item", id = pid, cost = cost, name = Port.itemName(pid), desc = Port.itemDesc(pid) or "" }
+    end
+    local num = C("items", id)
+    local I = engine("src.core.game3.items_data")
+    local ok, info = pcall(I and I.info or error, num)
+    if not (num and ok and info and info.name) then return nil end
+    return { kind = "item", id = num, cost = cost, name = titled(info.name),
+             desc = ((info.description or ""):gsub("\\n", " "):gsub("\\p", " "):gsub("\n", " ")) }
+  end
+
+  -- the day's four, by the playthrough's seed and the day; claimed ones say so
+  local limited, limitedDay, limitedFor = nil, nil, nil
+  local function build(s, day)
+    local g, d = gameOf(), data()
+    local seed = deps.seed and deps.seed(s) or 1
+    local T = deps.T
+    local out = {}
+    local function pick(list, slot, ok)
+      local left = {}
+      for _, e in ipairs(list) do if ok(e) then left[#left + 1] = e end end
+      if #left == 0 then return nil end
+      return left[hash(seed, day, slot) % #left + 1]
+    end
+    local function add(e, entry, daily)
+      if not entry then return end
+      entry.limited, entry.key = true, daily and (e.key .. "@" .. day) or e.key
+      entry.claimed = daily and claimed(d)[entry.key] ~= nil or isClaimed(s, e, d)
+      entry.special = e
+      out[#out + 1] = entry
+    end
+    if not Port then
+      -- (the special: a ticket this game's harbor takes, or a named event Pokémon)
+      local sp = pick(Sl.SPECIALS, "special", function(e)
+        if e.ticket and not ticketFlags(e.ticket, g) then return false end
+        if e.ticket and not C("items", e.ticket.item) then return false end
+        return not isClaimed(s, e, d)
+      end)
+      if sp and sp.ticket then
+        local entry = itemEntry(sp.ticket.item, sp.cost)
+        if entry then
+          entry.desc = entry.desc .. " " .. (T and T(sp.ticket.where[g] or sp.ticket.where.all) or "")
+          add(sp, entry)
+        end
+      elseif sp then
+        local spc = speciesOfDex(sp.dex)
+        if spc then
+          add(sp, { kind = "mon", id = spc, cost = sp.cost, level = sp.level, event = true,
+                    name = T and T.f("slots.event." .. sp.key, speciesName(spc)) or speciesName(spc), desc = eventDesc(sp, spc) })
+        end
+      end
+      -- (a 10th Anniversary Pokémon)
+      local an = pick(Sl.ANIV, "aniv", function(e) return claimed(d)[e.key] == nil end)
+      local anSp = an and speciesOfDex(an.dex)
+      if anSp then
+        add(an, { kind = "mon", id = anSp, cost = an.cost, level = an.level, event = true,
+                  name = T and T.f("slots.event.aniv", speciesName(anSp)) or speciesName(anSp), desc = eventDesc(an, anSp) })
+      end
+    end
+    -- (a sought-after Pokémon and a held item, once each this day)
+    local mon = pick(Sl.HIGH_MONS, "mon", function(e) return speciesOfDex(e.dex) ~= nil end)
+    if mon then
+      local spc = speciesOfDex(mon.dex)
+      add(mon, { kind = "mon", id = spc, cost = mon.cost, name = speciesName(spc), desc = "" }, true)
+    end
+    local items = Port and Sl.HIGH_ITEMS_GB or Sl.HIGH_ITEMS
+    local it = pick(items, "item", function(e) return itemEntry(e.id, e.cost) ~= nil end)
+    if it then add(it, itemEntry(it.id, it.cost), true) end
+    -- (yesterday's daily claims forgotten)
+    for k in pairs(claimed(d)) do
+      local at = tostring(k):match("@(%-?%d+)$")
+      if at and tonumber(at) ~= day then claimed(d)[k] = nil end
+    end
+    return out
+  end
+
+  local list
+  -- the day's limited prizes made again when the day turns (or the save changes): call it now and
+  -- then (the window: once a second), never per frame -> the seconds until the next turn
+  function Sl.refresh(s, t)
+    t = t or os.time()
+    local day = deps.day and deps.day(t) or floor(t / 86400)
+    if s and (day ~= limitedDay or s ~= limitedFor or not limited) then
+      limited, limitedDay, limitedFor, list = build(s, day), day, s, nil
+    end
+    return deps.untilNext and deps.untilNext(t) or (86400 - t % 86400)
+  end
+  function Sl.prizes()
+    if list then return list end
+    local base = basePrizes()
+    if not limited then return base end
+    list = {}
+    for _, p in ipairs(limited) do list[#list + 1] = p end
+    for _, p in ipairs(base) do list[#list + 1] = p end
+    return list
+  end
+  function Sl.limitedCount() return limited and #limited or 0 end
+
+  -- an event Pokémon as the event gave it: made on a scratch session with the event's trainer, then
+  -- its moves, item, met in a fateful encounter; never shiny
+  local function eventMon(e, sp)
+    local Party, P = engine("src.core.game3.party"), engine("src.core.game3.pokemon")
+    if not (Party and P) then return nil end
+    local mon
+    for _ = 1, 8 do
+      local scratch = { party = {}, name = e.ot, trainerId = e.id, secretId = 0,
+                        dex = { seen = {}, owned = {}, caught = {} }, gender = 0 }
+      local pid = (roll(65536) - 1) * 65536 + (roll(65536) - 1)
+      local ok, given, _, m = pcall(Party.giveMon, scratch, sp, e.level, nil, { fixedPersonality = pid })
+      if ok and given and type(m) == "table" then
+        mon = m
+        local okS, shiny = pcall(P.isShiny, m)
+        if not (okS and shiny) then break end
+      end
+    end
+    if not mon then return nil end
+    mon.ot, mon.otName, mon.otId, mon.otSecretId, mon.otGender = e.ot, e.ot, e.id, 0, 0
+    for i, mv in ipairs(e.moves or {}) do
+      local num = C("moves", "MOVE_" .. mv)
+      if num and P.replaceMove then pcall(P.replaceMove, mon, i, num) end
+    end
+    if e.item then
+      local item = C("items", "ITEM_" .. e.item)
+      if item then mon.item, mon.heldItem = item, item end
+    end
+    mon.metLocation, mon.metLevel, mon.language, mon.modernFatefulEncounter = 0xFF, e.level, 2, true
+    mon.hp = nil
+    pcall(P.applyStats, mon)
+    mon.hp = mon.maxHp
+    return mon
+  end
+  -- a Pokémon to the player: the party, else the PC; seen and caught in the Pokédex
+  local function place(s, mon, sp)
+    local where
+    s.party = s.party or {}
+    if #s.party < 6 then
+      s.party[#s.party + 1] = mon
+      where = "party"
+    else
+      local St = engine("src.core.game3.storage")
+      local ok, sent = pcall(St and St.sendMonToPC or error, s, mon)
+      where = ok and sent and "pc" or nil
+    end
+    if where then
+      local Dex = engine("src.core.game3.dex")
+      s.dex = s.dex or { seen = {}, owned = {}, caught = {} }
+      pcall(Dex and Dex.handleSetPokedexFlag or error, s.dex, sp, true, mon.personality)
+    end
+    return where
+  end
+
   function Sl.redeem(s, i)
     local p = Sl.prizes()[i]
     if not (s and p) then return false, "tickets" end
     local d = data()
+    if p.claimed then return false, "claimed" end
     if d.tickets < p.cost then return false, "tickets" end
     local where
-    if Port then
+    local e = p.limited and p.special
+    if e and e.ticket then
+      -- (the ticket and the flags its distribution sets)
+      local Bag = engine("src.core.game3.bag")
+      if not Bag then return false, "bag_full" end
+      s.bag = s.bag or Bag.new()
+      local okC, can = pcall(Bag.canAdd, s.bag, p.id, 1)
+      if not (okC and can) then return false, "bag_full" end
+      local okA, added = pcall(Bag.add, s.bag, p.id, 1)
+      if not (okA and added) then return false, "bag_full" end
+      for _, f in ipairs(ticketFlags(e.ticket, gameOf()) or {}) do pcall(deps.setFlag or error, f, true) end
+      where = "bag"
+    elseif e and e.ot then
+      local mon = eventMon(e, p.id)
+      if not mon then return false, "no_room" end
+      where = place(s, mon, p.id)
+      if not where then return false, "no_room" end
+    elseif Port then
       if p.kind == "item" then
         if not (Port.canGive(s, p.id, 1) and Port.giveItem(s, p.id, 1)) then return false, "bag_full" end
         where = "bag"
@@ -377,6 +707,10 @@ return function(engine, deps)
       where = code == 0 and "party" or "pc"
     end
     d.tickets = d.tickets - p.cost
+    if p.limited then
+      claimed(d)[p.key] = true
+      p.claimed = true
+    end
     save(d)
     return true, where
   end

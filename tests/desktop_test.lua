@@ -1382,6 +1382,105 @@ do
   Party.giveMonToPlayer = give
   T.check(not ok and why == "no_room" and Sl.tickets() == before, "no room for it: refused, the tickets kept")
 end
+-- the limited prizes: four that change with the day (the same all day), a ticket setting what the game's
+-- own distribution sets, an event Pokémon as it was given out, each claimed once
+do
+  local Space = require("src.core.game3.scripting.space")
+  local R = require("src.core.game3.rse.init")
+  local P = require("src.core.game3.pokemon")
+  local Cs = require("src.core.game3.constants").of(GAME)
+  local keptStore = Space.store
+  Space.store = keptStore or { flags = {}, vars = {} }
+  slotsSave.data = {}
+  -- (every move and item they name is the game's)
+  local missing = {}
+  for _, e in ipairs(Sl.SPECIALS) do for _, mv in ipairs(e.moves or {}) do if not Cs:id("moves", "MOVE_" .. mv) then missing[#missing + 1] = mv end end end
+  for _, e in ipairs(Sl.ANIV) do
+    for _, mv in ipairs(e.moves) do if not Cs:id("moves", "MOVE_" .. mv) then missing[#missing + 1] = mv end end
+    if e.item and not Cs:id("items", "ITEM_" .. e.item) then missing[#missing + 1] = e.item end
+  end
+  for _, e in ipairs(Sl.HIGH_ITEMS) do if not Cs:id("items", e.id) then missing[#missing + 1] = e.id end end
+  T.check(#missing == 0, "the limited prizes' moves and items are the game's (" .. table.concat(missing, ", ") .. ")")
+  local function limitedAt(t)
+    Sl.refresh(ss, t)
+    local out = {}
+    for _, p in ipairs(Sl.prizes()) do if p.limited then out[#out + 1] = p end end
+    return out
+  end
+  local base = 1800000000
+  base = base + Sl.refresh(ss, base) + 3600   -- (an hour into a day)
+  local lim = limitedAt(base)
+  T.check(#lim == 4 and lim[1].special and lim[2].event and lim[2].level == 70 and lim[3].kind == "mon" and lim[4].kind == "item",
+    "four limited prizes: a special, a 10th Anniversary Pokémon, a Pokémon, an item (" .. #lim .. ")")
+  T.check(Sl.prizes()[1] == lim[1] and #Sl.prizes() == #lim + #list, "the limited ones first, then the rest")
+  local same = limitedAt(base + 7200)
+  T.check(same[1].key == lim[1].key and same[2].key == lim[2].key and same[3].key == lim[3].key, "the same all day")
+  local changed = false
+  for k = 1, 7 do
+    local o = limitedAt(base + k * 86400)
+    if o[1].key ~= lim[1].key or o[3].key ~= lim[3].key then changed = true end
+  end
+  T.check(changed, "another day, other prizes")
+  -- (a day with a ticket, and one with an event Mew or Deoxys)
+  local ticketDay, eventDay
+  for k = 0, 120 do
+    local o = limitedAt(base + k * 86400)
+    if not ticketDay and o[1].special and o[1].special.ticket then ticketDay = k end
+    if not eventDay and o[1].special and o[1].special.ot then eventDay = k end
+  end
+  T.check(ticketDay ~= nil and eventDay ~= nil, "tickets and event Pokémon come round (" .. tostring(ticketDay) .. ", " .. tostring(eventDay) .. ")")
+  Sl.setTickets(5000)
+  if ticketDay then
+    local tp = limitedAt(base + ticketDay * 86400)[1]
+    local i
+    for k, p in ipairs(Sl.prizes()) do if p == tp then i = k end end
+    ok, why = Sl.redeem(ss, i)
+    local flags = tp.special.ticket.flags[GAME] or {}
+    local allOn = #flags > 0
+    for _, f in ipairs(flags) do if not R.flag(f, ss) then allOn = false end end
+    T.check(ok and why == "bag" and Bag.get(ss.bag, tp.id) == 1 and allOn,
+      "a ticket: into the Bag, its distribution's flags set (" .. tp.special.key .. ": " .. table.concat(flags, ", ") .. ")")
+    local stays, later = limitedAt(base + ticketDay * 86400)[1], false
+    for k = 1, 60 do if limitedAt(base + (ticketDay + k) * 86400)[1].key == tp.key then later = true end end
+    T.check(stays.claimed and not later, "had: shown as claimed today, never offered again")
+    for _, f in ipairs(flags) do R.setFlag(f, false, ss) end
+  end
+  if eventDay then
+    local ep = limitedAt(base + eventDay * 86400)[1]
+    local e = ep.special
+    local i
+    for k, p in ipairs(Sl.prizes()) do if p == ep then i = k end end
+    ss.party = {}
+    ok, why = Sl.redeem(ss, i)
+    local m = ss.party[1]
+    T.check(ok and why == "party" and m and m.otName == e.ot and m.otId == e.id and m.level == e.level
+      and m.moves and m.moves[1] == Cs:id("moves", "MOVE_" .. e.moves[1]) and m.modernFatefulEncounter == true
+      and m.metLocation == 0xFF and not P.isShiny(m),
+      "an event Pokémon as it was given out (" .. tostring(ep.name) .. ": " .. tostring(m and m.otName) .. " " .. tostring(m and m.otId) .. ")")
+    T.check(ep.desc:find(e.ot, 1, true) ~= nil and ep.claimed, "its words name the trainer; claimed")
+    ok, why = Sl.redeem(ss, i)
+    T.check(not ok and why == "claimed", "claimed: not again")
+    local later = false
+    for k = 1, 60 do if limitedAt(base + (eventDay + k) * 86400)[1].key == e.key then later = true end end
+    T.check(not later, "and never offered again")
+  end
+  -- (the 10th Anniversary Pokémon and the day's own: once each)
+  local an = lim[2]
+  Sl.refresh(ss, base)
+  local ai
+  for k, p in ipairs(Sl.prizes()) do if p.key == an.key then ai = k end end
+  ss.party = {}
+  ok, why = Sl.redeem(ss, ai)
+  T.check(ok and ss.party[1] and ss.party[1].otName == "10 ANIV" and ss.party[1].level == 70, "a 10th Anniversary Pokémon")
+  local di
+  for k, p in ipairs(Sl.prizes()) do if p.limited and p.kind == "item" then di = k end end
+  ok = Sl.redeem(ss, di)
+  ok, why = Sl.redeem(ss, di)
+  T.check(not ok and why == "claimed", "the day's item: once that day")
+  T.check(not limitedAt(base + 86400)[4].claimed, "the next day's: there to claim")
+  Space.store = keptStore
+  slotsSave.data = {}
+end
 
 -- the window: a spin by buttons, the reels stopping in order, the win paid once; the bet; a prize
 s.money = 50000

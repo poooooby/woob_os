@@ -379,6 +379,22 @@ return function(ctx, env)
   -- ------- the prizes
 
   local function prizes() return Sl.prizes() end
+  -- (the limited prizes: made again when the day turns, looked at once a second, never per frame; the
+  -- time to the next change, its words made when the minute changes)
+  local function limitTick(force)
+    if not Sl.refresh then return end
+    local t = now()
+    if not force and t < (st.limitAt or 0) then return end
+    st.limitAt = t + 1
+    local left = Sl.refresh(session(), os.time())
+    if not left then return end
+    local hrs, mins = floor(left / 3600), floor(left % 3600 / 60)
+    local key = hrs * 60 + mins
+    if key ~= st.limitKey then
+      st.limitKey = key
+      st.limitText = T.f("slots.limitedIn", hrs > 0 and T.f("slots.hm", hrs, mins) or T.f("slots.m", max(1, mins)))
+    end
+  end
   local function rarityOf(p)
     for _, r in ipairs(RARITY) do if p.cost <= r.upto then return r end end
     return RARITY[#RARITY]
@@ -1460,7 +1476,7 @@ return function(ctx, env)
       local rar = rarityOf(p)
       local ry = y + 1 + (i - 1 - st.top) * ROW_H
       local rb = K.R(x + 1.5, ry + 0.4, lw - 3, ROW_H - 0.8)
-      local can = p.cost <= Sl.tickets()
+      local can = p.cost <= Sl.tickets() and not p.claimed
       local e = K.stagger(since, i - first, 0.035, 0.3)
       K.rise(e, 5)
       K.col(rar.c, can and 1 or 0.4)
@@ -1482,12 +1498,29 @@ return function(ctx, env)
       elseif env.itemIcon then
         pcall(env.itemIcon, p.id, x + 4, ry + 1.5, 9, (can and 1 or 0.5) * K.getFade())
       end
-      local cw = K.width(numText(p.cost), 4.4) + 8
-      local ns = K.fit(p.name, 4.6, lw - 22 - cw)
+      -- (a claimed limited prize: Claimed where its cost was; the limited ones: their pill)
+      local cw = p.claimed and K.width(T("slots.claimed"), 3.8) + 2 or K.width(numText(p.cost), 4.4) + 8
+      local pw = p.limited and K.width(T("slots.limited"), 3) + 3 or 0
+      local ns = K.fit(p.name, 4.6, lw - 22 - cw - (pw > 0 and pw + 2 or 0))
       K.text(p.name, x + 15, ry + 3.2 + (4.6 - ns) * 0.5, ns, can and C.text or C.faint)
-      ticket(x + lw - 4 - cw, ry + 4, 3.6, can and 1 or 0.5)
-      K.text(numText(p.cost), x + lw - 4 - cw + 6.5, ry + 3.4, 4.4, can and C.gold or C.faint)
-      if can then sparkle(x + lw - 4 - cw - 2, ry + 3, 1.1 + 0.5 * sin(clock * 6 + i), C.goldTop, 0.8) end
+      if pw > 0 then
+        local px = x + lw - 6 - cw - pw
+        K.col(C.violet, p.claimed and 0.35 or 0.9)
+        K.box("fill", K.R(px, ry + 3.2, pw, 4.6), 2.3)
+        K.text(T("slots.limited"), px, ry + 3.6, 3, C.white, "center", pw)
+      end
+      if p.claimed then
+        K.text(T("slots.claimed"), x + lw - 4 - cw, ry + 3.6, 3.8, C.faint)
+      else
+        ticket(x + lw - 4 - cw, ry + 4, 3.6, can and 1 or 0.5)
+        K.text(numText(p.cost), x + lw - 4 - cw + 6.5, ry + 3.4, 4.4, can and C.gold or C.faint)
+        if can then sparkle(x + lw - 4 - cw - 2, ry + 3, 1.1 + 0.5 * sin(clock * 6 + i), C.goldTop, 0.8) end
+      end
+      -- (the limited section's end: a line under its last row)
+      if p.limited and not (list[i + 1] and list[i + 1].limited) then
+        K.col(C.violetHi, 0.5)
+        K.box("fill", K.R(x + 4, ry + ROW_H - 0.3, lw - 8, 0.35), 0)
+      end
       K.settle(e)
       K.addHit(rb, "win", PRIZE + i, clip)
     end
@@ -1539,8 +1572,17 @@ return function(ctx, env)
     K.col(rar.c)
     K.box("fill", K.R(tx, dy + 10.5 + dg * 0.4 - 2.3 * gx, rw, 4.6 * (1 + gx)), 2.3 * (1 + gx))
     K.text(T(rar.key), tx, dy + 10.7 + dg * 0.4, 3.4, C.bg, "center", rw)
+    local lvw = 0
     if p.kind == "mon" then
-      K.text(levelText(Sl.level(session())), tx + rw + 2, dy + 10.6 + dg * 0.4, 4.2, C.soft)
+      local lt = levelText(p.level or Sl.level(session()))
+      K.text(lt, tx + rw + 2, dy + 10.6 + dg * 0.4, 4.2, C.soft)
+      lvw = K.width(lt, 4.2) + 3
+    end
+    -- (a limited prize: when the day's four change)
+    if p.limited and st.limitText then
+      local lx = tx + rw + 2 + lvw
+      local ls = K.fit(st.limitText, 3.6, dx + dw - 4 - lx)
+      K.text(st.limitText, lx, dy + 11 + dg * 0.4 + (3.6 - ls) * 0.5, ls, C.violetHi)
     end
     -- (the bar towards it)
     local tickets = Sl.tickets()
@@ -1564,7 +1606,7 @@ return function(ctx, env)
     end
     K.settle(e)
     local go = K.R(dx + 4, dy + dh - 13, dw - 8, 10)
-    local can = p.cost <= tickets
+    local can = p.cost <= tickets and not p.claimed
     if can then
       local pp = 0.5 + 0.5 * sin(clock * 4)
       K.col(C.red, 0.3 * pp)
@@ -1574,7 +1616,7 @@ return function(ctx, env)
     else
       pane(go, 3.2, 0.07, 0.22)
     end
-    outlined(T("slots.redeem"), go[1], go[2] + 2.2, 4.8, can and C.white or C.faint, go[3])
+    outlined(T(p.claimed and "slots.claimed" or "slots.redeem"), go[1], go[2] + 2.2, 4.8, can and C.white or C.faint, go[3])
     K.addHit(go, "win", REDEEM)
   end
 
@@ -1606,7 +1648,7 @@ return function(ctx, env)
     -- (how many prizes the tickets reach: a red count on Prizes)
     local tickets = Sl.tickets()
     local n = 0
-    for _, p in ipairs(prizes()) do if p.cost <= tickets then n = n + 1 end end
+    for _, p in ipairs(prizes()) do if p.cost <= tickets and not p.claimed then n = n + 1 end end
     if n > 0 then
       local g = G()
       local bx, by = sx + sw - 1.5, y + 1.5
@@ -1641,6 +1683,7 @@ return function(ctx, env)
     local x, y, w, h = body[1], body[2], body[3], body[4]
     st.bx, st.by, st.bw = x, y, w
     gx = K.textScale() - 1
+    limitTick()
     advance(now())
     motion(clock)
     drawStage(body, clock)
@@ -1669,6 +1712,7 @@ return function(ctx, env)
 
   -- (the reels start somewhere of their own)
   for r = 1, NREELS do st.pos[r], st.final[r] = r * 5, r * 5 end
+  limitTick(true)
   -- (free spins left from before: they carry on)
   if Sl.freeState() then st.nextAt = now() + 1 end
   return W

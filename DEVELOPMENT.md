@@ -401,6 +401,31 @@ in the test from each reel's symbol counts: 68.7% lines + 2.1% Bonus + 20.5% fre
 free spins about 1 spin in 117, the jackpot 1 line in 225,000. A ticket costs about ₽290 of expected
 loss whatever the bet, which prices the prize corner (Rare Candy 15 ≈ ₽4.4k, Porygon 200 ≈ ₽58k).
 
+- **The limited prizes:** four at the top of `Sl.prizes()`, made by `Sl.refresh(s, t)` when the local
+  day (`deps.day`, the journal's) or the session changes; the window calls it once a second (never
+  per frame) and gets the seconds to the next change back. Each slot is picked by a Park-Miller hash of
+  the playthrough's seed, the day and the slot (exact in doubles: an FNV product past 2^53 lost its low
+  bits and served Doel Deoxys 53 days in 81). Gen 3: a special (`SPECIALS`, unclaimed, a ticket only
+  where its game has flags for it), a 10th Anniversary Pokémon (`ANIV`), a Pokémon (`HIGH_MONS`) and
+  an item (`HIGH_ITEMS`); the Game Boy games the last two (`HIGH_ITEMS_GB`). Specials and ANIV are
+  claimed once per save (`d.claimed[key]`; a ticket also by its ferry flag); the daily two by
+  `key@day` (other days' keys dropped at the rebuild). A claimed prize stays in the day's list as
+  Claimed.
+- **Tickets** set what the game's own distribution sets (the cart's gift scripts, and the harbors'
+  checks): Emerald's Eon Ticket `FLAG_ENABLE_SHIP_SOUTHERN_ISLAND` (as `CableClub_EventScript_DistributeEonTicket`),
+  Ruby / Sapphire's `FLAG_SYS_HAS_EON_TICKET` (Lilycove's ferry checks the item and it), the Mystic /
+  Aurora Tickets and the Old Sea Map `FLAG_ENABLE_SHIP_NAVEL_ROCK` / `_BIRTH_ISLAND` / `_FARAWAY_ISLAND`
+  and `FLAG_RECEIVED_*` (Emerald's Mystery Gift scripts; FireRed / LeafGreen's Vermilion harbor checks the
+  item and the ship flag). The ticket goes into the Bag.
+- **Event Pokémon** are made on a scratch session with the event's trainer (OT, ID, secret ID 0), then
+  `Pokemon.replaceMove` for its moves, its item, `metLocation` 0xFF, `metLevel`, `modernFatefulEncounter`
+  (the engine's battle lets Mew and Deoxys obey only with it), rerolled until not shiny; into the party
+  or the PC, seen and caught in the Pokédex. The data is Serebii's event pages: Aura Mew (Aura, 20078,
+  Lv. 10), Mystery Mew (MYSTRY, 06930, Lv. 10), Space Center Deoxys (SPACE C, 00010, Lv. 70), Doel Deoxys
+  (DOEL, 28606, Lv. 70), the 10th Anniversary Pokémon (10 ANIV, 00010, Lv. 70; twenty species, moves
+  from the ID 00010 list where it was read, else the Bryant Park one's).
+- **Names** go through `Sl.titled` ("PP MAX" -> "PP Max": PP, TM, HM, X and words with a digit kept).
+
 - **A spin:** `Sl.spin(s, level, lines)` takes the bet × the lines and draws the five stops at once (`Sl.rng`, else
   `love.math.random`); the reels' stopping is only shown. The win is held until `Sl.collect(s)`
   (when the last reel lands, or the window closes), so the menu bar's money doesn't give it away.

@@ -6,6 +6,16 @@ All notable changes to this mod are documented here, in
 ## [Unreleased]
 
 ### Added
+- **Limited prizes in Rocket Slots' Prize Corner.** Four prizes at the top of the list change at
+  midnight, the same all day for your save: a sought-after Pokémon (Bagon, Beldum, Larvitar, Lapras,
+  the starters and more) and a held item (Leftovers, Lucky Egg, Choice Band and more), once each a day;
+  a Pokémon from the 10th Anniversary distribution, as it was given out (OT 10 ANIV, level 70, its
+  event moves and item); and a special. A special is an event ticket that works at the harbor like the
+  real distribution (the Eon Ticket on Ruby, Sapphire and Emerald, the Mystic and Aurora Tickets on
+  FireRed, LeafGreen and Emerald, the Old Sea Map on Emerald), or an event Pokémon as it was given
+  out: Aura Mew, Mystery Mew, Space Center Deoxys or Doel Deoxys, met in a fateful encounter. Event
+  Pokémon and tickets can each be claimed once per save. On the Game Boy games the limited prizes
+  are a Pokémon and an item.
 - **The News follows FireRed and LeafGreen's story.** Each step is breaking news with a notification
   the moment the game reaches it: the Pokédex from Professor Oak, Team Rocket's fossil dig at Mt.
   Moon, the Cerulean burglar, Bill's mix-up, the S.S. Anne's captain, the Rocket Hideout under the
@@ -26,6 +36,9 @@ All notable changes to this mod are documented here, in
 - **A battle with a legendary Pokémon gets its own report** on every game: where, its level, the
   play-by-play, and how it ended (caught, with the Ball and how many throws it took, knocked out,
   got away, or your team beaten).
+
+### Changed
+- Rocket Slots' prizes are written in ordinary capitals ("PP Up", "TM24 Thunderbolt").
 
 ### Fixed
 - On Ruby, Sapphire and Emerald, the News's Gym reports now count the Badge won.

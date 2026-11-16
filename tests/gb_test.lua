@@ -461,6 +461,16 @@ local okI, whereI = Sl.redeem(save, itemPrize)
 T.check(okI and whereI == "bag", "an item prize to the Bag (" .. tostring(prizes[itemPrize].id) .. ")")
 local okM, whereM = Sl.redeem(save, monPrize)
 T.check(okM and (whereM == "party" or whereM == "pc"), "a Pokémon prize (" .. tostring(prizes[monPrize].id) .. ")")
+-- (the limited prizes: a sought-after Pokémon this game has and a held item, the day's; no tickets or
+-- event Pokémon here)
+Sl.refresh(save, 1800000000)
+local lim = {}
+for i, pz in ipairs(Sl.prizes()) do if pz.limited then lim[#lim + 1] = i end end
+local lm, li = Sl.prizes()[lim[1]], Sl.prizes()[lim[2]]
+T.check(#lim == 2 and lm.kind == "mon" and li.kind == "item" and not lm.event,
+  "the limited prizes: a Pokémon and an item (" .. tostring(lm and lm.name) .. ", " .. tostring(li and li.name) .. ")")
+local okL, whereL = Sl.redeem(save, lim[1])
+T.check(okL and (whereL == "party" or whereL == "pc") and not Sl.redeem(save, lim[1]), "the day's Pokémon: once")
 -- (the GTS: a Wonder Trade)
 local giveAway = newMon("RATTATA", 7)
 table.insert(save.party, giveAway)

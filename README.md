@@ -46,7 +46,12 @@ controller, a touch screen, or a mouse and keyboard.
 - 🛒 **Mart:** buy and sell from the PC, with more stock for each Badge.
 - 🚀 **R-Bay:** Team Rocket's Pokémon auctions. They run on your device's clock, even while the game
   is off.
-- 🎰 **Slots:** a five-reel slot machine played with your money, with prizes for its tickets.
+- 🎰 **Slots:** a five-reel slot machine played with your money, with prizes for its tickets. Four
+  limited prizes change every day: a sought-after Pokémon, a held item, a 10th Anniversary Pokémon,
+  and a special: an event ticket (Eon, Mystic, Aurora or the Old Sea Map) that sails from the harbor
+  like the real one, or an event Pokémon as it was given out (Aura Mew, Mystery Mew, Space Center
+  Deoxys, Doel Deoxys). The 10th Anniversary Pokémon, the specials and the tickets are on FireRed,
+  LeafGreen, Ruby, Sapphire and Emerald, each ticket on the games whose harbor takes it.
 - 🏦 **Bank:** holds the money your wallet can't (past ₽999,999) and pays a little interest each day.
 - 👟 **Errands:** send up to three Pokémon on a timed job for money, an item and EXP.
 - 🏅 **Challenges:** five goals a week, counted from how you play, each with a reward.

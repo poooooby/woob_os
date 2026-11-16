@@ -321,7 +321,12 @@ return function(mod, loadSibling)
       { kind = "mon", dex = 137, cost = 200 }, { kind = "item", id = "MASTER_BALL", cost = 600 },
     }
     env.slots = makeSlots and makeSlots(noEngine, { save = mod.save, badges = badges, port = Port, prizes = PRIZES,
-                                               hasItem = hasItem }) or nil
+                                               hasItem = hasItem, T = T, seed = seed,
+                                               day = function(t) return env.journal and env.journal.day(t) or math.floor(t / 86400) end,
+                                               untilNext = function(t)
+                                                 local lt = env.journal and env.journal.localTime(t) or t
+                                                 return 86400 - lt % 86400
+                                               end }) or nil
     if makeGts and env.auction and env.bx then
       env.gts = makeGts(noEngine, {
         save = mod.save, now = os.time, port = Port, hasItem = hasItem,
