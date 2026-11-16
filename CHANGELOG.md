@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-16
+
 ### Added
 - **Limited prizes in Rocket Slots' Prize Corner.** Four prizes at the top of the list change at
   midnight, the same all day for your save: a sought-after Pokémon (Bagon, Beldum, Larvitar, Lapras,
