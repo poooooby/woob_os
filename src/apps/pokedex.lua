@@ -3,11 +3,13 @@
 -- caught); on the right the chosen one's page: its front picture (Emerald's own animation, a breathing
 -- idle elsewhere), name, category, types, height and weight, gender ratio, the dex's words, a radar of
 -- its base stats, its abilities, and Moves / Where / Info, and Forms where it has any (WoobleDex's: each
--- form's picture and name, a Poké Ball under those caught). The game's rules: unseen nothing, seen the
--- card, where to find it and its forms, caught everything. Narrow (WoobPad upright), the grid and the page
+-- form's picture and name, a Poké Ball under those caught; each opens its own page: its types, stats, moves
+-- and where it's found, by the same rules). The game's rules: unseen nothing, seen the card, where to find
+-- it and its forms, caught everything. Narrow (WoobPad upright), the grid and the page
 -- take turns.
 --   buttons  the D-pad moves in the grid, L / R a page, A the page (Up / Down scroll it, L / R its tab,
---            Left / Right the moves' list, A its cry), SELECT the regional or National dex, B back,
+--            Left / Right the moves' list, A its cry; on Forms Left / Right a form, A its page, B from a
+--            form's page back to the base one), SELECT the regional or National dex, B back,
 --            START the game's own Pokédex (when it was opened in its place)
 --   touch    a tap picks; the tabs, the moves' chips, the picture (its cry); drag or wheel scrolls
 --
@@ -17,7 +19,7 @@
 
 local floor, max, min, ceil = math.floor, math.max, math.min, math.ceil
 
-local A = { CELL = 10000, MODE = 900, TAB = 800, KIND = 700, SPRITE = 600, BACK = 590 }
+local A = { CELL = 10000, MODE = 900, TAB = 800, KIND = 700, SPRITE = 600, BACK = 590, FORM = 400 }
 local KINDS = { "level", "tm", "egg", "tutor" }
 local NO_T = setmetatable({ list = function(l) return l end, f = string.format }, { __call = function(_, k) return k end })
 local HINTS = {
@@ -27,6 +29,7 @@ local HINTS = {
   page = { { "+", "dex.hint.scroll" }, { "L R", "dex.hint.tabs" }, { "A", "dex.hint.cry" }, { "B", "hint.back" } },
   pageModes = { { "+", "dex.hint.scroll" }, { "L R", "dex.hint.tabs" }, { "A", "dex.hint.cry" },
                 { "SELECT", "dex.hint.mode" }, { "B", "hint.back" } },
+  forms = { { "< >", "dex.hint.form" }, { "A", "dex.hint.view" }, { "L R", "dex.hint.tabs" }, { "B", "hint.back" } },
 }
 
 return function(ctx, env, makeView)
@@ -43,6 +46,8 @@ return function(ctx, env, makeView)
     detailTop = 0, detailH = 0, detailVis = 80,
     -- (the page's tabs: ids, "moves" / "where" / "info" / "forms", for the one chosen; st.tab the index)
     tab = 1, tabId = "moves", tabs = {}, forms = {},
+    -- (the forms: the one shown (1, the base) and the one the Forms tab's cursor is on; base: the grid's)
+    formAt = 1, formSel = 1, base = nil,
     kind = 1, shown = { 0, 0, 0, 0, 0, 0 }, chosenAt = 0, lines = {},
     modeWords = {},
   }
@@ -85,6 +90,7 @@ return function(ctx, env, makeView)
       if rows and #rows > 0 then st.hint = { where = rows } end
     end
     st.forms = st.entry.seen and Dx.forms and Dx.forms(st.entry, s) or {}
+    st.base, st.formAt, st.formSel = st.entry, 1, 1
     setTabs(st.entry)
     st.follow = true
     if moved then
@@ -136,6 +142,41 @@ return function(ctx, env, makeView)
     st.detailTop = min(st.detailTop, max(0, st.detailH - st.detailVis))
     se("SE_SELECT")
   end
+  -- one of the forms opened in the base's place (1: the base again): its own page by the same rules; one
+  -- not seen yet, where to look for it (nowhere known: nothing to open)
+  local function openForm(k)
+    local f = st.forms[k]
+    if not (f and st.base) then return end
+    st.formSel = k
+    if k == st.formAt then return cry() end
+    local e = Dx.formEntry and Dx.formEntry(st.base, f) or nil
+    if not e then return se("SE_FAILURE") end
+    local hint = nil
+    if not e.seen then
+      local rows = Dx.where and Dx.where(e)
+      if not (rows and #rows > 0) then return se("SE_FAILURE") end
+      hint = { where = rows }
+    end
+    st.formAt, st.entry, st.hint = k, e, hint
+    st.page = e.seen and Dx.page(e) or nil
+    setTabs(e)
+    st.detailTop = 0
+    st.focus = "detail"
+    if st.narrow then st.detail = true end
+    st.chosenAt = now()
+    if e.seen then
+      if env.dexSprite then env.dexSprite.start(e.sp) end
+      if env.cry then pcall(env.cry, e.sp) end
+    end
+    se("SE_SELECT")
+  end
+  local function moveForm(d)
+    local n = #st.forms
+    if n < 2 then return end
+    st.formSel = (st.formSel - 1 + d) % n + 1
+    se("SE_SELECT")
+  end
+
   local function setKind(k)
     st.kind = (k - 1) % #KINDS + 1
     se("SE_SELECT")
@@ -154,7 +195,10 @@ return function(ctx, env, makeView)
       return true
     end
     if st.focus == "detail" then
-      if pressed("b") then back() return true end
+      if pressed("b") then
+        if st.formAt ~= 1 then openForm(1) else back() end
+        return true
+      end
       if pressed("select") then setMode(st.mi + 1) return true end
       if nav.up then st.detailTop = max(0, st.detailTop - 12)
       elseif nav.down then st.detailTop = min(max(0, st.detailH - st.detailVis), st.detailTop + 12)
@@ -162,6 +206,9 @@ return function(ctx, env, makeView)
       elseif pressed("r") then setTab(st.tab + 1)
       elseif st.tabId == "moves" and nav.left then setKind(st.kind - 1)
       elseif st.tabId == "moves" and nav.right then setKind(st.kind + 1)
+      elseif st.tabId == "forms" and nav.left then moveForm(-1)
+      elseif st.tabId == "forms" and nav.right then moveForm(1)
+      elseif st.tabId == "forms" and pressed("a") then openForm(st.formSel)
       elseif pressed("a") then cry() end
       return true
     end
@@ -192,6 +239,7 @@ return function(ctx, env, makeView)
     if arg > A.TAB and arg <= A.TAB + #st.tabs then st.focus = "detail" return setTab(arg - A.TAB) end
     if arg > A.KIND and arg <= A.KIND + #KINDS then st.focus = "detail" return setKind(arg - A.KIND) end
     if arg == A.SPRITE then return cry() end
+    if arg > A.FORM and arg <= A.FORM + #st.forms then st.focus = "detail" return openForm(arg - A.FORM) end
     if arg == A.BACK then return back() end
   end
 
@@ -208,6 +256,7 @@ return function(ctx, env, makeView)
   end
 
   function W.hints()
+    if st.focus == "detail" and st.tabId == "forms" then return T.list(HINTS.forms) end
     if st.focus == "detail" then return T.list(#book.modes > 1 and HINTS.pageModes or HINTS.page) end
     return T.list(#book.modes > 1 and HINTS.gridModes or HINTS.grid)
   end

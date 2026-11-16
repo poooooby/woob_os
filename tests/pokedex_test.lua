@@ -339,18 +339,22 @@ if okO and W then
   end
   -- (WoobleDex's forms: a Forms tab, each form's name, a Poké Ball under those caught; a stand-in whose
   -- forms are other species the save has: one caught, one unseen)
-  local caughtSp, unseenSp
+  local caughtSp, unseenSp, seenSp
   for _, e in ipairs(st.list) do
     if e.caught and e ~= st.list[caughtAt] and not caughtSp then caughtSp = e.sp end
+    if e.seen and e ~= st.list[caughtAt] and not seenSp then seenSp = e.sp end
     if not e.seen and not unseenSp then unseenSp = e.sp end
   end
+  -- (the unseen form one found in the wild, where there's one: its Where to look)
+  if hintAt then unseenSp = st.list[hintAt].sp end
+  local formSp = caughtSp or seenSp
   local baseNat = st.list[caughtAt].nat
   local prevWooble = Dx.wooble
   Dx.wooble = function()
     return {
       formsOf = function(nat)
         if nat ~= baseNat then return {} end
-        return { { id = "A_FORM", slot = caughtSp or unseenSp, form = "ALOLA" },
+        return { { id = "A_FORM", slot = formSp or unseenSp, form = "ALOLA" },
                  { id = "B_FORM", slot = unseenSp, form = "GALAR" } }
       end,
       formLabel = function(slot) return slot == unseenSp and "GALARIAN" or nil end,
@@ -361,7 +365,7 @@ if okO and W then
   W.tap(W.A.CELL + caughtAt)
   T.check(#st.forms == 3 and st.forms[1].base and st.forms[1].caught, "its forms, the base one first")
   T.check(st.tabs[4] == "forms", "a Forms tab after Info")
-  T.check(st.forms[3].name == "Galarian" and not st.forms[3].seen and st.forms[2].name == (caughtSp and "Alola" or "Galarian"),
+  T.check(st.forms[3].name == "Galarian" and not st.forms[3].seen and st.forms[2].name == (formSp and "Alola" or "Galarian"),
           "each form's name (WoobleDex's, else its own)")
   T.check(caughtSp == nil or st.forms[2].caught, "a caught form: its Poké Ball")
   W.input(input({ "a" }), NONE)
@@ -373,6 +377,53 @@ if okO and W then
   T.check(kb3 < 0.5, string.format("the Forms tab: next to no garbage (%.3f KB/frame)", kb3))
   W.input(input({ "r" }), NONE)
   T.eq(st.tabId, "moves", "R from Forms: round to Moves")
+  -- (a form's own page: Right to it on Forms, A opens it; its species' page, the base's number and name)
+  local baseEntry = st.entry
+  W.input(input({ "l" }), NONE)
+  T.eq(st.tabId, "forms", "L from Moves: round to Forms")
+  W.input(input({}), { right = true })
+  T.eq(st.formSel, 2, "Right: the next form")
+  W.input(input({ "a" }), NONE)
+  if formSp then
+    T.check(st.formAt == 2 and st.entry.sp == formSp and st.entry.baseEntry == baseEntry and st.page ~= nil
+            and st.page.stats and #st.page.types >= 1, "A: the form's own page (its types, stats)")
+    T.check(st.entry.name == baseEntry.name and st.entry.numText:find(st.forms[2].name, 1, true) ~= nil,
+            "its name the base's, its form by the number")
+    T.check(st.tabs[1] == (caughtSp and "moves" or "where") and st.tabs[#st.tabs] == "forms",
+            "its tabs by the same rules (" .. (caughtSp and "caught" or "seen") .. "), and Forms")
+    local okP, errP = pcall(drawWin, W, false)
+    T.check(okP, "the form's page draws (" .. tostring(errP) .. ")")
+    local kbP = garbageOf(120, function() drawWin(W, false) end)
+    T.check(kbP < 0.5, string.format("the form's page: next to no garbage (%.3f KB/frame)", kbP))
+    W.input(input({ "b" }), NONE)
+    T.check(st.formAt == 1 and st.entry == baseEntry and st.focus == "detail", "B: the base's page again")
+  end
+  -- (a form not seen yet: where to look for it, or nothing to open)
+  W.tap(W.A.FORM + 3)
+  local unseenWhere = #Dx.where({ sp = unseenSp }) > 0
+  if unseenWhere then
+    T.check(st.formAt == 3 and st.page == nil and st.hint ~= nil and st.entry.numText == baseEntry.numText,
+            "an unseen form: where to look for it, its name still hidden")
+    T.check(pcall(drawWin, W, false), "its Where card draws, the forms under it")
+    W.input(input({ "b" }), NONE)
+  else
+    T.check(st.formAt == 1, "an unseen form found nowhere: nothing to open")
+  end
+  -- (the cart's own species: WoobleDex's formsOf has none for them, its listForms has them by base dex)
+  Dx.wooble = function()
+    return {
+      formsOf = function() return {} end,
+      listForms = function()
+        return { { id = "A_FORM", slot = formSp or unseenSp, form = "ALOLA", baseDex = baseNat },
+                 { id = "Z_FORM", slot = unseenSp, form = "GALAR", baseDex = baseNat + 1 } }
+      end,
+    }
+  end
+  Dx.reset()
+  W.input(input({ "b" }), NONE)
+  W.tap(W.A.CELL + (caughtAt == 1 and 2 or 1))
+  W.tap(W.A.CELL + caughtAt)
+  T.check(#st.forms == 2 and st.forms[2].name == "Alola", "the cart's species: its forms from listForms")
   -- (a Pokémon without forms: three tabs)
   W.input(input({ "b" }), NONE)
   W.tap(W.A.CELL + (caughtAt == 1 and 2 or 1))

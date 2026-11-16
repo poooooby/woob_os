@@ -629,6 +629,8 @@ return {
     ["dex.hint.scroll"] = "Scorri",
     ["dex.hint.tabs"] = "Schede",
     ["dex.hint.cry"] = "Verso",
+    ["dex.hint.form"] = "Forma",
+    ["dex.hint.view"] = "Vedi",
     ["dex.toMenu"] = "Menu",
     ["dex.back"] = "Indietro",
     ["dex.category"] = "Pokémon %s",

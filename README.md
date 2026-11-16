@@ -127,10 +127,10 @@ turn it on for your games.
   wait for it while it's off.
 - **Other mods:** they can add their own apps to the desktop.
 - **Kanto Gear:** Slots, R-Bay and the GTS are apps in its Silph Store, on the Gear's own screen.
-- **WoobleDex:** every box of its Bigger PC; its Pokémon in R-Bay and the Pokédex; Dynamax Level and
-  G-Max Factor in Boxes.
+- **WoobleDex:** every box of its Bigger PC; its Pokémon in R-Bay and the Pokédex, and a page for each of
+  its forms (regional forms included); Dynamax Level and G-Max Factor in Boxes.
 - **Galar Rising:** Dynamax Level and G-Max Factor in a Pokémon's Summary.
-- **WoobleSpawns:** the Pokédex shows where its wild Pokémon are.
+- **WoobleSpawns:** the Pokédex shows where its wild Pokémon are, forms included.
 - **WoobleSpritePack:** its animated sprites in the Pokédex, and its icons and pictures on the Game
   Boy games.
 

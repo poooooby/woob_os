@@ -630,6 +630,8 @@ return {
     ["dex.hint.scroll"] = "スクロール",
     ["dex.hint.tabs"] = "タブ",
     ["dex.hint.cry"] = "なきごえ",
+    ["dex.hint.form"] = "すがた",
+    ["dex.hint.view"] = "みる",
     ["dex.toMenu"] = "メニュー",
     ["dex.back"] = "もどる",
     ["dex.category"] = "%s ポケモン",

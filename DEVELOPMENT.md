@@ -579,7 +579,11 @@ screenshots each. Settings changed by hand during it are the real ones.
   POKéMON) in a sentence's case (`unshout`; HP PP TM HM kept). WoobleDex: `formsOf` + `formLabel`, `dynamax.gmaxMoveOf`.
   `Dx.reset` on `Pokemon.onReload`. `Dx.forms(entry, s)` (made when one's chosen: who's caught changes):
   the base, then each of WoobleDex's forms (a species of its own in the engine: its `slot`), seen / caught
-  by `Dex.isSeen` / `isCaught` on that slot; `Dx.wooble` is the tests' seam.
+  by `Dex.isSeen` / `isCaught` on that slot; `Dx.wooble` is the tests' seam. WoobleDex's `formsOf` answers
+  only for its own species (#387+): the cart's (Meowth, Vulpix ...) come from `listForms` by `baseDex`
+  (indexed once, `formIndex`, cleared by `Dx.reset`). `Dx.formEntry(base, f)`: an entry for a form (its
+  `sp`, the base's number and name, `numText` "052  ·  Alolan" once seen, `baseEntry`), opened like any
+  (`Dx.page` / `Dx.where`; a form without words of its own takes its base's description).
 - **WoobleSpawns** (`modern_spawns`, the owner's; `src/spawn_area.lua` Sa, both dex models, every game): while
   its `isActive()`, a page's Where is made again each time it's asked (`whereNow`: its tables change with the
   seed, the mode and EVERY MAP's visits). `Sa.rows(id)`: its exports `locate(id)` (maps -> kinds), then each
@@ -595,6 +599,10 @@ screenshots each. Settings changed by hand during it are the real ones.
   Where / Info, seen Where; "forms" after them while `#st.forms > 1` (the label is `dex.info.forms`).
   Not seen: `st.hint = { where = Dx.where(entry) }` when it's found somewhere (made in `choose`), the view's
   one Where card under the silhouette; `hasPage()` lets A / a tap open it.
+  Forms: `st.base` (the grid's), `st.formAt` (the one shown, 1 the base), `st.formSel` (the Forms tab's
+  cursor: Left / Right; A or a tap `A.FORM + i` opens it, `openForm`: `st.entry` the form's entry, its page,
+  its tabs by the same rules; an unseen one only where it's found somewhere, its Where card with the forms
+  under it). B from a form's page: the base's.
   `K.glassSwitch` takes a fourth segment after `size`.
 - **The window** (`src/apps/pokedex.lua` state and input, `src/apps/pokedex_view.lua` drawing; main.lua
   hands the view in as the window's third argument): wide (>= 190 units) the grid left and the page

@@ -31,6 +31,10 @@ All notable changes to this mod are documented here, in
   (TM41 Thunderpunch) and what it does: the move's description on Gold, Silver and Crystal, its type,
   power, accuracy and PP on Red, Blue and Yellow.
 - **PkMn** is drawn as the Game Boy games' small staggered letters, as in Oak's PkMn Talk.
+- **The Pokédex's forms open their own pages** (with WoobleDex): pick a form on the Forms tab for its
+  types, base stats, abilities, moves and where it's found in the wild (with WoobleSpawns), by the same
+  seen and caught rules as any Pokémon; B goes back to the base form. Regional forms of the original
+  Pokémon (Alolan Meowth, Galarian Zigzagoon ...) get a Forms tab too.
 
 ## [0.14.0] - 2026-11-15
 

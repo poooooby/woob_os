@@ -19,7 +19,10 @@
 --     move row = { name, typeId, typeName, power, acc, pp, physical, tag (level / TM / blank) }
 --   Dx.where(entry) -> the page's `where` alone (one not seen yet: where to look for it)
 --   Dx.forms(entry, s) -> { { sp, name, base, seen, caught }, ... } its forms (WoobleDex's), the base one first;
---                        {} when it has none (made when it's chosen: who's caught changes)
+--                        {} when it has none (made when it's chosen: who's caught changes); formsOf for
+--                        WoobleDex's own species, listForms (by base dex number) for the cart's
+--   Dx.formEntry(base, form) -> an entry for one of those forms (its own sp, the base's number and name,
+--                        `form` its name, numText "052  ·  Galarian", baseEntry): Dx.page / Dx.where take it
 --   Dx.reset(): everything made let go (a game switch, the engine's species pack reloaded)
 
 local floor, max, min = math.floor, math.max, math.min
@@ -73,9 +76,9 @@ return function(engine, deps)
     return T(key)
   end
 
-  local pages, prevOf, whereOf, entriesPack = {}, nil, nil, nil
+  local pages, prevOf, whereOf, entriesPack, formIndex = {}, nil, nil, nil, nil
   function Dx.reset()
-    pages, prevOf, whereOf, entriesPack = {}, nil, nil, nil
+    pages, prevOf, whereOf, entriesPack, formIndex = {}, nil, nil, nil, nil
   end
 
   local function family()
@@ -512,6 +515,11 @@ return function(engine, deps)
       pg.femaleText = ("%g%%"):format(floor(pg.female * 1000 + 0.5) / 10)
     end
     pg.description = description(sp)
+    -- (a form the game has no words for: its base's)
+    if (pg.description or "") == "" and entry.baseEntry and entry.baseEntry.sp ~= sp then
+      local okB, bd = pcall(description, entry.baseEntry.sp)
+      if okB and type(bd) == "string" then pg.description = bd end
+    end
     -- (abilities: each one's name and the game's words for it)
     pg.abilities = {}
     local ab = Pk._abilities and Pk._abilities[sp]
@@ -548,12 +556,33 @@ return function(engine, deps)
     return pg
   end
 
+  -- (WoobleDex's forms by their base's dex number, from listForms: formsOf answers only for its own
+  -- species, and the cart's (Meowth, Vulpix, Zigzagoon ...) have forms too; kept until a reset)
+  local function formsByDex(wd)
+    if formIndex then return formIndex end
+    formIndex = {}
+    local okL, all = pcall(wd.listForms or error)
+    for _, f in ipairs(okL and type(all) == "table" and all or {}) do
+      local d = tonumber(f.baseDex or f.dex)
+      if d and f.slot then
+        formIndex[d] = formIndex[d] or {}
+        table.insert(formIndex[d], f)
+      end
+    end
+    return formIndex
+  end
+
   -- (each form a species of its own in the engine: its slot, caught and seen in the game's own Pokédex)
   function Dx.forms(entry, s)
     local out = {}
     local wd = Dx.wooble and Dx.wooble()
-    if not (entry and wd and wd.formsOf) then return out end
-    local okF, forms = pcall(wd.formsOf, entry.nat)
+    if not (entry and wd and (wd.formsOf or wd.listForms)) then return out end
+    local okF, forms = false, nil
+    if wd.formsOf then okF, forms = pcall(wd.formsOf, entry.nat) end
+    if not (okF and type(forms) == "table" and #forms > 0) and wd.listForms then
+      forms = formsByDex(wd)[entry.nat]
+      okF = forms ~= nil
+    end
     if not (okF and type(forms) == "table" and #forms > 0) then return out end
     local Pk, Dex = P(), engine("src.core.game3.dex")
     local dex = dexOf(s) or {}
@@ -577,6 +606,19 @@ return function(engine, deps)
     end
     if #out < 2 then return {} end
     return out
+  end
+
+  -- a form's own entry, to open its page like any Pokémon's: the base's number and name, the form's
+  -- species (its types, stats, moves, where it's found), seen and caught as itself; `form` its name
+  function Dx.formEntry(base, f)
+    if not (base and f) then return nil end
+    if f.base then return base end
+    local Pk = P()
+    local t = Pk and Pk._types and Pk._types[f.sp]
+    return { sp = f.sp, nat = base.nat, num = base.num, name = base.name, form = f.name,
+             numText = f.seen and (base.numText .. "  ·  " .. tostring(f.name)) or base.numText,
+             seen = f.seen, caught = f.caught,
+             t1 = t and t[1] or base.t1, baseEntry = base }
   end
 
   Dx.titled = titled

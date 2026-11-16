@@ -757,7 +757,8 @@ return function(K, env, T, st, A, KINDS)
   end
 
   -- the forms (WoobleDex's), the base one first: a tile each, its picture (a silhouette until it's seen),
-  -- its name, a Poké Ball under it once it's caught
+  -- its name, a Poké Ball under it once it's caught; the one shown brightest, the cursor's ringed (a tap
+  -- or A opens one)
   local function formRows(x, y, w, clock)
     local list = st.forms
     local cols = max(2, floor(w / 26))
@@ -770,8 +771,14 @@ return function(K, env, T, st, A, KINDS)
       local ein = rowIn(clock, i)
       rise(ein, 3)
       local tile = K.R(tx + 1, ty, tw - 2, th - 2)
-      K.col(C.white, (f.base and 0.55 or 0.32) * K.getFade())
+      local shown = i == st.formAt
+      K.col(C.white, (shown and 0.78 or 0.32) * K.getFade())
       K.box("fill", tile, 3)
+      if shown then K.ring(tile, 3, C.white, 0.9, 0.4) end
+      if i == st.formSel and st.focus == "detail" and st.tabId == "forms" then
+        K.ring(tile, 3, C.accent, 1, 0.8)
+      end
+      K.addHit(tile, "win", A.FORM + i, pageArea)
       local ps = 16
       local px, py = tx + (tw - ps) / 2, ty + 1.5
       if f.seen then
@@ -869,6 +876,11 @@ return function(K, env, T, st, A, KINDS)
       glass(K.R(x, ty, w, tabH), 4)
       K.bold(word("dex.tab.where"), x + 3, ty + 3, 4.2, C.ink)
       local ch = whereRows(x + 5, ty + 13, w - 10, st.hint, clock)
+      -- (a form not seen yet: its forms under it, the way back to the others)
+      if #st.forms > 1 and st.formAt ~= 1 then
+        K.bold(word("dex.info.forms"), x + 3, ty + 17 + ch, 4.2, C.ink)
+        ch = ch + 12 + formRows(x + 5, ty + 27 + ch, w - 10, clock)
+      end
       settle(c1)
       st.tabH = ch + 18
       yy = ty + st.tabH + GAP
