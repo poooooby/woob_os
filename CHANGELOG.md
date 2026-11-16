@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-15
+
 ### Added
 - **Text size.** Settings > Display, or the mod option Text Size: Normal, Large (115%) or Larger
   (130%), for the text in every app, the desktop, WoobPad and notifications. Words that would run out
