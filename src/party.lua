@@ -211,7 +211,8 @@ return function(engine, deps)
                      MAIL = "party.act.mail", CANCEL = "party.act.cancel", GIVE = "party.act.give",
                      TAKE = "party.act.take", READ = "party.act.read", TAKE_MAIL = "party.act.take",
                      CANCEL2 = "party.act.cancel", ITEM_CANCEL = "party.act.cancel",
-                     SHIFT = "party.act.shift", ["SEND OUT"] = "party.act.sendOut" }
+                     SHIFT = "party.act.shift", ["SEND OUT"] = "party.act.sendOut", ENTER = "party.act.enter",
+                     ["NO ENTRY"] = "party.act.noEntry" }
   Pt.ACT_WORD = ACT_WORD
   local function row(act, g, fm)
     local key = ACT_WORD[act]
@@ -307,6 +308,19 @@ return function(engine, deps)
     rows[#rows + 1] = row("SUMMARY")
     rows[#rows + 1] = row("CANCEL")
     return hooked(c, i, rows, nil)
+  end
+
+  -- choosing a team: ENTER (or NO ENTRY once it's in), SUMMARY, CANCEL; one that can't go, SUMMARY only
+  function Pt.multiActions(c, i, order)
+    local rows = {}
+    if Pt.eligible(c, i) then
+      local inIt = false
+      for _, sl in ipairs(order or {}) do if sl == i then inIt = true end end
+      rows[1] = row(inIt and "NO ENTRY" or "ENTER")
+    end
+    rows[#rows + 1] = row("SUMMARY")
+    rows[#rows + 1] = row("CANCEL")
+    return rows
   end
 
   function Pt.itemActions(c, kind)
@@ -802,6 +816,93 @@ return function(engine, deps)
       end)
     end
     medicine(c, i, ui, mon, nil)
+  end
+
+  -- ------- choosing for something (the Day Care, a contest, a trade, the Frontier) and the Move Tutor
+
+  -- (may it go in? the caller's rule: a function (slot, mon), a list of 0-based slots, else able to battle)
+  function Pt.eligible(c, i)
+    local mon = c.party[i]
+    if not mon or mon.isEgg or (P() and call(P().isEgg, mon) == true) then return false end
+    local rule = c.eligible
+    if type(rule) == "function" then
+      local ok, yes = pcall(rule, i, mon)
+      return ok and yes and true or false
+    elseif type(rule) == "table" then
+      for _, sl in ipairs(rule) do if (tonumber(sl) or -1) + 1 == i then return true end end
+      return false
+    end
+    return (tonumber(mon.hp) or 0) > 0
+  end
+
+  -- the words when no more may go in (the caller's, else the game's "no more than two / three")
+  function Pt.fullText(c, max)
+    if c.chooseFullMessage then return c.chooseFullMessage end
+    if rse(c.session) then return box("gText_NoMoreThanVar1Pkmn", { tostring(max) }) end
+    return box(max == 2 and "gText_NoMoreThanTwoMayEnter" or "gText_NoMoreThanThreeMayEnter")
+  end
+  function Pt.noneText() return plainKey("gText_NoPokemonForBattle") end
+  function Pt.cancelText() return plainKey("gText_CancelBattle") end
+
+  -- the move the tutor teaches, and its name
+  function Pt.tutorMove(c)
+    local ML = engine("src.core.game3.move_learn")
+    local id = ML and tonumber(c.tutor) and call(ML.tutorMove, tonumber(c.tutor))
+    local p = P()
+    return id, id and tostring(call(p.moveName, id) or "") or ""
+  end
+
+  -- the tutor's move taught to the i-th (the game's TryTutorSelectedMon): its words, learning (a move to
+  -- forget through the summary), the result kept for the script (c.tutorResult)
+  function Pt.tutor(c, i, ui)
+    local mon = c.party[i]
+    local ML = engine("src.core.game3.move_learn")
+    local p = P()
+    local moveId, moveName = Pt.tutorMove(c)
+    if not (mon and moveId and ML) then return ui.close() end
+    local name = tostring(call(p.displayMonName, mon) or "")
+    local status = call(ML.canMonLearnTutorMove, mon, tonumber(c.tutor))
+    if status == ML.CANNOT_LEARN_MOVE or status == ML.CANNOT_LEARN_MOVE_IS_EGG then
+      return ui.say(box("gText_PkmnCantLearnMove", { name, moveName }), function() ui.close() end)
+    end
+    if status == ML.ALREADY_KNOWS_MOVE then
+      return ui.say(box("gText_PkmnAlreadyKnows", { name, moveName }), function() ui.close() end)
+    end
+    if (tonumber(call(p.moveSlotCount, mon)) or 4) < 4 then
+      if call(p.teachMove, mon, moveId) then
+        fanfare("MUS_LEVEL_UP")
+        ui.refresh()
+        return ui.say(box("gText_PkmnLearnedMove3", { name, moveName }), function()
+          c.tutorResult = true
+          ui.close()
+        end)
+      end
+      return ui.close()
+    end
+    local LearnMove = engine("src.core.game3.battle.learn_move")
+    c.learning = moveId
+    local o = learnOpts(c, i, ui, mon, name)
+    o.mon, o.moveId = mon, moveId
+    o.onDone = function(learned)
+      if learned then c.tutorResult = true end
+      ui.refresh()
+      ui.close()
+    end
+    local ok, err = pcall(LearnMove.begin, o)
+    if not ok then
+      log("the tutor: %s", tostring(err))
+      ui.close()
+    end
+  end
+
+  -- what each card says while choosing for the tutor
+  function Pt.tutorTag(c, mon)
+    local ML = engine("src.core.game3.move_learn")
+    if not (ML and mon and c.tutor) then return nil end
+    local status = call(ML.canMonLearnTutorMove, mon, tonumber(c.tutor))
+    if status == ML.ALREADY_KNOWS_MOVE then return "party.learned" end
+    if status == ML.CAN_LEARN_MOVE then return "party.able" end
+    return "party.notAble"
   end
 
   -- what each card says while an item's being used: a TM's (able / not able / learned), a stone's

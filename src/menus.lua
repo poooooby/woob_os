@@ -178,7 +178,8 @@ return function(engine, deps)
 
   -- ------- the party menu
 
-  local PARTY_MODES = { list = true, battle_switch = true, battle_faint = true, use = true, give = true }
+  local PARTY_MODES = { list = true, battle_switch = true, battle_faint = true, use = true, give = true, choose = true,
+                        choose_multi = true, move_tutor = true }
 
   -- (a link room, the Union Room, a link battle: the game's own)
   local function linked()
@@ -239,17 +240,26 @@ return function(engine, deps)
     cur = nil
     aliases(nil, false)
     local m, opts = c.menu, c.opts
+    local res = m.result or {}
     if PM then
       PM.open = false
       PM.mode = "list"
       PM.cursor = tonumber(m.cursor) or 1
+      -- (what callers read after: the team chosen (PartyMenu.chosenOrder), the tutor's result)
+      local order = {}
+      for k, sl in ipairs(res.list or {}) do order[k] = sl end
+      PM._chooseOrder = order
+      PM._tutorResult = m.tutorResult == true
     end
     if opts.onClose then
       local ok, err = pcall(opts.onClose)
       if not ok then log("the party's onClose failed: %s", tostring(err)) end
     end
-    local chosen = m.result and m.result.chosen
-    if chosen and opts.onSelect then
+    local chosen = res.chosen
+    if opts.onSelect and (res.list or res.cancelMulti) then
+      local ok, err = pcall(opts.onSelect, res.list)
+      if not ok then log("the party's onSelect failed: %s", tostring(err)) end
+    elseif chosen and opts.onSelect then
       local ok, err = pcall(opts.onSelect, chosen, m.party[chosen])
       if not ok then log("the party's onSelect failed: %s", tostring(err)) end
     end
@@ -323,7 +333,10 @@ return function(engine, deps)
     end
     local m = { kind = "party", party = view, order = order, overlay = ov, mode = mode, item = opts.item,
                 bag = opts.bag or (s and (s.bag or s.inventory)), giveSource = opts.giveSource, battle = battle,
-                double = opts.layout == "double", validate = o.validate, cursor = 1 }
+                double = opts.layout == "double", validate = o.validate, cursor = 1, count = opts.count,
+                eligible = opts.eligible, validateChosen = opts.validateChosen, chooseFullMessage = opts.chooseFullMessage,
+                immediateChooseCancel = opts.immediateChooseCancel, eggFails = opts.eggFails,
+                chooseCancelStart = opts.chooseCancelStart, tutor = opts.tutor, autoSlot = opts.autoSlot }
     local c = { kind = "party", opts = o, menu = m }
     cur = c
     local PM = engine("src.ui.game3.party_menu")
@@ -531,8 +544,28 @@ return function(engine, deps)
         if impl and impl.isOpen() then return end
         if o.reloadSprites then return o.reloadSprites(...) end
       end
+      -- (a caller's words over the party -- the Frontier's "no more than ..." as it opens again -- in ours)
+      o.showMessage, o.showYesNo = PM.showMessage, PM.showYesNo
+      PM.showMessage = function(text, onDismiss, ...)
+        local impl = w.impl
+        if impl and impl.isOpen() and impl.say(text, onDismiss) then return end
+        return o.showMessage(text, onDismiss, ...)
+      end
+      PM.showYesNo = function(text, cb, ...)
+        local impl = w.impl
+        if impl and impl.isOpen() and impl.ask(text, cb) then return end
+        return o.showYesNo(text, cb, ...)
+      end
     end
     w.impl = { openParty = Mn.openParty, isOpen = function() return cur ~= nil and cur.kind == "party" end,
+               say = function(text, after)
+                 local win = cur and cur.menu.win
+                 return win and win.say and win.say(text, after) or false
+               end,
+               ask = function(text, after)
+                 local win = cur and cur.menu.win
+                 return win and win.ask and win.ask(text, after) or false
+               end,
                closeOurs = function() return Mn.closeOurs() end,
                feed = function(input) if deps.feed then deps.feed(input) end end, log = log }
     return true

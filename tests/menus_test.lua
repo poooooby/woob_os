@@ -460,10 +460,76 @@ T.check(P.prompt and (tonumber(s.party[1].item) or 0) == ORAN, "give: held, the 
 through()
 T.check(not Tm.isOpen() and closes == 1, "and closed, onClose once")
 
+-- ------- phase 4: choosing one (the Day Care, a trade): A closes with it -- onClose, then onSelect(slot)
+order = {}
+P = open({ session = s, mode = "choose", onSelect = function(slot) order[#order + 1] = "select:" .. tostring(slot) end,
+           onClose = function() order[#order + 1] = "close" end })
+T.check(P and P.base == "choose", "choosing one: ours")
+pframe(1, "down")
+pframe(1, "a")
+T.check(not Tm.isOpen() and table.concat(order, " ") == "close select:2", "A: onClose, then onSelect(2) (" .. table.concat(order, " ") .. ")")
+order = {}
+P = open({ session = s, mode = "choose", onSelect = function() order[#order + 1] = "select" end,
+           onClose = function() order[#order + 1] = "close" end })
+pframe(1, "b")
+T.check(not Tm.isOpen() and table.concat(order, " ") == "close", "B: onClose only")
+-- (the caller's words over ours: PartyMenu.showMessage while it's up)
+P = open({ session = s, mode = "choose", onSelect = noop })
+local dismissed = false
+PM.showMessage("Hello there.", function() dismissed = true end)
+T.check(P.prompt and P.prompt.pages[1] == "Hello there.", "the caller's words in ours")
+pframe(1, "a")
+T.check(dismissed and Tm.isOpen(), "dismissed: its callback, still choosing")
+pframe(1, "b")
+
+-- ------- choosing a team (the Battle Tower / Frontier): ENTER two, Confirm; the order for the caller
+order = {}
+local readOrder
+P = open({ session = s, mode = "choose_multi", count = 2,
+           onSelect = function(list) order[#order + 1] = list and table.concat(list, ",") or "nil" end,
+           onClose = function() readOrder = PM.chosenOrder and table.concat(PM.chosenOrder(), ",") end })
+T.check(P and P.base == "choose_multi" and P.max == 2, "choosing a team: ours, two to choose")
+pframe(1, "a")
+T.eq(rowsOf(P), "ENTER SUMMARY CANCEL", "its menu: enter, summary, cancel")
+pickRow(P, "ENTER")
+T.check(P.order[1] == 1 and P.cards[1].orderN == 1, "the first in, its place on its card")
+pframe(1, "down")
+pframe(1, "down")
+pframe(1, "a")
+pickRow(P, "ENTER")
+T.check(#P.order == 2 and P.confirmFocus, "the second in: Confirm next")
+pframe(1, "up")
+pframe(1, "up")
+pframe(1, "a")
+pickRow(P, "ENTER")
+T.check(#P.order == 2 and P.prompt, "a third: the game's words (no more than two)")
+through()
+pframe(1, "start")
+pframe(1, "a")
+T.check(not Tm.isOpen() and order[1] == "1,3" and readOrder == "1,3",
+        "Confirm: onSelect({1, 3}), PartyMenu.chosenOrder() in onClose (" .. tostring(order[1]) .. " / " .. tostring(readOrder) .. ")")
+order = {}
+P = open({ session = s, mode = "choose_multi", count = 3, onSelect = function(list) order[#order + 1] = tostring(list) end })
+pframe(1, "b")
+T.check(P.prompt and P.prompt.kind == "yesno", "B: cancel? (the game's words)")
+pframe(1, "a")
+T.check(not Tm.isOpen() and order[1] == "nil", "yes: onSelect(nil)")
+
+-- ------- the Move Tutor: each card able / not; the result for the script
+local tutorRes
+P = open({ session = s, mode = "move_tutor", tutor = 0, onClose = function() tutorRes = PM._tutorResult end })
+T.check(P and P.base == "move_tutor" and P.cards[1].tag ~= nil, "the Move Tutor: ours, each card able / not able")
+pframe(1, "a")
+through(40)
+for _ = 1, 20 do
+  local Pp = party()
+  if not Pp then break end
+  if Pp.view == "summary" then pframe(1, "b") else pframe(1, (Pp.prompt or Pp.anim) and "a" or "b") end
+end
+T.check(not Tm.isOpen() and type(tutorRes) == "boolean", "taught or not: closed, PartyMenu._tutorResult set (" .. tostring(tutorRes) .. ")")
+
 -- ------- the game's own for its other callers
-T.check(Mn.openParty(s.party, nil, { session = s, mode = "choose", onSelect = noop }) == false, "choosing for the Day Care / a contest: not ours")
-T.check(Mn.openParty(s.party, nil, { session = s, mode = "choose_multi" }) == false, "choosing a team: not ours")
-T.check(Mn.openParty(s.party, nil, { session = s, mode = "move_tutor", tutor = 1 }) == false, "the Move Tutor: not ours")
+T.check(Mn.openParty(s.party, nil, { session = s, mode = "choose", onChoose = noop }) == false, "choosing with its own handling (the mailbox): not ours")
 T.check(Mn.openParty(s.party, nil, { session = s, mode = "use", item = POTION, battle = true, onSelect = noop }) == false,
         "an item from the game's bag in battle: not ours (until the Bag is)")
 T.check(Mn.openParty(s.party, nil, { session = s, mode = "battle_switch", multi = { [2] = true } }) == false, "a multi battle's: not ours")

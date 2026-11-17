@@ -16,8 +16,9 @@ All notable changes to this mod are documented here, in
   A on one: its summary, its field moves, Switch, Item (give, take) or Mail (read, take); in battle Shift
   or Send Out, the game's reasons when it can't. An item used from the Bag (HP bars filling, the game's
   words, a TM's able / not able / learned on each card, a Rare Candy's new stats, evolutions) and an item
-  given to hold happen there too. Choosing Pokémon for something (the Day Care, contests, the Battle
-  Frontier) and the Move Tutor keep the game's own.
+  given to hold happen there too. Choosing a Pokémon for someone (the Day Care, a trade), choosing a team
+  (the Battle Tower and Frontier: Enter / No Entry, its place on each card, Confirm with how many) and
+  the Move Tutor (each card able / not able / learned) happen there too.
 - **The Bag** on the same five games, in the same glass: each pocket a page with tabs (FireRed /
   LeafGreen's TM Case and Berry Pouch as pages), the chosen item's picture, words and count beside the
   list, a TM's move by name with its type, power, accuracy and PP. Use (an item on a Pokémon opens the

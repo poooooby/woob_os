@@ -21,7 +21,7 @@ local max, min = math.max, math.min
 
 -- hit args (the summary view's, the party's, the Bag's)
 local A = { SUM_BACK = 600, SUM_PREV = 601, SUM_NEXT = 602, SUM_PIC = 603, SUM_TAB = 610, SUM_MOVE = 620,
-            CARD = 700, MENU = 720, SCRIM = 740, CANCEL = 741, MSG = 742, YES = 743, NO = 744, PICK = 750,
+            CARD = 700, MENU = 720, SCRIM = 740, CANCEL = 741, MSG = 742, YES = 743, NO = 744, CONFIRM = 745, PICK = 750,
             POCKET = 800, QTY_DOWN = 811, QTY_UP = 812, QTY_OK = 813, ROW = 1000 }
 local SUM_TABS = { "sum.tab.info", "sum.tab.stats", "sum.tab.moves" }
 local NO_T = setmetatable({ list = function(l) return l end, f = string.format }, { __call = function(_, k) return k end })
@@ -184,6 +184,12 @@ return function(ctx, env, makeSummary, makeParty, makeBag)
     if st.closed then return false end
     if st.page == "bag" and st.bag then Bc.ui(st.bag).say(text, after) return true end
     if st.page == "party" and st.party then Pc.ui(st.party).say(text, after) return true end
+    return false
+  end
+  function W.ask(text, after)
+    if st.closed then return false end
+    if st.page == "bag" and st.bag then Bc.ui(st.bag).ask(text, after) return true end
+    if st.page == "party" and st.party then Pc.ui(st.party).ask(text, after) return true end
     return false
   end
   -- (a summary asked for from inside: a move to forget while the party's open)

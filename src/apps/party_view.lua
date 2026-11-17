@@ -39,6 +39,16 @@ return function(K, env, T, A, sumView)
   local hpText = K.textCache(function(k) return tostring(floor(k / 1000)) .. " / " .. tostring(k % 1000) end)
   local plus = K.textCache(function(n) return (n >= 0 and "+" or "") .. tostring(n) end)
   local numT = K.textCache(function(n) return tostring(n) end)
+  local countT = K.textCache(function(k) return tostring(floor(k / 100)) .. "/" .. tostring(k % 100) end)
+  -- (a team's place, 1 2 3, on its card's corner)
+  local function orderBadge(card, x, y)
+    if not card.orderN then return end
+    local r = 3.4
+    K.col(C.accent)
+    G.circle("fill", K.X(x + r), K.Y(y + r), r * K.sc)
+    K.ring(K.R(x, y, r * 2, r * 2), r, C.white, 0.9, 0.5)
+    K.bold(numT(card.orderN), x, y + r - 2.6, 4.2, C.white, "center", r * 2)
+  end
   -- the motion's numbers
   local mv = { r = 0.6, g = 0.6, b = 0.6, r2 = 0.6, g2 = 0.6, b2 = 0.6, coloured = false, lastT = nil,
                selX = nil, selY = nil, menuAt = 0, menu = nil, prompt = nil, promptAt = 0 }
@@ -205,6 +215,7 @@ return function(K, env, T, A, sumView)
     K.text(card.levelText, x, ty, 4.2, soft, "center", w, 0.9)
     ty = ty + lineH(4.2) + 1.5
     vitals(P, i, card, x + 5, ty, w - 10, 4.2, clock, dt, onDark)
+    orderBadge(card, x + 2, y + 2)
     K.addHit(b, "win", A.CARD + i)
   end
 
@@ -233,6 +244,7 @@ return function(K, env, T, A, sumView)
     K.text(card.levelText, tx, ny + lineH(ns), 3.8, soft, nil, nil, 0.9)
     if card.active then pill(T("party.inBattle"), tx + K.width(card.levelText, 3.8) + 2, ny + lineH(ns), 4.8, 3, C.accent) end
     vitals(P, i, card, x + w - right - 3, y + h / 2 - 2.2, right, 3.8, clock, dt, onDark)
+    orderBadge(card, x + 2, y + 2)
     K.addHit(b, "win", A.CARD + i)
   end
 
@@ -251,9 +263,11 @@ return function(K, env, T, A, sumView)
     elseif P.view == "softboiled" then title = T("party.useOnWhich") end
     local forced = P.base == "battle_faint"
     local bw = 0
+    local base = P.base
+    local picking = P.view == "switch" or P.view == "softboiled" or base == "use" or base == "give"
+      or base == "battleUse" or base == "choose" or base == "choose_multi" or base == "move_tutor"
     if not forced then
-      local label = T((P.view == "switch" or P.view == "softboiled" or P.base == "use" or P.base == "give")
-        and "hint.cancel" or (P.c.battle and "hint.back" or "hint.close"))
+      local label = T(picking and "hint.cancel" or (P.c.battle and "hint.back" or "hint.close"))
       bw = K.width(label, 4.2) + 8
       local bb = K.R(x + w - bw, y + 1.5, bw, 8)
       K.col(C.white, 0.55)
@@ -261,6 +275,21 @@ return function(K, env, T, A, sumView)
       K.ring(bb, 4, C.white, 0.8, 0.3)
       K.text(label, bb[1], bb[2] + (8 - 4.2 * 1.2) / 2, 4.2, C.accent, "center", bw)
       K.addHit(bb, "win", A.CANCEL)
+    end
+    -- (choosing a team: Confirm, with how many of how many)
+    if base == "choose_multi" then
+      local label = T("party.confirm")
+      local cnt = countT(#P.order * 100 + P.max)
+      local cw = K.width(label, 4.2) + K.width(cnt, 3.8) + 12
+      local cb = K.R(x + w - bw - cw - 3, y + 1.5, cw, 8)
+      local any = #P.order > 0
+      K.col(any and C.accent or C.white, any and 0.95 or 0.55)
+      K.box("fill", cb, 4)
+      if P.confirmFocus then K.ring(cb, 4, C.accent, 0.9, 1) K.focusRing(cb, 4) end
+      K.text(label, cb[1] + 4, cb[2] + (8 - 4.2 * 1.2) / 2, 4.2, any and C.white or C.accent)
+      K.text(cnt, cb[1], cb[2] + (8 - 3.8 * 1.2) / 2, 3.8, any and C.white or C.soft, "right", cw - 4)
+      K.addHit(cb, "win", A.CONFIRM)
+      bw = bw + cw + 3
     end
     local fs = K.fit(title, 6, w - bw - 6)
     K.bold(title, x + 1, y + (TOP_H - fs * 1.2) / 2, fs, C.ink)

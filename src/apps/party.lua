@@ -24,6 +24,8 @@ local HINTS = {
   msg = { { "A", "hint.ok" } },
   yesno = { { "< >", "hint.move" }, { "A", "hint.ok" }, { "B", "party.no" } },
   pick = { { "^ v", "hint.move" }, { "A", "hint.ok" }, { "B", "hint.cancel" } },
+  multi = { { "A", "hint.choose" }, { "START", "party.confirm" }, { "B", "hint.cancel" } },
+  confirm = { { "A", "party.confirm" }, { "^", "hint.back" }, { "B", "hint.cancel" } },
 }
 
 return function(env, T, A, Ctl)
@@ -48,6 +50,16 @@ return function(env, T, A, Ctl)
           local okT, tag = pcall(Pt.tag, c, mon)
           card.tag = okT and tag and T(tag) or nil
           card.tagOk = okT and tag == "party.able"
+        elseif c.mode == "move_tutor" then
+          local okT, tag = pcall(Pt.tutorTag, c, mon)
+          card.tag = okT and tag and T(tag) or nil
+          card.tagOk = okT and tag == "party.able"
+        elseif c.mode == "choose_multi" then
+          -- (choosing a team: its place in the order, or that it can't go)
+          local okE, yes = pcall(Pt.eligible, c, i)
+          if not (okE and yes) then card.tag, card.tagOk = T("party.notAble"), false end
+          card.orderN = nil
+          for k, sl in ipairs(P.order or {}) do if sl == i then card.orderN = k end end
         end
         card.active = c.battle and (i == 1 or (c.double and i == 2)) or false
         P.cards[i] = card
@@ -63,10 +75,13 @@ return function(env, T, A, Ctl)
   function Pc.open(m, ctx)
     local c = { session = ctx.session or (env.session and env.session()), party = m.party or {}, order = m.order,
                 bag = m.bag, item = m.item, giveSource = m.giveSource, battle = m.battle == true, mode = m.mode or "list",
-                double = m.double == true, overlay = m.overlay }
+                double = m.double == true, overlay = m.overlay, eligible = m.eligible, tutor = m.tutor,
+                chooseFullMessage = m.chooseFullMessage }
     if not c.bag and c.session then c.bag = c.session.bag or c.session.inventory end
     local P = { m = m, c = c, cards = {}, cur = 1, n = 0, view = "pick", base = c.mode, menu = nil, prompt = nil,
-                anim = nil, sum = nil, from = nil, at = now(), openAt = now(), lastRight = 2, hp = {} }
+                anim = nil, sum = nil, from = nil, at = now(), openAt = now(), lastRight = 2, hp = {},
+                order = {}, max = max(1, tonumber(m.count) or 0), autoSlot = tonumber(m.autoSlot) }
+    if c.mode == "choose_multi" and (tonumber(m.count) or 0) <= 0 then P.max = 3 end
     refresh(P)
     P.cur = max(1, min(tonumber(m.cursor) or 1, max(1, P.n)))
     m.cursor = P.cur
@@ -74,6 +89,13 @@ return function(env, T, A, Ctl)
     if c.item and (c.mode == "use" or c.mode == "battleUse" or c.mode == "give") and env.itemName then
       P.itemName = env.itemName(c.item)
       P.title = T.f(c.mode == "give" and "party.giveTo" or "party.useOn", P.itemName)
+    elseif c.mode == "choose" then
+      P.title = T("party.choose")
+    elseif c.mode == "choose_multi" then
+      P.title = T.f("party.chooseN", P.max)
+    elseif c.mode == "move_tutor" then
+      local okM, _, moveName = pcall(Pt.tutorMove, c)
+      P.title = T.f("party.teach", okM and moveName or "")
     elseif c.mode == "battle_faint" then
       P.title = T("party.sendOutWhich")
     elseif c.battle then
@@ -231,6 +253,57 @@ return function(env, T, A, Ctl)
     P.done = true
   end
 
+  -- ------- choosing a team (choose_multi): in, out, done, or not after all
+
+  local function enter(P, i)
+    P.menu, P.view = nil, "pick"
+    if #P.order >= P.max then
+      se("SE_FAILURE")
+      return uiOf(P).say(Pt.fullText(P.c, P.max), function() back(P, "list") end)
+    end
+    se("SE_SELECT")
+    P.order[#P.order + 1] = i
+    refresh(P)
+    if #P.order == P.max then P.confirmFocus = true end
+  end
+  local function leave(P, i)
+    P.menu, P.view = nil, "pick"
+    se("SE_SELECT")
+    for k, sl in ipairs(P.order) do if sl == i then table.remove(P.order, k) break end end
+    P.confirmFocus = false
+    refresh(P)
+  end
+  local function confirm(P)
+    local v = P.m.validateChosen
+    local list = {}
+    for k, sl in ipairs(P.order) do list[k] = sl end
+    if v then
+      local ok, why = pcall(v, list)
+      if ok and why then
+        se("SE_FAILURE")
+        return uiOf(P).say(why, function() back(P, "list") end)
+      end
+    end
+    if #list == 0 then
+      se("SE_FAILURE")
+      return uiOf(P).say(Pt.noneText(), function() back(P, "list") end)
+    end
+    se("SE_SELECT")
+    P.m.result = { list = list }
+    P.done = true
+  end
+  local function cancelMulti(P)
+    se("SE_SELECT")
+    local function out()
+      P.order = {}
+      P.m.result = { cancelMulti = true }
+      P.done = true
+    end
+    if P.m.immediateChooseCancel then return out() end
+    uiOf(P).ask(Pt.cancelText(), function(yes) if yes then out() else back(P, "list") end end)
+  end
+  Pc.confirm = confirm
+
   local function runRow(P, r)
     local c, i = P.c, P.menu and P.menu.i or P.cur
     local act = r.act
@@ -264,6 +337,10 @@ return function(env, T, A, Ctl)
       run(P, Pt.readMail, c, i, ui)
     elseif act == "SHIFT" or act == "SEND OUT" then
       choose(P, i)
+    elseif act == "ENTER" then
+      enter(P, i)
+    elseif act == "NO ENTRY" then
+      leave(P, i)
     elseif act == "HOOK" then
       se("SE_SELECT")
       P.menu, P.view = nil, "pick"
@@ -298,6 +375,19 @@ return function(env, T, A, Ctl)
       return run(P, Pt.softboiled, c, P.from, i, uiOf(P))
     end
     local base = P.base
+    if base == "choose" then
+      if card.egg and P.m.eggFails then return se("SE_FAILURE") end
+      return choose(P, i)
+    end
+    if base == "move_tutor" then
+      if card.egg then return se("SE_FAILURE") end
+      se("SE_SELECT")
+      return run(P, Pt.tutor, c, i, uiOf(P))
+    end
+    if base == "choose_multi" then
+      P.mainRows = Pt.multiActions(c, i, P.order)
+      return openMenu(P, P.mainRows, "main")
+    end
     if base == "use" or base == "give" or base == "battleUse" then
       if card.egg then return se("SE_FAILURE") end
       if base == "use" then return run(P, Pt.use, c, i, uiOf(P)) end
@@ -315,7 +405,10 @@ return function(env, T, A, Ctl)
 
   -- what the window does next: "close" (done), "bag" (the Bag over the party, choosing what to give)
   function Pc.result(P)
-    if P.done then return "close" end
+    if P.done then
+      P.m.tutorResult = P.c.tutorResult
+      return "close"
+    end
     if P.wantBag then return "bag" end
     return nil
   end
@@ -328,6 +421,7 @@ return function(env, T, A, Ctl)
       return
     end
     if P.base == "battle_faint" then return se("SE_FAILURE") end
+    if P.base == "choose_multi" then return cancelMulti(P) end
     se("SE_SELECT")
     P.m.result = { chosen = nil }
     P.done = true
@@ -440,9 +534,29 @@ return function(env, T, A, Ctl)
       end
       return Pc.result(P)
     end
+    -- (choosing a team: the Confirm button below the cards, START straight to it)
+    if P.base == "choose_multi" and P.view == "pick" then
+      if P.confirmFocus then
+        if nv.up then P.confirmFocus = false se("SE_SELECT")
+        elseif pressed("a") or pressed("start") then confirm(P)
+        elseif pressed("b") then cancel(P) end
+        return Pc.result(P)
+      end
+      if pressed("start") then
+        P.confirmFocus = true
+        se("SE_SELECT")
+        return Pc.result(P)
+      end
+      if nv.down and P.cur == P.n then
+        P.confirmFocus = true
+        se("SE_SELECT")
+        return Pc.result(P)
+      end
+    end
     nav(P, nv)
+    local startCancels = P.view == "pick" and not P.c.battle and not (P.base == "choose" and P.m.chooseCancelStart == false)
     if pressed("a") then act(P, P.cur)
-    elseif pressed("b") or (pressed("start") and P.view == "pick" and not P.c.battle) then cancel(P) end
+    elseif pressed("b") or (pressed("start") and startCancels) then cancel(P) end
     return Pc.result(P)
   end
 
@@ -501,6 +615,8 @@ return function(env, T, A, Ctl)
     end
     if arg == A.CANCEL then
       cancel(P)
+    elseif arg == A.CONFIRM then
+      confirm(P)
     elseif arg > A.CARD and arg <= A.CARD + 6 then
       local i = arg - A.CARD
       if P.cards[i] then
@@ -518,6 +634,15 @@ return function(env, T, A, Ctl)
   function Pc.tick(P, clock)
     local a = P.anim
     if a and clock - a.t0 >= a.dur then finishAnim(P) end
+    -- (the tutor's script naming the one already: straight to it)
+    if P.autoSlot and P.base == "move_tutor" and not P.prompt then
+      local i = P.autoSlot
+      P.autoSlot = nil
+      if P.cards[i] then
+        P.cur, P.m.cursor = i, i
+        run(P, Pt.tutor, P.c, i, uiOf(P))
+      end
+    end
     if Pt.pump then pcall(Pt.pump) end
     return Pc.result(P)
   end
@@ -544,6 +669,10 @@ return function(env, T, A, Ctl)
       h = HINTS.menu
     elseif P.view == "switch" or P.view == "softboiled" or P.base == "use" or P.base == "give"
         or P.base == "battleUse" then
+      h = HINTS.pickFor
+    elseif P.base == "choose_multi" then
+      h = P.confirmFocus and HINTS.confirm or HINTS.multi
+    elseif P.base == "choose" or P.base == "move_tutor" then
       h = HINTS.pickFor
     elseif P.base == "battle_faint" then
       h = HINTS.forced

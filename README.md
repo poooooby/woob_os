@@ -33,7 +33,8 @@ controller, a touch screen, or a mouse and keyboard.
   is six glass cards over lights in the chosen Pokémon's colours: the lead's picture, every Pokémon's
   level, HP, status and held item. Each one's menu has its summary, its field moves, Switch and its item or
   mail; in battle, Shift or Send Out. Items used from the Bag (a Potion's HP filling, a TM's able / not
-  able on every card, a Rare Candy's new stats) and items given to hold happen there too. A Pokémon's
+  able on every card, a Rare Candy's new stats), items given to hold, choosing a Pokémon for the Day Care
+  or a trade, choosing a team for the Battle Tower and Frontier, and the Move Tutor happen there too. A Pokémon's
   summary is the same glass as the Boxes' one: its picture, info, stats with IVs and EVs, and moves. When a
   Pokémon learns a new move with four already, you choose the one to forget there, with the new move shown
   below.
