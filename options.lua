@@ -60,6 +60,13 @@ return {
     description = "The nurse's counter opens a close-up of the nurse, and your team heals in the healing machine. Off: the game's own nurse.",
   },
   {
+    key = "modernMenus",
+    label = "Modern Menus",
+    type = "toggle",
+    default = true,
+    description = "A Pokémon's summary opens in WoobOS's glass, from the Pokémon menu and in battle, and when it's time to forget a move (FireRed, LeafGreen, Ruby, Sapphire, Emerald). Off: the game's own.",
+  },
+  {
     key = "mapInvertX",
     label = "Map: Invert X",
     type = "toggle",

@@ -16,8 +16,7 @@
 --
 --   View(K, env, T, st, A, TABS) -> { draw(body, clock, portrait, S) }
 
-local floor, max, min, sin, cos, pi, abs, exp = math.floor, math.max, math.min, math.sin, math.cos, math.pi,
-  math.abs, math.exp
+local floor, max, min, sin, cos, pi, abs = math.floor, math.max, math.min, math.sin, math.cos, math.pi, math.abs
 
 local M, GAP = 3, 2
 local NARROW = 200          -- narrower than this (units): one column
@@ -50,24 +49,10 @@ local CONTEST_C = { [0] = { 232, 72, 64 }, { 64, 120, 240 }, { 240, 120, 176 }, 
 local INFO_SLOT = { "i1", "i2", "i3", "i4", "i5", "i6", "i7", "i8", "i9", "i10", "i11", "i12", "i13", "i14" }
 
 local function clamp01(t) return t < 0 and 0 or (t > 1 and 1 or t) end
-local function outCubic(t)
-  t = clamp01(t)
-  local u = 1 - t
-  return 1 - u * u * u
-end
-local function outBack(t)
-  t = clamp01(t)
-  local u = t - 1
-  return 1 + 2.70158 * u * u * u + 1.70158 * u * u
-end
-local function approach(cur, target, dt, rate)
-  local v = cur + (target - cur) * (1 - exp(-dt * rate))
-  if abs(target - v) < 0.002 then return target end
-  return v
-end
 
 return function(K, env, T, st, A, TABS)
   local V = {}
+  local outCubic, outBack, approach = K.outCubic, K.outBack, K.approach
   local G = nil
   local num = K.textCache(function(n) return tostring(n) end)
   local posText = K.textCache(function(k) return tostring(k % 1000) .. " / " .. tostring(floor(k / 1000)) end)
@@ -231,7 +216,7 @@ return function(K, env, T, st, A, TABS)
 
   -- ------- the top: back, which of the list, the arrows
   local function drawTop(x, y, w, S)
-    local label = word("app.storage")
+    local label = word(S.back or "app.storage")
     local bb = K.R(x, y, K.width(label, 4.2) + 8, TOP_H)
     K.chevron(x + 2, y + 4.5, 4.2, C.accent, -1)
     K.text(label, x + 4.8, y + 2, 4.2, C.accent)
@@ -592,9 +577,17 @@ return function(K, env, T, st, A, TABS)
   end
   local function movesTab(x, y, w, R, S, clock, dt)
     local moves = R.moves
+    -- (choosing one to forget: the question above, the move it would learn as a fifth row)
+    local learn = S.learn
+    local n = #moves + (learn and 1 or 0)
     local rh = 10
     local yy = y
-    if #moves == 0 then
+    if learn then
+      local q = word("sum.forget")
+      K.bold(q, x + 1.5, yy, K.fit(q, 4, w - 3), C.accent)
+      yy = yy + 6.5
+    end
+    if n == 0 then
       K.text(word("dex.moves.none"), x + 2, yy + 1, 3.6, C.soft)
       return 8
     end
@@ -610,18 +603,29 @@ return function(K, env, T, st, A, TABS)
     else
       mv.movePrev = nil
     end
-    for i = 1, #moves do
-      local m = moves[i]
+    for i = 1, n do
+      local m = moves[i] or learn
       local ry = yy + (i - 1) * rh
       local ein = rowIn(clock, i)
       rise(ein, 3)
+      local nx = x
+      if i > #moves then
+        -- (the new one: a line above it, its tag)
+        K.hairline(x + 1, ry - 0.4, w - 2)
+        local tag = word("sum.new")
+        local tw = K.width(tag, 2.8) + 4
+        K.col(C.swap)
+        K.box("fill", K.R(x + 1.5, ry + 1.9, tw, 4.4), 2.2)
+        K.bold(tag, x + 1.5, ry + 2.4, 2.8, C.white, "center", tw)
+        nx = x + tw + 1.5
+      end
       if S.swap == i then
         local sb = K.R(x - 0.5, ry - 0.6, w + 1, rh - 0.4)
         K.col(C.swap, 0.14 + 0.08 * sin(clock * 6))
         K.box("fill", sb, 2.5)
         K.ring(sb, 2.5, C.swap, 0.9, 0.7)
       end
-      local pw = pill(m.typeId, m.typeName, x + 1.5, ry + 1.8, 5.4, 3.1)
+      local pw = pill(m.typeId, m.typeName, nx + 1.5, ry + 1.8, 5.4, 3.1) + (nx - x)
       K.bold(m.name, x + 3.5 + pw, ry + 1.5, K.fit(m.name, 4, w - pw - 30), C.ink)
       if not m.status then
         K.col(m.physical and C.phys or C.spec)
@@ -634,8 +638,14 @@ return function(K, env, T, st, A, TABS)
       K.addHit(K.R(x, ry, w, rh), "win", A.SUM_MOVE + i, pageArea)
       settle(ein)
     end
-    yy = yy + #moves * rh + 2
-    local m = sel and moves[sel]
+    yy = yy + n * rh + 2
+    -- (an HM the game won't let go)
+    if S.hm then
+      local hm = word("sum.hm")
+      K.text(hm, x + 1.5, yy, K.fit(hm, 3.4, w - 3), C.ppOut)
+      yy = yy + 6
+    end
+    local m = sel and (moves[sel] or (sel == n and learn) or nil)
     if not m then
       K.text(word("sum.movesHint"), x + 1.5, yy, K.fit(word("sum.movesHint"), 3.4, w - 3), C.soft)
       return yy + 6 - y

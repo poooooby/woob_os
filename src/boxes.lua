@@ -529,6 +529,38 @@ return function(engine)
     return word(T, "sum.egg.long")
   end
 
+  -- one move as the summary shows it (its PP left of its most; with no numbers, the move's own: a move to
+  -- learn) -> { id, slot, name, typeId, typeName, pp, maxPp, ppText, powerText, accText, physical, status,
+  -- desc, contest }
+  function Bx.moveRecord(id, T, slot, pp, maxPp)
+    local P = Pokemon()
+    local SD = engine("src.core.game3.summary_data")
+    local Types = engine("src.core.game3.battle.types")
+    local m = call(P and P.battleMove, id)
+    m = type(m) == "table" and m or {}
+    maxPp = tonumber(maxPp) or tonumber(m.pp) or 5
+    pp = tonumber(pp) or maxPp
+    local t = tonumber(m.type) or 0
+    local power, acc = tonumber(m.power) or 0, tonumber(m.accuracy) or 0
+    local name = tostring(call(P and P.moveName, id) or ("#" .. id))
+    local rec = {
+      id = id, slot = slot, name = titled(name), typeId = t,
+      typeName = tostring(call(Types and Types.name, t) or ""), pp = pp, maxPp = maxPp,
+      ppText = ("%d/%d"):format(pp, maxPp), powerText = power > 1 and tostring(power) or "—",
+      accText = acc > 0 and (tostring(acc) .. "%") or "—", physical = call(Types and Types.isPhysical, t) == true,
+      status = power == 0, desc = tostring(call(SD and SD.moveDescription, id, name) or ""):gsub("%s+", " "),
+      contest = contestOf(id),
+    }
+    if rec.contest then rec.contest.categoryName = word(T, CONTEST[rec.contest.category] or CONTEST[0]) end
+    return rec
+  end
+
+  -- a move the game keeps from being forgotten (an HM), as the summary's own refuses it
+  function Bx.isHm(id)
+    local P = Pokemon()
+    return call(P and P.isHmMove, tonumber(id)) == true
+  end
+
   -- one Pokémon's summary -> the page (words made here, never while it draws):
   --   { mon, egg, sp, name, speciesName, dexText, level, levelText, gender ("M" | "F" | nil), shiny, types,
   --     info = { { label, value, tint ("male" | "female" | nil) } }, abilityName, abilityDesc, memo, eggText,
@@ -647,25 +679,10 @@ return function(engine)
     for slot = 1, 4 do
       local id = tonumber(call(P and P.moveIdAt, mon, slot))
       if id and id ~= 0 then
-        local m = call(P and P.battleMove, id)
-        m = type(m) == "table" and m or {}
         local entry = mon.moves[slot]
         local maxPp = tonumber(type(entry) == "table" and entry.maxPp) or tonumber(mon.maxPp and mon.maxPp[slot])
-          or tonumber(m.pp) or 5
-        local pp = tonumber(type(entry) == "table" and entry.pp) or tonumber(mon.pp and mon.pp[slot]) or maxPp
-        local t = tonumber(m.type) or 0
-        local power, acc = tonumber(m.power) or 0, tonumber(m.accuracy) or 0
-        local name = tostring(call(P and P.moveName, id) or ("#" .. id))
-        got.moves[#got.moves + 1] = {
-          id = id, slot = slot, name = titled(name), typeId = t,
-          typeName = tostring(call(Types and Types.name, t) or ""), pp = pp, maxPp = maxPp,
-          ppText = ("%d/%d"):format(pp, maxPp), powerText = power > 1 and tostring(power) or "—",
-          accText = acc > 0 and (tostring(acc) .. "%") or "—", physical = call(Types and Types.isPhysical, t) == true,
-          status = power == 0, desc = tostring(call(SD and SD.moveDescription, id, name) or ""):gsub("%s+", " "),
-          contest = contestOf(id),
-        }
-        local c = got.moves[#got.moves].contest
-        if c then c.categoryName = word(T, CONTEST[c.category] or CONTEST[0]) end
+        local pp = tonumber(type(entry) == "table" and entry.pp) or tonumber(mon.pp and mon.pp[slot])
+        got.moves[#got.moves + 1] = Bx.moveRecord(id, T, slot, pp, maxPp)
       end
     end
     -- (Galar Rising's Dynamax: the level and the G-Max Factor, kept by WoobleDex on the Pokémon)

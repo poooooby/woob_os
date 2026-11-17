@@ -53,6 +53,7 @@ return function(mod, loadSibling)
   local makePokecenter, pokecenterWindow = loadSibling(mod, "src/gb/pokecenter.lua"), loadSibling(mod, "src/apps/pokecenter.lua")
   local pokecenterView, makeNurseArt = loadSibling(mod, "src/apps/pokecenter_view.lua"), loadSibling(mod, "src/nurse_art.lua")
   local stallView = loadSibling(mod, "src/apps/stall_view.lua")
+  local summaryCtl = loadSibling(mod, "src/apps/summary_ctl.lua")
   local makeLighting = loadSibling(mod, "src/lighting.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell and makeHost) then return end
 
@@ -478,6 +479,7 @@ return function(mod, loadSibling)
   end
   env.nurse = makeNurseArt and makeNurseArt(mod) or nil
   env.stallView = stallView or nil
+  env.summaryCtl = summaryCtl or nil
   env.lighting = makeLighting and makeLighting({ log = function(fmt, ...) mod.log:warn(fmt, ...) end }) or nil
 
   -- (Gold / Silver / Crystal: the Pokégear's phone book; a tap stands in for A in a call's boxes)

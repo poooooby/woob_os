@@ -10,6 +10,7 @@ tests/map3d_test.lua
 tests/pokenav_test.lua
 tests/pokedex_test.lua
 tests/pokecenter_test.lua
+tests/menus_test.lua
 tests/world_test.lua
 tests/world3d_test.lua
 docs/app-icons.png

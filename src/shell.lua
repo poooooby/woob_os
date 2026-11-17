@@ -148,7 +148,16 @@ return function(mod, deps)
   -- (the 3D Town Map's: full screen, as the game's own map)
   local MapLayer = { isMenu = true }
   Sh.mapLayer = MapLayer
-  function MapLayer.handleInput(input) if Tm then Tm.input(input) end end
+  -- (its input once a frame: the stack's top layer gets it in the field, and in a battle the game hands it
+  -- to a screen we stand in for -- src/menus.lua -- which sends it here; both in one frame, only the first)
+  local frameN, fedAt = 0, -1
+  local function feed(input)
+    if not Tm or fedAt == frameN then return end
+    fedAt = frameN
+    Tm.input(input)
+  end
+  function MapLayer.handleInput(input) feed(input) end
+  function Sh.feedHost(input) if Tm and Tm.isOpen() then feed(input) end end
   function MapLayer.update() end
   MapLayer.draw = Layer.draw
 
@@ -477,7 +486,7 @@ return function(mod, deps)
     if not (app and app.window) then return false end
     o = o or {}
     local ctx = { session = s, mode = o.mode or "pokenav", family = familyOf(gameId()), rows = {}, app = appId,
-                  shop = o.shop, nurse = o.nurse }
+                  shop = o.shop, nurse = o.nurse, menu = o.menu }
     if state then ctx.resume = { app = appId, state = state } end
     function ctx.row() return nil end
     local closed = false
@@ -771,6 +780,7 @@ return function(mod, deps)
   -- whole window, else a notification's banner over the field once the player is free
   local tickAt = -1
   function Sh.frame(game, viewport)
+    frameN = frameN + 1
     local G = love and love.graphics
     local t = love and love.timer and love.timer.getTime() or 0
     if deps.tick and (t - tickAt >= 1 or t < tickAt) then
@@ -791,7 +801,15 @@ return function(mod, deps)
     local gone
     if H then gone = h ~= nil and not H.has(id) else gone = h and Stack and Stack.has and not Stack.has(id) end
     if gone then
-      h.close()
+      -- (a modern menu's: closed as B would, so the game hears back; anything else just closes)
+      local r = h == Tm and Tm.state and Tm.state() or nil
+      if r and r.ctx and r.ctx.menu and r.opts and r.opts.cancel then
+        local okC, errC = pcall(r.opts.cancel)
+        if not okC and log then log:warn("the menu's close failed: %s", tostring(errC)) end
+        if Tm.isOpen() then Tm.close() end
+      else
+        h.close()
+      end
       pad(false)
       h = nil
     end

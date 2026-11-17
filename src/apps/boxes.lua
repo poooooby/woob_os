@@ -41,11 +41,6 @@ local HINTS = {
   [DRAG] = { { "A", "hint.grab" }, { "SELECT", "hint.mode" }, { "L R", "hint.box" }, { "START", "hint.menu" } },
   held = { { "A", "hint.drop" }, { "B", "hint.cancel" }, { "L R", "hint.box" }, { "SELECT", "hint.mode" } },
   sheet = { { "A", "hint.choose" }, { "B", "hint.back" } },
-  sum = { { "^ v", "sum.hint.mon" }, { "L R", "hint.tab" }, { "A", "dex.hint.cry" }, { "B", "hint.back" } },
-  sumMoves = { { "^ v", "sum.hint.mon" }, { "L R", "hint.tab" }, { "A", "sum.hint.moves" }, { "B", "hint.back" } },
-  sumMove = { { "^ v", "sum.hint.move" }, { "B", "hint.back" } },
-  sumMoveSwap = { { "^ v", "sum.hint.move" }, { "A", "sum.hint.swap" }, { "B", "hint.back" } },
-  sumSwapping = { { "^ v", "sum.hint.move" }, { "A", "sum.hint.here" }, { "B", "hint.cancel" } },
 }
 local ACTIONS = { "boxes.move", "boxes.summary", "boxes.item", "boxes.release" }
 local ITEM_ACTIONS = { "boxes.take", "boxes.give" }
@@ -232,27 +227,10 @@ return function(ctx, env, makeView, makeSummary)
     ctx.over(open, state())
   end
 
-  -- ------- the summary (st.sum while it's up)
-
-  local function cry(rec)
-    if not rec or rec.egg then return end
-    if env.dexSprite then env.dexSprite.start(rec.sp, rec.shiny) end
-    st.sum.at = now()
-    if env.cry then pcall(env.cry, rec.sp) end
-  end
-  -- the i-th of the list shown (its page made here, an action, never a draw), its cry
-  local function showSum(i, quiet)
-    local S = st.sum
-    local n = #S.list
-    if n == 0 then return end
-    i = (i - 1) % n + 1
-    S.i, S.move, S.swap, S.top = i, nil, nil, 0
-    S.rec = Bx.summary(session(), S.list[i], T)
-    S.at = now()
-    if not quiet then se("SE_SELECT") end
-    cry(S.rec)
-  end
+  -- ------- the summary (st.sum while it's up): its state and input src/apps/summary_ctl.lua's (env.summaryCtl)
+  local Ctl = env.summaryCtl and env.summaryCtl(env, T, A, SUM_TABS) or nil
   local function summary(addr)
+    if not Ctl then return end
     local s = session()
     local list, index
     if addr.loc == "party" then
@@ -275,88 +253,19 @@ return function(ctx, env, makeView, makeSummary)
     putBack()
     st.sheet = nil
     -- (the game reorders a party Pokémon's moves from its summary, never a boxed one's)
-    st.sum = { list = list, i = index, rec = nil, tab = 1, move = nil, swap = nil, party = addr.loc == "party",
-               top = 0, h = 0, vis = 0, at = now(), openAt = now(), lines = {}, shown = { 0, 0, 0, 0, 0, 0 } }
-    showSum(index, true)
+    st.sum = Ctl.open(list, index, { session = session, party = addr.loc == "party" })
   end
   W.summary = summary
   local function closeSum()
     st.sum = nil
-    if env.dexSprite then env.dexSprite.stop() end
-    se("SE_SELECT")
-  end
-  local function sumTab(t)
-    local S = st.sum
-    t = (t - 1) % #SUM_TABS + 1
-    if t == S.tab then return end
-    S.tab, S.move, S.swap, S.top = t, nil, nil, 0
-    se("SE_SELECT")
-  end
-  -- a move chosen: the first time it's shown; again (a party Pokémon's), picked up to swap; another
-  -- picked while one is held: the two trade places
-  local function sumMove(k)
-    local S = st.sum
-    local moves = S.rec and S.rec.moves or {}
-    if not moves[k] then return end
-    if S.swap then
-      if S.swap ~= k then
-        local mon = S.list[S.i]
-        if Bx.swapMoves(mon, moves[S.swap].slot, moves[k].slot) then
-          S.rec = Bx.summary(session(), mon, T)
-        end
-      end
-      S.swap, S.move = nil, k
-      return se("SE_SELECT")
-    end
-    if S.move == k and S.party and #moves > 1 then S.swap = k
-    else S.move = k end
-    se("SE_SELECT")
+    Ctl.stop()
   end
   local function sumInput(input, nav)
-    local S = st.sum
-    local moves = S.rec and S.rec.moves or {}
-    if S.move then
-      if nav.up then
-        if S.move > 1 then S.move = S.move - 1 se("SE_SELECT") end
-      elseif nav.down then
-        if S.move < #moves then S.move = S.move + 1 se("SE_SELECT") end
-      elseif pressed("a") then
-        if S.party and #moves > 1 then
-          if S.swap then sumMove(S.move)
-          else
-            S.swap = S.move
-            se("SE_SELECT")
-          end
-        end
-      elseif pressed("b") then
-        if S.swap then S.swap = nil else S.move = nil end
-        se("SE_SELECT")
-      end
-      return true
-    end
-    if pressed("b") then closeSum()
-    elseif pressed("l") or nav.left then sumTab(S.tab - 1)
-    elseif pressed("r") or nav.right then sumTab(S.tab + 1)
-    elseif nav.up then if #S.list > 1 then showSum(S.i - 1) end
-    elseif nav.down then if #S.list > 1 then showSum(S.i + 1) end
-    elseif pressed("a") then
-      if S.tab == 3 and #moves > 0 then
-        S.move = 1
-        se("SE_SELECT")
-      else
-        cry(S.rec)
-      end
-    end
+    if Ctl.input(st.sum, input, nav) == "close" then closeSum() end
     return true
   end
   local function sumTap(arg)
-    local S = st.sum
-    if arg == A.SUM_BACK then return closeSum() end
-    if arg == A.SUM_PREV then return showSum(S.i - 1) end
-    if arg == A.SUM_NEXT then return showSum(S.i + 1) end
-    if arg == A.SUM_PIC then return cry(S.rec) end
-    if arg > A.SUM_TAB and arg <= A.SUM_TAB + #SUM_TABS then return sumTab(arg - A.SUM_TAB) end
-    if arg > A.SUM_MOVE and arg <= A.SUM_MOVE + 4 then return sumMove(arg - A.SUM_MOVE) end
+    if Ctl.tap(st.sum, arg) == "close" then closeSum() end
   end
   W.SUM_TABS = SUM_TABS
   local function rename()
@@ -737,12 +646,7 @@ return function(ctx, env, makeView, makeSummary)
   end
 
   function W.hints()
-    local S = st.sum
-    if S then
-      if S.swap then return T.list(HINTS.sumSwapping) end
-      if S.move then return T.list(S.party and HINTS.sumMoveSwap or HINTS.sumMove) end
-      return T.list(S.tab == 3 and HINTS.sumMoves or HINTS.sum)
-    end
+    if st.sum and Ctl then return Ctl.hints(st.sum) end
     if st.sheet then return T.list(HINTS.sheet) end
     if st.held then return T.list(HINTS.held) end
     return T.list(HINTS[st.mode])
@@ -750,7 +654,7 @@ return function(ctx, env, makeView, makeSummary)
 
   -- B, log off, the desktop closing: nothing stays in the hand; caught Pokémon go to this box
   function W.close()
-    if st.sum and env.dexSprite then env.dexSprite.stop() end
+    if st.sum and Ctl then Ctl.stop() end
     st.sum = nil
     st.rect = nil
     if st.held then Bx.putBack(session(), st.held) end

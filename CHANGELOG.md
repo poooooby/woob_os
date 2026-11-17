@@ -5,6 +5,13 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **The Pokémon summary** on FireRed, LeafGreen, Ruby, Sapphire and Emerald: from the Pokémon menu in
+  the field and in battle, a Pokémon's summary opens in the same glass as the Boxes' (its picture, info,
+  stats with IVs and EVs, moves, moves reordered outside battle). Choosing a move to forget (a TM, a
+  level up, an evolution, the Move Tutor, Relearner and Deleter) happens there too, the new move below
+  the four. The Modern Menus option turns it off. (The party menu and the Bag follow.)
+
 ## [0.17.2] - 2026-11-17
 
 ### Added

@@ -67,6 +67,8 @@ return function(mod)
   local makeBx, boxesWindow = loadSibling(mod, "src/boxes.lua"), loadSibling(mod, "src/apps/boxes.lua")
   local boxesView = loadSibling(mod, "src/apps/boxes_view.lua")
   local boxesSummary = loadSibling(mod, "src/apps/boxes_summary.lua")
+  local summaryCtl = loadSibling(mod, "src/apps/summary_ctl.lua")
+  local makeMenus, menusWindow = loadSibling(mod, "src/menus.lua"), loadSibling(mod, "src/apps/menus.lua")
   local Arrange = loadSibling(mod, "src/arrange.lua")
   local makeMart, martWindow = loadSibling(mod, "src/mart.lua"), loadSibling(mod, "src/apps/mart.lua")
   -- the real shops: every shop counter opens the Mart full screen (src/realshop.lua; src/shop.lua the
@@ -672,6 +674,7 @@ return function(mod)
     return anchorArt[key] or nil
   end
   env.nurse = makeNurseArt and makeNurseArt(mod) or nil
+  env.summaryCtl = summaryCtl or nil
   env.stallView = stallView or nil
   env.lighting = makeLighting and makeLighting({ log = function(fmt, ...) mod.log:warn(fmt, ...) end }) or nil
   -- (a species by the game's own name for it, "KYOGRE")
@@ -1314,7 +1317,21 @@ return function(mod)
       return env.pokecenter.command(nxt, ctx, op, row, ...)
     end)
   end
+  -- the modern menus (src/menus.lua): the game's Summary, in our glass (the option "modernMenus")
+  local Menus = nil
+  if makeMenus and menusWindow and boxesSummary and summaryCtl then
+    Apps.register({ id = "menus", labelKey = "menus.title", label = "Menus", glyph = "pokeball",
+                    color = { 10, 132, 255 }, order = 99, pad = false, available = function() return false end,
+                    window = function(ctx, e) return menusWindow(ctx, e, boxesSummary) end })
+    Menus = makeMenus(engine, {
+      Sh = Sh, on = function() return option("modernMenus", true) ~= false end,
+      feed = function(input) Sh.feedHost(input) end,
+      log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+    })
+    env.menus = Menus
+  end
   mod.events:on("game.ready", function()
+    if Menus then pcall(Menus.wrap) end
     if RealShop then
       local okR, errR = pcall(RealShop.wrap)
       if not okR then mod.log:warn("the shops keep their own menus: %s", tostring(errR)) end
@@ -1401,7 +1418,7 @@ return function(mod)
   mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
                         mart = env.mart, auction = env.auction, slots = env.slots, pcgames = env.pcgames, gts = env.gts,
                         bank = env.bank, journal = env.journal, challenges = env.challenges, errands = env.errands,
-                        swarm = env.swarm, news = env.news, story = env.story, pokecenter = env.pokecenter,
+                        swarm = env.swarm, news = env.news, story = env.story, pokecenter = env.pokecenter, menus = env.menus,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange,
                         watch = Watch, pad = Watch, notify = Nt, tick = tick, map3d = env.map3d, townmap = TownMap,
                         phone = env.phone, condition = env.condition, ribbons = env.ribbons, hall = env.hall, oak = env.oak, decorate = env.decorate, pokenav = Pokenav, onCall = onCall, gear = Gear, gearPanel = GearPanel }

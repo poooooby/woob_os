@@ -199,7 +199,8 @@ return function(deps)
       end
       b[1], b[2], b[3], b[4] = 0, TOOL + 0.5, pw, ph - TOOL - 0.5 - (r.opts.noHints and 0 or Tm.FOOT)
     else
-      b[1], b[2], b[3], b[4] = 0, 0, pw, ph
+      -- (no toolbar: the whole page; an app's above its hints when it has some -- the map keeps clear itself)
+      b[1], b[2], b[3], b[4] = 0, 0, pw, ph - ((r.opts.noHints or not r.opts.maker) and 0 or Tm.FOOT)
     end
     local ok, err = pcall(w.draw, b, clock, pw < ph)
     if not ok then log("the full-screen %s's draw failed: %s", tostring(r.ctx.app), tostring(err)) end

@@ -1256,6 +1256,35 @@ The mod option `realShops`; with it off, or anything failing, the game's own scr
   driver's runs (the engine runs `pokemartdecoration` only with the VM's `specialLayout` family "rse");
   the vitamin stall (the Energy Guru) opens ours; the TM stall's vendor isn't there in a new game.
 
+## The modern menus
+
+The game's own Summary, Party menu and Bag replaced on FireRed / LeafGreen / Ruby / Sapphire / Emerald by
+our own, in phases (the plan: the Summary, then the Party, then the Bag); the mod option `modernMenus`.
+
+- **The takeover** (`src/menus.lua`, Mn): `src.ui.game3.summary_menu`'s `openMenu` wrapped once per process
+  (`SummaryMenu.__woobOs = { orig, impl }`). Ours for the party menu's SUMMARY (field and battle: no
+  `context`) and every `mode = "select_move"` caller (battle level up `Ui.askForget`, the party menu's TM /
+  Rare Candy / Move Tutor, the evolution scene, the Move Relearner, the Move Deleter with `forgetMove`); the
+  game's for `context` "box" / "factory" / "party" (Ruby / Sapphire's Day Care) and trades (`mode
+  "trade"`, `enemyParty`, `owner`). Opens `Sh.openFull("menus", ..., { menu, chrome = false })`; answers as the
+  game's: `SummaryMenu._cursor`, `onClose(cursor)`, then `onSelectMove(slot 0..3 | nil)`.
+- **In battle** the game doesn't route input through the UI stack: it asks `SummaryMenu.isOpen()` and calls
+  `update / handleInput / draw` itself (`battle/init.lua` `party_menu_input`, the level up's learning). While
+  ours is open those wrappers answer for it: `isOpen` true, `handleInput` to the host through `Sh.feedHost`
+  (the host takes input once a frame: the field's layer and the battle's call in one frame, the first only),
+  `update` / `draw` nothing, `close` ours as B (a battle's end).
+- **The shell**: `ctx.menu` passed to the window; a modern menu's layer taken away by the game closes it as B
+  (`opts.cancel`), so the caller hears back; a full-screen app window without a toolbar sits above its hints.
+- **The window** (`src/apps/menus.lua`): the summary's state and input are `src/apps/summary_ctl.lua`'s (also
+  the Boxes' now: `Ctl.open / show / input / tap / hints`, `S.picked` the answer), drawn by
+  `src/apps/boxes_summary.lua` (`S.back` the top's word; `S.learn` a fifth row marked New, the question above,
+  `S.hm` the refusal; the kit's motion). `Bx.moveRecord(id, T, slot, pp, maxPp)` makes any move's row (the
+  move to learn), `Bx.isHm(id)`.
+- **Tests**: `tests/menus_test.lua` (all five games; Ruby / Sapphire's own summary has no art headless, so
+  there only that ours declines). In-game: the scratchpad's `menus_driver.lua` (the party menu's SUMMARY,
+  a wild battle's POKéMON → SUMMARY via `BattleBridge.startWild`, `Ui.askForget`; A through the battle's
+  opening words; the first input after opening is the host's wait for the opening A to be let go).
+
 ## The Pokémon Center
 
 The nurse's counter opens `src/apps/pokecenter.lua` (+ `_view.lua`, the view passed as the window's third
