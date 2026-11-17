@@ -28,6 +28,10 @@ All notable changes to this mod are documented here, in
   so do the berry trees (the Berries only), the Berry Blender, the PC's item storage (deposit how many) and
   a shop's selling (how many, what it comes to). Teachy TV keeps the game's own.
 
+### Fixed
+- A notification's banner no longer stays over the START menu, a summary, the Bag or a message opened while
+  it was showing: it waits, and slides in again (without its sound twice) once you're back in the field.
+
 ## [0.17.2] - 2026-11-17
 
 ### Added

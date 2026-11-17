@@ -813,6 +813,9 @@ return function(mod, deps)
       pad(false)
       h = nil
     end
+    -- (a full-screen game screen of ours -- the modern menus, the 3D map, the Pokémon Center -- shows no banner:
+    -- one that was up waits for the field again; the PC and WoobPad show their own)
+    if h and h == Tm and Nt then pcall(Nt.step, t, false) end
     -- (a game screen opened over a modern menu -- the bag to give from, the mail reader, an evolution:
     -- ours waits under it, not drawn, until it's gone)
     if h and h == Tm and Stack and Stack.top then

@@ -129,6 +129,16 @@ return function(deps)
       local age = clock - showT
       if age >= IN + HOLD + OUT or age < 0 then
         showing = nil
+      elseif not canShow then
+        -- (the field gone under it -- the START menu, a summary, the Bag, a message: the banner waits at
+        -- the front of the queue and comes back when the field's free again; one already leaving just goes)
+        if age < IN + HOLD then
+          for i = nQueue, 1, -1 do queue[i + 1] = queue[i] end
+          queue[1] = showing
+          nQueue = nQueue + 1
+        end
+        showing = nil
+        return nil
       else
         local k = age < IN and age / IN or (age > IN + HOLD and 1 - (age - IN - HOLD) / OUT or 1)
         return showing, k * k * (3 - 2 * k)
@@ -141,7 +151,11 @@ return function(deps)
     nQueue = nQueue - 1
     if clock - rec.t > STALE then return Nt.step(clock, canShow) end
     showing, showT = rec, clock
-    se(SOUND[rec.kind])
+    -- (its sound once: not again when it comes back after waiting)
+    if not rec.sounded then
+      rec.sounded = true
+      se(SOUND[rec.kind])
+    end
     return rec, 0
   end
   function Nt.showing() return showing end

@@ -608,6 +608,20 @@ Nt.drawField(G, FVP, true, clock)
 clock = clock + Nt.IN + Nt.HOLD + Nt.OUT + 0.1
 T.check(not Nt.drawField(G, FVP, true, clock) and Nt.showing() == nil, "untapped: it slides away")
 T.check(Sh.pointer({ id = 1, phase = "pressed", x = 100, y = 20 }) == nil, "and a tap there is the game's again")
+-- one showing when a menu opens over the field (START, a summary): it waits, then comes back whole
+Nt.push("soon", { name = "EEVEE", sp = spOf(133) })
+T.check(Nt.drawField(G, FVP, true, clock), "a banner in the field")
+clock = clock + 1
+T.check(not Nt.drawField(G, FVP, false, clock) and Nt.showing() == nil and Nt.waiting() == 1,
+        "a menu over the field: gone, and waiting again")
+clock = clock + 30
+T.check(not Nt.drawField(G, FVP, false, clock) and Nt.waiting() == 1, "it keeps waiting while the menu's up")
+clock = clock + 1
+T.check(Nt.drawField(G, FVP, true, clock) and Nt.showing() ~= nil, "the field again: it slides in again")
+clock = clock + Nt.IN + Nt.HOLD - 0.2
+T.check(Nt.drawField(G, FVP, true, clock), "held its whole time from there")
+clock = clock + Nt.OUT + 0.5
+Nt.drawField(G, FVP, true, clock)
 -- the setting off: the list only
 Settings.set("notifications", false)
 Nt.push("outbid", { name = "MEW" })

@@ -571,7 +571,11 @@ Settings app's choice row), `b.soon` kept in the record; "won" / "lost" in `Au.s
 - **Banners:** a queue of three (older than ten minutes: the list only), `Nt.step(clock, canShow)`
   shows them one at a time (`IN` / `HOLD` / `OUT`). With no host open, `Sh.frame` draws the
   field's (`Nt.drawField`, `K.place` on the game's own pixels, `Nt.FIELD`) only while `Sh.free(game)`
-  (the engine's quicksave test: the field, not `Hud.busy()`, `Hud.startButtonAllowed()`); a press
+  (the engine's quicksave test: the field, not `Hud.busy()`, `Hud.startButtonAllowed()`); one showing
+  when the field stops being free (a menu, a script's message) goes back to the queue's front unless it was
+  already sliding out, and comes back whole without its sound again (`rec.sounded`); the full-screen host
+  (`Tm`: the modern menus, the 3D map, the Pokémon Center) steps it as not free, so the banner waits there
+  too (the desktop and WoobPad show their own); a press
   on it (`Nt.hitField`) opens the watch on that app. The desktop shows it under its menu bar, the
   watch over its screen (hits "notify" / "wbanner"). Settings' `notifications` off: list only.
 - **The tick** moved to the shell: `main.lua`'s `tick()` once a second from `render.hud`, wherever
