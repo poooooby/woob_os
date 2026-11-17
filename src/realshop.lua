@@ -210,7 +210,10 @@ return function(engine, deps)
     local mapId, place, floorNum = where()
     local kind = decor and "decor" or nil
     if mapId:upper():find("HERB", 1, true) then kind = "herb" end
-    local theme, kindKey = Th.pick({ map = mapId, kind = kind or "mart", names = names })
+    -- (out in the open -- a town's, a city's or a route's own map, not a building's: Slateport's market)
+    local bare = mapId:upper():gsub("^%u%u_", "")
+    local outdoor = bare:match("^[%u_]+_CITY$") ~= nil or bare:match("^[%u_]+_TOWN$") ~= nil or bare:match("^ROUTE%d+$") ~= nil
+    local theme, kindKey = Th.pick({ map = mapId, kind = kind or "mart", names = names, outdoor = outdoor })
     local T = deps.T
     local sub = T and T("shop.kind." .. kindKey) or kindKey
     local fl = floorText(floorNum)

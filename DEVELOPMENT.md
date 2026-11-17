@@ -1025,8 +1025,11 @@ the voxel diorama mod in the engine's checkout either (another author's).
   `newscaster-cheer.png` and `newscaster-shock.png` (sixteen each: 0 at rest, 1 and 2 the reaction
   coming on, 3 on the mood held while she talks). The model gives each story its `mood` ("cheer":
   the Gym, a clean sweep, a signing or catch new to the Pokédex, a hatch, an evolution, the week's
-  challenges all done; "shock": the swarm, the outbreak, the storm, anything shiny, a legendary or
-  mythical auction; nil: the rest). The window loads the sheets its stories need as it opens, and
+  challenges all done, a big week (`WEEK_HUGE`); "shock": the storm, the story's breaking beats,
+  anything shiny the rookie catches; nil: the rest, the day's swarm, the TV's outbreak and R-Bay among
+  them). The week's story says its tally as it is (`news.week.tr0 / tr1 / trN`, `ca*`, `st*`: none,
+  one or how many) and a word that fits it (`quiet` / `steady` / `busy` / `huge`, by trainers beaten
+  plus Pokémon caught against `WEEK_BUSY` / `WEEK_HUGE`). The window loads the sheets its stories need as it opens, and
   its close-up draws her at whole pixels as tall as the shot, the frame from `frameOf(art, mood)`:
   everyday, the frames in turn at `TALK_FPS` while the words type (0 otherwise); in a mood, 1 and 2
   at the cut (`LEAD`, before the words start at 0.25 s), 3 on round and round while they type, the
@@ -1241,6 +1244,17 @@ The mod option `realShops`; with it off, or anything failing, the game's own scr
   the pharmacy, a rooftop), then its place (souvenir shops, the Indigo Plateau, department stores), a
   department store's floor by what its shelves mostly hold (balls, medicine, battle items, TMs, gifts),
   else the Mart's blue. The sign: the kind of shop, and the floor for department stores.
+- **Stalls out in the open** (2026-11-17, from in-game shots of Slateport's market): a counter on a
+  town's, a city's or a route's own outdoor map (`realshop.lua`: the map's id, its two-letter prefix off,
+  `^..._CITY$` / `^..._TOWN$` / `^ROUTE%d+$`) is `where.outdoor`: the `stall` theme and kind (the sign
+  "Market Stall"). The Mart window draws it with `env.stallView` (`src/apps/stall_view.lua`) in place of
+  its shopfront: `backdrop` (the sky for the hour as the greeting reads it, the sun or the moon, clouds or
+  stars, the sea's swell and glitter, gulls, the beach with its foam line) and `front` (the pale blue and
+  white tent, its poles and shade, the vendor, a wooden table with a cloth, the stall's first goods on it,
+  a cash box where the coins land); the stall is wider (`cw`). A standalone preview of every time of day:
+  the scratchpad's `stallshot/`. In-game, Slateport's two decoration stalls opened no shop at all in the
+  driver's runs (the engine runs `pokemartdecoration` only with the VM's `specialLayout` family "rse");
+  the vitamin stall (the Energy Guru) opens ours; the TM stall's vendor isn't there in a new game.
 
 ## The Pokémon Center
 

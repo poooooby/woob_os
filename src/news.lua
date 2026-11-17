@@ -14,8 +14,8 @@
 -- (src/swarm.lua). The last time they watched is kept in the save (mod.save "news"), and the swarm's
 -- notification once a day. Each story has the anchor's mood for it: "cheer" for the rookie's big
 -- moments (a Gym, a clean sweep, a first for the Pokédex, a hatch, an evolution, the week's challenges
--- all done), "shock" for breaking news and anything shiny or legendary, none (her everyday read) for
--- the rest.
+-- all done, a big week), "shock" for breaking news and anything shiny or legendary in the rookie's
+-- own story, none (her everyday read) for the rest -- the day's swarm, the TV's outbreak and R-Bay too.
 --
 --   Nw = News(engine, deps)  deps: save ; now() ; journal ; swarm ; auction ; gts ; errands ;
 --       challenges ; story (src/story.lua) ; storm(s) -> { kind, place } | nil ; place(mapId) -> its name ;
@@ -33,6 +33,9 @@ local floor, max, min = math.floor, math.max, math.min
 local TIER_RANK = { common = 1, uncommon = 2, rare = 3, prized = 4, legendary = 5, mythical = 6 }
 local MOMENTS = 4      -- the journal's moments told at most
 local BEATS_NEW = 3    -- the story's beats told at most, when several came since they last watched
+-- the week's word on it, by the trainers beaten and the Pokémon caught since Monday: none, a quiet start;
+-- under WEEK_BUSY a steady week; under WEEK_HUGE a busy one; past it, the whole region's talking
+local WEEK_BUSY, WEEK_HUGE = 6, 15
 
 -- the story's beats: what the headline and the words are given, in order (me = the player, team, legend;
 -- groudon / kyogre the two by name), whose story it is, the anchor's mood, a picture when it has no
@@ -332,7 +335,16 @@ return function(engine, deps)
       for _, st in ipairs(rookie(Jr, me)) do list[#list + 1] = st end
       local tr, ca, steps = Jr.count("trainer"), Jr.count("caught"), Jr.count("steps")
       if tr + ca + steps > 0 then
-        add("you", "week", T.f("news.week.head", me), T.f("news.week.body", me, tr, ca, steps), { glyph = "chart", color = { 255, 55, 95 } })
+        -- (the tally as it is -- none, one or how many of each -- and a word on the week that fits it: the
+        -- region talks only about a big one)
+        local trW = tr == 0 and T("news.week.tr0") or (tr == 1 and T("news.week.tr1") or T.f("news.week.trN", tr))
+        local caW = ca == 0 and T("news.week.ca0") or (ca == 1 and T("news.week.ca1") or T.f("news.week.caN", ca))
+        local stW = steps == 0 and T("news.week.st0") or (steps == 1 and T("news.week.st1") or T.f("news.week.stN", steps))
+        local done = tr + ca
+        local close = done == 0 and T("news.week.quiet") or (done < WEEK_BUSY and T("news.week.steady")
+          or (done < WEEK_HUGE and T("news.week.busy") or T("news.week.huge")))
+        add("you", "week", T.f("news.week.head", me), T.f("news.week.lede", me, trW, caW, stW) .. " " .. close,
+          { glyph = "chart", color = { 255, 55, 95 }, mood = done >= WEEK_HUGE and "cheer" or nil })
       end
     end
     -- (the world: the story first -- the weather while a legend is loose, its beats, where Latias / Latios
@@ -357,13 +369,13 @@ return function(engine, deps)
     if sw then
       local where, who = place(sw.mapId), name(sw.species)
       add("world", "swarm", T.f("news.swarm.head", who, where), T.f("news.swarm.body", who, where, sw.min, sw.max),
-        { sp = sw.species, mood = "shock" })
+        { sp = sw.species })
     end
     local ob = s and s.outbreak
     if type(ob) == "table" and tonumber(ob.species) and (not sw or tonumber(ob.species) ~= sw.species) then
       local who, where = name(tonumber(ob.species)), place(ob.map)
       add("world", "outbreak", T.f("news.outbreak.head", who, where), T.f("news.outbreak.body", who, where),
-        { sp = tonumber(ob.species), mood = "shock" })
+        { sp = tonumber(ob.species) })
     end
     local storm = deps.storm and deps.storm(s)
     if type(storm) == "table" and storm.place then
@@ -386,8 +398,7 @@ return function(engine, deps)
         local tierWord = T("auction.tier." .. tostring(best.tier or "common"))
         add("world", "rbay", T.f("news.rbay.head", name(best.sp)),
           T.f("news.rbay.body", tierWord, name(best.sp), commas(tonumber(best.price) or 0)),
-          { sp = best.sp, glyph = "rocket", color = { 196, 30, 44 },
-            mood = (best.shiny or (TIER_RANK[best.tier] or 0) >= TIER_RANK.legendary) and "shock" or nil })
+          { sp = best.sp, glyph = "rocket", color = { 196, 30, 44 } })
       end
     end
     -- (the rest since they last watched, the newest few: the latest catch is the signing already;

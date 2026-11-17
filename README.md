@@ -21,8 +21,9 @@ controller, a touch screen, or a mouse and keyboard.
   from an errand, a challenge is done, and more. Pull down from the top of the screen to see them all.
 - 🛍️ **App Store:** remove the apps you don't want from your home screen, and get them back later.
 - 🏪 **Real shops:** every shop counter opens the Mart full screen with that shop's own goods: Poké
-  Marts, every department store floor, herb shops, the pharmacy, souvenir and decoration shops and the
-  Underground's bargain stall, each dressed for its place and what it sells.
+  Marts, every department store floor, herb shops, the pharmacy, souvenir and decoration shops, the
+  Underground's bargain stall and Slateport's market stalls by the sea, each dressed for its place and
+  what it sells.
 - 🏥 **Pokémon Center:** talk to the nurse and she greets you in a close-up behind her counter, in a
   room drawn after Emerald's own Pokémon Center. Choose to heal and your Pokémon go into the healing
   machine: a ball for each, the machine's glow and its jingle, and their health filling back up.

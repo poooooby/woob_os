@@ -5,6 +5,19 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- Slateport's market stalls are stalls: the sky for the time of day over the sea, the beach in front,
+  and the vendor under a blue and white market tent behind a table with their goods set out on it and a
+  cash box.
+
+### Changed
+- The News's anchor reads the day's swarms, outbreaks and R-Bay auctions calmly, her everyday way.
+
+### Fixed
+- Rookie Watch's week says what the week really was: a quiet start when no trainers are beaten and no
+  Pokémon caught yet, a steady or busy week as they add up, and only a big week has the whole region
+  talking. One of anything is said as one.
+
 ## [0.17.1] - 2026-11-17
 
 ### Changed

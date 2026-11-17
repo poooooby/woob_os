@@ -3,11 +3,12 @@
 -- its shelves (balls and trainer goods sky blue, medicine mint, battle items orange, TMs violet, gifts and
 -- stones pink, decorations pastel), so Celadon, Goldenrod and Lilycove come out right floor by floor
 -- whatever each keeps where; a rooftop is sunny, an herb shop leaf green on wood, the pharmacy white and
--- teal, a souvenir shop rustic, the Underground's bargain stall dim neon, the Indigo Plateau navy and gold.
+-- teal, a souvenir shop rustic, the Underground's bargain stall dim neon, the Indigo Plateau navy and gold;
+-- a stall out in the open (a town's own map: Slateport's market) the market tent's pale blue, by the sea.
 --
 --   Th = require-free: Th.pick(where) -> theme, kindKey
 --     where = { map (the map's id or label), kind ("mart" | "herb" | "pharmacy" | "bargain" | "decor" |
---               "rooftop"), names = { the goods' names } }
+--               "rooftop"), names = { the goods' names }, outdoor (the counter's out in the open: a stall) }
 --     theme = { stripe, stripeDeep, stripe2 (the awning's two stripes), light (the lights behind),
 --               goods = { the shelves' colours } }
 --     kindKey: the word for the shop (lang/*.lua "shop.kind.<key>")
@@ -53,6 +54,9 @@ local THEMES = {
   neon = { stripe = rgb(236, 60, 200), stripeDeep = rgb(150, 20, 140), stripe2 = rgb(40, 34, 80),
            light = rgb(140, 70, 255), goods = { rgb(255, 80, 220), rgb(60, 230, 255), rgb(255, 230, 60),
                                                 rgb(120, 255, 140) } },
+  stall = { stripe = rgb(96, 150, 230), stripeDeep = rgb(48, 100, 190), stripe2 = rgb(250, 252, 255),
+            light = rgb(120, 196, 255), goods = { rgb(255, 120, 110), rgb(90, 190, 240), rgb(255, 214, 100),
+                                                  rgb(130, 220, 170) } },
   league = { stripe = rgb(30, 50, 120), stripeDeep = rgb(14, 26, 74), stripe2 = rgb(250, 214, 110),
              light = rgb(90, 110, 220), goods = { rgb(255, 210, 90), rgb(255, 255, 255), rgb(120, 150, 255),
                                                   rgb(220, 90, 90) } },
@@ -102,7 +106,9 @@ function Th.pick(where)
   where = where or {}
   local map = tostring(where.map or ""):upper()
   local kind = where.kind or "mart"
-  -- (the kind of counter first: the Underground has the herb shop and the bargain stall both)
+  -- (out in the open, a stall, whatever it sells; then the kind of counter: the Underground has the herb
+  -- shop and the bargain stall both)
+  if where.outdoor then return THEMES.stall, "stall" end
   if kind == "decor" then return THEMES.decor, "decor" end
   if kind == "bargain" then return THEMES.neon, "bargain" end
   if kind == "herb" then return THEMES.herb, "herb" end

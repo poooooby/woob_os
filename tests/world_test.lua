@@ -640,12 +640,39 @@ if Sw and Nw then
   T.check(type(cast.ticker) == "string" and cast.ticker:find(cast.stories[1].head, 1, true), "the ticker: the headlines")
   -- (the anchor's mood for each)
   T.check(gym and gym.mood == "cheer" and m1 and m1.mood == "cheer" and sg and sg.mood == "cheer"
-    and swarmSt and swarmSt.mood == "shock", "her moods: a Gym, a clean sweep, a first cheer her; the swarm shocks her")
+    and swarmSt and swarmSt.mood == nil, "her moods: a Gym, a clean sweep, a first cheer her; the swarm her everyday read")
   T.check(m2 and m2.mood == nil and byKey.week and byKey.week.mood == nil, "a 1-1 win and the week: her everyday read")
   local again = Nw.build(s)
   local moments = false
   for _, st in ipairs(again.stories) do if st.key == "catch" then moments = true end end
   T.check(not moments, "watched: the same moments aren't told twice")
+  -- (the week's word fits its tally: nothing done is a quiet start, never the region talking; one of each
+  -- in the singular; only a big week has the region talking, and her cheering)
+  local count0, news0 = Jr.count, fakeSave.data.news
+  local function weekWith(tr, ca, steps)
+    Jr.count = function(k)
+      if k == "trainer" then return tr elseif k == "caught" then return ca elseif k == "steps" then return steps end
+      return count0(k)
+    end
+    fakeSave.data.news = nil
+    local okB, c = pcall(Nw.build, s)
+    Jr.count = count0
+    if okB then for _, st in ipairs(c.stories) do if st.key == "week" then return st end end end
+    return nil
+  end
+  local wq = weekWith(0, 0, 40)
+  T.check(wq and has(wq.body, "no trainers beaten yet") and has(wq.body, "no Pokémon caught yet") and has(wq.body, "40 steps")
+    and has(wq.body, "quiet start") and not has(wq.body, "whole region") and wq.mood == nil,
+    "a week of nothing but steps: a quiet start (" .. tostring(wq and wq.body) .. ")")
+  local w1 = weekWith(1, 1, 1)
+  T.check(w1 and has(w1.body, "one trainer beaten") and has(w1.body, "one Pokémon caught") and has(w1.body, "one step")
+    and has(w1.body, "steady") and not has(w1.body, "whole region"), "one of each, said so: a steady week (" .. tostring(w1 and w1.body) .. ")")
+  local wb = weekWith(4, 3, 900)
+  T.check(wb and has(wb.body, "4 trainers beaten") and has(wb.body, "3 Pokémon caught") and has(wb.body, "busy week")
+    and not has(wb.body, "whole region"), "seven between them: a busy week (" .. tostring(wb and wb.body) .. ")")
+  local wh = weekWith(18, 6, 4000)
+  T.check(wh and has(wh.body, "whole region") and wh.mood == "cheer", "a big week: the whole region's talking, and she cheers")
+  fakeSave.data.news = news0
   -- (the swarm's notification, once a day)
   Nt.reset()
   Nw.tick(s)
@@ -694,7 +721,16 @@ if Sw and Nw then
       resume = { app = "news", state = { story = story } } }, e or menv)
     return MW, MW.state
   end
+  -- (her shock, on screen: no story of this test's day has it -- the swarm, the outbreak and R-Bay are her
+  -- everyday read -- so the swarm's lent it here, for her sheets)
+  local build0 = Nw.build
+  Nw.build = function(...)
+    local c = build0(...)
+    for _, story in ipairs(c.stories) do if story.key == "swarm" then story.mood = "shock" end end
+    return c
+  end
   local MW, mst = moodWin("swarm")
+  Nw.build = build0
   T.check(asked.talk and asked.shock and asked.cheer, "her sheets loaded as the News opens")
   local function at(W, t)
     clock = W.state.at + t - 1 / 60

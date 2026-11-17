@@ -16,6 +16,8 @@
 -- Shop mode (ctx.shop, src/shop.lua: a real shop counter, full screen): that counter's goods and model,
 -- its place for the title and a sign on the awning, its look (src/shop_themes.lua's colours for the
 -- awning, the shelves and the lights), its own clerk, buy-only shops without Sell, decorations' pictures.
+-- A stall out in the open (the shop's kind "stall": Slateport's market) is drawn by env.stallView
+-- (src/apps/stall_view.lua): the sky, the sea and the beach, a market tent, the table, a cash box.
 --
 --   window(ctx, env) -> win (src/apps.lua)
 
@@ -436,6 +438,8 @@ return function(ctx, env)
     end
     if env.itemIcon then pcall(env.itemIcon, id, x, y, size, a) end
   end
+  -- (a stall out in the open: its own look)
+  local stall = shop and shop.kind == "stall" and env.stallView and env.stallView(K, env, shop, now) or nil
   -- the motion's numbers (the view's own: st is the window's)
   local mv = { lastT = nil, dt = 0, coloured = false, r2 = 0.4, g2 = 0.64, b2 = 1, sw = nil, tabK = nil,
                tabMode = nil, hl = nil, listKey = nil, listMode = nil, listAt = -10, itemId = nil, itemMode = nil,
@@ -1054,12 +1058,19 @@ return function(ctx, env)
     mv.dt = mv.lastT and max(0, min(0.1, clock - mv.lastT)) or 0
     mv.lastT = clock
     st.clip = body
-    drawShop(body, clock)
-    K.scissor(body)
-    local cw = 40
-    drawCounter(x + M, y, cw, clock)
-    -- (the awning in front: the clerk stands under it)
-    drawAwning(x, y, w, clock)
+    -- (a stall's wider: the goods set out on its table)
+    local cw = stall and floor(min(56, max(40, w * 0.24))) or 40
+    if stall then
+      stall.backdrop(body, clock, BAND)
+      K.scissor(body)
+      stall.front(x + M, y, cw, BAND, clock, st, drawClerk, goodsIcon)
+    else
+      drawShop(body, clock)
+      K.scissor(body)
+      drawCounter(x + M, y, cw, clock)
+      -- (the awning in front: the clerk stands under it)
+      drawAwning(x, y, w, clock)
+    end
     local focused = st.focus == "list"
     local wide = not portrait and w >= 200
     local bx = x + M + cw + 6

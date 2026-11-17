@@ -3141,6 +3141,45 @@ do
   T.check(not Tm.isOpen() and closedN == 1, "closed: the game's onClose, once")
   Tm.close()
   T.eq(closedN, 1, "(not twice)")
+  -- (out in the open, a town's own map: a market stall -- the tent, the table, the sea behind; a Mart
+  -- indoors stays a Mart)
+  local Map = require("src.core.game3.map")
+  local def0 = Map.currentDef
+  local outdoorId = rse and "EM_SLATEPORT_CITY" or "FR_VIRIDIAN_CITY"
+  Map.currentDef = function() return { id = outdoorId } end
+  local okS = Rs.open({ items = { 4, POTION }, session = s, onClose = noop })
+  local stallM = okS and Tm.isOpen() and Tm.state().ctx.shop
+  T.check(stallM and stallM.kind == "stall" and stallM.sub == "Market Stall" and stallM.theme and stallM.theme.stripe[1] == 96,
+          "a counter out in the open (" .. outdoorId .. "): a market stall (" .. tostring(stallM and stallM.kind) .. ")")
+  for _ = 1, 30 do clock = clock + 1 / 60; Tm.draw(G, VP) end
+  T.check(Tm.isOpen() and not Tm.state().winFailed, "the stall draws")
+  -- (headless the engine's glyph draw allocates, no font: stubbed while measuring, as the Mart's; and the
+  -- Mart's own counter measured the same way, beside it)
+  local FG = require("src.ui.game3.frlg_font")
+  local glyph0 = FG.drawGlyph
+  FG.drawGlyph = function() return 7 end
+  local function kbOf()
+    local kb = math.huge
+    for _ = 1, 2 do
+      collectgarbage("collect")
+      collectgarbage("stop")
+      local k0 = collectgarbage("count")
+      for _ = 1, 60 do clock = clock + 1 / 60; Tm.draw(G, VP) end
+      kb = math.min(kb, (collectgarbage("count") - k0) / 60)
+      collectgarbage("restart")
+    end
+    return kb
+  end
+  local kbS = kbOf()
+  FG.drawGlyph = glyph0
+  T.check(kbS < 0.5, ("the stall: next to no garbage (%.3f KB a frame)"):format(kbS))
+  if Tm.isOpen() then Tm.state().ctx.done() end
+  Map.currentDef = function() return { id = rse and "EM_SLATEPORT_CITY_MART" or "FR_VIRIDIAN_CITY_MART" } end
+  local okM = Rs.open({ items = { 4, POTION }, session = s, onClose = noop })
+  local martM = okM and Tm.isOpen() and Tm.state().ctx.shop
+  T.check(martM and martM.kind == "mart", "the Poké Mart indoors: a Mart (" .. tostring(martM and martM.kind) .. ")")
+  if Tm.isOpen() then Tm.state().ctx.done() end
+  Map.currentDef = def0
 end
 
 run.release()

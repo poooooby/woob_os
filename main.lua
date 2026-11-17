@@ -107,6 +107,7 @@ return function(mod)
   -- side effects; the window and its look; the nurse's sprite)
   local makePokecenter, pokecenterWindow = loadSibling(mod, "src/pokecenter.lua"), loadSibling(mod, "src/apps/pokecenter.lua")
   local pokecenterView, makeNurseArt = loadSibling(mod, "src/apps/pokecenter_view.lua"), loadSibling(mod, "src/nurse_art.lua")
+  local stallView = loadSibling(mod, "src/apps/stall_view.lua")
   local makeLighting = loadSibling(mod, "src/lighting.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell) then return end
 
@@ -671,6 +672,7 @@ return function(mod)
     return anchorArt[key] or nil
   end
   env.nurse = makeNurseArt and makeNurseArt(mod) or nil
+  env.stallView = stallView or nil
   env.lighting = makeLighting and makeLighting({ log = function(fmt, ...) mod.log:warn(fmt, ...) end }) or nil
   -- (a species by the game's own name for it, "KYOGRE")
   local function speciesNamed(id)
