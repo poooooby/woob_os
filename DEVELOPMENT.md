@@ -1285,6 +1285,53 @@ our own, in phases (the plan: the Summary, then the Party, then the Bag); the mo
   a wild battle's POKéMON → SUMMARY via `BattleBridge.startWild`, `Ui.askForget`; A through the battle's
   opening words; the first input after opening is the host's wait for the opening A to be let go).
 
+### Phase 2: the party menu
+
+- **The takeover** (`src/menus.lua`): `src.ui.game3.party_menu` wrapped once per process
+  (`PartyMenu.__woobOs`: `show`, `isOpen`, `close`, `handleInput`, `update`, `draw`, `reloadSprites`).
+  Ours (`Mn.openParty`) for `mode` nil / "list" (START), "battle_switch" / "battle_faint" (singles and
+  doubles), "use" without `onSelect` / `battle` (an item from the game's bag, TM Case, Berry Pouch in the
+  field) and "give". The game's for "choose" / "choose_multi" / "move_tutor", `onChoose`, `fadeIn` (the
+  mailbox), `nativePartyLayout`, `minigameEligible`, a `multi` table with allies, the Pokédude
+  (`Battle._st.pokedude`), Oak's first battle (`Oak.pending(BattleUi._st, Oak.FLAG_PARTY_MENU)`), link
+  rooms / the Union Room / link battles, the Battle Pike, Ruby / Sapphire's mail given (their
+  `beginGiveMail`), and the bag's battle use (it drives `PartyMenu.showMessage` / `mode` / `startHpAnim`
+  itself: until the Bag is ours). A battle's order is the game's (`PartyMenu.battleOrder(st)`, or
+  `opts.battleOrder`): ours shows that order and hands `validate` / `onSelect` the real slots. While ours is
+  up: `PartyMenu.open / cursor / mode / _party / _overlay / _session / _bag / _item / _order / _battle` set
+  (scripts and other screens read them). Closed: `PartyMenu.cursor` = ours, `onClose()`, then
+  `onSelect(slot, mon)` when one was chosen, then `ctx.menu.after` (a field move). `SummaryMenu.isOpen` is
+  ours only while the summary is (`cur.kind`), so the battle's `party_menu_input` reaches the party's input.
+- **A game screen over ours** (the bag for GIVE, the mail reader, the evolution scene, the game's summary
+  for an evolution's move): `Sh.frame` doesn't draw a modern menu while its layer isn't the stack's top;
+  the stack gives that screen the input. GIVE opens the game's bag with `location = "party"`; its GIVE
+  calls `PartyMenu.show(mode "give")` again: `Mn.openParty` hands that to the window
+  (`W.giveFromBag(item, source, onClose)`) after closing the bag without its own `onClose`.
+- **The rules** (`src/party.lua`, Pt, `env.party`): the game's party menu's own, through the engine:
+  the menu's rows (SUMMARY, field moves from FireRed / LeafGreen's twelve or Emerald's manifest, SWITCH,
+  ITEM / MAIL, CANCEL; Ruby / Sapphire's `buildActions` / `submenuActions`; another mod's rows through the
+  `ui.party.submenu` hook), field moves (`FieldMoves.fromMenu` on what the player faces, then
+  `Field.executeFieldMove` after closing; Fly sets `PartyMenu._flyReturn`; Teleport / Dig ask with the place's
+  name; Softboiled / Milk Drink `softboiledTransfer`), held items (`ItemUse.checkGive / giveHeld / switchHeld /
+  takeFromMon`, mail to the PC's mailbox, Ruby / Sapphire's `takeItem / takeMail / readMail` through a
+  stand-in party menu), an item used (`checkTmPreflight` + `LearnMove.begin`, the Rare Candy's level /
+  `applyStats` / `LearnMove.beginQueue` / `Evolution.levelTarget`, a stone's `Evolution.itemTarget`,
+  `ItemUse.useField` with a PP item's move). Words: the game's ROM text (`Pt.pages`: pages split, codes out).
+  It speaks to the window through `ui` (say / ask / pick / hp / stats / forget / back / close / leave / refresh).
+- **The window**: `src/apps/menus.lua` with `ctx.menu.kind == "party"` (`W.giveFromBag`, `W.forget`);
+  `src/apps/party.lua` (Pc: views pick / menu / switch / softboiled / summary, a prompt over them, an HP
+  bar's fill `P.anim`, `Pc.tick` once a frame from the draw: the fill's end, `LearnMove.pump`); the summary
+  inside is `summary_ctl`'s (forgetting a move: `ui.forget`). `src/apps/party_view.lua`: the lead's big card
+  and five rows (wide), six rows (narrow, < 190 units); the backdrop lit by the chosen one's types; the menu
+  by its card; the words in a bubble along the foot, typed out by uncovering each line (no substrings);
+  `env.forgetMon(mon)` (main.lua) drops a Pokémon's kept icon and picture after a change.
+- **Tests**: `tests/menus_test.lua` phase 2 (START: cards, menu, summary inside, SWITCH, TAKE, a field move;
+  a battle's SHIFT with validate / order / onClose then onSelect, a forced send-out, `PartyMenu.close()`; a
+  Potion's fill and words, a TM's tags, a Rare Candy's stats; GIVE; the game's own for its other callers).
+  Ruby / Sapphire headless have neither their fonts (the test stands their text boxes in) nor their menu
+  pack (no field moves there). In-game: the scratchpad's `party_driver.lua` (START, the menu, the summary,
+  SWITCH, TAKE, GIVE through the game's bag, a Potion, a Rare Candy, a battle's SHIFT).
+
 ## The Pokémon Center
 
 The nurse's counter opens `src/apps/pokecenter.lua` (+ `_view.lua`, the view passed as the window's third

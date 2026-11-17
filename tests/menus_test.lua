@@ -229,4 +229,246 @@ if not RS then
 end
 Mn.on = nil
 
+-- =================== phase 2: the party menu
+local PM = require("src.ui.game3.party_menu")
+T.check(PM.__woobOs ~= nil and PM.__woobOs.impl ~= nil, "the party menu's takeover is made and wrapped")
+local wrappedShow = PM.show
+run.loader.events:emit("game.ready", {})
+T.check(PM.show == wrappedShow, "the party menu wrapped once")
+local I = require("src.core.game3.items_data")
+local POTION, RARE_CANDY, TM28, ORAN = 13, 68, 316, 139
+-- (Ruby / Sapphire headless have no fonts of their own to lay the game's text boxes out with: its words
+-- stand in as their keys)
+if RS then
+  local RomText = require("src.core.game3.rom_text")
+  RomText.box = function(key, ctx) return tostring(key) end
+end
+-- (a frame for the party: the field's layer, or a battle handing the party menu its input)
+local function pframe(n, press, battle)
+  for i = 1, n or 1 do
+    clock = clock + 1 / 60
+    local inp = i == 1 and press and input({ press }) or NONE
+    if battle then PM.handleInput(inp) else Sh.mapLayer.handleInput(inp) end
+    Sh.frame(nil, VP)
+  end
+end
+local function party() return Tm.isOpen() and Tm.state().win.state.party or nil end
+local function open(opts, list)
+  PM.show(list or s.party, nil, opts)
+  if Tm.isOpen() then pframe(1) end
+  return party()
+end
+-- (every page of what the game says, and its questions, answered A until it's done or `limit`)
+local function through(limit, battle)
+  for _ = 1, limit or 30 do
+    local P = party()
+    if not P or not (P.prompt or P.anim) then return end
+    pframe(1, "a", battle)
+  end
+end
+local function rowsOf(P)
+  local out = {}
+  for k, r in ipairs(P.menu and P.menu.rows or {}) do out[k] = r.act end
+  return table.concat(out, " ")
+end
+local function rowAt(P, act)
+  for k, r in ipairs(P.menu and P.menu.rows or {}) do if r.act == act then return k end end
+end
+local function pickRow(P, act, battle)
+  local k = rowAt(P, act)
+  if not k then return false end
+  while P.menu.sel ~= k do pframe(1, "down", battle) end
+  pframe(1, "a", battle)
+  return true
+end
+
+-- ------- the START menu's: ours, full screen
+local closes = 0
+local P = open({ session = s, onClose = function() closes = closes + 1 end })
+T.check(P ~= nil and Tm.state().ctx.app == "menus" and Stack.has(Sh.MAP_ID), "START's party menu: ours, full screen")
+T.check(PM.isOpen() == true and PM._party == s.party, "the game asks: it's open, with its party")
+T.eq(P.n, 3, "three cards")
+pframe(3)
+T.check(not Tm.state().winFailed, "it draws")
+pframe(1, "down")
+T.eq(P.cur, 2, "Down: the next card")
+T.eq(PM.cursor, 1, "(the game's cursor follows once it closes)")
+pframe(1, "a")
+T.check(P.view == "menu" and rowsOf(P):find("^SUMMARY") and rowAt(P, "SWITCH") and rowAt(P, "ITEM") and rowAt(P, "CANCEL"),
+        "A: its menu (" .. rowsOf(P) .. ")")
+pickRow(P, "SUMMARY")
+T.check(P.view == "summary" and P.sum and P.sum.i == 2 and P.sum.party == true, "SUMMARY: the summary inside, on the second")
+pframe(1, "down")
+T.eq(P.sum.i, 3, "the summary's Down: the next Pokémon")
+pframe(1, "b")
+T.check(P.view == "pick" and P.cur == 3 and Tm.isOpen(), "B: back on the cards, on the one it ended on")
+-- (switching places)
+local first, third = s.party[1], s.party[3]
+pframe(1, "a")
+pickRow(P, "SWITCH")
+T.check(P.view == "switch" and P.from == 3, "SWITCH: pick where to")
+pframe(1, "up")
+pframe(1, "up")
+pframe(1, "a")
+T.check(s.party[1] == third and s.party[3] == first and P.view == "pick", "the two traded places")
+-- (an item held: TAKE puts it in the Bag, the game's words)
+s.party[1].item, s.party[1].heldItem = ORAN, ORAN
+P.cur = 1
+pframe(1, "a")
+T.check(rowAt(P, "ITEM") ~= nil, "ITEM on the menu")
+pickRow(P, "ITEM")
+T.check(P.menu and P.menu.kind == "ITEM" and rowAt(P, "GIVE") and rowAt(P, "TAKE"), "ITEM: give / take (" .. rowsOf(P) .. ")")
+local bagBefore = Bag.count and Bag.count(s.bag, ORAN) or 0
+pickRow(P, "TAKE")
+T.check(P.prompt and P.prompt.kind == "msg" and (tonumber(s.party[1].item) or 0) == 0, "TAKE: taken, the game's words")
+through()
+T.check(P.view == "pick" and not P.prompt, "back on the cards")
+T.check(not Bag.count or Bag.count(s.bag, ORAN) == bagBefore + 1, "the Berry in the Bag")
+-- (a field move it knows: on its menu by the move's name; chosen, the game's checks answer. Ruby /
+-- Sapphire's list is their menu pack's, which isn't there headless)
+local cutter = RS and { moves = {} } or s.party[1]
+if not RS then
+  local keepMove = cutter.moves[4]
+cutter.moves[4] = type(cutter.moves[1]) == "table" and { id = 15, pp = 30, ppUps = 0 } or 15
+P.cur = 1
+pframe(1, "a")
+local cutRow = rowAt(P, "CUT")
+T.check(cutRow ~= nil and P.menu.rows[cutRow].fm == true and P.menu.rows[cutRow].text ~= "CUT" or cutRow ~= nil,
+        "a field move on its menu (" .. rowsOf(P) .. ")")
+if cutRow then
+  T.check(pcall(pickRow, P, "CUT"), "chosen: no error")
+  through()
+end
+T.check(Tm.isOpen() and party().view == "pick", "nothing to cut here: back on the cards")
+cutter.moves[4] = keepMove
+end
+-- (B on the item menu: back to the Pokémon's)
+pframe(1, "a")
+pickRow(P, "ITEM")
+pframe(1, "b")
+T.check(P.menu and P.menu.kind == "main", "B on ITEM's menu: the Pokémon's again")
+pframe(1, "b")
+T.check(P.view == "pick", "B: the cards")
+local pkb = garbageOf(60)
+T.check(pkb < 0.5, ("the party: next to no garbage (%.3f KB a frame)"):format(pkb))
+K.setTextScale(1.3)
+T.check(pcall(pframe, 20), "the party's text at 130%")
+VP.width, VP.height = 320, 480
+T.check(pcall(pframe, 10) and P.narrow == true, "a narrow screen: one column")
+VP.width, VP.height = 480, 320
+K.setTextScale(1)
+pframe(1, "b")
+T.check(not Tm.isOpen() and not PM.isOpen() and closes == 1, "B: closed, onClose once")
+
+-- ------- a battle's switch: the battle hands it input; the game's validate; onClose, then onSelect
+local order, why = {}, nil
+local function battleOpts(mode)
+  order = {}
+  return { mode = mode or "battle_switch", session = s, battle = true, activeSlot = 1,
+           validate = function(slot) order[#order + 1] = "validate:" .. tostring(slot) return why end,
+           onSelect = function(slot, mon) order[#order + 1] = "select:" .. tostring(slot) end,
+           onClose = function() order[#order + 1] = "close" end }
+end
+P = open(battleOpts())
+T.check(P and P.c.battle and P.cards[1].active, "a battle's switch: ours; the one in battle marked")
+pframe(1, "down", true)
+pframe(1, "a", true)
+T.eq(rowsOf(P), "SHIFT SUMMARY CANCEL", "its menu: shift, summary, cancel")
+why = "It's already in battle!"
+pickRow(P, "SHIFT", true)
+T.check(P.prompt and P.prompt.pages[1]:find("already") and Tm.isOpen(), "the game's reason: said, still open")
+through(5, true)
+why = nil
+pframe(1, "a", true)
+pickRow(P, "SHIFT", true)
+T.check(not Tm.isOpen() and table.concat(order, " ") == "validate:2 validate:2 close select:2",
+        "SHIFT: closed, onClose, then onSelect(2) (" .. table.concat(order, " ") .. ")")
+P = open(battleOpts())
+pframe(1, "b", true)
+T.check(not Tm.isOpen() and table.concat(order, " ") == "close", "B: closed, onClose only")
+-- (the battle's order: the shown first is the real second)
+local o = battleOpts()
+o.battleOrder = { 2, 1, 3 }
+P = open(o)
+T.check(P.c.party[1] == s.party[2] and P.c.party[2] == s.party[1], "in the battle's order")
+pframe(1, "down", true)
+pframe(1, "a", true)
+pickRow(P, "SHIFT", true)
+T.check(table.concat(order, " ") == "validate:1 close select:1", "the real slot given back (" .. table.concat(order, " ") .. ")")
+-- (a fainted one replaced: B can't leave)
+P = open(battleOpts("battle_faint"))
+pframe(1, "b", true)
+T.check(Tm.isOpen() and #order == 0, "a send-out can't be cancelled")
+pframe(1, "down", true)
+pframe(1, "a", true)
+T.eq(rowsOf(P), "SEND OUT SUMMARY CANCEL", "its menu: send out")
+pickRow(P, "SEND OUT", true)
+T.check(not Tm.isOpen() and order[#order] == "select:2", "SEND OUT: chosen")
+-- (closed from outside: a battle's end)
+P = open(battleOpts())
+PM.close()
+T.check(not Tm.isOpen() and table.concat(order, " ") == "close", "PartyMenu.close(): ours closes, onClose")
+
+-- ------- an item used from the Bag: a Potion on a hurt one
+Bag.add(s.bag, POTION, 1)
+local hurt = s.party[2]
+hurt.hp = 1
+closes = 0
+P = open({ session = s, bag = s.bag, item = POTION, mode = "use", onClose = function() closes = closes + 1 end })
+T.check(P and P.base == "use" and P.title:find("Potion") or P.title:find("POTION"), "use: ours, the item named (" .. tostring(P and P.title) .. ")")
+pframe(1, "down")
+pframe(1, "a")
+T.check(P.anim and hurt.hp > 1, "the Potion: HP up, its bar filling")
+for _ = 1, 120 do if not P.anim then break end pframe(1) end
+T.check(P.prompt and P.prompt.kind == "msg", "then the game's words")
+through()
+T.check(not Tm.isOpen() and closes == 1, "the last Potion: the menu closes")
+-- (a TM: each card says whether it can learn it)
+Bag.add(s.bag, TM28, 1)
+P = open({ session = s, bag = s.bag, item = TM28, mode = "use" })
+local tagged = 0
+for i = 1, P.n do if P.cards[i].tag then tagged = tagged + 1 end end
+T.eq(tagged, P.n, "a TM: every card says able / not able")
+pframe(1, "b")
+T.check(not Tm.isOpen(), "B: closed")
+-- (a Rare Candy: a level, the stats, onwards)
+Bag.add(s.bag, RARE_CANDY, 1)
+local mon1 = s.party[1]
+local lv = mon1.level
+P = open({ session = s, bag = s.bag, item = RARE_CANDY, mode = "use" })
+pframe(1, "a")
+T.eq(mon1.level, lv + 1, "a Rare Candy: a level")
+local sawStats = false
+for _ = 1, 200 do
+  local Pp = party()
+  if not Pp then break end
+  if Pp.prompt and Pp.prompt.kind == "stats" then sawStats = true end
+  if Pp.view == "summary" then pframe(1, "b") else pframe(1, (Pp.prompt or Pp.anim) and "a" or nil) end
+  if Pp.view == "pick" and not Pp.prompt and not Pp.anim then break end
+end
+T.check(sawStats, "the level's stats shown")
+if Tm.isOpen() then pframe(1, "b") end
+T.check(not Tm.isOpen(), "and away")
+
+-- ------- an item given from the Bag
+Bag.add(s.bag, ORAN, 1)
+s.party[1].item, s.party[1].heldItem = 0, 0
+closes = 0
+P = open({ session = s, bag = s.bag, item = ORAN, mode = "give", onClose = function() closes = closes + 1 end })
+pframe(1, "a")
+T.check(P.prompt and (tonumber(s.party[1].item) or 0) == ORAN, "give: held, the game's words")
+through()
+T.check(not Tm.isOpen() and closes == 1, "and closed, onClose once")
+
+-- ------- the game's own for its other callers
+T.check(Mn.openParty(s.party, nil, { session = s, mode = "choose", onSelect = noop }) == false, "choosing for the Day Care / a contest: not ours")
+T.check(Mn.openParty(s.party, nil, { session = s, mode = "choose_multi" }) == false, "choosing a team: not ours")
+T.check(Mn.openParty(s.party, nil, { session = s, mode = "move_tutor", tutor = 1 }) == false, "the Move Tutor: not ours")
+T.check(Mn.openParty(s.party, nil, { session = s, mode = "use", item = POTION, battle = true, onSelect = noop }) == false,
+        "an item from the game's bag in battle: not ours (until the Bag is)")
+T.check(Mn.openParty(s.party, nil, { session = s, mode = "battle_switch", multi = { [2] = true } }) == false, "a multi battle's: not ours")
+Mn.on = false
+T.check(Mn.openParty(s.party, nil, { session = s }) == false, "the option off: not ours")
+Mn.on = nil
+
 T.finish("woob_os menus (" .. GAME .. ")")

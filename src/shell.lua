@@ -813,6 +813,13 @@ return function(mod, deps)
       pad(false)
       h = nil
     end
+    -- (a game screen opened over a modern menu -- the bag to give from, the mail reader, an evolution:
+    -- ours waits under it, not drawn, until it's gone)
+    if h and h == Tm and Stack and Stack.top then
+      local r = Tm.state and Tm.state()
+      local top = r and r.ctx and r.ctx.menu and Stack.top()
+      if top and top.id ~= id then return end
+    end
     if not (G and type(viewport) == "table" and (h or Nt)) then return end
     G.push("all")
     G.origin()

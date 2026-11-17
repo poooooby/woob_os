@@ -69,6 +69,8 @@ return function(mod)
   local boxesSummary = loadSibling(mod, "src/apps/boxes_summary.lua")
   local summaryCtl = loadSibling(mod, "src/apps/summary_ctl.lua")
   local makeMenus, menusWindow = loadSibling(mod, "src/menus.lua"), loadSibling(mod, "src/apps/menus.lua")
+  local makeParty, partyCtl = loadSibling(mod, "src/party.lua"), loadSibling(mod, "src/apps/party.lua")
+  local partyView = loadSibling(mod, "src/apps/party_view.lua")
   local Arrange = loadSibling(mod, "src/arrange.lua")
   local makeMart, martWindow = loadSibling(mod, "src/mart.lua"), loadSibling(mod, "src/apps/mart.lua")
   -- the real shops: every shop counter opens the Mart full screen (src/realshop.lua; src/shop.lua the
@@ -387,6 +389,11 @@ return function(mod)
     G.draw(pic.image, Kit.X(x), Kit.Y(y), 0, k, k)
     return true
   end
+  -- (a Pokémon changed -- it evolved, an egg hatched: its icon and picture made again)
+  local function forgetMon(mon)
+    if type(mon) ~= "table" then return end
+    iconOf[mon], picOf[mon] = nil, nil
+  end
   local function itemName(id)
     local I = engine("src.core.game3.items_data")
     local ok, name = pcall(I and I.displayName or error, id)
@@ -407,7 +414,7 @@ return function(mod)
     prewarm = function(names, priority) if Sh then Sh.prewarm(names, priority) end end,
     inv = makeInv and makeInv(engine), mb = makeMb and makeMb(engine), bx = makeBx and makeBx(engine),
     mart = makeMart and makeMart(engine, { save = mod.save }),
-    monIconOf = monIconOf, monPic = monPic, boxWall = boxWall, boxWallCount = boxWallCount, itemName = itemName,
+    monIconOf = monIconOf, monPic = monPic, forgetMon = forgetMon, log = warn, boxWall = boxWall, boxWallCount = boxWallCount, itemName = itemName,
     T = T, wall = Wall, gameId = gameId, wallpaper = wallpaper,
     language = function() return T and T.code() or "en" end,
     setLanguage = function(code)
@@ -1317,15 +1324,21 @@ return function(mod)
       return env.pokecenter.command(nxt, ctx, op, row, ...)
     end)
   end
-  -- the modern menus (src/menus.lua): the game's Summary, in our glass (the option "modernMenus")
+  -- the modern menus (src/menus.lua): the game's Summary and party menu, in our glass (the option
+  -- "modernMenus"; src/party.lua the party's rules, src/apps/party.lua + party_view.lua its screen)
   local Menus = nil
   if makeMenus and menusWindow and boxesSummary and summaryCtl then
+    if makeParty and partyCtl then
+      env.party = makeParty(engine, { T = T, log = function(fmt, ...) mod.log:warn(fmt, ...) end })
+      env.partyCtl = partyCtl
+    end
     Apps.register({ id = "menus", labelKey = "menus.title", label = "Menus", glyph = "pokeball",
                     color = { 10, 132, 255 }, order = 99, pad = false, available = function() return false end,
-                    window = function(ctx, e) return menusWindow(ctx, e, boxesSummary) end })
+                    window = function(ctx, e) return menusWindow(ctx, e, boxesSummary, partyView) end })
     Menus = makeMenus(engine, {
       Sh = Sh, on = function() return option("modernMenus", true) ~= false end,
       feed = function(input) Sh.feedHost(input) end,
+      partyUi = function(s) return env.party and env.party.partyUi(s) or nil end,
       log = function(fmt, ...) mod.log:warn(fmt, ...) end,
     })
     env.menus = Menus

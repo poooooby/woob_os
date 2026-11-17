@@ -10,7 +10,15 @@ All notable changes to this mod are documented here, in
   the field and in battle, a Pokémon's summary opens in the same glass as the Boxes' (its picture, info,
   stats with IVs and EVs, moves, moves reordered outside battle). Choosing a move to forget (a TM, a
   level up, an evolution, the Move Tutor, Relearner and Deleter) happens there too, the new move below
-  the four. The Modern Menus option turns it off. (The party menu and the Bag follow.)
+  the four. The Modern Menus option turns it off.
+- **The Pokémon menu** on the same five games, in the same glass: six cards over lights in the chosen
+  Pokémon's colours (the lead's big with its picture), each with its level, HP bar, status and held item.
+  A on one: its summary, its field moves, Switch, Item (give, take) or Mail (read, take); in battle Shift
+  or Send Out, the game's reasons when it can't. An item used from the Bag (HP bars filling, the game's
+  words, a TM's able / not able / learned on each card, a Rare Candy's new stats, evolutions) and an item
+  given to hold happen there too. Choosing Pokémon for something (the Day Care, contests, the Battle
+  Frontier), the Move Tutor and items used from the Bag in battle keep the game's own for now. (The Bag
+  follows.)
 
 ## [0.17.2] - 2026-11-17
 

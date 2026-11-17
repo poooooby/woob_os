@@ -2541,7 +2541,7 @@ local NOT_WORDS = { ["game.ready"] = true }   -- (an engine event's name)
 local PREFIX = { hint = 1, menu = 1, logoff = 1, button = 1, about = 1, nav = 1, game = 1, app = 1, items = 1,
                  pocket = 1, reason = 1, mail = 1, settings = 1, wall = 1, failed = 1, mart = 1, auction = 1, slots = 1, gts = 1,
                  notes = 1, bank = 1, challenges = 1, errands = 1, news = 1, dex = 1, nurse = 1, menus = 1,
-                 sum = 1 }
+                 sum = 1, party = 1 }
 for _, file in ipairs({ "main.lua", "src/desktop.lua", "src/apps.lua", "src/apps/items.lua", "src/apps/mail.lua",
                         "src/apps/settings.lua", "src/apps/mart.lua", "src/mart.lua",
                         "src/apps/auction.lua", "src/auction.lua",
@@ -2552,7 +2552,8 @@ for _, file in ipairs({ "main.lua", "src/desktop.lua", "src/apps.lua", "src/apps
                         "src/dex.lua", "src/apps/pokedex.lua", "src/apps/pokedex_view.lua",
                         "src/pokecenter.lua", "src/apps/pokecenter.lua", "src/apps/pokecenter_view.lua",
                         "src/gb/pokecenter.lua", "src/menus.lua", "src/apps/menus.lua", "src/apps/summary_ctl.lua",
-                        "src/apps/boxes_summary.lua", "src/apps/boxes.lua", "src/boxes.lua" }) do
+                        "src/apps/boxes_summary.lua", "src/apps/boxes.lua", "src/boxes.lua",
+                        "src/party.lua", "src/apps/party.lua", "src/apps/party_view.lua" }) do
   local src = readFile(file) or ""
   for key in src:gmatch('"([%a][%w_]*%.[%w_%.]+)"') do
     if PREFIX[key:match("^(%a+)")] and not key:match("%.$") and not key:match("%.lua$") and not NOT_WORDS[key] then

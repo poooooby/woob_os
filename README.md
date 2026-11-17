@@ -24,10 +24,14 @@ controller, a touch screen, or a mouse and keyboard.
   Marts, every department store floor, herb shops, the pharmacy, souvenir and decoration shops, the
   Underground's bargain stall and Slateport's market stalls by the sea, each dressed for its place and
   what it sells.
-- 📋 **Pokémon summary:** on FireRed, LeafGreen, Ruby, Sapphire and Emerald, a Pokémon's summary opens
-  in the same glass as the Boxes' one, from the Pokémon menu in the field and in battle: its picture,
-  info, stats with IVs and EVs, and moves. When a Pokémon learns a new move with four already, you choose
-  the one to forget there, with the new move shown below.
+- 📋 **Pokémon menu and summary:** on FireRed, LeafGreen, Ruby, Sapphire and Emerald, the Pokémon menu
+  is six glass cards over lights in the chosen Pokémon's colours: the lead's picture, every Pokémon's
+  level, HP, status and held item. Each one's menu has its summary, its field moves, Switch and its item or
+  mail; in battle, Shift or Send Out. Items used from the Bag (a Potion's HP filling, a TM's able / not
+  able on every card, a Rare Candy's new stats) and items given to hold happen there too. A Pokémon's
+  summary is the same glass as the Boxes' one: its picture, info, stats with IVs and EVs, and moves. When a
+  Pokémon learns a new move with four already, you choose the one to forget there, with the new move shown
+  below.
 - 🏥 **Pokémon Center:** talk to the nurse and she greets you in a close-up behind her counter, in a
   room drawn after Emerald's own Pokémon Center. Choose to heal and your Pokémon go into the healing
   machine: a ball for each, the machine's glow and its jingle, and their health filling back up.
@@ -133,7 +137,7 @@ their Map can't Fly.
 | Pokégear | On / Off | On | Gold, Silver and Crystal. Off: the game's own Pokégear. |
 | Real Shops | On / Off | On | Off: every shop counter opens the game's own shop menu. |
 | Pokémon Center | On / Off | On | Off: the nurse's counter is the game's own. |
-| Modern Menus | On / Off | On | Off: the Pokémon summary is the game's own. |
+| Modern Menus | On / Off | On | Off: the Pokémon menu and summary are the game's own. |
 | Map: Invert X | On / Off | Off | The 3D map's camera turns the other way. |
 | Map: Invert Y | On / Off | Off | The 3D map's camera tilts the other way. |
 

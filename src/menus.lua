@@ -1,5 +1,5 @@
--- The modern menus on FireRed / LeafGreen / Ruby / Sapphire / Emerald: the game's own Summary (and, in
--- later phases, its Party menu and Bag) taken over where WoobOS has its own, from the START menu's
+-- The modern menus on FireRed / LeafGreen / Ruby / Sapphire / Emerald: the game's own Summary and Party
+-- menu (and, in a later phase, its Bag) taken over where WoobOS has its own, from the START menu's
 -- Pokémon and in battle alike. With the mod option off, or any caller that isn't ours, or anything failing:
 -- the game's own screen.
 --
@@ -17,9 +17,22 @@
 -- ours is open those are ours: isOpen true, the input to our host (deps.feed: once a frame), update and draw
 -- nothing (ours draws over the whole window), close closing ours (a battle's end).
 --
+--
+-- The party menu: src.ui.game3.party_menu's show(party, overlay, opts) wrapped the same way. Ours for the
+-- START menu's (mode "list"), a battle's switch and send-out (singles and doubles: the game's battle order,
+-- its validate and onSelect with the real slots), an item used from the game's bag / TM Case / Berry Pouch
+-- in the field (mode "use") and an item given (mode "give"). The game's for choosing Pokémon for something
+-- (the Day Care, a contest, the Frontier: "choose" / "choose_multi"), the Move Tutor, the Pokédude and
+-- Oak's first battle, a multi battle's, a link's, an item used from the bag in battle (until the Bag is
+-- ours) and Ruby / Sapphire's mail given. Ours answers as the game's: PartyMenu.open / cursor / _party /
+-- _order set while it's up, then opts.onClose(), then opts.onSelect(slot, mon) when one was chosen; a
+-- field move runs after (ctx.menu.after). While ours is up the game's GIVE from its bag comes back through
+-- show(mode "give"): handed to our window (src/apps/menus.lua W.giveFromBag), the bag closed.
+--
 --   Mn = menus(engine, deps)   deps: Sh ; on() -> the option ; feed(input) (the host's input, once a frame) ;
---                              log(fmt, ...)
---   Mn.wrap() (at game.ready) ; Mn.isOpen() ; Mn.openSummary(party, index, opts) -> true when ours opened
+--                              log(fmt, ...) ; partyUi(session) -> the game's party skin (Ruby / Sapphire's)
+--   Mn.wrap() (at game.ready) ; Mn.isOpen() ; Mn.openSummary(party, index, opts) -> true when ours opened ;
+--   Mn.openParty(party, overlay, opts) -> the same ; Mn.kind() -> "summary" | "party" | nil
 
 return function(engine, deps)
   local Mn = {}
@@ -27,6 +40,13 @@ return function(engine, deps)
   local function log(fmt, ...) if deps.log then pcall(deps.log, fmt, ...) end end
 
   function Mn.isOpen() return cur ~= nil end
+  function Mn.kind() return cur and cur.kind or nil end
+  -- (the option; Mn.on stands in for it in the tests)
+  local function on()
+    local v = Mn.on
+    if v == nil then v = deps.on and deps.on() end
+    return v
+  end
 
   -- (a move to learn, as the game's summary reads it: an id, or a move's name)
   local function moveId(v)
@@ -77,10 +97,7 @@ return function(engine, deps)
 
   function Mn.openSummary(party, index, opts)
     opts = opts or {}
-    -- (the option; Mn.on stands in for it in the tests)
-    local on = Mn.on
-    if on == nil then on = deps.on and deps.on() end
-    if cur or not on then return false end
+    if cur or not on() then return false end
     if not summaryOurs(opts) then return false end
     local Sh = deps.Sh
     if not (Sh and Sh.openFull) then return false end
@@ -115,6 +132,172 @@ return function(engine, deps)
     local B = engine("src.core.game3.battle")
     local ok, on = pcall(B and B.isActive or error)
     return ok and on == true
+  end
+
+  -- ------- the party menu
+
+  local PARTY_MODES = { list = true, battle_switch = true, battle_faint = true, use = true, give = true }
+
+  -- (a link room, the Union Room, a link battle: the game's own)
+  local function linked()
+    local Map, UR = engine("src.core.game3.map"), engine("src.core.game3.link.union_room")
+    local okU, union = pcall(function() return UR.isUnionMap(Map.current) end)
+    if okU and union then return true end
+    local Link = package.loaded["src.core.game3.link"]
+    if type(Link) == "table" and Link.link ~= nil then
+      local okL, inRoom = pcall(Link.inLinkRoom)
+      if okL and inRoom == true then return true end
+    end
+    local B = engine("src.core.game3.battle")
+    return B ~= nil and type(B._st) == "table" and B._st.link ~= nil and B._st.link ~= false
+  end
+
+  -- which callers are ours
+  local function partyOurs(opts)
+    local mode = opts.mode or "list"
+    if not PARTY_MODES[mode] then return false end
+    if opts.onChoose or opts.nativePartyLayout or opts.minigameEligible or opts.fadeIn then return false end
+    if mode == "list" and opts.onSelect then return false end
+    -- (an item from the game's bag in battle: its bag drives the game's party menu itself)
+    if mode == "use" and (opts.onSelect or opts.battle or opts.battleOrder) then return false end
+    if type(opts.multi) == "table" and next(opts.multi) ~= nil then return false end
+    local B = engine("src.core.game3.battle")
+    local st = B and B._st
+    local inBattle = Mn.inBattle()
+    if inBattle and type(st) == "table" and (st.pokedude or st.multi) then return false end
+    -- (FireRed / LeafGreen's first battle: Oak's words over the party menu)
+    if opts.battle or mode == "battle_switch" or mode == "battle_faint" then
+      local Oak, BUi = engine("src.core.game3.battle.oak_advice"), engine("src.core.game3.battle.ui")
+      local okO, pending = pcall(function() return Oak.pending(BUi._st, Oak.FLAG_PARTY_MENU) end)
+      if okO and pending then return false end
+    end
+    if linked() then return false end
+    -- (Ruby / Sapphire's mail given: the game's own writing screen)
+    if mode == "give" and opts.item then
+      local Mail, I = engine("src.core.game3.mail"), engine("src.core.game3.items_data")
+      local okM, mail = pcall(function() return Mail.isMailItem(I.toNumericId(opts.item) or opts.item) end)
+      local p = deps.partyUi and deps.partyUi(opts.session)
+      if okM and mail and p and p.beginGiveMail then return false end
+    end
+    -- (the Battle Pike's party rules)
+    local s = opts.session
+    local Pr = engine("src.core.game3.profile")
+    local okF, fam = pcall(Pr.family, s)
+    if okF and fam == "rse" then
+      local Pike = engine("src.core.game3.rse.frontier.pike")
+      local okP, inPike = pcall(Pike.inBattlePike, s)
+      if okP and inPike then return false end
+    end
+    return true
+  end
+
+  -- ours closed (its answer in menu.result): the game's callbacks, in the game's order
+  local function partyClosed(c)
+    local PM = engine("src.ui.game3.party_menu")
+    cur = nil
+    local m, opts = c.menu, c.opts
+    if PM then
+      PM.open = false
+      PM.mode = "list"
+      PM.cursor = tonumber(m.cursor) or 1
+    end
+    if opts.onClose then
+      local ok, err = pcall(opts.onClose)
+      if not ok then log("the party's onClose failed: %s", tostring(err)) end
+    end
+    local chosen = m.result and m.result.chosen
+    if chosen and opts.onSelect then
+      local ok, err = pcall(opts.onSelect, chosen, m.party[chosen])
+      if not ok then log("the party's onSelect failed: %s", tostring(err)) end
+    end
+    if m.after then
+      local ok, err = pcall(m.after)
+      if not ok then log("after the party: %s", tostring(err)) end
+    end
+  end
+
+  -- the party in a battle's order (the game's PartyMenu.battleOrder): the shown list, each one's real
+  -- slot, the overlay in that order
+  local function battleView(party, overlay, opts)
+    local PM = engine("src.ui.game3.party_menu")
+    local order = opts.battleOrder
+    if order == nil then
+      local B = engine("src.core.game3.battle")
+      local st = B and B._st
+      if not (st and st.playerParty and st.playerParty == party) then return party, overlay, nil end
+      local ok, got = pcall(PM.battleOrder, st)
+      order = ok and got or nil
+    end
+    if type(order) ~= "table" then return party, overlay, nil end
+    local view, ov = {}, overlay
+    for i, pi in ipairs(order) do view[i] = party[pi] end
+    if type(overlay) == "table" then
+      ov = {}
+      for i, pi in ipairs(order) do ov[i] = overlay[pi] end
+    end
+    return view, ov, order
+  end
+
+  function Mn.openParty(sessionParty, overlay, opts)
+    if type(overlay) == "table" and opts == nil and (overlay.mode or overlay.session or overlay.battle
+        or overlay.onSelect or overlay.activeSlot) then
+      opts, overlay = overlay, nil
+    end
+    opts = opts or {}
+    if cur then
+      -- (the game's bag giving while ours waits on GIVE: ours does it, the bag closed)
+      if cur.kind == "party" and opts.mode == "give" and cur.menu.win and cur.menu.win.giveFromBag then
+        local Screens = engine("src.ui.game3.screens")
+        local okB, Bag = pcall(Screens.get, "bag", opts.session)
+        if okB and Bag and Bag.isOpen and Bag.isOpen() then
+          Bag._onClose = nil
+          pcall(Bag.close)
+        end
+        cur.menu.win.giveFromBag(opts.item, opts.giveSource, opts.onClose)
+        return true
+      end
+      return false
+    end
+    if not on() or not partyOurs(opts) then return false end
+    local Sh = deps.Sh
+    if not (Sh and Sh.openFull) then return false end
+    local s = opts.session
+    local party = sessionParty or (s and s.party)
+    if type(party) ~= "table" or not party[1] then return false end
+    overlay = overlay or (s and (s.move_overlay or s.moveOverlay))
+    local mode = opts.mode or "list"
+    local battle = opts.battle == true or mode == "battle_switch" or mode == "battle_faint"
+    local view, ov, order = party, overlay, nil
+    if mode == "battle_switch" or mode == "battle_faint" then view, ov, order = battleView(party, overlay, opts) end
+    local onSelect, validate = opts.onSelect, opts.validate
+    local o = opts
+    if order then
+      -- (the game's callbacks take real slots: ours speak in the shown order)
+      o = {}
+      for k, v in pairs(opts) do o[k] = v end
+      if onSelect then o.onSelect = function(d, mon) return onSelect(d and order[d], mon) end end
+      if validate then o.validate = function(d) return validate(d and order[d]) end end
+    end
+    local m = { kind = "party", party = view, order = order, overlay = ov, mode = mode, item = opts.item,
+                bag = opts.bag or (s and (s.bag or s.inventory)), giveSource = opts.giveSource, battle = battle,
+                double = opts.layout == "double", validate = o.validate, cursor = 1 }
+    local c = { kind = "party", opts = o, menu = m }
+    cur = c
+    local PM = engine("src.ui.game3.party_menu")
+    if PM then
+      PM.open, PM.cursor, PM.mode = true, 1, mode
+      PM._party, PM._overlay, PM._session, PM._bag, PM._item = view, ov, s, m.bag, opts.item
+      PM._order, PM._battle, PM._flyReturn = order, battle, nil
+    end
+    local ok, opened = pcall(Sh.openFull, "menus", s, function() partyClosed(c) end, nil,
+      { menu = m, chrome = false })
+    if not (ok and opened) then
+      cur = nil
+      if PM then PM.open = false end
+      if not ok then log("the party couldn't open: %s", tostring(opened)) end
+      return false
+    end
+    return true
   end
 
   -- ------- the wraps (once per process; this instance's impl swapped in)
@@ -163,7 +346,63 @@ return function(engine, deps)
         return o.draw(...)
       end
     end
-    w.impl = { openSummary = Mn.openSummary, isOpen = Mn.isOpen, closeOurs = function() return Mn.closeOurs() end,
+    w.impl = { openSummary = Mn.openSummary, isOpen = function() return cur ~= nil and cur.kind == "summary" end,
+               closeOurs = function() return Mn.closeOurs() end,
+               feed = function(input) if deps.feed then deps.feed(input) end end, log = log }
+    return true
+  end
+
+  local function wrapParty()
+    local PM = engine("src.ui.game3.party_menu")
+    if not PM then return false end
+    local w = PM.__woobOs
+    if not w then
+      w = { orig = { show = PM.show, isOpen = PM.isOpen, close = PM.close, handleInput = PM.handleInput,
+                     update = PM.update, draw = PM.draw, reloadSprites = PM.reloadSprites } }
+      PM.__woobOs = w
+      local o = w.orig
+      PM.show = function(party, overlay, opts)
+        local impl = w.impl
+        if impl and impl.openParty then
+          local ok, took = pcall(impl.openParty, party, overlay, opts)
+          if ok and took then return end
+          if not ok and impl.log then impl.log("the party's takeover failed: %s", tostring(took)) end
+        end
+        return o.show(party, overlay, opts)
+      end
+      PM.isOpen = function(...)
+        local impl = w.impl
+        if impl and impl.isOpen() then return true end
+        return o.isOpen(...)
+      end
+      PM.close = function(...)
+        local impl = w.impl
+        if impl and impl.isOpen() then return impl.closeOurs() end
+        return o.close(...)
+      end
+      PM.handleInput = function(input, ...)
+        local impl = w.impl
+        if impl and impl.isOpen() then return impl.feed(input) end
+        return o.handleInput(input, ...)
+      end
+      PM.update = function(...)
+        local impl = w.impl
+        if impl and impl.isOpen() then return end
+        if o.update then return o.update(...) end
+      end
+      PM.draw = function(...)
+        local impl = w.impl
+        if impl and impl.isOpen() then return end
+        return o.draw(...)
+      end
+      PM.reloadSprites = function(...)
+        local impl = w.impl
+        if impl and impl.isOpen() then return end
+        if o.reloadSprites then return o.reloadSprites(...) end
+      end
+    end
+    w.impl = { openParty = Mn.openParty, isOpen = function() return cur ~= nil and cur.kind == "party" end,
+               closeOurs = function() return Mn.closeOurs() end,
                feed = function(input) if deps.feed then deps.feed(input) end end, log = log }
     return true
   end
@@ -172,7 +411,8 @@ return function(engine, deps)
   function Mn.closeOurs()
     local c = cur
     if not c then return end
-    c.menu.result = c.menu.result or { picked = false, index = c.menu.index }
+    if c.kind == "party" then c.menu.result = c.menu.result or { chosen = nil }
+    else c.menu.result = c.menu.result or { picked = false, index = c.menu.index } end
     local Sh = deps.Sh
     local h = Sh and Sh.host and Sh.host()
     local Tm = h
@@ -180,12 +420,14 @@ return function(engine, deps)
       local r = Tm.state()
       if r and r.ctx and r.ctx.menu == c.menu and r.ctx.done then return r.ctx.done() end
     end
-    summaryClosed(c)
+    if c.kind == "party" then partyClosed(c) else summaryClosed(c) end
   end
 
   function Mn.wrap()
     local ok, err = pcall(wrapSummary)
     if not ok then log("the modern menus couldn't wrap the summary: %s", tostring(err)) end
+    ok, err = pcall(wrapParty)
+    if not ok then log("the modern menus couldn't wrap the party menu: %s", tostring(err)) end
   end
 
   return Mn
