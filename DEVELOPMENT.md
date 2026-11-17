@@ -1285,6 +1285,23 @@ our own, in phases (the plan: the Summary, then the Party, then the Bag); the mo
   a wild battle's POKéMON → SUMMARY via `BattleBridge.startWild`, `Ui.askForget`; A through the battle's
   opening words; the first input after opening is the host's wait for the opening A to be let go).
 
+### Phase 4: choosing and the Move Tutor
+
+- `Mn.openParty` takes "choose" (the scripts' `chooseMon` adapter: the Day Care, trades; Ruby / Sapphire's
+  Day Care is its own module, `nativeModule`), "choose_multi" (`count`, `eligible` function / 0-based list,
+  `validateChosen`, `chooseFullMessage`, `immediateChooseCancel`) and "move_tutor" (`tutor`, `autoSlot`). Still
+  the game's: `onChoose` / `fadeIn` (the mailbox). Answers: "choose" closes with A as the battle's switch does
+  (`onClose`, then `onSelect(slot, mon)`); "choose_multi" sets `PartyMenu._chooseOrder` before `onClose` (the
+  adapter reads `PartyMenu.chosenOrder()` there), then `onSelect(list)` / `onSelect(nil)` on a cancel (yes / no
+  `gText_CancelBattle` unless `immediateChooseCancel`); "move_tutor" sets `PartyMenu._tutorResult` before
+  `onClose` (`natives_moveteach` reads it). `PartyMenu.showMessage` / `showYesNo` while ours is up go to our
+  bubble (`W.say` / `W.ask`): the Frontier opens the menu again with a message.
+- The window: `Pt.eligible`, `Pt.multiActions` (ENTER / NO ENTRY, SUMMARY, CANCEL), `Pt.fullText` (the caller's
+  or the game's "no more than"), `Pt.tutor` (as `try_tutor_selected_mon`: can't / knows / teach / LearnMove
+  with the summary to forget), `Pt.tutorTag`. The team's place on each card (`card.orderN`, a numbered badge),
+  Confirm in the top bar with "n/max" (START or Down past the last card focuses it). Driver: the scratchpad's
+  `choose_driver.lua`.
+
 ### Phase 3: the Bag
 
 - **The takeover** (`src/menus.lua`): `src.ui.game3.bag_menu` wrapped once per process (`BagMenu.__woobOs`:
