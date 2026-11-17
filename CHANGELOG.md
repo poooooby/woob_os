@@ -24,8 +24,9 @@ All notable changes to this mod are documented here, in
   list, a TM's move by name with its type, power, accuracy and PP. Use (an item on a Pokémon opens the
   Pokémon menu over the Bag; bikes, rods, Repel, Escape Rope, the VS Seeker, the Itemfinder and the flutes
   as in the game), give, toss with how many, register, and SELECT to reorder a pocket. In battle: medicine
-  on a Pokémon with its HP bar filling, X items, Poké Balls. The Pokémon menu's Give chooses from it. The
-  shop's selling, the PC's items, berry trees, the Berry Blender and Teachy TV keep the game's own.
+  on a Pokémon with its HP bar filling, X items, Poké Balls. The Pokémon menu's Give chooses from it, and
+  so do the berry trees (the Berries only), the Berry Blender, the PC's item storage (deposit how many) and
+  a shop's selling (how many, what it comes to). Teachy TV keeps the game's own.
 
 ## [0.17.2] - 2026-11-17
 

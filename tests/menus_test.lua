@@ -725,11 +725,78 @@ through()
 pframe(1, "b")
 T.check(not Tm.isOpen(), "and away")
 
+-- ------- phase 5: a berry tree's Berry (the Berries only; A chooses, B none: onClose, then onChoose)
+Bag.add(s.bag, ORAN, 2)
+local chose = {}
+BM.show(s.bag, { session = s, location = "berry_tree", pocket = "BERRIES",
+                 onChoose = function(id) chose[#chose + 1] = "choose:" .. tostring(id) end,
+                 onClose = function() chose[#chose + 1] = "close" end })
+B = bag()
+T.check(B and #B.pockets == 1 and (B.pockets[1] == "BERRY_POUCH" or B.pockets[1] == "BERRIES"), "a berry tree: ours, the Berries only")
+bframe(1)
+toRow(B, ORAN)
+bframe(1, "a")
+T.check(not Tm.isOpen() and table.concat(chose, " ") == "close choose:" .. ORAN, "A: onClose, then onChoose(Oran) (" .. table.concat(chose, " ") .. ")")
+chose = {}
+BM.show(s.bag, { session = s, location = "berry_tree", pocket = "BERRIES", onChoose = function(id) chose[#chose + 1] = tostring(id) end })
+bframe(1)
+bframe(1, "b")
+T.check(not Tm.isOpen() and chose[1] == "0", "B: onChoose(0)")
+-- (the Berry Blender: B can't leave; CONFIRM)
+chose = {}
+BM.show(s.bag, { session = s, location = "blender", pocket = "BERRIES", onChoose = function(id) chose[#chose + 1] = tostring(id) end })
+B = bag()
+bframe(1)
+bframe(1, "b")
+T.check(Tm.isOpen(), "the Berry Blender: B can't leave")
+toRow(B, ORAN)
+bframe(1, "a")
+T.check(B.menu and rowAt({ menu = B.menu }, "CONFIRM") ~= nil, "its menu: confirm, check tag, cancel")
+menuPick(B, "CONFIRM")
+T.check(not Tm.isOpen() and chose[1] == tostring(ORAN), "CONFIRM: that Berry")
+-- (the item PC's deposit: how many, the game's words, into the PC)
+local St = require("src.core.game3.storage")
+Bag.add(s.bag, POTION, 3)
+local bagBefore2 = count(POTION)
+local pcBefore = 0
+for _, e in ipairs(St.ensure(s).items) do if tonumber(I.toNumericId(e.id) or e.id) == POTION then pcBefore = pcBefore + e.qty end end
+closes = 0
+BM.show(s.bag, { session = s, location = "itempc", onClose = function() closes = closes + 1 end })
+B = bag()
+bframe(1)
+toRow(B, POTION)
+bframe(1, "a")
+T.check(B.view == "qty" and B.qty.kind == "deposit", "deposit: how many")
+bframe(1, "up")
+bframe(1, "a")
+T.check(B.prompt and B.prompt.kind == "msg", "deposited: the game's words")
+bframe(1, "a")
+local pcAfter = 0
+for _, e in ipairs(St.ensure(s).items) do if tonumber(I.toNumericId(e.id) or e.id) == POTION then pcAfter = pcAfter + e.qty end end
+T.check(pcAfter == pcBefore + 2 and count(POTION) == bagBefore2 - 2, "two in the PC, two fewer in the Bag (" .. pcAfter .. ", " .. count(POTION) .. ")")
+bframe(1, "b")
+T.check(not Tm.isOpen() and closes == 1, "B: onClose")
+-- (a shop's selling: what it's worth, sure?, the money)
+local money0, potions = s.money, count(POTION)
+BM.show(s.bag, { session = s, location = "shop", onClose = noop })
+B = bag()
+bframe(1)
+toRow(B, POTION)
+bframe(1, "a")
+if B.view == "qty" then
+  T.check(B.qty.kind == "sell", "selling: how many")
+  bframe(1, "a")
+end
+T.check(B.prompt and B.prompt.kind == "yesno", "selling a Potion: the price asked")
+bframe(1, "a")
+T.check(s.money == money0 + 150 and count(POTION) == potions - 1, "sold: 150 (" .. tostring(s.money - money0) .. ")")
+for _ = 1, 4 do if bag() and bag().prompt then bframe(1, "a") end end
+bframe(1, "b")
+T.check(not Tm.isOpen(), "and away")
+
 -- ------- the game's own for its other callers
-T.check(Mn.openBag(s.bag, { session = s, location = "shop" }) == false, "a shop's selling: not ours")
-T.check(Mn.openBag(s.bag, { session = s, location = "itempc" }) == false, "the item PC: not ours")
-T.check(Mn.openBag(s.bag, { session = s, location = "berry_tree" }) == false, "a berry tree: not ours")
-T.check(Mn.openBag(s.bag, { session = s, onChoose = noop }) == false, "choosing: not ours")
+T.check(Mn.openBag(s.bag, { session = s, location = "party" }) == false, "the game's party's GIVE: not ours")
+T.check(Mn.openBag(s.bag, { session = s, onChoose = noop }) == false, "choosing without a place: not ours")
 T.check(Mn.openBag(s.bag, { session = s, battle = true }) == false, "the Pokédude's (no onBattleUse): not ours")
 Mn.on = false
 T.check(Mn.openBag(s.bag, { session = s }) == false, "the option off: not ours")

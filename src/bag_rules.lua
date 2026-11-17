@@ -125,6 +125,7 @@ return function(engine, deps)
     if c.battle then
       return (row and call(BI().isBattleUsable, row.id)) and { "USE", "CANCEL" } or { "CANCEL" }
     end
+    if c.location == "blender" then return { "CONFIRM", "CHECK_TAG", "CANCEL" } end
     if c.location == "party" then
       return (pocket ~= "KEY_ITEMS" and pocket ~= "TM_CASE") and { "GIVE", "CANCEL" } or { "CANCEL" }
     end
@@ -196,6 +197,78 @@ return function(engine, deps)
       call(B().remove, c.bag, row.id, qty)
       ui.refresh()
       ui.say(box(said, { row.name, n }))
+    end)
+  end
+
+  -- ------- the item PC's deposit (how many already chosen), as the game's bag does it
+
+  function Bg.deposit(c, row, qty, ui)
+    local St = engine("src.core.game3.storage")
+    if St and call(St.addPcItem, c.session, row.id, qty) then
+      local Q = engine("src.core.game3.quest_log_recorder")
+      if Q then pcall(Q.event, c.session, "StoredItemInPC", { tostring(row.name) }) end
+      ui.say(box("gText_DepositedStrVar2StrVar1s", { row.name, tostring(qty) }), function()
+        call(B().remove, c.bag, row.id, qty)
+        ui.refresh()
+      end)
+    else
+      ui.say(plain("gText_NoRoomToStoreItems"))
+    end
+  end
+
+  -- ------- selling at a shop (the game's sell flow: half the price, its words, the money)
+
+  local function nativeShop(s)
+    local Pr = engine("src.core.game3.profile")
+    local ok, row = pcall(Pr.forSession, s)
+    local shop = ok and row and row.ui and row.ui.shopMenu
+    if type(shop) == "string" then
+      local okR, m = pcall(require, shop)
+      shop = okR and m or nil
+    end
+    return type(shop) == "table" and shop or nil
+  end
+  local function shopBox(s, key, vars)
+    local ns = nativeShop(s)
+    if ns and ns.box then
+      local ok, t = pcall(ns.box, key, { stringVars = vars })
+      if ok and t then return t end
+    end
+    return box(key, vars)
+  end
+  -- what one is worth to the shop (0: it won't buy it), and the words when it won't
+  function Bg.sellPrice(c, row)
+    local info = call(I().info, row.id)
+    local price = math.max(0, math.floor(tonumber(info and info.price) or 0))
+    if price == 0 then
+      if family(c.session) == "rse" then return 0, shopBox(c.session, "gText_CantBuyKeyItem", { [2] = row.name }) end
+      return 0, box("gText_OhNoICantBuyThat", { row.name })
+    end
+    return math.floor(price / 2)
+  end
+  function Bg.sell(c, row, qty, ui)
+    local s = c.session
+    local unit = Bg.sellPrice(c, row)
+    local earn = unit * qty
+    local rse = family(s) == "rse"
+    local ask = rse and shopBox(s, "gText_ICanPayVar1", { tostring(earn) })
+      or box("gText_ICanPayThisMuch_WouldThatBeOkay", { [3] = tostring(earn) })
+    ui.ask(ask, function(yes)
+      if not yes then return end
+      se("SE_SHOP")
+      if call(B().remove, c.bag, row.id, qty) then
+        s.money = math.max(0, math.floor(tonumber(s.money) or 0)) + earn
+        local ns = nativeShop(s)
+        if ns and ns.saleMoney then s.money = ns.saleMoney(s.money) end
+        if not ns or ns.questLog ~= false then
+          local Q = engine("src.core.game3.quest_log_recorder")
+          local rt = package.loaded["src.core.game3.runtime"]
+          if Q then pcall(function() Q.event(s, "SoldItemsIncludingItem", { D0 = Q.location(rt and rt._game, s), D1 = row.name, D2 = earn }) end) end
+        end
+      end
+      ui.refresh()
+      ui.say(rse and shopBox(s, "gText_TurnedOverVar1ForVar2", { tostring(earn), row.name })
+        or box("gText_TurnedOverItemsWorthYen", { row.name, [3] = tostring(earn) }))
     end)
   end
 
@@ -388,6 +461,8 @@ return function(engine, deps)
         s.registeredItem = row.registered and nil or row.id
       end
       ui.refresh()
+    elseif act == "CONFIRM" then
+      return ui.chosen(row.id)
     elseif act == "CHECK_TAG" then
       local Screens = engine("src.ui.game3.screens")
       local okT, Tag = pcall(Screens.get, "berry_tag", s)

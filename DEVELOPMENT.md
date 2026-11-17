@@ -1285,6 +1285,22 @@ our own, in phases (the plan: the Summary, then the Party, then the Bag); the mo
   a wild battle's POKéMON → SUMMARY via `BattleBridge.startWild`, `Ui.askForget`; A through the battle's
   opening words; the first input after opening is the host's wait for the opening A to be let go).
 
+### Phase 5: the Bag's other places
+
+- `Mn.openBag` takes `location` berry_tree / blender (with `onChoose`: `RseBag.chooseBerry`, Berry Crush's
+  pouch), itempc (the game's PC's deposit: `pc_menu.lua`, `rse/player_pc.lua`) and shop (the game's
+  `shop_menu.lua` / `rse/shop_menu.lua`: seen only with the real shops off). Still the game's: "party" (the
+  game's party's GIVE), "choose_toss" (the Pyramid's own bag), `onChoose` without a place, `pocketIdx`.
+  `opts.pocket` "BERRIES" / "TM_HM" are the profiles' BERRY_POUCH / TM_CASE.
+- The Bag (`src/apps/bag.lua`): a berry tree's and the Blender's show the Berries only; a berry tree's A
+  chooses (B: none, `onChoose(0)`), the Blender's menu CONFIRM / CHECK TAG / CANCEL (B refused); the item
+  PC's A asks how many (`Bg.deposit`: `Storage.addPcItem`, the game's words, then the Bag's count); a shop's
+  A asks how many with the total (`Bg.sellPrice` / `Bg.sell`: half the price, the profile's `shopMenu`'s
+  `box` / `saleMoney` on Ruby / Sapphire, the quest log). `bagClosed`: a chosen Berry is `onClose()` then
+  `onChoose(id | 0)` (as `choose_done`). The Bag state answers Ruby / Sapphire's skin as the game's bag would
+  (`B._battle`, `B._location`, `B._session`, `B.currentPocket()`): its `actionsForPocket` reads them.
+  Driver: the scratchpad's `places_driver.lua`.
+
 ### Phase 4: choosing and the Move Tutor
 
 - `Mn.openParty` takes "choose" (the scripts' `chooseMon` adapter: the Day Care, trades; Ruby / Sapphire's

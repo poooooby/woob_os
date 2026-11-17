@@ -28,7 +28,8 @@ controller, a touch screen, or a mouse and keyboard.
   menu and in battle: each pocket a page (FireRed and LeafGreen's TM Case and Berry Pouch too), the chosen
   item's picture and words beside the list, a TM's move with its type, power, accuracy and PP. Use, give,
   toss (choosing how many), register and reorder items there; an item used on a Pokémon opens the
-  Pokémon menu over the Bag, in battle too.
+  Pokémon menu over the Bag, in battle too. Planting a Berry, the Berry Blender, putting items in the PC and
+  selling at a shop choose from it as well.
 - 📋 **Pokémon menu and summary:** on FireRed, LeafGreen, Ruby, Sapphire and Emerald, the Pokémon menu
   is six glass cards over lights in the chosen Pokémon's colours: the lead's picture, every Pokémon's
   level, HP, status and held item. Each one's menu has its summary, its field moves, Switch and its item or

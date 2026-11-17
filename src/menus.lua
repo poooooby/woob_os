@@ -366,8 +366,14 @@ return function(engine, deps)
     return ok and open == true
   end
 
+  -- (the places the Bag opens for that are ours: START's and a battle's (no location), a berry tree's and the
+  -- Berry Blender's (choosing a Berry), the item PC's deposit, a shop's selling)
+  local BAG_PLACES = { berry_tree = true, blender = true, itempc = true, shop = true }
   local function bagOurs(opts)
-    if opts.location ~= nil or opts.onChoose or opts.pocketIdx then return false end
+    local loc = opts.location
+    if loc ~= nil and not BAG_PLACES[loc] then return false end
+    if opts.onChoose and loc ~= "berry_tree" and loc ~= "blender" then return false end
+    if opts.pocketIdx then return false end
     if opts.battle and not opts.onBattleUse then return false end
     local B = engine("src.core.game3.battle")
     local st = B and B._st
@@ -400,6 +406,11 @@ return function(engine, deps)
       local b = res.battle
       return try(opts.onBattleUse, b.id, b.slot, b.moveSlot, b.used)
     end
+    if res.chosen ~= nil and opts.onChoose then
+      -- (a Berry chosen, or none: the game's choose_done, onClose then onChoose(id | 0))
+      try(opts.onClose)
+      return try(opts.onChoose, res.chosen)
+    end
     try(opts.onClose)
     if opts.battle and opts.onBattleUse and not res.leave then try(opts.onBattleUse, nil) end
     if m.after then try(m.after) end
@@ -426,12 +437,14 @@ return function(engine, deps)
     end
     bag = bag or (s and (s.bag or s.inventory))
     if not (s and bag) then return false end
-    local m = { kind = "bag", bag = bag, battle = opts.battle == true, pocket = opts.pocket }
+    local POCKET = { BERRIES = "BERRY_POUCH", TM_HM = "TM_CASE" }
+    local m = { kind = "bag", bag = bag, battle = opts.battle == true, pocket = POCKET[opts.pocket] or opts.pocket,
+                location = opts.location }
     local c = { kind = "bag", opts = opts, menu = m, bag = sessionBag }
     cur = c
     local BM = engine("src.ui.game3.bag_menu")
     if BM then
-      BM.open, BM._bag, BM._session, BM._battle, BM._location = true, bag, s, m.battle, nil
+      BM.open, BM._bag, BM._session, BM._battle, BM._location = true, bag, s, m.battle, opts.location
     end
     local ok, opened = pcall(Sh.openFull, "menus", s, function() bagClosed(c) end, nil, { menu = m, chrome = false })
     if not (ok and opened) then

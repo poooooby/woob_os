@@ -259,13 +259,13 @@ return function(K, env, T, A, partyView)
     local q = B.qty
     K.dim(body, 0.18)
     K.addHit(body, "win", A.SCRIM)
-    local sw, sh = min(body[3] - 2 * M, 96), 40 + (K.textScale() - 1) * 6
+    local sw, sh = min(body[3] - 2 * M, 96), (q.kind == "sell" and 46 or 40) + (K.textScale() - 1) * 6
     local sx, sy = body[1] + (body[3] - sw) / 2, body[2] + (body[4] - sh) / 2
     K.glass(K.R(sx, sy, sw, sh), 6, 0.93)
-    local title = T("bag.tossHow")
+    local title = T(q.kind == "deposit" and "bag.depositHow" or (q.kind == "sell" and "bag.sellHow" or "bag.tossHow"))
     K.bold(title, sx, sy + 3, K.fit(title, 4.6, sw - 8), C.ink, "center", sw)
     if row then K.text(row.name, sx, sy + 3 + lineH(4.6), K.fit(row.name, 4, sw - 8), C.soft, "center", sw) end
-    local cy = sy + sh - 17
+    local cy = sy + sh - (q.kind == "sell" and 24 or 17)
     local bw = 12
     local db = K.R(sx + 6, cy, bw, 9)
     local ub = K.R(sx + sw - 6 - bw, cy, bw, 9)
@@ -274,6 +274,12 @@ return function(K, env, T, A, partyView)
     K.addHit(db, "win", A.QTY_DOWN)
     K.addHit(ub, "win", A.QTY_UP)
     K.bold(timesT(q.n), sx, cy + 1, 6, C.ink, "center", sw)
+    -- (selling: what it comes to)
+    if q.kind == "sell" and env.amount and B.sellUnit then
+      local total = B.sellUnit * q.n
+      local aw = env.amount(total, 0, 0, 4, C.ink, true)
+      env.amount(total, sx + (sw - aw) / 2, cy + 9.5, 4, C.ink)
+    end
     local ob = K.R(sx + sw / 2 - 14, sy + sh - 7, 28, 6)
     K.addHit(ob, "win", A.QTY_OK)
     K.text(T("hint.ok"), ob[1], ob[2] + 0.3, 4, C.accent, "center", ob[3])
@@ -296,14 +302,19 @@ return function(K, env, T, A, partyView)
     K.backdrop(body, clock, mv.r, mv.g, mv.b, mv.r2, mv.g2, mv.b2)
     K.scissor(body)
     -- (the top: what it's for, and away)
-    local label = T(B.c.location == "party" and "hint.back" or "hint.close")
-    local bw = K.width(label, 4.2) + 8
-    local bb = K.R(x + w - M - bw, y + 2.5, bw, 8)
-    K.col(C.white, 0.55)
-    K.box("fill", bb, 4)
-    K.ring(bb, 4, C.white, 0.8, 0.3)
-    K.text(label, bb[1], bb[2] + (8 - 4.2 * 1.2) / 2, 4.2, C.accent, "center", bw)
-    K.addHit(bb, "win", A.CANCEL)
+    local loc = B.c.location
+    local bw = 0
+    -- (the Berry Blender waits for a Berry: no way out)
+    if loc ~= "blender" then
+      local label = T(loc == "party" and "hint.back" or ((loc == "berry_tree") and "hint.cancel" or "hint.close"))
+      bw = K.width(label, 4.2) + 8
+      local bb = K.R(x + w - M - bw, y + 2.5, bw, 8)
+      K.col(C.white, 0.55)
+      K.box("fill", bb, 4)
+      K.ring(bb, 4, C.white, 0.8, 0.3)
+      K.text(label, bb[1], bb[2] + (8 - 4.2 * 1.2) / 2, 4.2, C.accent, "center", bw)
+      K.addHit(bb, "win", A.CANCEL)
+    end
     local title = B.title or ""
     local fs = K.fit(title, 6, w - bw - 2 * M - 6)
     K.bold(title, x + M + 1, y + 1 + (TOP_H - fs * 1.2) / 2, fs, C.ink)

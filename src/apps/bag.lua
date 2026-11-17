@@ -19,6 +19,9 @@ local HINTS = {
   give = { { "^ v", "hint.move" }, { "L R", "hint.pocket" }, { "A", "bag.act.give" }, { "B", "hint.back" } },
   menu = { { "^ v", "hint.move" }, { "A", "hint.ok" }, { "B", "hint.back" } },
   qty = { { "^ v", "hint.one" }, { "< >", "hint.ten" }, { "A", "hint.ok" }, { "B", "hint.cancel" } },
+  pickOne = { { "^ v", "hint.move" }, { "L R", "hint.pocket" }, { "A", "hint.choose" }, { "B", "hint.cancel" } },
+  berry = { { "^ v", "hint.move" }, { "A", "hint.choose" }, { "B", "hint.cancel" } },
+  blender = { { "^ v", "hint.move" }, { "A", "hint.choose" } },
   moving = { { "^ v", "hint.move" }, { "A", "hint.drop" }, { "B", "hint.cancel" } },
   msg = { { "A", "hint.ok" } },
   yesno = { { "< >", "hint.move" }, { "A", "hint.ok" }, { "B", "party.no" } },
@@ -55,8 +58,16 @@ return function(env, T, A, Pc)
     B.c.rows, B.c.cursor = rows, B.cur
   end
 
+  local BERRIES = { BERRY_POUCH = true, BERRIES = true }
   function Bc.refresh(B)
     local ok, list = pcall(Bg.pockets, B.c)
+    -- (a berry tree or the Berry Blender: the Berries only)
+    local loc = B.c.location
+    if ok and (loc == "berry_tree" or loc == "blender") then
+      local only = {}
+      for _, p in ipairs(list) do if BERRIES[p] then only[#only + 1] = p end end
+      if #only > 0 then list = only end
+    end
     local was = B.pockets and B.pockets[B.pi]
     B.pockets = ok and list or { "ITEMS" }
     B.rows = {}
@@ -81,6 +92,9 @@ return function(env, T, A, Pc)
     local B = { m = m, c = c, pockets = nil, rows = {}, pi = 1, cur = 1, view = "list", menu = nil, prompt = nil,
                 moving = nil, qty = nil, wait = nil, at = now(), openAt = now(), pageAt = now(), dir = 0 }
     c.view = B
+    -- (what Ruby / Sapphire's bag skin reads off the game's bag: ours answers the same)
+    B._battle, B._location, B._session, B._bag = c.battle, c.location, s, c.bag
+    function B.currentPocket() return B.pockets and B.pockets[B.pi] or "ITEMS" end
     Bc.refresh(B)
     -- (back where it was left; a pocket asked for first)
     local k = s and kept[s]
@@ -88,9 +102,9 @@ return function(env, T, A, Pc)
     for i, p in ipairs(B.pockets) do if p == want then B.pi = i end end
     B.cur = k and k.cur[B.pockets[B.pi]] or 1
     clamp(B)
-    if c.battle then B.title = T("bag.title")
-    elseif c.location == "party" then B.title = T("bag.giveWhich")
-    else B.title = T("bag.title") end
+    local TITLE = { party = "bag.giveWhich", berry_tree = "bag.plantWhich", blender = "bag.berryWhich",
+                    itempc = "bag.depositWhich", shop = "bag.sellWhich" }
+    B.title = T(TITLE[c.location or ""] or "bag.title")
     return B
   end
 
@@ -195,13 +209,33 @@ return function(env, T, A, Pc)
     B.dir = i > B.pi and 1 or -1
   end
 
+  local function qtyFor(B, kind, row, cap)
+    B.qty = { n = 1, max = min(cap, tonumber(row.qty) or 1), at = now(), kind = kind }
+    B.view = "qty"
+  end
   local function openMenu(B)
     local row = Bc.row(B)
     if not row then return end
-    if B.c.location == "party" then
+    local loc = B.c.location
+    if loc == "party" then
       -- (choosing what to give: straight to it)
       se("SE_SELECT")
       return run(B, Bg.act, B.c, "GIVE", row, uiOf(B))
+    elseif loc == "berry_tree" then
+      se("SE_SELECT")
+      return uiOf(B).chosen(row.id)
+    elseif loc == "itempc" then
+      se("SE_SELECT")
+      if (tonumber(row.qty) or 1) <= 1 then return run(B, Bg.deposit, B.c, row, 1, uiOf(B)) end
+      return qtyFor(B, "deposit", row, 999)
+    elseif loc == "shop" then
+      se("SE_SELECT")
+      local okP, unit, cant = pcall(Bg.sellPrice, B.c, row)
+      if not okP then return end
+      if unit == 0 then return uiOf(B).say(cant) end
+      B.sellUnit = unit
+      if (tonumber(row.qty) or 1) <= 1 then return run(B, Bg.sell, B.c, row, 1, uiOf(B)) end
+      return qtyFor(B, "sell", row, B.pockets[B.pi] == "BERRY_POUCH" and 999 or 99)
     end
     local ok, rows = pcall(Bg.actions, B.c, B.pockets[B.pi], row)
     rows = ok and rows or {}
@@ -218,9 +252,7 @@ return function(env, T, A, Pc)
     se("SE_SELECT")
     if r.act == "TOSS" then
       if (tonumber(row.qty) or 1) <= 1 then return run(B, Bg.toss, B.c, row, 1, uiOf(B)) end
-      B.qty = { n = 1, max = min(999, tonumber(row.qty) or 1), at = now() }
-      B.view = "qty"
-      return
+      return qtyFor(B, "toss", row, 999)
     end
     run(B, Bg.act, B.c, r.act, row, uiOf(B))
   end
@@ -239,7 +271,9 @@ return function(env, T, A, Pc)
     local q = B.qty
     B.qty, B.view = nil, "list"
     se("SE_SELECT")
-    if ok then run(B, Bg.toss, B.c, Bc.row(B), q.n, uiOf(B)) end
+    if not ok then return end
+    local f = q.kind == "deposit" and Bg.deposit or (q.kind == "sell" and Bg.sell or Bg.toss)
+    run(B, f, B.c, Bc.row(B), q.n, uiOf(B))
   end
 
   local function startMove(B)
@@ -260,8 +294,15 @@ return function(env, T, A, Pc)
   end
 
   local function cancel(B)
+    -- (the Berry Blender waits for a Berry; a berry tree's B is none)
+    if B.c.location == "blender" then return se("SE_FAILURE") end
     se("SE_SELECT")
     remember(B)
+    if B.c.location == "berry_tree" then
+      B.m.result = { chosen = 0 }
+      B.done = true
+      return
+    end
     B.m.result = B.m.result or {}
     B.done = true
   end
@@ -381,6 +422,9 @@ return function(env, T, A, Pc)
     elseif B.view == "qty" then h = HINTS.qty
     elseif B.view == "move" then h = HINTS.moving
     elseif B.c.location == "party" then h = HINTS.give
+    elseif B.c.location == "berry_tree" then h = HINTS.berry
+    elseif B.c.location == "blender" then h = HINTS.blender
+    elseif B.c.location then h = HINTS.pickOne
     elseif Bg.canMove(B.c, B.pockets[B.pi]) and #rowsOf(B) > 1 then h = HINTS.listMove
     else h = HINTS.list end
     return T.list(h)
