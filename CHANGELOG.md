@@ -5,19 +5,22 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-16
+
 ### Added
 - **The Pokémon Center.** Talking to the nurse opens a close-up of her behind her counter, in the
-  style of the latest games: her words typed out along the bottom, and a choice beside her (heal, or
-  "I'm all good"). To heal, she turns to the machine. A ball goes onto the tray for each Pokémon, the
-  tray slides in, and the machine glows with the game's own jingle while their health fills back up.
-  Then she tells you how your team is doing and asks if there's anything else. Everything the
-  game's nurse does still happens: the "used a Pokémon Center" count, Pokérus explained once
-  (Ruby, Sapphire, Emerald; on Gold, Silver and Crystal with Prof. Elm's call after), Emerald's
-  Gold Card greeting, Crystal's Pokécom Center welcome, and on Red, Blue and Yellow where you return
-  after a loss. Yellow's Pikachu waits beside the machine. On every game; the Pokémon Center option
-  turns it off. The nurse's sprite is by InnerMobius. The scene is lit: a soft key light, shadows,
-  bloom on the machine's lights, and a lit Pokémon Center sign on the counter; the machine is seen
-  from above, its tray sliding into the hood.
+  style of the latest games: her words typed out in a frosted glass box along the bottom, and a
+  choice in navy glass beside her (heal, or "I'm all good"). To heal, she walks off to the machine as
+  the screen fades. The machine sits on the counter against the brick wall: a ball goes onto the tray
+  for each Pokémon, the tray slides in, and the machine glows with the game's own jingle while their
+  health fills back up. Then she walks back, tells you how your team is doing and asks if there's
+  anything else. The scene is lit, with soft light, shadows and glowing lights; a lit Pokémon Center
+  sign is on her counter and the shelves behind her hold Potions, Revives, Ethers and Poké Balls.
+  Everything the game's nurse does still happens: the "used a Pokémon Center" count, Pokérus
+  explained once (Ruby, Sapphire, Emerald; on Gold, Silver and Crystal with Prof. Elm's call after),
+  Emerald's Gold Card greeting, Crystal's Pokécom Center welcome, and on Red, Blue and Yellow where
+  you return after a loss. Yellow's Pikachu waits beside the machine. On every game; the Pokémon
+  Center option turns it off. The nurse's sprite is by InnerMobius.
 
 ## [0.16.0] - 2026-11-16
 
