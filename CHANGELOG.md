@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-11-17
+
 ### Changed
 - The Pokémon Center looks like Emerald's own: an orange wall of slats with the big rounded window
   behind the nurse, and her counter an open rectangle round her, its back against the wall. The
