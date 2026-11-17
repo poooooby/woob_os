@@ -61,6 +61,47 @@ return function(K, env, T, A, partyView)
   end
   local function lineH(size) return K.lineH(size) * 1.25 end
 
+  -- an item's picture, or (Ruby / Sapphire have none) one of ours: a Ball, a TM's disc in its move's
+  -- type, a Berry, else a tile with its initial
+  local INITIAL = K.textCache(function(name) return tostring(name):match("[%w]") or "?" end)
+  local BERRY_C, LEAF_C, TILE_C, BALL_C = { 120, 90, 200 }, { 80, 170, 80 }, { 140, 150, 170 }, { 230, 60, 60 }
+  local function itemArt(r, pocket, x, y, s, a)
+    if env.itemIcon and env.itemIcon(r.id, x, y, s, a) then return end
+    local cx, cy, rr = K.X(x + s / 2), K.Y(y + s / 2), s * 0.38 * K.sc
+    a = a or 1
+    if pocket == "POKE_BALLS" then
+      K.col(C.white, a)
+      G.circle("fill", cx, cy, rr)
+      K.col(BALL_C, a)
+      G.arc("fill", cx, cy, rr, math.pi, 2 * math.pi)
+      K.col(C.black, 0.8 * a)
+      G.setLineWidth(math.max(1, rr * 0.16))
+      G.line(cx - rr, cy, cx + rr, cy)
+      G.circle("line", cx, cy, rr)
+      K.col(C.white, a)
+      G.circle("fill", cx, cy, rr * 0.28)
+      K.col(C.black, 0.8 * a)
+      G.circle("line", cx, cy, rr * 0.28)
+    elseif r.tm then
+      K.col(TYPE[r.tm.typeId] or TILE_C, a)
+      G.circle("fill", cx, cy, rr)
+      K.col(C.white, 0.55 * a)
+      G.circle("fill", cx - rr * 0.3, cy - rr * 0.3, rr * 0.35)
+      K.col(C.white, a)
+      G.circle("fill", cx, cy, rr * 0.22)
+    elseif pocket == "BERRY_POUCH" then
+      K.col(BERRY_C, a)
+      G.circle("fill", cx, cy + rr * 0.1, rr * 0.9)
+      K.col(LEAF_C, a)
+      G.ellipse("fill", cx + rr * 0.3, cy - rr * 0.8, rr * 0.45, rr * 0.22)
+    else
+      local b = K.R(x + s * 0.12, y + s * 0.12, s * 0.76, s * 0.76)
+      K.col(TILE_C, a)
+      K.box("fill", b, s * 0.18)
+      K.bold(INITIAL(r.name), b[1], b[2] + (b[4] - s * 0.5 * 1.2) / 2, s * 0.5, C.white, "center", b[3], a)
+    end
+  end
+
   -- the pockets' tabs: a capsule, a white thumb sliding to the one shown
   local function tabs(B, x, y, w, dt)
     local n = #B.pockets
@@ -102,10 +143,8 @@ return function(K, env, T, A, partyView)
     local ix, iy = narrow and (x + 4) or (x + (w - is) / 2), y + (narrow and (h - is) / 2 or 6)
     local pop = 0.85 + 0.15 * outBack((clock - (B.moveAt or B.pageAt or 0)) / 0.3)
     K.glow(ix + is / 2, iy + is / 2, is * 0.7, is * 0.6, C.white, 0.35)
-    if env.itemIcon then
-      local s2 = is * pop
-      env.itemIcon(row.id, ix + (is - s2) / 2, iy + (is - s2) / 2, s2, 1)
-    end
+    local s2 = is * pop
+    itemArt(row, B.pockets[B.pi], ix + (is - s2) / 2, iy + (is - s2) / 2, s2, 1)
     K.rescissor()
     local tx, tw, ty
     if narrow then
@@ -201,7 +240,7 @@ return function(K, env, T, A, partyView)
           K.box("fill", K.R(rx, ry, w - 4, rh), 3)
         end
         local ink = (on or moved) and C.white or C.ink
-        if env.itemIcon then env.itemIcon(r.id, rx + 1.5, ry + 0.8, rh - 1.6, 1) end
+        itemArt(r, B.pockets[B.pi], rx + 1.5, ry + 0.8, rh - 1.6, 1)
         local qw = r.qtyText and K.width(r.qtyText, 4.2) + 2 or 0
         local nx = rx + rh + 2
         local fs = K.fit(r.name, 4.6, w - (nx - x) - qw - 6)

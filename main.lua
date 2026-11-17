@@ -253,8 +253,9 @@ return function(mod)
       if img then
         G.setColor(1, 1, 1, a or 1)
         G.draw(img, Kit.X(x), Kit.Y(y), 0, k, k)
+        return true
       end
-      return
+      return false
     end
     -- (Ruby / Sapphire / Emerald: one sheet of 24 px icons, by item id; its quads kept here)
     if rseSheet == nil then
@@ -264,14 +265,14 @@ return function(mod)
       local img = icons and SceneKit and SceneKit.rgbaImage(icons.rgba, icons.w, icons.h)
       rseSheet = img and { img = img, count = icons.count, w = icons.w, h = icons.h } or false
     end
-    if not rseSheet then return end
+    if not rseSheet then return false end
     local n = tonumber(id) or 0
     if n < 0 or n >= rseSheet.count then
       local img = modIcon(id, true)
       if img then
         G.setColor(1, 1, 1, a or 1)
         G.draw(img, Kit.X(x), Kit.Y(y), 0, k, k)
-        return
+        return true
       end
       n = rseSheet.count - 1
     end
@@ -282,6 +283,7 @@ return function(mod)
     end
     G.setColor(1, 1, 1, a or 1)
     G.draw(rseSheet.img, q, Kit.X(x), Kit.Y(y), 0, k, k)
+    return true
   end
   -- a Pokémon's menu icon, `size` units square: frame 0 / 1, tinted r, g, b, a (white by default; the
   -- Pokédex's unseen are dark) (kept per species: the engine's lookup makes garbage every call; a species

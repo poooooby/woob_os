@@ -1285,6 +1285,13 @@ our own, in phases (the plan: the Summary, then the Party, then the Bag); the mo
   a wild battle's POKéMON → SUMMARY via `BattleBridge.startWild`, `Ui.askForget`; A through the battle's
   opening words; the first input after opening is the host's wait for the opening A to be let go).
 
+### Item pictures on Ruby / Sapphire
+
+Ruby / Sapphire have no item pictures (their own Bag shows none; Emerald brought the icon sheet), so main.lua's
+`itemIcon` returns false there and the Bag view draws its own stand-in (`itemArt`: a Poké Ball for the Balls
+pocket, a disc in the move's type colour for a TM, a Berry, else a tile with the item's initial); the party
+cards' held item is a small mark (`heldMark`, blue for mail). `itemIcon` returns true when it drew.
+
 ### Phase 5: the Bag's other places
 
 - `Mn.openBag` takes `location` berry_tree / blender (with `onChoose`: `RseBag.chooseBerry`, Berry Crush's

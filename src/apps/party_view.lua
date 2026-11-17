@@ -99,6 +99,14 @@ return function(K, env, T, A, sumView)
     K.text(s, x, y + (h - size * 1.2) / 2, size, C.white, "center", pw, a)
     return pw
   end
+  -- what it holds: the item's picture, or (Ruby / Sapphire have none) a small mark, mail's blue
+  local HELD_C, MAIL_C = { 245, 170, 60 }, { 90, 150, 240 }
+  local function heldMark(card, x, y, s)
+    if env.itemIcon and env.itemIcon(card.item, x, y, s, 0.95) then return end
+    K.col(card.mail and MAIL_C or HELD_C)
+    G.circle("fill", K.X(x + s / 2), K.Y(y + s / 2), s * 0.3 * K.sc)
+    K.ring(K.R(x + s * 0.2, y + s * 0.2, s * 0.6, s * 0.6), s * 0.3, C.white, 0.9, 0.5)
+  end
   -- a four-pointed star (a shiny's): two thin diamonds crossed
   local function star(cx, cy, r, c, a)
     K.col(c, a)
@@ -201,9 +209,7 @@ return function(K, env, T, A, sumView)
     if env.monPic then env.monPic(card.sp, pcx - ps / 2, pcy - ps / 2 + bob, ps, 1, card.mon) end
     K.rescissor()
     if card.active then pill(T("party.inBattle"), x + 3, y + 3, 5.4, 3.3, C.accent) end
-    if card.item and env.itemIcon then
-      env.itemIcon(card.item, x + w - 11, y + 3, 8, 0.95)
-    end
+    if card.item then heldMark(card, x + w - 11, y + 3, 8) end
     local ty = pcy + ps / 2 + 2 + (K.textScale() - 1) * 2
     local fs = K.fit(card.name, 6, w - 14)
     local nw = K.width(card.name, fs)
@@ -231,7 +237,7 @@ return function(K, env, T, A, sumView)
     local frame = floor(clock * (sel and 6 or 2.5)) % 2
     if env.monIconOf then env.monIconOf(card.mon, x + 1, y + (h - is) / 2 - hop, is, frame, 1) end
     K.rescissor()
-    if card.item and env.itemIcon then env.itemIcon(card.item, x + is - 6, y + h - 7.5, 6.5, 0.95) end
+    if card.item then heldMark(card, x + is - 6, y + h - 7.5, 6.5) end
     local tx = x + is + 2
     local right = max(40, min(w * 0.42, 70))
     local nameW = w - (tx - x) - right - 4
