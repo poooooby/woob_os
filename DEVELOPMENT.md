@@ -1285,6 +1285,49 @@ our own, in phases (the plan: the Summary, then the Party, then the Bag); the mo
   a wild battle's POKéMON → SUMMARY via `BattleBridge.startWild`, `Ui.askForget`; A through the battle's
   opening words; the first input after opening is the host's wait for the opening A to be let go).
 
+### Phase 3: the Bag
+
+- **The takeover** (`src/menus.lua`): `src.ui.game3.bag_menu` wrapped once per process (`BagMenu.__woobOs`:
+  `show`, `isOpen`, `close`, `handleInput`, `draw`, `showMessage`), and `Screens.handleInput` / `Screens.draw`
+  for "bag" (`Screens.__woobOs`; a battle calls those, through Emerald's / Ruby and Sapphire's skins). Ours
+  (`Mn.openBag`) for no `location` (START) and a battle with `onBattleUse`; the game's for `location`
+  shop / itempc / berry_tree / blender / party (the game's own party's GIVE), `onChoose`, `pocketIdx` (Teachy
+  TV), a battle without `onBattleUse` (the Pokédude) or a link / Pokédude battle, link rooms, Teachy TV open.
+  A show while ours is up (Teachy TV's way back) is ours already. Answers: a battle's use
+  `onBattleUse(id, slot, moveSlot, usedInMenu)` without `onClose` (as `BagMenu.battleUse`); closed,
+  `onClose()` then in battle `onBattleUse(nil)` (as `BagMenu.close`); leaving for the field `onClose()` then
+  `ctx.menu.after`; `{ classic }` reopens the game's own bag (`w.orig.show`; Ruby / Sapphire's mail GIVE).
+  While ours is up `BagMenu.open` is true, so `ItemUse.setUpOnFieldCallback` keeps Repel's / Escape Rope's
+  callback until ours has closed (`runOnFieldCallback` in the leave); `BagMenu.showMessage` goes to our
+  bubble (`W.say`).
+- **Text aliases**: each profile's `ui.textAliases` (Emerald's `gText_Var1CantBeHeld` for
+  `gText_ItemCantBeHeld`, Ruby / Sapphire's) are set in `RomText.overrides` while any modern menu is open
+  (`Mn.aliases`), as the game's skins set them around their input; TOSS picks each family's own keys.
+- **The rules** (`src/bag_rules.lua`, Bg, `env.bagRules`): pockets from `Inv.pockets` (the profile's order,
+  FRLG's containers while they hold something), rows from `Inv.bagRows` with `registered` and a TM's
+  `Bx.moveRecord` (`Pokemon.moveFromTmItem`; the name "TM01 Focus Punch", the type `type.<id>`), actions as
+  the game's bag's `actions_for_pocket` (Ruby / Sapphire's skin `actionsForPocket`), USE in the field (as
+  `bag_menu.lua`'s: `needsPartyTarget` -> the party, `useField`'s kinds vs_seeker / itemfinder / escape /
+  on_field / bike / rod / black_white_flute / text), USE in battle (`needsPartySelect` -> the party in
+  "battleUse": `BattleItems.canUseOn` / `use`, the HP bar, the words, then the battle's answer; a stat
+  booster's 7-frame delay; a Ball refused with the party and boxes full; else `onBattleUse(id)`), GIVE
+  (`canGive`, no party, to the party), SET (`registeredItem`; Ruby / Sapphire numeric / 0), CHECK TAG
+  (the game's berry tag screen), TOSS, moving within a pocket (`Bg.canMove` as `can_move_items`).
+  `Bg.battleParty` is `PartyView.live` in `PartyMenu.battleOrder`.
+- **The window** (`src/apps/menus.lua`): pages over pages. `kind = "bag"`: the Bag (`src/apps/bag.lua` Bc:
+  views list / menu / qty / move, prompts the party's (`Pc.promptInput` / `promptTap`, drawn by the party
+  view's `drawPrompt`), `B.wait` for delays; `src/apps/bag_view.lua`: tabs with a sliding thumb, the item's
+  card, the list with a gliding highlight, the menu by its row, the how-many sheet). The Bag's
+  `ui.party(mode, item)` opens the party over it (`st.inner`; "battleUse" with `Bg.battleParty`); the party
+  done goes back to the Bag, or closes everything with a battle answer or a leave. The party's GIVE opens
+  the Bag over it with `location = "party"` (`st.innerBag`): A gives at once (`Pc.giveFromBag` with
+  `Bg.giveSource`, the party menu's quest-log words).
+- **Tests**: `tests/menus_test.lua` phase 3 (START: pockets, a Potion through the party over the Bag, TOSS
+  with how many, GIVE, SELECT to move; a battle's Ball (onBattleUse, no onClose), B (onClose then nil),
+  `BagMenu.close()`; the party's GIVE through our Bag; the game's own for its other callers; garbage, 130%,
+  narrow). In-game: the scratchpad's `bag_driver.lua` (START, every pocket, a Potion, TOSS, the party's GIVE,
+  a battle's Potion on the lead and a Poké Ball; the battle's command cursor: tap until the Bag opens).
+
 ### Phase 2: the party menu
 
 - **The takeover** (`src/menus.lua`): `src.ui.game3.party_menu` wrapped once per process

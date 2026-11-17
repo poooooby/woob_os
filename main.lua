@@ -71,6 +71,8 @@ return function(mod)
   local makeMenus, menusWindow = loadSibling(mod, "src/menus.lua"), loadSibling(mod, "src/apps/menus.lua")
   local makeParty, partyCtl = loadSibling(mod, "src/party.lua"), loadSibling(mod, "src/apps/party.lua")
   local partyView = loadSibling(mod, "src/apps/party_view.lua")
+  local makeBagRules, bagCtl = loadSibling(mod, "src/bag_rules.lua"), loadSibling(mod, "src/apps/bag.lua")
+  local bagView = loadSibling(mod, "src/apps/bag_view.lua")
   local Arrange = loadSibling(mod, "src/arrange.lua")
   local makeMart, martWindow = loadSibling(mod, "src/mart.lua"), loadSibling(mod, "src/apps/mart.lua")
   -- the real shops: every shop counter opens the Mart full screen (src/realshop.lua; src/shop.lua the
@@ -1324,17 +1326,23 @@ return function(mod)
       return env.pokecenter.command(nxt, ctx, op, row, ...)
     end)
   end
-  -- the modern menus (src/menus.lua): the game's Summary and party menu, in our glass (the option
-  -- "modernMenus"; src/party.lua the party's rules, src/apps/party.lua + party_view.lua its screen)
+  -- the modern menus (src/menus.lua): the game's Summary, party menu and Bag, in our glass (the option
+  -- "modernMenus"; src/party.lua the party's rules, src/apps/party.lua + party_view.lua its screen;
+  -- src/bag_rules.lua the Bag's, src/apps/bag.lua + bag_view.lua)
   local Menus = nil
   if makeMenus and menusWindow and boxesSummary and summaryCtl then
     if makeParty and partyCtl then
       env.party = makeParty(engine, { T = T, log = function(fmt, ...) mod.log:warn(fmt, ...) end })
       env.partyCtl = partyCtl
+      if makeBagRules and bagCtl and env.inv then
+        env.bagRules = makeBagRules(engine, { T = T, inv = env.inv, moveRecord = env.bx and env.bx.moveRecord,
+                                              log = function(fmt, ...) mod.log:warn(fmt, ...) end })
+        env.bagCtl = bagCtl
+      end
     end
     Apps.register({ id = "menus", labelKey = "menus.title", label = "Menus", glyph = "pokeball",
                     color = { 10, 132, 255 }, order = 99, pad = false, available = function() return false end,
-                    window = function(ctx, e) return menusWindow(ctx, e, boxesSummary, partyView) end })
+                    window = function(ctx, e) return menusWindow(ctx, e, boxesSummary, partyView, bagView) end })
     Menus = makeMenus(engine, {
       Sh = Sh, on = function() return option("modernMenus", true) ~= false end,
       feed = function(input) Sh.feedHost(input) end,

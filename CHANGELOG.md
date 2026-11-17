@@ -17,8 +17,14 @@ All notable changes to this mod are documented here, in
   or Send Out, the game's reasons when it can't. An item used from the Bag (HP bars filling, the game's
   words, a TM's able / not able / learned on each card, a Rare Candy's new stats, evolutions) and an item
   given to hold happen there too. Choosing Pokémon for something (the Day Care, contests, the Battle
-  Frontier), the Move Tutor and items used from the Bag in battle keep the game's own for now. (The Bag
-  follows.)
+  Frontier) and the Move Tutor keep the game's own.
+- **The Bag** on the same five games, in the same glass: each pocket a page with tabs (FireRed /
+  LeafGreen's TM Case and Berry Pouch as pages), the chosen item's picture, words and count beside the
+  list, a TM's move by name with its type, power, accuracy and PP. Use (an item on a Pokémon opens the
+  Pokémon menu over the Bag; bikes, rods, Repel, Escape Rope, the VS Seeker, the Itemfinder and the flutes
+  as in the game), give, toss with how many, register, and SELECT to reorder a pocket. In battle: medicine
+  on a Pokémon with its HP bar filling, X items, Poké Balls. The Pokémon menu's Give chooses from it. The
+  shop's selling, the PC's items, berry trees, the Berry Blender and Teachy TV keep the game's own.
 
 ## [0.17.2] - 2026-11-17
 

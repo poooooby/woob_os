@@ -44,7 +44,7 @@ return function(env, T, A, Ctl)
         if env.forgetMon then pcall(env.forgetMon, mon) end
         local ok, card = pcall(Pt.card, mon, T)
         card = ok and card or { mon = mon, name = "?", levelText = "", maxHp = 1, sp = 0 }
-        if c.mode == "use" and c.item then
+        if (c.mode == "use" or c.mode == "battleUse") and c.item then
           local okT, tag = pcall(Pt.tag, c, mon)
           card.tag = okT and tag and T(tag) or nil
           card.tagOk = okT and tag == "party.able"
@@ -71,9 +71,9 @@ return function(env, T, A, Ctl)
     P.cur = max(1, min(tonumber(m.cursor) or 1, max(1, P.n)))
     m.cursor = P.cur
     -- (what the top says: the item's name for using / giving)
-    if c.item and (c.mode == "use" or c.mode == "give") and env.itemName then
+    if c.item and (c.mode == "use" or c.mode == "battleUse" or c.mode == "give") and env.itemName then
       P.itemName = env.itemName(c.item)
-      P.title = T.f(c.mode == "use" and "party.useOn" or "party.giveTo", P.itemName)
+      P.title = T.f(c.mode == "give" and "party.giveTo" or "party.useOn", P.itemName)
     elseif c.mode == "battle_faint" then
       P.title = T("party.sendOutWhich")
     elseif c.battle then
@@ -139,6 +139,11 @@ return function(env, T, A, Ctl)
       if soft and (P.prompt or P.anim or P.view == "summary") then return end
       back(P, mode, arg)
     end
+    function ui.battle(id, slot, moveSlot, used)
+      P.prompt, P.anim = nil, nil
+      P.m.result = { battle = { id = id, slot = slot, moveSlot = moveSlot, used = used } }
+      P.done = true
+    end
     function ui.close()
       P.prompt, P.anim = nil, nil
       P.done = true
@@ -166,7 +171,7 @@ return function(env, T, A, Ctl)
     local ok, err = pcall(f, ...)
     if not ok then
       if env.log then pcall(env.log, "the party: %s", tostring(err)) end
-      back(P, P.base == "use" and "use" or "list")
+      back(P, "list")
     end
   end
 
@@ -242,7 +247,12 @@ return function(env, T, A, Ctl)
       se("SE_SELECT")
       P.menu, P.view = nil, "pick"
       P.giving = i
-      if not Pt.openBag(c, function() P.giving = nil back(P, "list") refresh(P) end) then P.giving = nil end
+      -- (the Bag over the party, choosing what to give; without ours, the game's)
+      if env.bagCtl then
+        P.wantBag = true
+      elseif not Pt.openBag(c, function() P.giving = nil back(P, "list") refresh(P) end) then
+        P.giving = nil
+      end
     elseif act == "TAKE" then
       P.menu, P.view = nil, "pick"
       run(P, Pt.take, c, i, ui)
@@ -288,9 +298,10 @@ return function(env, T, A, Ctl)
       return run(P, Pt.softboiled, c, P.from, i, uiOf(P))
     end
     local base = P.base
-    if base == "use" or base == "give" then
+    if base == "use" or base == "give" or base == "battleUse" then
       if card.egg then return se("SE_FAILURE") end
       if base == "use" then return run(P, Pt.use, c, i, uiOf(P)) end
+      if base == "battleUse" then return run(P, env.bagRules.battleUse, c, c.party, c.order, i, c.item, uiOf(P)) end
       se("SE_SELECT")
       return run(P, Pt.give, c, i, c.item, c.giveSource, uiOf(P), function() uiOf(P).close() end)
     end
@@ -300,6 +311,13 @@ return function(env, T, A, Ctl)
       P.mainRows = Pt.actions(c, i)
     end
     openMenu(P, P.mainRows, "main")
+  end
+
+  -- what the window does next: "close" (done), "bag" (the Bag over the party, choosing what to give)
+  function Pc.result(P)
+    if P.done then return "close" end
+    if P.wantBag then return "bag" end
+    return nil
   end
 
   -- B on the cards: away (a forced send-out can't)
@@ -342,6 +360,7 @@ return function(env, T, A, Ctl)
 
   -- ------- input
 
+  -- (the prompts' input, on any state with one in .prompt: the Bag's too)
   local function promptInput(P, input, nv)
     local p = P.prompt
     local function pressed(k) return input:wasPressed(k) end
@@ -398,15 +417,15 @@ return function(env, T, A, Ctl)
     local function pressed(k) return input:wasPressed(k) end
     if P.anim then
       if pressed("a") or pressed("b") then finishAnim(P) end
-      return P.done and "close" or nil
+      return Pc.result(P)
     end
     if P.prompt then
       promptInput(P, input, nv)
-      return P.done and "close" or nil
+      return Pc.result(P)
     end
     if P.view == "summary" and P.sum then
       if Ctl.input(P.sum, input, nv) == "close" then summaryClosed(P) end
-      return P.done and "close" or nil
+      return Pc.result(P)
     end
     if P.view == "menu" and P.menu then
       local mm = P.menu
@@ -419,48 +438,55 @@ return function(env, T, A, Ctl)
         if mm.kind == "ITEM" or mm.kind == "MAIL" then openMenu(P, P.mainRows, "main")
         else P.menu, P.view = nil, "pick" end
       end
-      return P.done and "close" or nil
+      return Pc.result(P)
     end
     nav(P, nv)
     if pressed("a") then act(P, P.cur)
     elseif pressed("b") or (pressed("start") and P.view == "pick" and not P.c.battle) then cancel(P) end
-    return P.done and "close" or nil
+    return Pc.result(P)
   end
+
+  Pc.promptInput = promptInput
+  local function promptTap(P, arg)
+    local p = P.prompt
+    if p.kind == "yesno" and (arg == A.YES or arg == A.NO) then
+      se("SE_SELECT")
+      P.prompt = nil
+      if p.after then p.after(arg == A.YES) end
+    elseif p.kind == "pick" and arg > A.PICK and arg <= A.PICK + #p.names then
+      se("SE_SELECT")
+      P.prompt = nil
+      if p.after then p.after(arg - A.PICK - 1) end
+    elseif p.kind == "pick" and arg == A.NO then
+      se("SE_SELECT")
+      P.prompt = nil
+      if p.after then p.after(nil) end
+    elseif arg == A.MSG and (p.kind == "msg" or p.kind == "stats") then
+      se("SE_SELECT")
+      if p.kind == "stats" and p.page == 1 then p.page, p.at = 2, now()
+      elseif p.kind == "msg" and p.page < #p.pages then p.page, p.at = p.page + 1, now()
+      else
+        P.prompt = nil
+        if p.after then p.after() end
+      end
+    end
+  end
+  Pc.promptTap = promptTap
 
   function Pc.tap(P, arg)
     if P.done then return "close" end
     if P.anim then
       finishAnim(P)
-      return P.done and "close" or nil
+      return Pc.result(P)
     end
     local p = P.prompt
     if p then
-      if p.kind == "yesno" and (arg == A.YES or arg == A.NO) then
-        se("SE_SELECT")
-        P.prompt = nil
-        if p.after then p.after(arg == A.YES) end
-      elseif p.kind == "pick" and arg > A.PICK and arg <= A.PICK + #p.names then
-        se("SE_SELECT")
-        P.prompt = nil
-        if p.after then p.after(arg - A.PICK - 1) end
-      elseif p.kind == "pick" and arg == A.NO then
-        se("SE_SELECT")
-        P.prompt = nil
-        if p.after then p.after(nil) end
-      elseif arg == A.MSG and (p.kind == "msg" or p.kind == "stats") then
-        se("SE_SELECT")
-        if p.kind == "stats" and p.page == 1 then p.page, p.at = 2, now()
-        elseif p.kind == "msg" and p.page < #p.pages then p.page, p.at = p.page + 1, now()
-        else
-          P.prompt = nil
-          if p.after then p.after() end
-        end
-      end
-      return P.done and "close" or nil
+      promptTap(P, arg)
+      return Pc.result(P)
     end
     if P.view == "summary" and P.sum then
       if Ctl.tap(P.sum, arg) == "close" then summaryClosed(P) end
-      return P.done and "close" or nil
+      return Pc.result(P)
     end
     if P.view == "menu" and P.menu then
       local k = arg - A.MENU
@@ -471,7 +497,7 @@ return function(env, T, A, Ctl)
         se("SE_SELECT")
         P.menu, P.view = nil, "pick"
       end
-      return P.done and "close" or nil
+      return Pc.result(P)
     end
     if arg == A.CANCEL then
       cancel(P)
@@ -485,7 +511,7 @@ return function(env, T, A, Ctl)
         act(P, i)
       end
     end
-    return P.done and "close" or nil
+    return Pc.result(P)
   end
 
   -- once a frame: an HP bar's fill ending, the game's move learning taking its turn
@@ -493,7 +519,7 @@ return function(env, T, A, Ctl)
     local a = P.anim
     if a and clock - a.t0 >= a.dur then finishAnim(P) end
     if Pt.pump then pcall(Pt.pump) end
-    return P.done and "close" or nil
+    return Pc.result(P)
   end
 
   -- the game's bag gave an item to the one waiting (ITEM -> GIVE)
@@ -516,7 +542,8 @@ return function(env, T, A, Ctl)
       return Ctl.hints(P.sum)
     elseif P.view == "menu" then
       h = HINTS.menu
-    elseif P.view == "switch" or P.view == "softboiled" or P.base == "use" or P.base == "give" then
+    elseif P.view == "switch" or P.view == "softboiled" or P.base == "use" or P.base == "give"
+        or P.base == "battleUse" then
       h = HINTS.pickFor
     elseif P.base == "battle_faint" then
       h = HINTS.forced

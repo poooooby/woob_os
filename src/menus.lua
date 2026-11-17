@@ -1,5 +1,5 @@
--- The modern menus on FireRed / LeafGreen / Ruby / Sapphire / Emerald: the game's own Summary and Party
--- menu (and, in a later phase, its Bag) taken over where WoobOS has its own, from the START menu's
+-- The modern menus on FireRed / LeafGreen / Ruby / Sapphire / Emerald: the game's own Summary, Party
+-- menu and Bag taken over where WoobOS has its own, from the START menu's
 -- Pokémon and in battle alike. With the mod option off, or any caller that isn't ours, or anything failing:
 -- the game's own screen.
 --
@@ -29,10 +29,22 @@
 -- field move runs after (ctx.menu.after). While ours is up the game's GIVE from its bag comes back through
 -- show(mode "give"): handed to our window (src/apps/menus.lua W.giveFromBag), the bag closed.
 --
+-- The Bag: src.ui.game3.bag_menu's show(bag, opts) wrapped the same way, and Screens.handleInput / draw for
+-- "bag" (a battle calls those, through Emerald's and Ruby / Sapphire's skins). Ours for the START menu's
+-- (no location) and a battle's (with its onBattleUse); the game's for a shop's selling, the item PC, a
+-- berry tree, the Berry Blender, the party menu's GIVE from the game's party, choosing (onChoose), the
+-- Pokédude and Teachy TV, links. Ours answers as the game's: a battle's use is onBattleUse(id, slot,
+-- moveSlot, usedInMenu) without onClose (BagMenu.battleUse); closed, onClose() then, in a battle,
+-- onBattleUse(nil); leaving for the field (a bike, Repel, the VS Seeker) onClose() then its own work. While
+-- ours is up: BagMenu.open, its showMessage (ItemUse's field words) in our bubble; ItemUse's on-field
+-- callbacks wait (BagMenu.isOpen true) until ours has closed. Its party is the same screen's
+-- (src/apps/menus.lua): the party menu isn't opened through the game for it.
+--
 --   Mn = menus(engine, deps)   deps: Sh ; on() -> the option ; feed(input) (the host's input, once a frame) ;
 --                              log(fmt, ...) ; partyUi(session) -> the game's party skin (Ruby / Sapphire's)
 --   Mn.wrap() (at game.ready) ; Mn.isOpen() ; Mn.openSummary(party, index, opts) -> true when ours opened ;
---   Mn.openParty(party, overlay, opts) -> the same ; Mn.kind() -> "summary" | "party" | nil
+--   Mn.openParty(party, overlay, opts) -> the same ; Mn.openBag(bag, opts) -> the same ;
+--   Mn.kind() -> "summary" | "party" | "bag" | nil
 
 return function(engine, deps)
   local Mn = {}
@@ -41,6 +53,34 @@ return function(engine, deps)
 
   function Mn.isOpen() return cur ~= nil end
   function Mn.kind() return cur and cur.kind or nil end
+
+  -- (the game's own words under the names its bag and party menu use: each profile's text aliases --
+  -- Emerald's "gText_Var1CantBeHeld" for "gText_ItemCantBeHeld" -- set while one of ours is open, as the
+  -- game's screens set them around their input)
+  local aliased = {}
+  local function aliases(s, on)
+    local R = engine("src.core.game3.rom_text")
+    if not R then return end
+    if not on then
+      for k = #aliased, 1, -1 do
+        R.overrides[aliased[k]] = nil
+        aliased[k] = nil
+      end
+      return
+    end
+    local Pr = engine("src.core.game3.profile")
+    local ok, row = pcall(Pr.forSession, s)
+    local list = ok and type(row) == "table" and type(row.ui) == "table" and row.ui.textAliases or nil
+    if type(list) ~= "table" then return end
+    for from, to in pairs(list) do
+      local okH, fine = pcall(function() return R.overrides[from] == nil and not R.has(from) and R.has(to) end)
+      if okH and fine then
+        R.overrides[from] = R.ir(to)
+        aliased[#aliased + 1] = from
+      end
+    end
+  end
+  Mn.aliases = aliases
   -- (the option; Mn.on stands in for it in the tests)
   local function on()
     local v = Mn.on
@@ -77,6 +117,7 @@ return function(engine, deps)
   local function summaryClosed(c)
     local SM = engine("src.ui.game3.summary_menu")
     cur = nil
+    aliases(nil, false)
     local opts = c.opts
     local res = c.menu.result or {}
     local index = tonumber(res.index) or c.menu.index or 1
@@ -124,6 +165,7 @@ return function(engine, deps)
     if SM then
       SM.open, SM._cursor = true, index
     end
+    aliases(s, true)
     return true
   end
 
@@ -195,6 +237,7 @@ return function(engine, deps)
   local function partyClosed(c)
     local PM = engine("src.ui.game3.party_menu")
     cur = nil
+    aliases(nil, false)
     local m, opts = c.menu, c.opts
     if PM then
       PM.open = false
@@ -297,6 +340,94 @@ return function(engine, deps)
       if not ok then log("the party couldn't open: %s", tostring(opened)) end
       return false
     end
+    aliases(s, true)
+    return true
+  end
+
+  -- ------- the Bag
+
+  local function teachyTv()
+    local Tv = package.loaded["src.ui.game3.teachy_tv"]
+    if type(Tv) ~= "table" or type(Tv.isOpen) ~= "function" then return false end
+    local ok, open = pcall(Tv.isOpen)
+    return ok and open == true
+  end
+
+  local function bagOurs(opts)
+    if opts.location ~= nil or opts.onChoose or opts.pocketIdx then return false end
+    if opts.battle and not opts.onBattleUse then return false end
+    local B = engine("src.core.game3.battle")
+    local st = B and B._st
+    if opts.battle and type(st) == "table" and (st.pokedude or (st.link ~= nil and st.link ~= false)) then
+      return false
+    end
+    if linked() or teachyTv() then return false end
+    return true
+  end
+
+  local function bagClosed(c)
+    local BM = engine("src.ui.game3.bag_menu")
+    cur = nil
+    aliases(nil, false)
+    local m, opts = c.menu, c.opts
+    if BM then BM.open = false end
+    local res = m.result or {}
+    local function try(f, ...)
+      if not f then return end
+      local ok, err = pcall(f, ...)
+      if not ok then log("after the bag: %s", tostring(err)) end
+    end
+    if res.classic then
+      -- (the game's own bag instead, where ours was: Ruby / Sapphire's mail is written there)
+      local w = BM and BM.__woobOs
+      if w then try(w.orig.show, c.bag, opts) end
+      return
+    end
+    if res.battle then
+      local b = res.battle
+      return try(opts.onBattleUse, b.id, b.slot, b.moveSlot, b.used)
+    end
+    try(opts.onClose)
+    if opts.battle and opts.onBattleUse and not res.leave then try(opts.onBattleUse, nil) end
+    if m.after then try(m.after) end
+  end
+
+  function Mn.openBag(sessionBag, opts)
+    opts = opts or {}
+    if cur then
+      -- (the game asking for its bag again while ours is up -- Teachy TV's way back: ours is there)
+      return cur.kind == "bag" and opts.location == nil and not opts.battle
+    end
+    if not on() or not bagOurs(opts) then return false end
+    local Sh = deps.Sh
+    if not (Sh and Sh.openFull) then return false end
+    local s = opts.session
+    local bag = opts.bag
+    if type(sessionBag) == "table" then
+      if sessionBag.pockets then
+        bag = sessionBag
+      elseif sessionBag.bag or sessionBag.party then
+        s = s or sessionBag
+        bag = sessionBag.bag or bag
+      end
+    end
+    bag = bag or (s and (s.bag or s.inventory))
+    if not (s and bag) then return false end
+    local m = { kind = "bag", bag = bag, battle = opts.battle == true, pocket = opts.pocket }
+    local c = { kind = "bag", opts = opts, menu = m, bag = sessionBag }
+    cur = c
+    local BM = engine("src.ui.game3.bag_menu")
+    if BM then
+      BM.open, BM._bag, BM._session, BM._battle, BM._location = true, bag, s, m.battle, nil
+    end
+    local ok, opened = pcall(Sh.openFull, "menus", s, function() bagClosed(c) end, nil, { menu = m, chrome = false })
+    if not (ok and opened) then
+      cur = nil
+      if BM then BM.open = false end
+      if not ok then log("the bag couldn't open: %s", tostring(opened)) end
+      return false
+    end
+    aliases(s, true)
     return true
   end
 
@@ -407,11 +538,85 @@ return function(engine, deps)
     return true
   end
 
+  local function wrapBag()
+    local BM = engine("src.ui.game3.bag_menu")
+    if not BM then return false end
+    local w = BM.__woobOs
+    if not w then
+      w = { orig = { show = BM.show, isOpen = BM.isOpen, close = BM.close, handleInput = BM.handleInput,
+                     draw = BM.draw, showMessage = BM.showMessage } }
+      BM.__woobOs = w
+      local o = w.orig
+      BM.show = function(bag, opts)
+        local impl = w.impl
+        if impl and impl.openBag then
+          local ok, took = pcall(impl.openBag, bag, opts)
+          if ok and took then return end
+          if not ok and impl.log then impl.log("the bag's takeover failed: %s", tostring(took)) end
+        end
+        return o.show(bag, opts)
+      end
+      BM.isOpen = function(...)
+        local impl = w.impl
+        if impl and impl.isOpen() then return true end
+        return o.isOpen(...)
+      end
+      BM.close = function(...)
+        local impl = w.impl
+        if impl and impl.isOpen() then return impl.closeOurs() end
+        return o.close(...)
+      end
+      BM.handleInput = function(input, ...)
+        local impl = w.impl
+        if impl and impl.isOpen() then return impl.feed(input) end
+        return o.handleInput(input, ...)
+      end
+      BM.draw = function(...)
+        local impl = w.impl
+        if impl and impl.isOpen() then return end
+        return o.draw(...)
+      end
+      BM.showMessage = function(text, onDone, ...)
+        local impl = w.impl
+        if impl and impl.isOpen() and impl.say(text, onDone) then return end
+        return o.showMessage(text, onDone, ...)
+      end
+    end
+    w.impl = { openBag = Mn.openBag, isOpen = function() return cur ~= nil and cur.kind == "bag" end,
+               closeOurs = function() return Mn.closeOurs() end,
+               say = function(text, onDone)
+                 local win = cur and cur.menu.win
+                 return win and win.say and win.say(text, onDone) or false
+               end,
+               feed = function(input) if deps.feed then deps.feed(input) end end, log = log }
+    -- (a battle hands the bag its input and draws it through Screens -- Emerald's and Ruby / Sapphire's
+    -- skins: while ours is up, ours)
+    local Screens = engine("src.ui.game3.screens")
+    if Screens and not Screens.__woobOs then
+      local so = { handleInput = Screens.handleInput, draw = Screens.draw }
+      Screens.__woobOs = so
+      Screens.handleInput = function(id, mod, input, ...)
+        local ww = BM.__woobOs
+        local impl = ww and ww.impl
+        if id == "bag" and impl and impl.isOpen() then return impl.feed(input) end
+        return so.handleInput(id, mod, input, ...)
+      end
+      Screens.draw = function(id, mod, ...)
+        local ww = BM.__woobOs
+        local impl = ww and ww.impl
+        if id == "bag" and impl and impl.isOpen() then return end
+        return so.draw(id, mod, ...)
+      end
+    end
+    return true
+  end
+
   -- ours closed from outside (a battle's end, the game's close): as B would, nothing chosen
   function Mn.closeOurs()
     local c = cur
     if not c then return end
     if c.kind == "party" then c.menu.result = c.menu.result or { chosen = nil }
+    elseif c.kind == "bag" then c.menu.result = c.menu.result or {}
     else c.menu.result = c.menu.result or { picked = false, index = c.menu.index } end
     local Sh = deps.Sh
     local h = Sh and Sh.host and Sh.host()
@@ -420,7 +625,7 @@ return function(engine, deps)
       local r = Tm.state()
       if r and r.ctx and r.ctx.menu == c.menu and r.ctx.done then return r.ctx.done() end
     end
-    if c.kind == "party" then partyClosed(c) else summaryClosed(c) end
+    if c.kind == "party" then partyClosed(c) elseif c.kind == "bag" then bagClosed(c) else summaryClosed(c) end
   end
 
   function Mn.wrap()
@@ -428,6 +633,8 @@ return function(engine, deps)
     if not ok then log("the modern menus couldn't wrap the summary: %s", tostring(err)) end
     ok, err = pcall(wrapParty)
     if not ok then log("the modern menus couldn't wrap the party menu: %s", tostring(err)) end
+    ok, err = pcall(wrapBag)
+    if not ok then log("the modern menus couldn't wrap the bag: %s", tostring(err)) end
   end
 
   return Mn

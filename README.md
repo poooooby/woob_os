@@ -24,6 +24,11 @@ controller, a touch screen, or a mouse and keyboard.
   Marts, every department store floor, herb shops, the pharmacy, souvenir and decoration shops, the
   Underground's bargain stall and Slateport's market stalls by the sea, each dressed for its place and
   what it sells.
+- 🎒 **Bag:** on FireRed, LeafGreen, Ruby, Sapphire and Emerald, the Bag opens in glass from the START
+  menu and in battle: each pocket a page (FireRed and LeafGreen's TM Case and Berry Pouch too), the chosen
+  item's picture and words beside the list, a TM's move with its type, power, accuracy and PP. Use, give,
+  toss (choosing how many), register and reorder items there; an item used on a Pokémon opens the
+  Pokémon menu over the Bag, in battle too.
 - 📋 **Pokémon menu and summary:** on FireRed, LeafGreen, Ruby, Sapphire and Emerald, the Pokémon menu
   is six glass cards over lights in the chosen Pokémon's colours: the lead's picture, every Pokémon's
   level, HP, status and held item. Each one's menu has its summary, its field moves, Switch and its item or
@@ -137,7 +142,7 @@ their Map can't Fly.
 | Pokégear | On / Off | On | Gold, Silver and Crystal. Off: the game's own Pokégear. |
 | Real Shops | On / Off | On | Off: every shop counter opens the game's own shop menu. |
 | Pokémon Center | On / Off | On | Off: the nurse's counter is the game's own. |
-| Modern Menus | On / Off | On | Off: the Pokémon menu and summary are the game's own. |
+| Modern Menus | On / Off | On | Off: the Bag, the Pokémon menu and the summary are the game's own. |
 | Map: Invert X | On / Off | Off | The 3D map's camera turns the other way. |
 | Map: Invert Y | On / Off | Off | The 3D map's camera tilts the other way. |
 

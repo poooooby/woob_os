@@ -403,6 +403,13 @@ return function(K, env, T, A, sumView)
     end
   end
 
+  -- (the Bag's prompts are the same bubble: any state with .prompt)
+  function V.drawPrompt(S, clock, body)
+    G = K.graphics()
+    bodyNow = body
+    drawPrompt(S, clock, body)
+  end
+
   function V.draw(body, clock, portrait, P)
     G = K.graphics()
     bodyNow = body

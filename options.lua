@@ -64,7 +64,7 @@ return {
     label = "Modern Menus",
     type = "toggle",
     default = true,
-    description = "The Pokémon menu and a Pokémon's summary open in WoobOS's glass, from the START menu and in battle, and when it's time to forget a move (FireRed, LeafGreen, Ruby, Sapphire, Emerald). Off: the game's own.",
+    description = "The Bag, the Pokémon menu and a Pokémon's summary open in WoobOS's glass, from the START menu and in battle, and when it's time to forget a move (FireRed, LeafGreen, Ruby, Sapphire, Emerald). Off: the game's own.",
   },
   {
     key = "mapInvertX",

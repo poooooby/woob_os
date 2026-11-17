@@ -471,4 +471,202 @@ Mn.on = false
 T.check(Mn.openParty(s.party, nil, { session = s }) == false, "the option off: not ours")
 Mn.on = nil
 
+-- =================== phase 3: the Bag
+local BM = require("src.ui.game3.bag_menu")
+local Screens = require("src.ui.game3.screens")
+T.check(BM.__woobOs ~= nil and BM.__woobOs.impl ~= nil and Screens.__woobOs ~= nil, "the bag's takeover is made and wrapped")
+local wrappedBag = BM.show
+run.loader.events:emit("game.ready", {})
+T.check(BM.show == wrappedBag, "the bag wrapped once")
+local POKE_BALL = 4
+local function count(id)
+  local n = 0
+  for _, p in ipairs({ "ITEMS", "POKE_BALLS", "KEY_ITEMS", "TM_CASE", "BERRY_POUCH", "BERRIES", "TM_HM" }) do
+    local ok, rows = pcall(Bag.listPocket, s.bag, p)
+    if ok and rows then for _, r in ipairs(rows) do if tonumber(I.toNumericId(r.id) or r.id) == id then n = n + r.qty end end end
+  end
+  return n
+end
+Bag.add(s.bag, POTION, 3)
+Bag.add(s.bag, RARE_CANDY, 1)
+Bag.add(s.bag, POKE_BALL, 5)
+Bag.add(s.bag, ORAN, 2)
+local function bag() return Tm.isOpen() and Tm.state().win.state.bag or nil end
+local function page() return Tm.isOpen() and Tm.state().win.state.page or nil end
+-- (a frame for the Bag: the field's layer, or a battle handing it input through Screens)
+local function bframe(n, press, battle)
+  for i = 1, n or 1 do
+    clock = clock + 1 / 60
+    local inp = i == 1 and press and input({ press }) or NONE
+    if battle then Screens.handleInput("bag", BM, inp, s) else Sh.mapLayer.handleInput(inp) end
+    Sh.frame(nil, VP)
+  end
+end
+local function toRow(B, id)
+  for _ = 1, 8 do
+    local list = B.rows[B.pockets[B.pi]] or {}
+    for k, r in ipairs(list) do
+      if tonumber(I.toNumericId(r.id) or r.id) == id then
+        while B.cur ~= k do bframe(1, B.cur < k and "down" or "up") end
+        return true
+      end
+    end
+    bframe(1, "right")
+  end
+  return false
+end
+local function menuPick(B, act)
+  for k, r in ipairs(B.menu and B.menu.rows or {}) do
+    if r.act == act then
+      while B.menu.sel ~= k do bframe(1, "down") end
+      bframe(1, "a")
+      return true
+    end
+  end
+  return false
+end
+
+-- ------- START's BAG: ours, its pockets as pages
+closes = 0
+BM.show(s.bag, { session = s, onClose = function() closes = closes + 1 end })
+local B = bag()
+T.check(B ~= nil and page() == "bag" and BM.isOpen() == true, "START's BAG: ours, full screen")
+bframe(2)
+T.check(not Tm.state().winFailed, "it draws")
+T.check(#B.pockets >= 3, "its pockets (" .. table.concat(B.pockets, " ") .. ")")
+local pi0 = B.pi
+bframe(1, "right")
+T.check(B.pi ~= pi0, "Right: the next pocket")
+bframe(1, "left")
+T.eq(B.pi, pi0, "Left: back")
+-- (a Potion used: the party over the Bag, then back to it)
+T.check(toRow(B, POTION), "the Potions found")
+bframe(1, "a")
+T.check(B.view == "menu" and B.menu.rows[1].act == "USE", "A: its menu, USE first")
+local hurt2 = s.party[2]
+hurt2.hp = 1
+menuPick(B, "USE")
+T.check(page() == "party" and party() and party().base == "use", "USE: the party over the Bag")
+local Pu = party()
+while Pu.cur ~= 2 do bframe(1, "down") end
+bframe(1, "a")
+for _ = 1, 120 do if not Pu.anim then break end bframe(1) end
+T.check(hurt2.hp > 1 and Pu.prompt ~= nil, "the Potion: HP up, the game's words")
+through()
+T.check(page() == "party" and Pu.view == "pick", "more Potions: picking again")
+bframe(1, "b")
+T.check(page() == "bag" and Tm.isOpen(), "B: back on the Bag")
+T.eq(count(POTION), 2, "one Potion used")
+-- (TOSS: how many, sure?, gone)
+toRow(B, POTION)
+bframe(1, "a")
+menuPick(B, "TOSS")
+T.check(B.view == "qty" and B.qty.n == 1, "TOSS: how many")
+bframe(1, "up")
+T.eq(B.qty.n, 2, "Up: two")
+bframe(1, "a")
+T.check(B.prompt and B.prompt.kind == "yesno", "sure? (the game's words)")
+bframe(1, "a")
+T.check(B.prompt and B.prompt.kind == "msg", "thrown away (the game's words)")
+bframe(1, "a")
+T.eq(count(POTION), 0, "both Potions gone")
+-- (GIVE: the party over the Bag, held)
+s.party[1].item, s.party[1].heldItem = 0, 0
+toRow(B, ORAN)
+bframe(1, "a")
+menuPick(B, "GIVE")
+T.check(page() == "party" and party().base == "give", "GIVE: the party over the Bag")
+bframe(1, "a")
+T.check((tonumber(s.party[1].item) or 0) == ORAN, "held")
+through()
+T.check(page() == "bag", "back on the Bag")
+-- (moving an item in its pocket: SELECT, down, A)
+local okM = Bag.add(s.bag, POTION, 1)
+toRow(B, POTION)
+local pocketNow = B.pockets[B.pi]
+local list0 = B.rows[pocketNow]
+if #list0 > 1 and require("src.core.game3.items_data").BAG_MODEL then
+  local first = list0[1].id
+  while B.cur ~= 1 do bframe(1, "up") end
+  bframe(1, "select")
+  if B.view == "move" then
+    bframe(1, "down")
+    bframe(1, "a")
+    T.check(B.rows[pocketNow][2].id == first, "SELECT: moved one down")
+  end
+end
+local bkb = garbageOf(60)
+T.check(bkb < 0.5, ("the Bag: next to no garbage (%.3f KB a frame)"):format(bkb))
+K.setTextScale(1.3)
+T.check(pcall(bframe, 20), "the Bag's text at 130%")
+VP.width, VP.height = 320, 480
+T.check(pcall(bframe, 10), "a narrow screen")
+VP.width, VP.height = 480, 320
+K.setTextScale(1)
+bframe(1, "b")
+T.check(not Tm.isOpen() and not BM.isOpen() and closes == 1, "B: closed, onClose once")
+
+-- ------- a battle's Bag: a Ball thrown (onBattleUse, no onClose); B: onClose, then onBattleUse(nil)
+local used = {}
+local function battleBag()
+  used = {}
+  BM.show(s.bag, { session = s, battle = true,
+                   onBattleUse = function(id, slot) used[#used + 1] = "use:" .. tostring(id) .. ":" .. tostring(slot) end,
+                   onClose = function() used[#used + 1] = "close" end })
+  if Tm.isOpen() then bframe(1, nil, true) end
+  return bag()
+end
+B = battleBag()
+T.check(B and B.c.battle, "a battle's BAG: ours")
+local gotBall = false
+for _ = 1, 6 do
+  local list = B.rows[B.pockets[B.pi]] or {}
+  for k, r in ipairs(list) do
+    if tonumber(I.toNumericId(r.id) or r.id) == POKE_BALL then
+      while B.cur ~= k do bframe(1, B.cur < k and "down" or "up", true) end
+      gotBall = true
+    end
+  end
+  if gotBall then break end
+  bframe(1, "right", true)
+end
+T.check(gotBall, "the Poké Balls")
+bframe(1, "a", true)
+T.check(B.menu and B.menu.rows[1].act == "USE", "A: USE")
+bframe(1, "a", true)
+T.check(not Tm.isOpen() and table.concat(used, " ") == "use:4:nil", "USE: the battle told, no onClose (" .. table.concat(used, " ") .. ")")
+B = battleBag()
+bframe(1, "b", true)
+T.check(not Tm.isOpen() and table.concat(used, " ") == "close use:nil:nil", "B: onClose, then onBattleUse(nil) (" .. table.concat(used, " ") .. ")")
+B = battleBag()
+BM.close()
+T.check(not Tm.isOpen() and used[1] == "close", "BagMenu.close(): ours closes as B")
+
+-- ------- the party's GIVE: our Bag over the party, the item given at once
+s.party[2].item, s.party[2].heldItem = 0, 0
+Bag.add(s.bag, ORAN, 1)
+P = open({ session = s })
+pframe(1, "down")
+pframe(1, "a")
+pickRow(P, "ITEM")
+pickRow(P, "GIVE")
+T.check(page() == "bag" and bag().c.location == "party", "the party's GIVE: our Bag over it")
+B = bag()
+toRow(B, ORAN)
+bframe(1, "a")
+T.check(page() == "party" and (tonumber(s.party[2].item) or 0) == ORAN, "A: given at once, back on the party")
+through()
+pframe(1, "b")
+T.check(not Tm.isOpen(), "and away")
+
+-- ------- the game's own for its other callers
+T.check(Mn.openBag(s.bag, { session = s, location = "shop" }) == false, "a shop's selling: not ours")
+T.check(Mn.openBag(s.bag, { session = s, location = "itempc" }) == false, "the item PC: not ours")
+T.check(Mn.openBag(s.bag, { session = s, location = "berry_tree" }) == false, "a berry tree: not ours")
+T.check(Mn.openBag(s.bag, { session = s, onChoose = noop }) == false, "choosing: not ours")
+T.check(Mn.openBag(s.bag, { session = s, battle = true }) == false, "the Pokédude's (no onBattleUse): not ours")
+Mn.on = false
+T.check(Mn.openBag(s.bag, { session = s }) == false, "the option off: not ours")
+Mn.on = nil
+
 T.finish("woob_os menus (" .. GAME .. ")")
