@@ -483,7 +483,25 @@ return function(engine, deps)
 
   -- ------- the meteor over Hoenn: once the Hall of Fame's done Rayquaza waits at the Sky Pillar's top
   -- (Emerald: its script shows it while FLAG_DEFEATED_RAYQUAZA is clear; Ruby / Sapphire: its battle sets
-  -- FLAG_HIDE_RAYQUAZA, caught or beaten) -> true while it waits
+  -- FLAG_HIDE_RAYQUAZA, caught or beaten) -> while it waits, where it comes down: the Sky Pillar's top
+  -- { x, y, z } (its door, as src/map3d/towns.lua stands the tower behind it), or true without the tower
+  local function pillarOf(region)
+    local got = region.pillarTop
+    if got ~= nil then return got or nil end
+    got = false
+    local W, MT = region.world, region.unit or 16
+    for _, d in ipairs(W and W.doors or {}) do
+      if tostring(d.dest or ""):find("SKY_PILLAR_1F", 1, true) then
+        local f = d.foot
+        local x = f and (f.x0 + f.x1) / 2 / MT or (d.x + 0.5) / MT
+        local z = f and (f.y0 + f.y1) / 2 / MT or (d.y - 1) / MT
+        got = { x = x, y = 1.6, z = z - 0.12 }
+        break
+      end
+    end
+    region.pillarTop = got
+    return got or nil
+  end
   function M.meteor(region, s)
     if not (region and region.id == "hoenn" and s) then return false end
     local g = deps.gameId and deps.gameId() or nil
@@ -493,7 +511,8 @@ return function(engine, deps)
     local ok, clear, gone = pcall(function()
       return R.flag("FLAG_SYS_GAME_CLEAR", s), R.flag(g == "emerald" and "FLAG_DEFEATED_RAYQUAZA" or "FLAG_HIDE_RAYQUAZA", s)
     end)
-    return ok and clear == true and not gone or false
+    if not (ok and clear == true and not gone) then return false end
+    return pillarOf(region) or true
   end
 
   -- ------- the everyday weather (Ruby / Sapphire / Emerald). A map's own weather covers all of it (Mt.

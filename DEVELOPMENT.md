@@ -996,14 +996,18 @@ the voxel diorama mod in the engine's checkout either (another author's).
 - **The sky** (`drawSky(..., skyOpts)`, 2D behind the map): `R.auroraNow()` (stubbable) 0..1, ten-minute
   spells of `os.time` (35% have one, easing in and out over their first and last eighth), three curtains
   of a kept 194-vertex strip mesh (rays from two sines along it), added on; a shooting star in some 7 s
-  spells of `t` (`drawShootingStar`: eight fading segments); the meteor (`drawMeteor`, a kept 4-vertex fan
-  for the tail drawn twice, glow rings, the rock lit on its leading side; added on at night, laid over by
-  day).
+  spells of `t` (`drawShootingStar`: eight fading segments). The meteor (`drawMeteor(G, night, t, head, tail's
+  end, r)`, a kept 4-vertex fan for the tail drawn twice, glow rings, the rock lit on its leading side; added
+  on at night, laid over by day) is drawn after the clouds, over everything: its head `METEOR_AT` world units
+  up `METEOR_FROM` (high, east and north) from the Sky Pillar's top, its tail `METEOR_TAIL` further, both
+  through `R.project`, the rock's size by its depth; without the tower (`meteor == true`) high on the right
+  of the sky.
 - **The meteor's rule** (`model.lua` `M.meteor(region, s)`, Hoenn on Ruby / Sapphire / Emerald):
   `FLAG_SYS_GAME_CLEAR` and not Emerald's `FLAG_DEFEATED_RAYQUAZA` (Sky Pillar's top shows Rayquaza while it's
   clear: `SkyPillar_Top_EventScript_TryShowRayquaza`) / Ruby and Sapphire's `FLAG_HIDE_RAYQUAZA` (set after its
-  battle, caught or beaten). The scene reads it with the storm (`st.sky.meteor`) and passes `st.sky` to
-  `R.draw`. Tests: `tests/world_test.lua` (the flags), the scratchpad's `night_driver.lua` (shots, the
+  battle, caught or beaten) -> the Sky Pillar's top `{ x, y, z }` (its `SKY_PILLAR_1F` door in the kept
+  outline's doors, as towns.lua stands the tower; `region.pillarTop`) or true. The scene reads it with the
+  storm (`st.sky.meteor`) and passes `st.sky` to `R.draw`. Tests: `tests/world_test.lua` (the flags), the scratchpad's `night_driver.lua` (shots, the
   aurora forced).
 
 ## The apps tied to play: Bank, Errands, Challenges, News

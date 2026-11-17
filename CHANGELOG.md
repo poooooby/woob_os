@@ -41,8 +41,8 @@ All notable changes to this mod are documented here, in
   lamps along the towns' and cities' streets, a glow over Mt. Chimney's and Mt. Ember's craters and a
   harbour ship's portholes. Now and then an aurora's curtains, and shooting stars.
 - **A meteor over Hoenn** (Ruby, Sapphire and Emerald): once you've entered the Hall of Fame and Rayquaza
-  waits at the top of the Sky Pillar, a meteor burns in the 3D map's sky, day and night, until Rayquaza is
-  beaten or caught.
+  waits at the top of the Sky Pillar, a meteor comes burning down at the tower in the 3D map's sky, day and
+  night, until Rayquaza is beaten or caught.
 
 ### Changed
 - The summary is titled "Pokémon Info", with pictures of the Pokémon's type (flames, drops, bolts, leaves ...)

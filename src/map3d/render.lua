@@ -23,7 +23,8 @@
 --                                    pixels { x, y, w, h } -> the view-projection kept
 --   R.project(x, y, z) -> sx, sy, depth (window pixels; nil behind the eye)
 --   R.draw(G, region, rect, t, night, dusk, storm, weather, sky) -> true (3D) | false (the flat fallback
---                                    drew it); sky = { meteor = true | nil } | nil
+--                                    drew it); sky = { meteor = { x, y, z } (the Sky Pillar's top: it
+--                                    comes down at it) | true (high on the right) | nil } | nil
 --                                    storm = { x, z, kind = "rain" | "sand", grow = 0..1 } | nil
 --                                    weather = { { kind, x, z, rx, rz, y, y0, grow } } | nil (src/map3d/
 --                                    model.lua's M.weather, each with how grown)
@@ -2005,6 +2006,14 @@ return function(deps)
   end
 
   local SUN, SUN_COLOR, AMBIENT, CLOUD = { 0, 1, 0 }, { 1, 1, 1 }, { 0.4, 0.4, 0.4 }, { 0, 1 }
+  -- (the meteor's way down to the Sky Pillar: from high up, east and north of it; its head this far out
+  -- along that way, its tail this much longer, its rock this big (world units))
+  local METEOR_FROM = { 0.62, 0.6, -0.5 }
+  do
+    local l = sqrt(METEOR_FROM[1] ^ 2 + METEOR_FROM[2] ^ 2 + METEOR_FROM[3] ^ 2)
+    METEOR_FROM[1], METEOR_FROM[2], METEOR_FROM[3] = METEOR_FROM[1] / l, METEOR_FROM[2] / l, METEOR_FROM[3] / l
+  end
+  local METEOR_AT, METEOR_TAIL, METEOR_R = 2, 6, 0.36
   local STORM, STORM_AT, STORM_TINT = { 0, 0, 0, 0 }, { 0, 0, 0 }, { 1, 1, 1, 0 }
   -- the sky: a gradient behind the map, and stars at night
   local sky = nil
@@ -2082,18 +2091,15 @@ return function(deps)
     G.setColor(1, 1, 1, a)
     G.circle("fill", hx, hy, max(1, h / 240))
   end
-  -- the meteor: high on the right, its tail back up to the left where it comes from, burning
+  -- the meteor: its head (hx, hy) r pixels round, its tail back to (tx, ty) where it comes from, burning
   local tail = nil
-  local function drawMeteor(G, w, h, night, t)
+  local function drawMeteor(G, night, t, hx, hy, tx, ty, r)
     if tail == nil then
       local v = {}
       for i = 1, 4 do v[i] = { 0, 0, 0, 0, 1, 1, 1, 1 } end
       local ok, m = pcall(G.newMesh, v, "fan", "dynamic")
       tail = ok and m or false
     end
-    local hx, hy = w * 0.8, h * 0.16
-    local r = max(3, h * 0.03)
-    local tx, ty = hx - w * 0.32, hy - h * 0.22
     local dx, dy = hx - tx, hy - ty
     local l = sqrt(dx * dx + dy * dy)
     local ux, uy = dx / l, dy / l
@@ -2161,7 +2167,10 @@ return function(deps)
       if ak > 0 then drawAurora(G, w, h, ak * k, t) end
       drawShootingStar(G, w, h, k, t)
     end
-    if skyOpts and skyOpts.meteor then drawMeteor(G, w, h, night, t) end
+    -- (no tower to come down at: high on the right, its tail up to the left)
+    if skyOpts and skyOpts.meteor == true then
+      drawMeteor(G, night, t, w * 0.8, h * 0.16, w * 0.48, h * -0.06, max(3, h * 0.03))
+    end
   end
 
   local function light(night, dusk)
@@ -2288,6 +2297,27 @@ return function(deps)
     if m.clouds then G.draw(m.clouds) end
     G.setDepthMode("always", false)
     G.setShader()
+    -- (the meteor coming down at the Sky Pillar: high over it, its tail back up the way it came; over
+    -- everything, as it's between the eye and the ground)
+    local mt = skyOpts and skyOpts.meteor
+    if type(mt) == "table" then
+      local ax, ay, az = mt.x + METEOR_FROM[1] * METEOR_AT, mt.y + METEOR_FROM[2] * METEOR_AT,
+        mt.z + METEOR_FROM[3] * METEOR_AT
+      local hx, hy, hd = project(ax, ay, az)
+      if hx then
+        local k = METEOR_AT + METEOR_TAIL
+        local tx, ty = project(mt.x + METEOR_FROM[1] * k, mt.y + METEOR_FROM[2] * k, mt.z + METEOR_FROM[3] * k)
+        if not tx then
+          -- (its tail's end behind the eye: as far as the eye's side of it)
+          local k2 = METEOR_AT + METEOR_TAIL * 0.3
+          tx, ty = project(mt.x + METEOR_FROM[1] * k2, mt.y + METEOR_FROM[2] * k2, mt.z + METEOR_FROM[3] * k2)
+        end
+        if tx then
+          local r = max(2.5, METEOR_R * h / (2 * TAN_HALF) / hd)
+          drawMeteor(G, night, t, hx - view.x, hy - view.y, tx - view.x, ty - view.y, r)
+        end
+      end
+    end
     -- (the blurred copy for the glass)
     local b = blurTarget(G, max(1, floor(w / 4)), max(1, floor(h / 4)))
     if b then

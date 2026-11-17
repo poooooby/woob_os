@@ -231,7 +231,7 @@ return function(ctx, env, opts)
     if st.region then readWeather(s) end
     if st.region and Mdl.meteor then
       local okM, yes = pcall(Mdl.meteor, st.region, s)
-      st.sky.meteor = okM and yes == true
+      st.sky.meteor = okM and yes or false
     end
     local ok, h, m = pcall(env.map3d.clock)
     if ok and h then st.hour, st.minute = h, m or 0 end
