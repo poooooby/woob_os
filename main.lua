@@ -68,6 +68,7 @@ return function(mod)
   local boxesView = loadSibling(mod, "src/apps/boxes_view.lua")
   local boxesSummary = loadSibling(mod, "src/apps/boxes_summary.lua")
   local summaryCtl = loadSibling(mod, "src/apps/summary_ctl.lua")
+  local typeArt = loadSibling(mod, "src/apps/type_art.lua")
   local makeMenus, menusWindow = loadSibling(mod, "src/menus.lua"), loadSibling(mod, "src/apps/menus.lua")
   local makeParty, partyCtl = loadSibling(mod, "src/party.lua"), loadSibling(mod, "src/apps/party.lua")
   local partyView = loadSibling(mod, "src/apps/party_view.lua")
@@ -686,6 +687,7 @@ return function(mod)
   end
   env.nurse = makeNurseArt and makeNurseArt(mod) or nil
   env.summaryCtl = summaryCtl or nil
+  env.typeArt = typeArt and env.K and typeArt(env.K) or nil
   env.stallView = stallView or nil
   env.lighting = makeLighting and makeLighting({ log = function(fmt, ...) mod.log:warn(fmt, ...) end }) or nil
   -- (a species by the game's own name for it, "KYOGRE")

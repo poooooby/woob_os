@@ -34,6 +34,17 @@ All notable changes to this mod are documented here, in
   in Viridian City the same way. Used from the Bag, Teachy TV opens over the field and the Bag comes back
   when it's switched off.
 
+### Changed
+- The summary is titled "Pokémon Info", with pictures of the Pokémon's type (flames, drops, bolts, leaves ...)
+  drifting behind it.
+- The Bag has its pocket's pictures drifting behind it and a large one in the corner of the item's card; the chosen row
+  is outlined as on the summary's Forget Move.
+- The team's numbers, the Move Tutor's Able / Not able and the battle's In Battle are larger, with a check, a
+  cross or a dot.
+- Selling asks with a card of its own: the item, the price each, how many, the total and your money after.
+- The game's words in a bubble shrink for a long page and keep clear of the continue arrow (Teachy TV's
+  lessons).
+
 ### Fixed
 - A notification's banner no longer stays over the START menu, a summary, the Bag or a message opened while
   it was showing: it waits, and slides in again (without its sound twice) once you're back in the field.

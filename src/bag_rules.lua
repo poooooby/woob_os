@@ -315,7 +315,9 @@ return function(engine, deps)
     local rse = family(s) == "rse"
     local ask = rse and shopBox(s, "gText_ICanPayVar1", { tostring(earn) })
       or box("gText_ICanPayThisMuch_WouldThatBeOkay", { [3] = tostring(earn) })
-    ui.ask(ask, function(yes)
+    -- (the Bag's own card for it: the item, the price, the total, the money after; the shop's words on it)
+    local confirm = ui.sellAsk and function(text, after) ui.sellAsk(row, qty, unit, earn, text, after) end or ui.ask
+    confirm(ask, function(yes)
       if not yes then return end
       se("SE_SHOP")
       if call(B().remove, c.bag, row.id, qty) then

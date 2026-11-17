@@ -217,11 +217,20 @@ return function(K, env, T, st, A, TABS)
   -- ------- the top: back, which of the list, the arrows
   local function drawTop(x, y, w, S)
     local label = word(S.back or "app.storage")
-    local bb = K.R(x, y, K.width(label, 4.2) + 8, TOP_H)
+    local backW = K.width(label, 4.2) + 8
+    local bb = K.R(x, y, backW, TOP_H)
     K.chevron(x + 2, y + 4.5, 4.2, C.accent, -1)
     K.text(label, x + 4.8, y + 2, 4.2, C.accent)
     K.addHit(bb, "win", A.SUM_BACK)
+    -- (the page's title in the middle, clear of the way back and the arrows)
     local n = #S.list
+    local side = math.max(backW, n > 1 and 54 or 0) + 2
+    local title = word("sum.title")
+    local tw = w - side * 2
+    if tw > 20 then
+      local fs = K.fit(title, 5.4, tw)
+      K.bold(title, x + side, y + (TOP_H - fs * 1.2) / 2, fs, C.ink, "center", tw)
+    end
     if n > 1 then
       local rx = x + w
       local ab = K.R(rx - 9, y, 9, TOP_H)
@@ -753,6 +762,15 @@ return function(K, env, T, st, A, TABS)
     mv.g2 = approach(mv.g2, (t2[2] + (255 - t2[2]) * k2) / 255, dt, rate)
     mv.b2 = approach(mv.b2, (t2[3] + (255 - t2[3]) * k2) / 255, dt, rate)
     K.backdrop(body, clock, mv.r, mv.g, mv.b, mv.r2, mv.g2, mv.b2)
+    -- (the type's own pictures drifting behind the glass: its first type's field, its second's large in a
+    -- corner; an egg's none)
+    local Art = env.typeArt
+    if Art and not R.egg and R.types[1] then
+      local ta, tb = R.types[1].id, (R.types[2] or R.types[1]).id
+      Art.scatter("type", ta, body, clock, C.white, 0.3)
+      Art.type(tb, x + w * 0.86, y + h * 0.78, h * 0.62, -0.15 + 0.08 * sin(clock * 0.35), C.white, 0.18)
+      K.scissor(body)
+    end
     drawTop(x + M, y + 1, w - M * 2, S)
     local top = y + TOP_H + 2
     local ah = y + h - M - top

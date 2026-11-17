@@ -138,6 +138,12 @@ return function(env, T, A, Pc)
       local pages = env.party.pages(text)
       B.prompt = { kind = "yesno", pages = { table.concat(pages, " ") }, page = 1, after = after, yes = true, at = now() }
     end
+    function ui.sellAsk(row, qty, unit, earn, text, after)
+      local pages = env.party.pages(text)
+      local s = B.c.session
+      B.prompt = { kind = "yesno", pages = { table.concat(pages, " ") }, page = 1, after = after, yes = true, at = now(),
+                   sell = { row = row, qty = qty, unit = unit, earn = earn, money = tonumber(s and s.money) or 0 } }
+    end
     function ui.pick(prompt, names, after)
       B.prompt = { kind = "pick", pages = { prompt }, page = 1, names = names, sel = 1, after = after, at = now() }
     end

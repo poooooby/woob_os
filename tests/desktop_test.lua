@@ -2554,7 +2554,7 @@ for _, file in ipairs({ "main.lua", "src/desktop.lua", "src/apps.lua", "src/apps
                         "src/gb/pokecenter.lua", "src/menus.lua", "src/apps/menus.lua", "src/apps/summary_ctl.lua",
                         "src/apps/boxes_summary.lua", "src/apps/boxes.lua", "src/boxes.lua",
                         "src/party.lua", "src/apps/party.lua", "src/apps/party_view.lua", "src/bag_rules.lua",
-                        "src/apps/bag.lua", "src/apps/bag_view.lua" }) do
+                        "src/apps/bag.lua", "src/apps/bag_view.lua", "src/apps/type_art.lua" }) do
   local src = readFile(file) or ""
   for key in src:gmatch('"([%a][%w_]*%.[%w_%.]+)"') do
     if PREFIX[key:match("^(%a+)")] and not key:match("%.$") and not key:match("%.lua$") and not NOT_WORDS[key] then

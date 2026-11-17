@@ -1289,6 +1289,26 @@ our own, in phases (the plan: the Summary, then the Party, then the Bag); the mo
   a wild battle's POKéMON → SUMMARY via `BattleBridge.startWild`, `Ui.askForget`; A through the battle's
   opening words; the first input after opening is the host's wait for the opening A to be let go).
 
+### The look: type pictures, the Bag's, the chips, the sell card
+
+- `src/apps/type_art.lua` (`env.typeArt`, both mains): a vector picture for each type (the game's ids, 9 the
+  "???") and each pocket, built of convex pieces, circles and lines in a -1..1 box (the flame a traced concave
+  outline, `love.math.triangulate`d once: `flameTris`); each painted once, solid white, into a 256 px canvas
+  (msaa 4, a plain one if that fails; drawn faded piece by piece, overlaps showed as seams), then drawn from it
+  tinted and faded (`Art.type`, `Art.pocket`); `Art.scatter(kind, key, b, clock, c, a)` a drifting field of
+  twelve, upright and swaying (spinning turned flames and drops upside down). Headless (no canvases) the pieces
+  are drawn straight. No closures in a picture's function (one made 0.53 KB a frame): helpers at factory level.
+- The summary (`boxes_summary.lua`): "Pokémon Info" (`sum.title`) centred in the top bar, clear of the way
+  back and the arrows; its first type's field and its second's large, peeking from the bottom-right corner.
+- The Bag (`bag_view.lua`): the pocket's field over the backdrop, its picture a garnish peeking from the
+  detail card's bottom-right corner (clipped to the card); the
+  chosen row a pale accent fill with an accent edge (the summary's Forget Move); selling's question is
+  `ui.sellAsk` (`B.prompt.sell`: the item, quantity, price each, total, money) drawn by `drawSell`, a yes / no
+  underneath.
+- The party (`party_view.lua`): `chip(s, x, y, h, size, c, mark)` with a check / cross / dot for the tags and
+  In Battle; the team's badge a larger disc. The bubble (`drawPrompt`) wraps clear of the arrow (9 units) and
+  drops to a smaller size when a page would take more than 45% of the screen.
+
 ### The mailbox, the Battle Pyramid, Teachy TV
 
 - **A mod's `package.loaded` is its own**, not the engine's: an engine module is `engine(name)` (main.lua's

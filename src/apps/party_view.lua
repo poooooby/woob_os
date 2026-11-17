@@ -43,11 +43,16 @@ return function(K, env, T, A, sumView)
   -- (a team's place, 1 2 3, on its card's corner)
   local function orderBadge(card, x, y)
     if not card.orderN then return end
-    local r = 3.4
+    -- (large: a shadow, the accent disc, a white edge, its number bold)
+    local r = 5.4
+    local cx, cy = K.X(x + r), K.Y(y + r)
+    K.col(C.black, 0.2)
+    G.circle("fill", cx, cy + 0.8 * K.sc, (r + 0.4) * K.sc)
     K.col(C.accent)
-    G.circle("fill", K.X(x + r), K.Y(y + r), r * K.sc)
-    K.ring(K.R(x, y, r * 2, r * 2), r, C.white, 0.9, 0.5)
-    K.bold(numT(card.orderN), x, y + r - 2.6, 4.2, C.white, "center", r * 2)
+    G.circle("fill", cx, cy, r * K.sc)
+    K.ring(K.R(x, y, r * 2, r * 2), r, C.white, 1, 1)
+    local fs = 7
+    K.bold(numT(card.orderN), x, y + r - fs * 0.6, fs, C.white, "center", r * 2)
   end
   -- the motion's numbers
   local mv = { r = 0.6, g = 0.6, b = 0.6, r2 = 0.6, g2 = 0.6, b2 = 0.6, coloured = false, lastT = nil,
@@ -92,6 +97,33 @@ return function(K, env, T, A, sumView)
   end
   local function hpColour(k) return k > 0.5 and C.hpGood or (k > 0.2 and C.hpMid or C.hpLow) end
   -- a small capsule with words in it -> its width
+  -- a prominent chip: its mark (a check, a cross, a dot) and its words bold -> its width
+  local CHIP_EDGE = { 255, 255, 255, 0.55 }
+  local function chip(s, x, y, h, size, c, mark)
+    local mw = mark and h * 0.75 or 0
+    local pw = K.width(s, size) + 5 + mw
+    local b = K.R(x, y, pw, h)
+    K.col(C.black, 0.14)
+    K.box("fill", K.R(x, y + 0.5, pw, h), h / 2)
+    K.col(c)
+    K.box("fill", b, h / 2)
+    K.ring(b, h / 2, CHIP_EDGE, 1, 0.5)
+    if mark then
+      local mx, my, m = x + 2.2 + mw / 2, y + h / 2, h * 0.22
+      K.col(C.white)
+      G.setLineWidth(math.max(1, h * 0.11 * K.sc))
+      if mark == "check" then
+        G.line(K.X(mx - m), K.Y(my), K.X(mx - m * 0.25), K.Y(my + m * 0.8), K.X(mx + m * 1.1), K.Y(my - m * 0.9))
+      elseif mark == "cross" then
+        G.line(K.X(mx - m), K.Y(my - m), K.X(mx + m), K.Y(my + m))
+        G.line(K.X(mx - m), K.Y(my + m), K.X(mx + m), K.Y(my - m))
+      else
+        G.circle("fill", K.X(mx), K.Y(my), m * 0.9 * K.sc)
+      end
+    end
+    K.bold(s, x + 2 + mw, y + (h - size * 1.2) / 2, size, C.white, nil, nil)
+    return pw
+  end
   local function pill(s, x, y, h, size, c, a)
     local pw = K.width(s, size) + 4
     K.col(c, a)
@@ -179,7 +211,8 @@ return function(K, env, T, A, sumView)
     local ink = onDark and C.white or C.ink
     if card.egg then return end
     if card.tag then
-      pill(card.tag, x, y - 0.4, size * 1.35, size * 0.9, card.tagOk and C.able or C.notAble)
+      chip(card.tag, x, y - 1.6, size * 1.9, size * 1.1, card.tagOk and C.able or C.notAble,
+        card.tagOk and "check" or "cross")
       return
     end
     local hp = hpOf(P, i, card, clock, dt)
@@ -202,13 +235,13 @@ return function(K, env, T, A, sumView)
     local soft = onDark and C.white or C.soft
     local ps = max(20, min(w - 16, h * 0.46))
     local bob = sel and sin(clock * 5) * 0.8 or 0
-    local pcx, pcy = x + w / 2, y + 4 + ps / 2 + (card.active and 3 or 0)
+    local pcx, pcy = x + w / 2, y + 4 + ps / 2 + (card.active and 5 or 0)
     K.glow(pcx, pcy, ps * 0.6, ps * 0.5, C.white, sel and 0.32 or 0.2)
     K.col(C.black, 0.16)
     G.ellipse("fill", K.X(pcx), K.Y(pcy + ps * 0.44), ps * 0.26 * K.sc, ps * 0.055 * K.sc)
     if env.monPic then env.monPic(card.sp, pcx - ps / 2, pcy - ps / 2 + bob, ps, 1, card.mon) end
     K.rescissor()
-    if card.active then pill(T("party.inBattle"), x + 3, y + 3, 5.4, 3.3, C.accent) end
+    if card.active then chip(T("party.inBattle"), x + 3, y + 3, 7.4, 4.4, C.accent, "dot") end
     if card.item then heldMark(card, x + w - 11, y + 3, 8) end
     local ty = pcy + ps / 2 + 2 + (K.textScale() - 1) * 2
     local fs = K.fit(card.name, 6, w - 14)
@@ -248,7 +281,9 @@ return function(K, env, T, A, sumView)
     if card.gender and not K.hasSign(card.name) then K.sexMark(card.gender, nx, ny + 0.7, 4, 1, onDark and C.white or nil) nx = nx + 4.5 end
     if card.shiny then star(nx + 1.8, ny + 2.6, 1.9, C.gold) end
     K.text(card.levelText, tx, ny + lineH(ns), 3.8, soft, nil, nil, 0.9)
-    if card.active then pill(T("party.inBattle"), tx + K.width(card.levelText, 3.8) + 2, ny + lineH(ns), 4.8, 3, C.accent) end
+    if card.active then
+      chip(T("party.inBattle"), tx + K.width(card.levelText, 3.8) + 2, ny + lineH(ns) - 0.8, 6.2, 3.8, C.accent, "dot")
+    end
     vitals(P, i, card, x + w - right - 3, y + h / 2 - 2.2, right, 3.8, clock, dt, onDark)
     orderBadge(card, x + 2, y + 2)
     K.addHit(b, "win", A.CARD + i)
@@ -403,8 +438,15 @@ return function(K, env, T, A, sumView)
     local yes = p.kind == "yesno"
     local bwid = yes and 26 or 0
     local text = p.pages[p.page] or ""
-    local lines = wrap("msg", text, w - 10 - bwid, size)
-    local bh = max(16, #lines * lineH(size) + 7)
+    -- (the words kept clear of the yes / no or the arrow at the right; a long page in smaller words, so it
+    -- fits the screen -- Teachy TV's lessons speak at length)
+    local room = w - 10 - (yes and bwid or 9)
+    local lines = wrap("msg", text, room, size)
+    if #lines * lineH(size) + 7 > body[4] * 0.45 then
+      size = 4.2
+      lines = wrap("msgS", text, room, size)
+    end
+    local bh = min(body[4] - M * 2, max(16, #lines * lineH(size) + 7))
     local by = body[2] + body[4] - bh - M + (1 - e) * 6
     local b = K.R(x, by, w, bh)
     K.glass(b, 6, 0.93)

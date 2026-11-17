@@ -37,6 +37,7 @@ return function(K, env, T, A, partyView)
   local outCubic, outBack, approach = K.outCubic, K.outBack, K.approach
   local numT = K.textCache(function(n) return tostring(n) end)
   local timesT = K.textCache(function(n) return "×" .. tostring(n) end)
+  local drawSell
   local mv = { tab = nil, r = 0.9, g = 0.6, b = 0.4, r2 = 0.9, g2 = 0.8, b2 = 0.5, coloured = false, lastT = nil,
                selY = nil, top = 0, menu = nil, menuAt = 0, qtyAt = 0 }
   V.motion = mv
@@ -142,6 +143,16 @@ return function(K, env, T, A, partyView)
     local is = narrow and min(h - 6, 20) or min(w * 0.42, 34)
     local ix, iy = narrow and (x + 4) or (x + (w - is) / 2), y + (narrow and (h - is) / 2 or 6)
     local pop = 0.85 + 0.15 * outBack((clock - (B.moveAt or B.pageAt or 0)) / 0.3)
+    -- (the pocket's own picture as a garnish: large in the card's bottom corner, peeking in from past its
+    -- edges, turning slowly, in the pocket's colour -- as the summary's and the Pokédex's cards do)
+    local Art = env.typeArt
+    if Art then
+      local pc = POCKET_C[B.pockets[B.pi]] or POCKET_C.ITEMS
+      local ms = narrow and h * 1.5 or min(w, h) * 0.95
+      G.intersectScissor(K.X(x), K.Y(y), w * K.sc, h * K.sc)
+      Art.pocket(B.pockets[B.pi], x + w - ms * 0.22, y + h - ms * 0.2, ms, -0.5 + 0.12 * math.sin(clock * 0.4), pc[1], 0.3)
+      K.scissor(V.body)
+    end
     K.glow(ix + is / 2, iy + is / 2, is * 0.7, is * 0.6, C.white, 0.35)
     local s2 = is * pop
     itemArt(row, B.pockets[B.pi], ix + (is - s2) / 2, iy + (is - s2) / 2, s2, 1)
@@ -226,7 +237,11 @@ return function(K, env, T, A, partyView)
     local selY = yy + (B.cur - 1) * rh
     mv.selY = mv.selY and approach(mv.selY, selY, dt, 22) or selY
     if n > 0 and not B.moving then
-      K.selection(K.R(x + 2 + slide, mv.selY, w - 4, rh), true, 3)
+      -- (the chosen row as the summary's move to forget: a pale fill, an accent edge)
+      local hb = K.R(x + 2 + slide, mv.selY, w - 4, rh)
+      K.col(C.accent, 0.14)
+      K.box("fill", hb, 3)
+      K.ring(hb, 3, C.accent, 0.9, 0.6)
     end
     for k = 1, n do
       local ry = yy + (k - 1) * rh
@@ -239,7 +254,7 @@ return function(K, env, T, A, partyView)
           K.col(C.move, 0.9)
           K.box("fill", K.R(rx, ry, w - 4, rh), 3)
         end
-        local ink = (on or moved) and C.white or C.ink
+        local ink = moved and C.white or C.ink
         itemArt(r, B.pockets[B.pi], rx + 1.5, ry + 0.8, rh - 1.6, 1)
         local qw = r.qtyText and K.width(r.qtyText, 4.2) + 2 or 0
         local nx = rx + rh + 2
@@ -247,7 +262,7 @@ return function(K, env, T, A, partyView)
         K.text(r.name, nx, ry + (rh - fs * 1.2) / 2, fs, ink, nil, nil, e)
         if r.qtyText then K.text(r.qtyText, rx, ry + (rh - 4.2 * 1.2) / 2, 4.2, ink, "right", w - 7, e) end
         if r.registered then
-          K.col(on and C.white or C.reg, 0.9)
+          K.col(moved and C.white or C.reg, 0.9)
           G.circle("fill", K.X(nx - 1.2), K.Y(ry + rh / 2), 0.9 * K.sc)
         end
         K.addHit(K.R(x + 1, ry, w - 2, rh), "win", A.ROW + k, inner)
@@ -324,6 +339,87 @@ return function(K, env, T, A, partyView)
     K.text(T("hint.ok"), ob[1], ob[2] + 0.3, 4, C.accent, "center", ob[3])
   end
 
+  -- selling: a card of its own -- the item, the shop's words, the price each, how many, the total, the money
+  -- before and after, Cancel / Sell
+  local SELL_BAND = { 52, 199, 89 }
+  local function money(n, x, y, size, c, align, w)
+    if not env.amount then return end
+    local aw = env.amount(n, 0, 0, size, c, true)
+    local ax = align == "right" and (x + w - aw) or (align == "center" and (x + (w - aw) / 2) or x)
+    env.amount(n, ax, y, size, c)
+    return aw
+  end
+  function drawSell(B, clock, body)
+    local p = B.prompt
+    local d = p.sell
+    if p ~= mv.sellP then mv.sellP, mv.sellAt = p, clock end
+    local e = outBack((clock - mv.sellAt) / 0.28)
+    K.dim(body, 0.28 * math.min(1, e))
+    local ts = K.textScale() - 1
+    local sw = min(body[3] - 2 * M, 150 + ts * 30)
+    local hh = 24 + ts * 5
+    local lines = wrap("sellWords", p.pages[1] or "", sw - 10, 3.8)
+    local nl = min(2, #lines)
+    local bh, gap = 9 + ts * 2, 3
+    -- (as tall as what's on it)
+    local sh = hh + 3 + nl * lineH(3.8) + 2 + lineH(4.2) * 2 + 3 + lineH(6) + 1 + lineH(3.8) + 5 + bh + 4
+    local sx, sy = body[1] + (body[3] - sw) / 2, body[2] + (body[4] - sh) / 2 + (1 - e) * 8
+    local b = K.R(sx, sy, sw, sh)
+    K.glass(b, 7, 0.96)
+    -- (its head: the pocket's colour, the item's picture and name, how many)
+    local pocket = B.pockets[B.pi]
+    local pc = POCKET_C[pocket] or POCKET_C.ITEMS
+    K.grad(K.R(sx, sy, sw, hh), 7, pc[1], pc[2])
+    if env.typeArt then
+      -- (inside the head only, peeking up from its foot, clear of its rounded corner)
+      G.intersectScissor(K.X(sx), K.Y(sy), sw * K.sc, hh * K.sc)
+      env.typeArt.pocket(pocket, sx + sw - hh * 0.75, sy + hh * 0.95, hh * 1.3, -0.5 + 0.12 * math.sin(clock * 0.4), C.white, 0.25)
+      K.scissor(V.body)
+    end
+    itemArt(d.row, pocket, sx + 4, sy + 3, hh - 6, 1)
+    K.rescissor()
+    local nx = sx + hh + 2
+    local ns = K.fit(d.row.name, 5.6, sw - (nx - sx) - 30)
+    K.bold(d.row.name, nx, sy + 3, ns, C.white)
+    K.text(timesT(d.qty), nx, sy + 3 + lineH(ns), 4.4, C.white, nil, nil, 0.9)
+    -- (the shop's words)
+    local yy = sy + hh + 3
+    for k = 1, nl do
+      K.text(lines[k], sx + 5, yy + (k - 1) * lineH(3.8), 3.8, C.soft)
+    end
+    yy = yy + nl * lineH(3.8) + 2
+    -- (the sums)
+    local lx, rw = sx + 6, sw - 12
+    local rs = 4.2
+    K.text(T("bag.sell.each"), lx, yy, rs, C.ink)
+    money(d.unit, lx, yy, rs, C.ink, "right", rw)
+    yy = yy + lineH(rs) + 0.5
+    K.text(T("bag.sell.qty"), lx, yy, rs, C.ink)
+    K.text(timesT(d.qty), lx, yy, rs, C.ink, "right", rw)
+    yy = yy + lineH(rs) + 1
+    K.hairline(lx, yy, rw)
+    yy = yy + 1.5
+    K.bold(T("bag.sell.total"), lx, yy + 0.6, 4.6, C.ink)
+    money(d.earn, lx, yy, 6, SELL_BAND, "right", rw)
+    yy = yy + lineH(6) + 1
+    -- (the money now, and after)
+    K.text(T("bag.sell.money"), lx, yy, 3.8, C.soft)
+    local aw = env.amount and env.amount(d.money + d.earn, 0, 0, 3.8, C.ink, true) or 0
+    money(d.money + d.earn, lx, yy, 3.8, C.ink, "right", rw)
+    local arx = lx + rw - aw - 5
+    K.chevron(arx + 2, yy + 2.3, 2.2, C.soft, 1)
+    money(d.money, lx, yy, 3.8, C.soft, "right", rw - aw - 7)
+    -- (Cancel / Sell)
+    local bw = (sw - 10 - gap) / 2
+    local by = sy + sh - bh - 4
+    local nb = K.R(sx + 5, by, bw, bh)
+    local yb = K.R(sx + 5 + bw + gap, by, bw, bh)
+    K.button(nb, T("hint.cancel"), "gray", not p.yes, 4.6)
+    K.button(yb, T("bag.sell.confirm"), "accent", p.yes, 4.6)
+    K.addHit(nb, "win", A.NO)
+    K.addHit(yb, "win", A.YES)
+  end
+
   function V.draw(body, clock, portrait, B)
     G = K.graphics()
     V.body = body
@@ -339,6 +435,11 @@ return function(K, env, T, A, partyView)
     mv.r2, mv.g2, mv.b2 = approach(mv.r2, pc[2][1] / 255, dt, rate), approach(mv.g2, pc[2][2] / 255, dt, rate),
       approach(mv.b2, pc[2][3] / 255, dt, rate)
     K.backdrop(body, clock, mv.r, mv.g, mv.b, mv.r2, mv.g2, mv.b2)
+    -- (the pocket's pictures drifting behind the glass)
+    if env.typeArt then
+      env.typeArt.scatter("pocket", pocket, body, clock, C.white, 0.3)
+      K.scissor(body)
+    end
     K.scissor(body)
     -- (the top: what it's for, and away)
     local loc = B.c.location
@@ -384,7 +485,8 @@ return function(K, env, T, A, partyView)
       mv.menu = nil
     end
     if B.view == "qty" and B.qty then drawQty(B, clock, body, row) end
-    if B.prompt and partyView then partyView.drawPrompt(B, clock, body) end
+    if B.prompt and B.prompt.sell then drawSell(B, clock, body)
+    elseif B.prompt and partyView then partyView.drawPrompt(B, clock, body) end
     K.scissor(body)
   end
 
