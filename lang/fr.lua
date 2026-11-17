@@ -315,6 +315,8 @@ return {
     ["bag.power"] = "Puissance",
     ["bag.accuracy"] = "Précision",
     ["bag.hint.move"] = "Ranger",
+    ["bag.pyramid"] = "Sac Pyramide",
+    ["bag.tossWhich"] = "Jeter quel objet ?",
     ["bag.plantWhich"] = "Planter quelle Baie ?",
     ["bag.berryWhich"] = "Choisissez une Baie.",
     ["bag.depositWhich"] = "Déposer quel objet ?",

@@ -316,6 +316,8 @@ return {
     ["bag.power"] = "Stärke",
     ["bag.accuracy"] = "Genauigkeit",
     ["bag.hint.move"] = "Ordnen",
+    ["bag.pyramid"] = "Pyramiden-Beutel",
+    ["bag.tossWhich"] = "Welches Item wegwerfen?",
     ["bag.plantWhich"] = "Welche Beere pflanzen?",
     ["bag.berryWhich"] = "Wähle eine Beere.",
     ["bag.depositWhich"] = "Welches Item ablegen?",

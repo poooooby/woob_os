@@ -80,9 +80,51 @@ return function(engine, deps)
     return false
   end
 
+  -- ------- the Battle Pyramid's bag (Emerald): one list of its own, kept by the Pyramid
+
+  local function Py() return engine("src.core.game3.rse.frontier.pyramid") end
+  local function pyramidRows(c)
+    local P = Py()
+    local s = c.session
+    local rows = {}
+    if not P then return rows end
+    call(P.compactBag, s)
+    local items, qty = P.bagLists(s)
+    local Im = I()
+    for k = 1, P.BAG_ITEMS_COUNT or #items do
+      local id = tonumber(items[k]) or 0
+      if id ~= 0 and (tonumber(qty[k]) or 0) > 0 then
+        local info = call(Im.info, id)
+        local pocket = call(Im.pocketOf, id) or "ITEMS"
+        local name = tostring(info and info.name or call(Im.displayName, id) or id)
+        rows[#rows + 1] = { id = id, qty = tonumber(qty[k]), slot = k, pocket = pocket, name = name, showQty = true,
+          desc = ((info and info.description) or ""):gsub("\\n", " "):gsub("\\p", " "):gsub("\n", " ") }
+      end
+    end
+    return rows
+  end
+  -- (an item lent to the party in a bag of its own, what the party used of it put back after)
+  function Bg.pyramidLend(c, item, qty)
+    local Bm = B()
+    local view = Bm.new()
+    Bm.add(view, item, qty)
+    return view, function()
+      local now = tonumber(call(Bm.get, view, item)) or 0
+      local P = Py()
+      if now < qty then call(P.bagRemove, c.session, item, qty - now, nil) end
+      if now > qty then call(P.bagAdd, c.session, item, now - qty) end
+    end
+  end
+  local function dadsAdvice(c)
+    local R = engine("src.core.game3.rom_text")
+    local ok, s = pcall(R.plain, "gText_DadsAdvice", { playerName = c.session and c.session.name })
+    return ok and s or ""
+  end
+
   -- ------- pockets and rows
 
   function Bg.pockets(c)
+    if c.pyramid then return { "PYRAMID" } end
     local out = {}
     for _, p in ipairs(Inv.pockets(c.session)) do out[#out + 1] = p.id end
     if #out == 0 then out[1] = "ITEMS" end
@@ -90,7 +132,7 @@ return function(engine, deps)
   end
 
   function Bg.rows(c, pocket)
-    local rows = Inv.bagRows(c.session, pocket)
+    local rows = pocket == "PYRAMID" and pyramidRows(c) or Inv.bagRows(c.session, pocket)
     local s = c.session
     local reg = s and s.registeredItem
     local regNum = reg and num(reg) or 0
@@ -117,6 +159,15 @@ return function(engine, deps)
                  CANCEL = "party.act.cancel", CHECK_TAG = "bag.act.checkTag", OPEN = "bag.act.use",
                  CONFIRM = "bag.act.use" }
   local function gameActions(c, pocket, row)
+    if c.pyramid then
+      -- (the Pyramid's bag: its own lists)
+      if c.battle then
+        local info = row and call(I().info, row.id)
+        return (info and (tonumber(info.battleUsage) or 0) ~= 0) and { "USE", "CANCEL" } or { "CANCEL" }
+      end
+      if c.location == "choose_toss" then return { "TOSS", "CANCEL" } end
+      return { "USE", "GIVE", "TOSS", "CANCEL" }
+    end
     local sk = skin(c.session)
     if sk and sk.actionsForPocket then
       local ok, list = pcall(sk.actionsForPocket, pocket, row, c.view)
@@ -162,6 +213,7 @@ return function(engine, deps)
   -- ------- moving an item within its pocket (SELECT), as the game's bag allows it
 
   function Bg.canMove(c, pocket)
+    if c.pyramid then return true end
     if c.location ~= nil or not (c.bag and c.bag.pockets) then return false end
     local m = I().BAG_MODEL
     if m and ((m.sortHmsFirst and m.sortHmsFirst[pocket]) or (m.sortById and m.sortById[pocket])) then return false end
@@ -169,6 +221,15 @@ return function(engine, deps)
     return true
   end
   function Bg.move(c, pocket, from, to)
+    if pocket == "PYRAMID" then
+      local P = Py()
+      local items, qty = P.bagLists(c.session)
+      if from == to or not items[from] then return false end
+      local fi, fq = table.remove(items, from), table.remove(qty, from)
+      table.insert(items, to, fi)
+      table.insert(qty, to, fq)
+      return true
+    end
     call(B().listPocket, c.bag, pocket)
     local slots = c.bag.pockets and c.bag.pockets[pocket]
     if type(slots) ~= "table" or from == to or not slots[from] then return false end
@@ -194,7 +255,8 @@ return function(engine, deps)
     local said = first("gText_ThrewAwayStrVar2StrVar1s", "gText_ThrewAwayVar2Var1s", "gOtherText_ThrewAwayItem")
     ui.ask(box(ask, ask == "gText_ThrowAwayStrVar2OfThisItemQM" and { [2] = n } or { row.name, n }), function(yes)
       if not yes then return end
-      call(B().remove, c.bag, row.id, qty)
+      if c.pyramid then call(Py().bagRemove, c.session, row.id, qty, row.slot)
+      else call(B().remove, c.bag, row.id, qty) end
       ui.refresh()
       ui.say(box(said, { row.name, n }))
     end)
@@ -436,8 +498,32 @@ return function(engine, deps)
     ui.battle(id, nil)
   end
 
+  -- the Pyramid's: USE only for what goes on a Pokémon (the rest: Dad's advice), GIVE with the item lent to
+  -- the party, mail and key items refused
+  local function pyramidAct(c, act, row, ui)
+    local Im, IUm = I(), IU()
+    local pocket = row.pocket
+    local mail = Im.isMail and call(Im.isMail, row.id)
+    if act == "USE" then
+      if c.battle then return battleUse(c, row, ui) end
+      if pocket == "KEY_ITEMS" or pocket == "POKE_BALLS" or pocket == "TM_CASE" or mail
+          or not call(IUm.needsPartyTarget, row.id) then
+        return ui.say(dadsAdvice(c))
+      end
+      local view, after = Bg.pyramidLend(c, row.id, row.qty)
+      return ui.party("use", row.id, view, after)
+    elseif act == "GIVE" then
+      if mail then return ui.say(plain("gText_CantWriteMail")) end
+      local info = call(Im.info, row.id)
+      if (tonumber(info and info.importance) or 0) ~= 0 then return ui.say(plain("gText_Var1CantBeHeld", { row.name })) end
+      local view, after = Bg.pyramidLend(c, row.id, row.qty)
+      return ui.party("give", row.id, view, after)
+    end
+  end
+
   function Bg.act(c, act, row, ui)
     local s = c.session
+    if c.pyramid and (act == "USE" or act == "GIVE") then return pyramidAct(c, act, row, ui) end
     if act == "USE" or act == "OPEN" then
       if c.battle then return battleUse(c, row, ui) end
       return fieldUse(c, row, ui)

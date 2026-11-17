@@ -807,6 +807,52 @@ for _ = 1, 4 do if bag() and bag().prompt then bframe(1, "a") end end
 bframe(1, "b")
 T.check(not Tm.isOpen(), "and away")
 
+-- ------- the Battle Pyramid's bag (Emerald): its own list in ours; USE on a Pokémon, TOSS, SELECT
+if GAME == "emerald" then
+  local Py = require("src.core.game3.rse.frontier.pyramid")
+  local PB = require("src.ui.game3.rse.pyramid_bag")
+  local okP = pcall(function()
+    local items, qty = Py.bagLists(s)
+    for k = 1, #items do items[k], qty[k] = 0, 0 end
+  end)
+  if okP and pcall(Py.bagAdd, s, POTION, 2) and pcall(Py.bagAdd, s, 34, 1) then
+    local pyClosed = 0
+    PB.show({ session = s, location = "field", onClose = function() pyClosed = pyClosed + 1 end })
+    B = bag()
+    bframe(1)
+    T.check(B and B.c.pyramid and #B.pockets == 1 and #(B.rows.PYRAMID or {}) == 2, "the Pyramid's bag: ours, its own two")
+    s.party[2].hp = 1
+    bframe(1, "a")
+    menuPick(B, "USE")
+    T.check(page() == "party" and party().base == "use", "a Potion: the party over it (lent)")
+    local Pu = party()
+    while Pu.cur ~= 2 do bframe(1, "down") end
+    bframe(1, "a")
+    for _ = 1, 120 do if not Pu.anim then break end bframe(1) end
+    through()
+    if page() == "party" then bframe(1, "b") end
+    T.check(page() == "bag" and Py.bagCount(s, POTION) == 1, "used: one Potion fewer in the Pyramid's bag (" .. Py.bagCount(s, POTION) .. ")")
+    bframe(1, "down")
+    bframe(1, "a")
+    menuPick(B, "TOSS")
+    bframe(1, "a")
+    bframe(1, "a")
+    T.check(Py.bagCount(s, 34) == 0, "tossed from the Pyramid's bag")
+    for _ = 1, 3 do if bag() and bag().prompt then bframe(1, "a") end end
+    bframe(1, "b")
+    T.check(not Tm.isOpen() and pyClosed == 1 and not PB.isOpen(), "B: closed, onClose")
+    -- (in a battle: a Potion is the battle's to use: onUse, then onClose)
+    local got = {}
+    PB.show({ session = s, location = "battle", onUse = function(id) got[#got + 1] = "use:" .. tostring(id) end,
+              onClose = function() got[#got + 1] = "close" end })
+    bframe(1)
+    bframe(1, "b")
+    T.check(not Tm.isOpen() and table.concat(got, " ") == "close", "a battle's Pyramid bag: B, onClose")
+  else
+    T.check(true, "(no Pyramid state headless)")
+  end
+end
+
 -- ------- the game's own for its other callers
 T.check(Mn.openBag(s.bag, { session = s, location = "party" }) == false, "the game's party's GIVE: not ours")
 T.check(Mn.openBag(s.bag, { session = s, onChoose = noop }) == false, "choosing without a place: not ours")

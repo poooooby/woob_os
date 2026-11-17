@@ -88,7 +88,7 @@ return function(env, T, A, Pc)
   function Bc.open(m, ctx)
     local s = ctx.session or (env.session and env.session())
     local c = { session = s, bag = m.bag or (s and (s.bag or s.inventory)), battle = m.battle == true,
-                location = m.location }
+                location = m.location, pyramid = m.pyramid == true }
     local B = { m = m, c = c, pockets = nil, rows = {}, pi = 1, cur = 1, view = "list", menu = nil, prompt = nil,
                 moving = nil, qty = nil, wait = nil, at = now(), openAt = now(), pageAt = now(), dir = 0 }
     c.view = B
@@ -103,8 +103,8 @@ return function(env, T, A, Pc)
     B.cur = k and k.cur[B.pockets[B.pi]] or 1
     clamp(B)
     local TITLE = { party = "bag.giveWhich", berry_tree = "bag.plantWhich", blender = "bag.berryWhich",
-                    itempc = "bag.depositWhich", shop = "bag.sellWhich" }
-    B.title = T(TITLE[c.location or ""] or "bag.title")
+                    itempc = "bag.depositWhich", shop = "bag.sellWhich", choose_toss = "bag.tossWhich" }
+    B.title = T(TITLE[c.location or ""] or (c.pyramid and "bag.pyramid" or "bag.title"))
     return B
   end
 
@@ -130,8 +130,8 @@ return function(env, T, A, Pc)
       B.prompt = { kind = "pick", pages = { prompt }, page = 1, names = names, sel = 1, after = after, at = now() }
     end
     function ui.wait(frames, fn) B.wait = { untilT = now() + (frames or 8) / 60, fn = fn } end
-    function ui.party(mode, item)
-      B.wantParty = { mode = mode, item = item }
+    function ui.party(mode, item, bag, after)
+      B.wantParty = { mode = mode, item = item, bag = bag, after = after }
       B.menu, B.view = nil, "list"
     end
     function ui.chosen(item)

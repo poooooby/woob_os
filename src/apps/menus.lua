@@ -72,17 +72,21 @@ return function(ctx, env, makeSummary, makeParty, makeBag)
       pm = { kind = "party", party = party, order = order, mode = "battleUse", item = want.item, bag = B.c.bag,
              battle = true, double = double == true, cursor = 1 }
     else
-      pm = { kind = "party", party = s and s.party or {}, mode = want.mode, item = want.item, bag = B.c.bag, cursor = 1 }
+      pm = { kind = "party", party = s and s.party or {}, mode = want.mode, item = want.item, bag = want.bag or B.c.bag,
+             cursor = 1 }
     end
-    st.inner = pm
+    st.inner, st.innerAfter = pm, want.after
     st.party = Pc.open(pm, ctx)
     st.page = "party"
   end
   local function partyOverBagDone()
     local pm = st.inner
     local res = pm.result or {}
-    st.inner, st.party = nil, nil
+    local after = st.innerAfter
+    st.inner, st.party, st.innerAfter = nil, nil, nil
     Ctl.stop()
+    -- (what the party used of an item it was lent goes back where it came from: the Pyramid's bag)
+    if after then pcall(after) end
     if res.battle then
       m.result = { battle = res.battle }
       return done()

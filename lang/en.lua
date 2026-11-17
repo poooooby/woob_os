@@ -327,6 +327,8 @@ return {
     ["bag.power"] = "Power",
     ["bag.accuracy"] = "Accuracy",
     ["bag.hint.move"] = "Reorder",
+    ["bag.pyramid"] = "Pyramid Bag",
+    ["bag.tossWhich"] = "Toss which item?",
     ["bag.plantWhich"] = "Plant which Berry?",
     ["bag.berryWhich"] = "Choose a Berry.",
     ["bag.depositWhich"] = "Deposit which item?",

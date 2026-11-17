@@ -461,6 +461,109 @@ return function(engine, deps)
     return true
   end
 
+  -- ------- the Battle Pyramid's bag (Emerald: src.ui.game3.rse.pyramid_bag, its own screen and list)
+
+  local function pyramidClosed(c)
+    local PB = engine("src.ui.game3.rse.pyramid_bag")
+    cur = nil
+    aliases(nil, false)
+    if PB then PB.open = false end
+    local m, opts = c.menu, c.opts
+    local res = m.result or {}
+    local function try(f, ...)
+      if not f then return end
+      local ok, err = pcall(f, ...)
+      if not ok then log("after the Pyramid's bag: %s", tostring(err)) end
+    end
+    -- (as its own: a battle's use first (PBag.close's after), then onClose)
+    if res.battle then
+      local b = res.battle
+      try(opts.onUse, b.id, b.slot, b.moveSlot, b.used)
+    end
+    try(opts.onClose)
+  end
+
+  function Mn.openPyramid(opts)
+    opts = opts or {}
+    if cur or not on() then return false end
+    local loc = opts.location or "field"
+    if loc ~= "field" and loc ~= "battle" and loc ~= "choose_toss" then return false end
+    if loc == "battle" and not opts.onUse then return false end
+    local Sh = deps.Sh
+    if not (Sh and Sh.openFull) then return false end
+    local s = opts.session
+    if not s then
+      local rt = engine("src.core.game3.runtime")
+      s = rt and rt.getSession and rt.getSession() or nil
+    end
+    if not s then return false end
+    local m = { kind = "bag", pyramid = true, battle = loc == "battle",
+                location = loc == "choose_toss" and "choose_toss" or nil, bag = s.bag }
+    local c = { kind = "pyramid", opts = opts, menu = m }
+    cur = c
+    local PB = engine("src.ui.game3.rse.pyramid_bag")
+    if PB then PB.open = true end
+    local ok, opened = pcall(Sh.openFull, "menus", s, function() pyramidClosed(c) end, nil, { menu = m, chrome = false })
+    if not (ok and opened) then
+      cur = nil
+      if PB then PB.open = false end
+      if not ok then log("the Pyramid's bag couldn't open: %s", tostring(opened)) end
+      return false
+    end
+    aliases(s, true)
+    return true
+  end
+
+  local function wrapPyramid()
+    local PB = engine("src.ui.game3.rse.pyramid_bag")
+    if not PB then return false end
+    local w = PB.__woobOs
+    if not w then
+      w = { orig = { show = PB.show, isOpen = PB.isOpen, close = PB.close, handleInput = PB.handleInput,
+                     update = PB.update, draw = PB.draw } }
+      PB.__woobOs = w
+      local o = w.orig
+      PB.show = function(opts, ...)
+        local impl = w.impl
+        if impl then
+          local ok, took = pcall(impl.open, opts)
+          if ok and took then return true end
+          if not ok and impl.log then impl.log("the Pyramid bag's takeover failed: %s", tostring(took)) end
+        end
+        return o.show(opts, ...)
+      end
+      PB.isOpen = function(...)
+        local impl = w.impl
+        if impl and impl.isOpen() then return true end
+        return o.isOpen(...)
+      end
+      PB.close = function(...)
+        local impl = w.impl
+        if impl and impl.isOpen() then return impl.closeOurs() end
+        return o.close(...)
+      end
+      PB.handleInput = function(input, ...)
+        local impl = w.impl
+        if impl and impl.isOpen() then return impl.feed(input) end
+        return o.handleInput(input, ...)
+      end
+      PB.update = function(...)
+        local impl = w.impl
+        if impl and impl.isOpen() then return end
+        if o.update then return o.update(...) end
+      end
+      PB.draw = function(...)
+        local impl = w.impl
+        if impl and impl.isOpen() then return end
+        return o.draw(...)
+      end
+    end
+    w.impl = { open = Mn.openPyramid, isOpen = function() return cur ~= nil and cur.kind == "pyramid" end,
+               closeOurs = function() return Mn.closeOurs() end,
+               feed = function(input) if deps.feed then deps.feed(input) end end, log = log }
+    return true
+  end
+
   -- ------- the wraps (once per process; this instance's impl swapped in)
 
   local function wrapSummary()
@@ -666,7 +769,7 @@ return function(engine, deps)
     local c = cur
     if not c then return end
     if c.kind == "party" then c.menu.result = c.menu.result or { chosen = nil }
-    elseif c.kind == "bag" then c.menu.result = c.menu.result or {}
+    elseif c.kind == "bag" or c.kind == "pyramid" then c.menu.result = c.menu.result or {}
     else c.menu.result = c.menu.result or { picked = false, index = c.menu.index } end
     local Sh = deps.Sh
     local h = Sh and Sh.host and Sh.host()
@@ -675,7 +778,8 @@ return function(engine, deps)
       local r = Tm.state()
       if r and r.ctx and r.ctx.menu == c.menu and r.ctx.done then return r.ctx.done() end
     end
-    if c.kind == "party" then partyClosed(c) elseif c.kind == "bag" then bagClosed(c) else summaryClosed(c) end
+    if c.kind == "party" then partyClosed(c) elseif c.kind == "bag" then bagClosed(c)
+    elseif c.kind == "pyramid" then pyramidClosed(c) else summaryClosed(c) end
   end
 
   function Mn.wrap()
@@ -685,6 +789,8 @@ return function(engine, deps)
     if not ok then log("the modern menus couldn't wrap the party menu: %s", tostring(err)) end
     ok, err = pcall(wrapBag)
     if not ok then log("the modern menus couldn't wrap the bag: %s", tostring(err)) end
+    ok, err = pcall(wrapPyramid)
+    if not ok then log("the modern menus couldn't wrap the Pyramid's bag: %s", tostring(err)) end
   end
 
   return Mn

@@ -316,6 +316,8 @@ return {
     ["bag.power"] = "いりょく",
     ["bag.accuracy"] = "めいちゅう",
     ["bag.hint.move"] = "ならびかえ",
+    ["bag.pyramid"] = "ピラミッドバッグ",
+    ["bag.tossWhich"] = "どの どうぐを すてる？",
     ["bag.plantWhich"] = "どの きのみを うえる？",
     ["bag.berryWhich"] = "きのみを えらんでください",
     ["bag.depositWhich"] = "どの どうぐを あずける？",

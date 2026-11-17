@@ -19,7 +19,7 @@ local C = {
 local POCKET_C = {
   ITEMS = { { 255, 170, 90 }, { 255, 214, 120 } }, KEY_ITEMS = { { 150, 120, 230 }, { 120, 170, 255 } },
   POKE_BALLS = { { 240, 90, 90 }, { 255, 160, 140 } }, TM_CASE = { { 90, 150, 240 }, { 120, 210, 230 } },
-  BERRY_POUCH = { { 110, 200, 110 }, { 200, 230, 120 } },
+  BERRY_POUCH = { { 110, 200, 110 }, { 200, 230, 120 } }, PYRAMID = { { 230, 190, 110 }, { 240, 220, 160 } },
 }
 local TYPE = {
   [0] = { 168, 168, 120 }, [1] = { 192, 48, 40 }, [2] = { 168, 144, 240 }, [3] = { 160, 64, 160 },
@@ -29,7 +29,7 @@ local TYPE = {
   [16] = { 112, 56, 248 }, [17] = { 112, 88, 72 }, [18] = { 238, 153, 172 },
 }
 local POCKET_KEY = { ITEMS = "pocket.ITEMS", KEY_ITEMS = "pocket.KEY_ITEMS", POKE_BALLS = "pocket.POKE_BALLS",
-                     TM_CASE = "pocket.TM_CASE", BERRY_POUCH = "pocket.BERRY_POUCH" }
+                     TM_CASE = "pocket.TM_CASE", BERRY_POUCH = "pocket.BERRY_POUCH", PYRAMID = "bag.pyramid" }
 
 return function(K, env, T, A, partyView)
   local V = {}
