@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.17.2] - 2026-11-17
+
 ### Added
 - Slateport's market stalls are stalls: the sky for the time of day over the sea, the beach in front,
   and the vendor under a blue and white market tent behind a table with their goods set out on it and a
