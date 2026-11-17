@@ -249,6 +249,15 @@ return function(env, T, A, Ctl)
       end
     end
     se("SE_SELECT")
+    -- (a caller that answers itself -- the mailbox: ours stays open, its words and close come through
+    -- PartyMenu.showMessage / close)
+    local onChoose = P.m.onChoose
+    if onChoose then
+      P.menu, P.view = nil, "pick"
+      local ok, err = pcall(onChoose, i, P.c.party[i])
+      if not ok and env.log then pcall(env.log, "the party's onChoose: %s", tostring(err)) end
+      return
+    end
     P.m.result = { chosen = i }
     P.done = true
   end

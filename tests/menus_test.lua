@@ -529,7 +529,20 @@ end
 T.check(not Tm.isOpen() and type(tutorRes) == "boolean", "taught or not: closed, PartyMenu._tutorResult set (" .. tostring(tutorRes) .. ")")
 
 -- ------- the game's own for its other callers
-T.check(Mn.openParty(s.party, nil, { session = s, mode = "choose", onChoose = noop }) == false, "choosing with its own handling (the mailbox): not ours")
+-- (the PC's mailbox giving mail: onChoose answers while ours stays open, through PartyMenu's own calls)
+local gaveTo, mbClosed = nil, 0
+P = open({ session = s, mode = "choose", promptMode = "give", eggFails = true, fadeIn = true,
+           onChoose = function(_, mon)
+             gaveTo = mon
+             PM.showMessage("The MAIL was transferred.", function() PM.close() end)
+           end,
+           onClose = function() mbClosed = mbClosed + 1 end })
+T.check(P and P.base == "choose", "the mailbox's give: ours")
+pframe(1, "a")
+T.check(gaveTo == s.party[1] and Tm.isOpen() and P.prompt and P.prompt.pages[1]:find("transferred"),
+        "A: its onChoose, still open, its words in ours")
+pframe(1, "a")
+T.check(not Tm.isOpen() and mbClosed == 1, "the words dismissed: PartyMenu.close(), onClose")
 T.check(Mn.openParty(s.party, nil, { session = s, mode = "use", item = POTION, battle = true, onSelect = noop }) == false,
         "an item from the game's bag in battle: not ours (until the Bag is)")
 T.check(Mn.openParty(s.party, nil, { session = s, mode = "battle_switch", multi = { [2] = true } }) == false, "a multi battle's: not ours")

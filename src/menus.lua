@@ -199,7 +199,10 @@ return function(engine, deps)
   local function partyOurs(opts)
     local mode = opts.mode or "list"
     if not PARTY_MODES[mode] then return false end
-    if opts.onChoose or opts.nativePartyLayout or opts.minigameEligible or opts.fadeIn then return false end
+    if opts.nativePartyLayout or opts.minigameEligible then return false end
+    -- (onChoose: the caller keeps ours open and answers through PartyMenu.showMessage / close -- the PC's
+    -- mailbox giving mail; only for choosing one)
+    if opts.onChoose and mode ~= "choose" then return false end
     if mode == "list" and opts.onSelect then return false end
     -- (an item from the game's bag in battle: its bag drives the game's party menu itself)
     if mode == "use" and (opts.onSelect or opts.battle or opts.battleOrder) then return false end
@@ -336,7 +339,8 @@ return function(engine, deps)
                 double = opts.layout == "double", validate = o.validate, cursor = 1, count = opts.count,
                 eligible = opts.eligible, validateChosen = opts.validateChosen, chooseFullMessage = opts.chooseFullMessage,
                 immediateChooseCancel = opts.immediateChooseCancel, eggFails = opts.eggFails,
-                chooseCancelStart = opts.chooseCancelStart, tutor = opts.tutor, autoSlot = opts.autoSlot }
+                chooseCancelStart = opts.chooseCancelStart, tutor = opts.tutor, autoSlot = opts.autoSlot,
+                onChoose = opts.onChoose }
     local c = { kind = "party", opts = o, menu = m }
     cur = c
     local PM = engine("src.ui.game3.party_menu")
