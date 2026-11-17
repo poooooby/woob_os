@@ -23,10 +23,11 @@ controller, a touch screen, or a mouse and keyboard.
 - 🏪 **Real shops:** every shop counter opens the Mart full screen with that shop's own goods: Poké
   Marts, every department store floor, herb shops, the pharmacy, souvenir and decoration shops and the
   Underground's bargain stall, each dressed for its place and what it sells.
-- 🏥 **Pokémon Center:** talk to the nurse and she greets you in a close-up behind her counter. Choose
-  to heal and your Pokémon go into the healing machine: a ball for each, the machine's glow and its
-  jingle, and their health filling back up. Everything the game's own nurse does still happens, such as
-  Pokérus, Emerald's Gold Card and where you return after a loss.
+- 🏥 **Pokémon Center:** talk to the nurse and she greets you in a close-up behind her counter, in a
+  room drawn after Emerald's own Pokémon Center. Choose to heal and your Pokémon go into the healing
+  machine: a ball for each, the machine's glow and its jingle, and their health filling back up.
+  Everything the game's own nurse does still happens, such as Pokérus, Emerald's Gold Card and where
+  you return after a loss.
 
 ### Apps
 

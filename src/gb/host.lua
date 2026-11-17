@@ -36,6 +36,16 @@ return function(mod, deps)
     return m or nil
   end
   H.engine = engine
+  -- (an engine module that is a function, not a table: src.core.RomText's lookup)
+  local engineFns = {}
+  function H.engineFn(name)
+    local f = engineFns[name]
+    if f ~= nil then return f or nil end
+    local ok, m = pcall(req, name)
+    f = ok and type(m) == "function" and m or false
+    engineFns[name] = f
+    return f or nil
+  end
 
   local cur = nil
   local Sh = nil                 -- (the shell, from H.ready)
@@ -161,6 +171,11 @@ return function(mod, deps)
     else
       table.remove(stk.states, i)
     end
+  end
+  -- (a state shows what's under it while not opaque, read each frame: the full-screen host's fades)
+  function H.opaque(id, yes)
+    local st = states[id]
+    if st then st.isOpaque = yes and true or false end
   end
   function H.has(id)
     local st = states[id]

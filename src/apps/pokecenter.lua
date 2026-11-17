@@ -3,7 +3,9 @@
 -- a choice beside her (heal | I'm all good). To heal, she walks off to the left (her sheet's steps, a
 -- little bounce each) as the screen fades to the machine: a ball onto the tray for each Pokémon, the tray in, the glow with the game's own jingle, the
 -- team's health filling on the plate under it, the tray back out; then she walks back in as the screen
--- fades up, turns to you, and anything else?
+-- fades up, turns to you, and anything else? It fades in from the field (the field to black, then her
+-- counter up from it) and back out to it at the end (ctx.seeField: the host shows the field through).
+-- Before the field shows again the game is still held: it hands back once the field is up.
 -- What the game's own nurse does besides talking (the heal, its flags, its sounds) is the model's:
 -- ctx.nurse, made by src/pokecenter.lua (FireRed / LeafGreen / Ruby / Sapphire / Emerald) and
 -- src/gb/pokecenter.lua (the Game Boy games), opened full screen by Sh.openFull.
@@ -89,6 +91,16 @@ return function(ctx, env, makeView)
     queue(T("nurse.hello." .. tostring(model.time or "day")) .. " " .. T("nurse.service"), "menu")
   end
   nextLine()
+  -- (it opens over the field, fading to black first, when the host can show the field through; else from
+  -- black; her words once her counter's coming up)
+  local seeField = ctx.seeField
+  if seeField then
+    pcall(seeField, true)
+    st.scene, st.inT = "in", st.t0
+  else
+    st.black, st.fadeT, st.fadeDir = 1, st.t0, -1
+  end
+  if st.say then st.say.t = st.t0 + (seeField and FADE or 0) + FADE * 0.5 end
 
   local function healedLines(pokerus)
     local lead = model.lead
@@ -112,6 +124,15 @@ return function(ctx, env, makeView)
   local function step()
     local t = now()
     if st.say and st.after == "menu" and not st.menu and not typing() then st.menu, st.menuT = true, t end
+    if st.scene == "in" then
+      -- (the field going to black; then her counter, up from it)
+      local k = (t - st.inT) / FADE
+      st.black = min(1, max(0, k))
+      if k >= 1 then
+        if seeField then pcall(seeField, false) end
+        st.scene, st.fadeT, st.fadeDir = "nurse", t, -1
+      end
+    end
     if st.turnT and t - st.turnT >= TURN then
       st.turnT = nil
       fadeOut("machine")
@@ -133,12 +154,24 @@ return function(ctx, env, makeView)
             call(model.after)
             healedLines(st.pokerus)
             if st.say then st.say.t = t + WALK_T end
+          elseif to == "close" then
+            -- (her counter gone to black: the field comes back up from it, then the game goes on)
+            if not seeField then
+              st.fadeT, st.fadeDir = nil, 0
+              ctx.done()
+              return
+            end
+            pcall(seeField, true)
+            st.scene = "out"
           end
           st.fadeT, st.fadeDir = t, -1
         end
       else
         st.black = max(0, 1 - k)
-        if k >= 1 then st.fadeT, st.fadeDir = nil, 0 end
+        if k >= 1 then
+          st.fadeT, st.fadeDir = nil, 0
+          if st.scene == "out" then ctx.done() end
+        end
       end
     end
     local mc = st.mc
@@ -199,7 +232,7 @@ return function(ctx, env, makeView)
       st.walk = { t0 = t, from = 0, to = -WALK, dur = WALK_T, face = "left" }
     elseif after == "close" then
       st.after, st.closed = nil, true
-      ctx.done()
+      fadeOut("close")
     elseif after == "menu" then
       st.menu, st.menuT = true, now()
     end
@@ -245,6 +278,8 @@ return function(ctx, env, makeView)
   end
 
   function W.hints() return nil end
+  -- (the field shows through while it fades in from it and back out to it)
+  function W.see() return st.scene == "in" or st.scene == "out" end
   -- (the lighting's canvases let go)
   function W.close() if view.release then pcall(view.release) end end
 

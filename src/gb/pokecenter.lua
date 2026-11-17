@@ -49,7 +49,7 @@ return function(H, Gd, deps)
     local Sh = deps.Sh
     if not (Sh and Sh.openFull) then return false end
     return Sh.openFull("pokecenter", H.session(), onClose, nil,
-      { nurse = model, chrome = false, noHints = true }) == true
+      { nurse = model, chrome = false, noHints = true, fade = true }) == true
   end
 
   -- ------- Red / Blue / Yellow

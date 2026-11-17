@@ -195,7 +195,7 @@ return function(engine, deps)
     local release, closedEarly = nil, false
     local opened = Sh.openFull("pokecenter", s, function()
       if release then release() else closedEarly = true end
-    end, nil, { nurse = model, chrome = false, noHints = true })
+    end, nil, { nurse = model, chrome = false, noHints = true, fade = true })
     if opened ~= true then return false end
     nxt(ctx, "return", RETURN)
     hold[vm] = { tail = true }

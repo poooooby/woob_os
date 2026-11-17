@@ -42,11 +42,19 @@ if GEN == 2 then
     gen2Maps = loadLua("data/generated/maps.lua"), gen2Encounters = loadLua("data/generated/encounters.lua"),
     gen2Marts = loadLua("data/generated/marts.lua"), gen2Icons = loadLua("data/generated/icons.lua"),
     gen2Tilesets = loadLua("data/generated/tilesets.lua"), gen2Palettes = loadLua("data/generated/palettes.lua"),
+    -- (since the engine's 0.4.6 the Gen 2 screens read these from the cart, with no fallback: the ROM's
+    -- lines, the event tables (Oak's ratings, the phone book), the constants)
+    text = loadLua("data/generated/rom_text.lua"), gen2EventTables = loadLua("data/generated/events.lua"),
+    gen2Constants = loadLua("data/generated/constants.lua"),
     audio = { sfx = {} },
   }
   require("src.core.GameVersion").set(GAME)
-  -- (the engine's flags by name, bound from the cart's constants as the game binds them)
-  pcall(require("src.core.gen2.EngineFlags").bind, loadLua("data/generated/constants.lua").engineFlagOrder)
+  -- (the engine's flags by name, bound from the cart's constants as the game binds them; the phone book and
+  -- its calls' scripts from the cart's events, as the game fills them at load)
+  pcall(require("src.core.gen2.EngineFlags").bind, data.gen2Constants.engineFlagOrder)
+  local GPhone = require("src.core.gen2.Phone")
+  pcall(GPhone.useRegistry, data)
+  pcall(GPhone.useExtracted, data.gen2EventTables)
 else
   require("src.core.GameVersion").set(GAME)
   local Data = require("src.core.Data")
@@ -895,7 +903,11 @@ do
   end
   -- (her greeting to the choice; Heal; the machine; her words to "anything else?"; B, her goodbye; A)
   local function walk(st, label)
-    f(2)
+    -- (it fades in from the field, the field shown under it, then her counter up from black)
+    local W = Tm.state().win
+    T.check(W.see() == true and st.scene == "in", label .. ": it opens over the field, fading to black")
+    f(80)
+    T.check(not W.see() and st.scene == "nurse", label .. ": then her counter")
     for _ = 1, 10 do
       if st.menu then break end
       f(1, "a")
@@ -937,6 +949,14 @@ do
     f(1, "b")
     f(40)
     f(1, "a")
+    -- (her counter to black, then the field back up from it under us; closed once it's up)
+    local sawField = false
+    for _ = 1, 120 do
+      f(1)
+      if not Tm.isOpen() then break end
+      if W.see() then sawField = true end
+    end
+    T.check(sawField and not Tm.isOpen(), label .. ": out to black, the field back up, closed")
   end
   save.party = { newMon(GEN == 2 and "CYNDAQUIL" or "PIKACHU", 10), newMon("PIDGEY", 6) }
   hurt()

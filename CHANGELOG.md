@@ -5,6 +5,21 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Changed
+- The Pokémon Center looks like Emerald's own: an orange wall of slats with the big rounded window
+  behind the nurse, and her counter an open rectangle round her, its back against the wall. The
+  healing machine stands on it on her right, and her PC is on its desk beside her, turned to her. Big
+  Poké Balls on the counter's front corners face out to them, and just past its ends are the magazine
+  rack and the PC you use. The counter is cream on top with the white pad in front of her and white
+  below. The machine's close-up has the same wall and counter. The sign and the shelves are gone.
+- The nurse walks to the machine and back more calmly: slower steps, a lighter lift.
+- Talking to the nurse fades from the field to black and up to her counter, and back out to the field
+  when you're done.
+
+### Fixed
+- Oak's PC on Gold, Silver and Crystal shows Prof. Oak's rating again (it came up empty since the game's
+  0.4.6 update).
+
 ## [0.17.0] - 2026-11-16
 
 ### Added

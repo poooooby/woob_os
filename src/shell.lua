@@ -154,7 +154,10 @@ return function(mod, deps)
 
   -- (the desktop is full screen: the field isn't drawn under it; the pad's field stays, dimmed)
   local FULL, OVER = { hideBelow = true, fullscreen = true }, { hideBelow = true, fullscreen = false }
-  local function push(id, layer)
+  -- (a full-screen window that fades in and out over the field: the field drawn under it while `seeField`)
+  local seeField = false
+  local SEE = { hideBelow = true, fullscreen = function() return not seeField end }
+  local function push(id, layer, see)
     id, layer = id or Sh.LAYER_ID, layer or Layer
     if H then
       if not H.push(id, layer, layer == WatchLayer) then return false end
@@ -163,7 +166,7 @@ return function(mod, deps)
     end
     local Stack = engine("src.ui.game3.stack")
     if not Stack then return false end
-    local ok, err = pcall(Stack.push, id, layer, layer == WatchLayer and OVER or FULL)
+    local ok, err = pcall(Stack.push, id, layer, see and SEE or (layer == WatchLayer and OVER or FULL))
     if not ok then
       if log then log:warn("the desktop could not open: %s", tostring(err)) end
       return false
@@ -478,14 +481,22 @@ return function(mod, deps)
     if state then ctx.resume = { app = appId, state = state } end
     function ctx.row() return nil end
     local closed = false
+    -- (o.fade: the window fades in over the field and back out to it; it shows the field through while
+    -- it says so: ctx.seeField(on))
+    local function see(on)
+      seeField = on == true
+      if H and H.opaque then H.opaque(Sh.MAP_ID, not seeField) end
+    end
     local function close()
       if closed then return end
       closed = true
       Tm.close()
+      if o.fade then see(false) end
       pop(Sh.MAP_ID)
       if onClose then onClose() end
     end
     ctx.finish, ctx.done, ctx.logoff = close, close, close
+    if o.fade then ctx.seeField = see end
     function ctx.over() end
     function ctx.original() end
     function ctx.sheet() end
@@ -501,7 +512,7 @@ return function(mod, deps)
     local so = { maker = app.window, app = appId, chrome = o.chrome ~= false, cancel = close, backKey = o.backKey,
                  noHints = o.noHints }
     if not Tm.open(ctx, so) then return false end
-    if not push(Sh.MAP_ID, MapLayer) then
+    if not push(Sh.MAP_ID, MapLayer, o.fade) then
       Tm.close()
       return false
     end

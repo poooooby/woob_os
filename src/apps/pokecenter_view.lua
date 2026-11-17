@@ -1,11 +1,14 @@
 -- The Pokémon Center's look (src/apps/pokecenter.lua's window, the latest games' counter in WoobOS's
 -- glass), lit: the scene is drawn through src/lighting.lua (env.lighting: a key light, a vignette, a warm
 -- grade and bloom in one shader), the words and the choice over it, sharp.
---   the counter: a wall with a wainscot under ceiling light, a shelf unit between brick pillars (each brick
---     its own shade, the light falling off down them), its shelves stocked (contact shadows, the boards'
---     edges, a warm strip under each), the nurse at whole pixels in a soft light, the
---     counter's glossy top and its lit sign (the Pokémon Center's ball, big, and its name), the words'
---     box along the foot (a bobbing arrow when there's more), the choice in navy glass beside her
+--   the counter, after Emerald's own Pokémon Center: an orange wall of upright slats under a cream trim, the
+--     big rounded window behind her (glints across its glass); the counter an open rectangle round her, its
+--     back against the wall with the healing machine on it (the close-up's own, small) on her right, her PC
+--     on its desk inside beside her on her left, turned to her; beyond its ends the floor's tiles, the
+--     magazine rack and the players' PC, cut by the screen's edges; the nurse at whole pixels in a soft
+--     light; the front's cream top with the white pad in front of her, its tan edge, its white front in
+--     shadow with grey panels, a big Poké Ball on each front corner turned to face it; the words' box along
+--     the foot (a bobbing arrow when there's more), the choice in navy glass beside her, above her PC
 --   the machine, three-quarters from above: on the counter, its shadow under it; the base (its top and
 --     its front), the hood (its thickness, its cavity, the cyan lines lit), the tray in perspective with a
 --     socket and a shaded ball for each Pokémon, sliding into the cavity; the team's screen on the front,
@@ -24,48 +27,36 @@ local FACE = { down = 0, left = 1, right = 2, up = 3 }
 
 -- the colours, and the lighting's looks (one table: the factory would have too many upvalues)
 local C = {
-  -- the room
-  WALL_TOP = { 246, 238, 232 }, WALL_FOOT = { 226, 210, 204 },
-  WAIN_TOP = { 232, 206, 204 }, WAIN_FOOT = { 206, 176, 178 }, MOLD = { 255, 248, 244 },
-  BRICK = { 156, 66, 58 }, BRICK_B = { 140, 56, 50 }, BRICK_C = { 170, 78, 66 }, MORTAR = { 84, 38, 36 },
-  BRICK_HI = { 255, 196, 170 },
-  FRAME = { 58, 56, 66 }, FRAME_HI = { 120, 118, 132 }, FRAME_LO = { 26, 24, 32 },
-  BACK_TOP = { 222, 214, 218 }, BACK_FOOT = { 190, 180, 188 },
-  BOARD_TOP = { 150, 146, 158 }, BOARD = { 84, 80, 92 },
+  -- the room (after Emerald's: an orange wall of slats, the rounded window, her PC)
+  WALL_O = { 252, 190, 124 }, WALL_O_D = { 240, 164, 100 }, SLAT_HI = { 255, 222, 172 },
+  SEAM = { 204, 102, 38 }, SEAM_SOFT = { 214, 120, 56 }, TRIM = { 255, 238, 204 }, TRIM_D = { 212, 110, 42 },
+  SKIRT = { 228, 132, 62 },
+  WIN_EDGE = { 74, 74, 96 }, WIN_FRAME = { 242, 242, 246 }, WIN_FRAME_D = { 172, 174, 190 },
+  GLASS_TOP = { 190, 200, 230 }, GLASS_FOOT = { 132, 142, 186 },
+  PC_BODY = { 252, 252, 254 }, PC_BODY_D = { 210, 212, 222 }, PC_EDGE = { 84, 84, 104 },
+  PC_GREY = { 176, 178, 192 }, PC_GREY_D = { 128, 130, 148 }, LED_ON = { 120, 230, 120 },
+  SCREEN_LIGHT = { 236, 246, 255 }, SCREEN_EDGE = { 70, 96, 124 },
+  GREEN_SCREEN = { 156, 170, 96 }, GREEN_SCREEN_D = { 110, 126, 62 }, RACK_BACK = { 196, 196, 212 },
+  MAG_A = { 232, 84, 84 }, MAG_B = { 84, 150, 232 }, MAG_C = { 250, 204, 72 }, MAG_D = { 104, 196, 120 },
+  MAG_E = { 196, 120, 220 },
+  BACK_FACE = { 196, 192, 222 }, BACK_FACE_D = { 150, 146, 184 },
+  FLOOR = { 252, 244, 204 }, FLOOR_FAR = { 230, 216, 164 }, FLOOR_TILE = { 222, 206, 146 },
   AO_DARK = { 40, 30, 40, 0.34 }, AO_CLEAR = { 40, 30, 40, 0 },
-  SHADE_CLEAR = { 30, 16, 20, 0 }, SHADE_DARK = { 30, 16, 20, 0.42 },
-  LAMP = { 255, 232, 200 }, LED = { 255, 214, 160 },
+  LAMP = { 255, 232, 200 },
   BALL_RED = { 226, 52, 64 }, BALL_INK = { 40, 40, 48 },
-  BOX_BLUE = { 92, 150, 214 }, BOX_BLUE_L = { 176, 212, 244 },
-  LEAF = { 96, 178, 98 }, LEAF_D = { 52, 120, 66 }, POT = { 244, 244, 244 },
-  CAN = { 56, 160, 100 }, CAN_D = { 26, 96, 60 },
-  VIAL = { 120, 104, 196 }, VIAL_D = { 70, 58, 138 },
-  JAR = { 230, 176, 60 }, JAR_D = { 160, 108, 26 }, LID = { 92, 140, 196 },
-  CRATE = { 250, 250, 252 }, CRATE_D = { 196, 198, 210 },
-  -- (the healing items: each spray's body, light and dark; the trigger heads; the crystals; the flask)
-  POTION = { 168, 104, 214 }, POTION_D = { 104, 56, 156 },
-  SUPER = { 250, 160, 64 }, SUPER_D = { 196, 98, 26 },
-  HYPER = { 240, 100, 170 }, HYPER_D = { 178, 44, 112 },
-  MAXP = { 84, 150, 238 }, MAXP_D = { 38, 88, 182 },
-  RESTORE = { 252, 212, 72 }, RESTORE_D = { 200, 148, 24 },
-  ANTIDOTE = { 112, 200, 96 }, ANTIDOTE_D = { 54, 136, 52 },
-  HEAD = { 86, 88, 102 }, HEAD_D = { 40, 40, 52 }, HEAD_HI = { 150, 152, 168 },
-  GEM = { 255, 226, 88 }, GEM_D = { 222, 160, 30 }, GEM_HI = { 255, 250, 210 },
-  ETHER = { 96, 196, 236 }, ETHER_D = { 40, 120, 190 }, CORK = { 176, 120, 72 },
   GREAT = { 66, 116, 220 },
-  -- the counter and its sign
-  SLAB_TOP = { 255, 252, 252 }, SLAB_FOOT = { 240, 214, 220 }, LIP = { 150, 40, 62 },
-  COUNTER_TOP = { 232, 74, 100 }, COUNTER_FOOT = { 150, 28, 54 },
-  SIGN_FRAME = { 72, 26, 40 }, SIGN_TOP = { 255, 255, 255 }, SIGN_FOOT = { 255, 222, 230 }, SIGN_INK = { 196, 30, 62 },
-  SIGN_GLOW = { 255, 150, 180 },
+  -- the counter (cream top, the pad, a tan edge, white in shadow with grey panels), its lamps
+  TOP_CREAM = { 255, 252, 214 }, TOP_CREAM_D = { 242, 232, 178 }, PAD_EDGE = { 160, 158, 150 },
+  EDGE_TAN = { 230, 164, 104 }, EDGE_TAN_D = { 186, 116, 68 },
+  FRONT_TOP = { 230, 228, 242 }, FRONT_FOOT = { 168, 164, 198 }, FRONT_LINE = { 112, 108, 144 }, KICK = { 92, 88, 120 },
   WHITE = { 255, 255, 255 }, BLACK = { 0, 0, 0 },
   -- the words and the choice
   INK = { 40, 42, 52 }, PINK = { 240, 104, 146 }, PINK_D = { 204, 60, 104 },
   NAVY = { 30, 46, 104 }, NAVY_D = { 16, 26, 66 }, LIME = { 186, 244, 64 },
   SHEEN = { 255, 255, 255, 0.22 }, SHEEN_CLEAR = { 255, 255, 255, 0 },
   -- the machine
-  WALL_DIM_TOP = { 12, 6, 16, 0.7 }, WALL_DIM_FOOT = { 12, 6, 16, 0.42 },
-  TABLE_FAR = { 140, 88, 104 }, TABLE_NEAR = { 204, 146, 160 },
+  WALL_DIM_TOP = { 24, 10, 16, 0.5 }, WALL_DIM_FOOT = { 24, 10, 16, 0.26 },
+  TABLE_FAR = { 150, 138, 100 }, TABLE_NEAR = { 238, 228, 178 },
   BASE_TOP = { 232, 218, 224 }, BASE_TOP_D = { 196, 178, 188 }, BASE_FRONT = { 218, 206, 214 },
   BASE_FRONT_D = { 176, 160, 172 },
   HOOD_TOP = { 246, 104, 128 }, DOME = { 218, 42, 72 }, DOME_D = { 150, 20, 44 }, DOME_L = { 252, 118, 140 },
@@ -74,7 +65,7 @@ local C = {
   PANEL = { 14, 24, 44 }, PANEL_D = { 6, 10, 22 },
   HP = { 92, 222, 120 }, HP_LOW = { 240, 184, 60 }, HP_BACK = { 40, 56, 80 },
   -- (the lighting: the counter warm and soft, the machine's neon blooming)
-  LOOK_ROOM = { key = 0.1, vignette = 0.45, bloom = 0.22, warm = 0.6, contrast = 0.25, threshold = 0.9 },
+  LOOK_ROOM = { key = 0.1, vignette = 0.4, bloom = 0.22, warm = 0.3, contrast = 0.25, threshold = 0.9 },
   LOOK_MACHINE = { key = 0.1, vignette = 0.55, bloom = 0.85, warm = 0.15, contrast = 0.2, threshold = 0.72 },
 }
 
@@ -126,6 +117,10 @@ return function(K, env, st, T)
   end
 
   -- ------- shapes (units; the window's own graphics)
+  -- (a four-cornered shape, convex, its corners in turn)
+  local function quad(x1, y1, x2, y2, x3, y3, x4, y4)
+    K.graphics().polygon("fill", K.X(x1), K.Y(y1), K.X(x2), K.Y(y2), K.X(x3), K.Y(y3), K.X(x4), K.Y(y4))
+  end
   -- a Poké Ball, shaded as a sphere; `dim` darkens it (inside the machine)
   local function ball(cx, cy, r, a, dim, top)
     local G = K.graphics()
@@ -150,264 +145,339 @@ return function(K, env, st, T)
     K.col(C.BALL_INK, 0.7 * (a or 1))
     G.circle("line", X, Y, s, 24)
   end
-  local function plant(cx, foot, s)
+  -- a Poké Ball turned 45 degrees about its upright, seen from the front: the band level, its button off
+  -- toward `side` (-1 left, 1 right) and narrowed, as it faces away to that side
+  local function turnedBall(cx, cy, r, side)
     local G = K.graphics()
-    shadow(cx, foot, s * 0.42, s * 0.08, 0.35)
-    K.grad(K.R(cx - s * 0.32, foot - s * 0.42, s * 0.64, s * 0.42), s * 0.08, C.POT, C.CRATE_D)
-    for i = 0, 6 do
-      local a = -pi * (0.08 + 0.14 * i)
-      local lx, ly = cx + cos(a) * s * 0.42, foot - s * 0.44 + sin(a) * s * 0.46
-      K.col(i % 2 == 0 and C.LEAF or C.LEAF_D)
-      G.ellipse("fill", K.X(lx), K.Y(ly), s * 0.2 * K.sc, s * 0.12 * K.sc, 10)
-    end
-    K.col(C.LEAF)
-    G.circle("fill", K.X(cx), K.Y(foot - s * 0.66), s * 0.17 * K.sc, 10)
-    K.col(C.WHITE, 0.25)
-    G.circle("fill", K.X(cx - s * 0.05), K.Y(foot - s * 0.72), s * 0.07 * K.sc, 8)
-  end
-  local function can(cx, foot, w, h, c, d)
-    shadow(cx, foot, w * 0.62, w * 0.12, 0.35)
-    K.grad(K.R(cx - w / 2, foot - h, w, h), w * 0.22, c, d)
-    K.col(C.WHITE, 0.9)
-    K.box("fill", K.R(cx - w / 2, foot - h * 0.62, w, h * 0.3))
-    ball(cx, foot - h * 0.47, h * 0.11)
-    K.col(c)
-    K.box("fill", K.R(cx - w * 0.3, foot - h - h * 0.1, w * 0.6, h * 0.14), 0.4)
-    -- (a glint down its left side)
-    K.col(C.WHITE, 0.32)
-    K.box("fill", K.R(cx - w * 0.36, foot - h * 0.95, w * 0.1, h * 0.85), w * 0.05)
-  end
-  local function jar(cx, foot, s)
-    shadow(cx, foot, s * 0.6, s * 0.12, 0.35)
-    for k = 0, 1 do
-      local y = foot - s * (k + 1) * 0.92
-      K.grad(K.R(cx - s * 0.48, y, s * 0.96, s * 0.86), s * 0.3, C.JAR, C.JAR_D)
-      K.col(C.LID)
-      K.box("fill", K.R(cx - s * 0.42, y - s * 0.08, s * 0.84, s * 0.16), 0.4)
-      K.col(C.WHITE, 0.45)
-      K.box("fill", K.R(cx - s * 0.32, y + s * 0.16, s * 0.1, s * 0.44), 0.3)
-    end
-  end
-  local function crate(x, foot, w, h)
-    shadow(x + w / 2, foot, w * 0.6, h * 0.1, 0.4)
-    K.grad(K.R(x, foot - h, w, h), 0.8, C.CRATE, C.CRATE_D)
-    K.col(C.CRATE_D)
-    K.box("fill", K.R(x + w * 0.3, foot - h * 0.7, w * 0.4, h * 0.16), 0.6)
-    K.col(C.WHITE, 0.7)
-    K.box("fill", K.R(x + 0.4, foot - h + 0.3, w - 0.8, 0.5), 0.25)
-  end
-  -- a brick pillar: each brick its own shade with a lit top edge, the light falling off down it, darker
-  -- beside the shelves (`toward` -1: the unit is on its left, 1: on its right)
-  local function bricks(x, y, w, h, toward)
-    K.col(C.MORTAR)
-    K.box("fill", K.R(x, y, w, h))
-    local rowH = 3.6
-    local half = w / 2
-    local r = 0
-    while y + r * rowH < y + h do
-      local ry = y + r * rowH
-      local rh = min(rowH - 0.7, y + h - ry - 0.35)
-      if rh <= 0 then break end
-      local off = (r % 2) * half * 0.5
-      for c = -1, 2 do
-        local bx0 = x + off + c * half
-        local l, rr = max(x, bx0 + 0.35), min(x + w, bx0 + half - 0.35)
-        if rr > l then
-          local k = (r * 7 + c * 3) % 3
-          K.col(k == 0 and C.BRICK_B or (k == 1 and C.BRICK or C.BRICK_C))
-          K.box("fill", K.R(l, ry + 0.35, rr - l, rh), 0.3)
-          K.col(C.BRICK_HI, 0.22)
-          K.box("fill", K.R(l, ry + 0.35, rr - l, 0.45))
-        end
-      end
-      r = r + 1
-    end
-    -- (the light falling off down it; the shadow beside the unit)
-    K.grad(K.R(x, y, w, h), 0, C.SHADE_CLEAR, C.SHADE_DARK)
-    for i = 1, 3 do
-      K.col(C.BLACK, 0.1)
-      local sw = 1.2 * i
-      K.box("fill", K.R(toward < 0 and x or (x + w - sw), y, sw, h))
-    end
-  end
-
-  -- a brick wall across a whole width: bricks of one size, every other row set over by half of one
-  local BRICK_W, BRICK_H = 11, 4.6
-  local function brickWall(x, y, w, h)
-    K.col(C.MORTAR)
-    K.box("fill", K.R(x, y, w, h))
-    local r = 0
-    while y + r * BRICK_H < y + h do
-      local ry = y + r * BRICK_H
-      local rh = min(BRICK_H - 0.7, y + h - ry - 0.35)
-      if rh <= 0 then break end
-      local off = (r % 2) * BRICK_W * 0.5
-      local c = -1
-      while x + off + c * BRICK_W < x + w do
-        local bx0 = x + off + c * BRICK_W
-        local l, rr = max(x, bx0 + 0.35), min(x + w, bx0 + BRICK_W - 0.35)
-        if rr > l then
-          local k = (r * 7 + c * 3) % 3
-          K.col(k == 0 and C.BRICK_B or (k == 1 and C.BRICK or C.BRICK_C))
-          K.box("fill", K.R(l, ry + 0.35, rr - l, rh))
-          K.col(C.BRICK_HI, 0.2)
-          K.box("fill", K.R(l, ry + 0.35, rr - l, 0.45))
-        end
-        c = c + 1
-      end
-      r = r + 1
-    end
-  end
-
-  -- ------- the healing items (drawn smooth after the games' designs, `s` tall)
-  -- a spray bottle (the Potions, Full Restore, Antidote): its body in its colour, a white label with a
-  -- stripe of it and a red cross, the shoulder, the dark collar, the trigger head with its nozzle and
-  -- trigger, a glint
-  local function spray(cx, foot, s, c, d)
-    local G = K.graphics()
-    shadow(cx, foot, s * 0.36, s * 0.07, 0.4)
-    local bw = s * 0.56
-    K.grad(K.R(cx - bw / 2, foot - s * 0.6, bw, s * 0.6), s * 0.12, c, d)
-    K.col(C.WHITE, 0.95)
-    K.box("fill", K.R(cx - bw / 2, foot - s * 0.44, bw, s * 0.2))
-    K.col(c)
-    K.box("fill", K.R(cx - bw / 2, foot - s * 0.27, bw, s * 0.03))
+    local X, Y, s = K.X(cx), K.Y(cy), r * K.sc
     K.col(C.BALL_RED)
-    K.box("fill", K.R(cx - s * 0.03, foot - s * 0.42, s * 0.06, s * 0.13))
-    K.box("fill", K.R(cx - s * 0.065, foot - s * 0.385, s * 0.13, s * 0.06))
-    K.grad(K.R(cx - bw * 0.38, foot - s * 0.7, bw * 0.76, s * 0.13), s * 0.06, K.light(c, 0.25), c)
-    K.col(C.HEAD_D)
-    K.box("fill", K.R(cx - s * 0.1, foot - s * 0.77, s * 0.2, s * 0.08))
-    K.grad(K.R(cx - s * 0.17, foot - s * 0.95, s * 0.3, s * 0.18), s * 0.05, C.HEAD, C.HEAD_D)
-    K.col(C.HEAD_HI, 0.6)
-    K.box("fill", K.R(cx - s * 0.15, foot - s * 0.94, s * 0.24, s * 0.03), s * 0.015)
-    K.col(C.HEAD_D)
-    K.box("fill", K.R(cx + s * 0.12, foot - s * 0.91, s * 0.11, s * 0.055), s * 0.02)
-    G.polygon("fill", K.X(cx + s * 0.04), K.Y(foot - s * 0.78), K.X(cx + s * 0.13), K.Y(foot - s * 0.78),
-      K.X(cx + s * 0.1), K.Y(foot - s * 0.66))
-    K.col(C.WHITE, 0.38)
-    K.box("fill", K.R(cx - bw * 0.4, foot - s * 0.58, bw * 0.13, s * 0.5), s * 0.05)
-  end
-  -- a Revive: a four-pointed yellow crystal, its faces lit from the top left, a sparkle (`big`: a Max Revive)
-  local function revive(cx, foot, s, big)
-    local G = K.graphics()
-    local r = s * (big and 0.42 or 0.32)
-    local cy = foot - r * 1.15
-    shadow(cx, foot, r * 0.8, r * 0.16, 0.38)
-    local X, Y, S = K.X(cx), K.Y(cy), K.sc
-    local t, rr = r * S * 1.15, r * S
-    K.col(C.GEM_D)
-    G.polygon("fill", X, Y - t, X + rr, Y, X, Y + t, X - rr, Y)
-    K.col(C.GEM)
-    G.polygon("fill", X, Y - t, X, Y + t, X - rr, Y)
-    K.col(C.GEM_HI)
-    G.polygon("fill", X, Y - t, X - rr * 0.5, Y - t * 0.05, X - rr * 0.06, Y)
-    K.col(C.GEM_D, 0.6)
-    G.polygon("fill", X, Y + t, X + rr, Y, X + rr * 0.35, Y + t * 0.12)
-    if big then
-      K.col(C.WHITE, 0.85)
-      G.polygon("fill", X, Y - t * 0.45, X + rr * 0.2, Y, X, Y + t * 0.45, X - rr * 0.2, Y)
-    end
-    K.glow(cx - r * 0.3, cy - r * 0.55, r * 0.5, r * 0.5, C.WHITE, 0.5)
-  end
-  -- an Ether: a round flask of blue, its neck, a cork, the glass's glint
-  local function ether(cx, foot, s)
-    local G = K.graphics()
-    local r = s * 0.3
-    local cy = foot - r
-    shadow(cx, foot, r * 1.05, r * 0.2, 0.4)
-    K.col(C.WHITE, 0.55)
-    K.box("fill", K.R(cx - r * 0.25, cy - r * 1.75, r * 0.5, r * 0.9), r * 0.12)
-    K.col(C.CORK)
-    K.box("fill", K.R(cx - r * 0.3, cy - r * 2.05, r * 0.6, r * 0.38), r * 0.1)
-    K.col(C.ETHER_D)
-    G.circle("fill", K.X(cx), K.Y(cy), r * K.sc, 28)
-    K.col(C.ETHER)
-    G.circle("fill", K.X(cx - r * 0.08), K.Y(cy - r * 0.08), r * 0.86 * K.sc, 28)
-    shade(cx, cy, r, 0.35)
+    G.arc("fill", "pie", X, Y, s, pi, 2 * pi, 28)
+    K.col(C.WHITE)
+    G.arc("fill", "pie", X, Y, s, 0, pi, 28)
+    K.col(C.BALL_INK)
+    G.rectangle("fill", X - s, Y - s * 0.085, s * 2, s * 0.17)
+    local bx = X + side * s * 0.66
+    G.ellipse("fill", bx, Y, s * 0.25, s * 0.34, 20)
+    K.col(C.WHITE)
+    G.ellipse("fill", bx + side * s * 0.015, Y, s * 0.15, s * 0.21, 16)
+    shade(cx, cy, r, 0.45)
+    G.setLineWidth(max(1, r * 0.07 * K.sc))
+    K.col(C.BALL_INK, 0.75)
+    G.circle("line", X, Y, s, 28)
   end
 
-  -- what each shelf holds (along it, 0..1; her middle hides the middle)
-  local function stock(i, x, foot, w, bay)
-    local s = min(bay * 0.88, 18)
-    if i == 1 then
-      plant(x + w * 0.1, foot, s * 0.75)
-      shadow(x + w * 0.26, foot, s * 0.28, s * 0.06, 0.35)
-      ball(x + w * 0.26, foot - s * 0.27, s * 0.27)
-      shadow(x + w * 0.36, foot, s * 0.28, s * 0.06, 0.35)
-      ball(x + w * 0.36, foot - s * 0.27, s * 0.27, nil, nil, C.GREAT)
-      revive(x + w * 0.74, foot, s)
-      revive(x + w * 0.88, foot, s, true)
-    elseif i == 2 then
-      spray(x + w * 0.09, foot, s, C.POTION, C.POTION_D)
-      spray(x + w * 0.2, foot, s, C.SUPER, C.SUPER_D)
-      spray(x + w * 0.31, foot, s, C.ANTIDOTE, C.ANTIDOTE_D)
-      spray(x + w * 0.69, foot, s, C.HYPER, C.HYPER_D)
-      spray(x + w * 0.8, foot, s, C.MAXP, C.MAXP_D)
-      spray(x + w * 0.91, foot, s, C.RESTORE, C.RESTORE_D)
-    else
-      crate(x + w * 0.05, foot, s * 0.85, s * 0.62)
-      crate(x + w * 0.18, foot, s * 0.85, s * 0.62)
-      ether(x + w * 0.7, foot, s)
-      ether(x + w * 0.8, foot, s)
-      jar(x + w * 0.91, foot, s * 0.42)
+  -- the orange wall of upright slats (`slat` wide, set from cx): each board lit on its left, a shade and a
+  -- dark seam on its right, the light falling off down it; the cream trim along its top
+  local function slatWall(x, y, w, h, cx, slat)
+    K.grad(K.R(x, y, w, h), 0, C.WALL_O, C.WALL_O_D)
+    local sx = cx - slat * 0.5 - slat * math.ceil((cx - slat * 0.5 - x) / slat)
+    while sx < x + w do
+      K.col(C.SLAT_HI, 0.55)
+      K.box("fill", K.R(sx + 0.9, y, 1.2, h))
+      K.col(C.SEAM_SOFT, 0.35)
+      K.box("fill", K.R(sx + slat - 3.2, y, 2.6, h))
+      K.col(C.SEAM)
+      K.box("fill", K.R(sx + slat - 0.6, y, 0.9, h))
+      sx = sx + slat
+    end
+    K.col(C.TRIM)
+    K.box("fill", K.R(x, y, w, 4))
+    K.col(C.TRIM_D)
+    K.box("fill", K.R(x, y + 4, w, 1.8))
+    K.grad(K.R(x, y + 5.8, w, 5), 0, C.AO_DARK, C.AO_CLEAR)
+  end
+  -- the skirting along the wall's foot (at `foot`)
+  local function skirting(x, foot, w)
+    K.col(C.SKIRT)
+    K.box("fill", K.R(x, foot - 6, w, 6))
+    K.col(C.TRIM)
+    K.box("fill", K.R(x, foot - 7.2, w, 1.4))
+    K.col(C.SEAM, 0.6)
+    K.box("fill", K.R(x, foot - 0.6, w, 0.6))
+  end
+
+  -- ------- the room, after Emerald's own Pokémon Center: an orange wall of upright slats under a cream
+  -- trim, the big rounded window behind her, the counter an open rectangle round her
+
+  -- the rounded window: a grey frame (lit along its top, a dark edge), blue-grey glass, white glints
+  -- slanting across it and a bright strip down its left, as the game's
+  local function glint(gx, gy, gw, gh, rr, slant, at, bw, a)
+    local x0 = gx + rr + slant + gw * at
+    if x0 + bw > gx + gw - rr then return end
+    K.col(C.WHITE, a)
+    K.graphics().polygon("fill", K.X(x0), K.Y(gy), K.X(x0 + bw), K.Y(gy), K.X(x0 + bw - slant), K.Y(gy + gh),
+      K.X(x0 - slant), K.Y(gy + gh))
+  end
+  local function drawWindow(x, y, w, h)
+    if w <= 12 or h <= 12 then return end
+    local r = min(10, h * 0.2)
+    shadow(x + w / 2, y + h * 0.55, w * 0.56, h * 0.58, 0.2)
+    K.col(C.WIN_EDGE)
+    K.box("fill", K.R(x - 1, y - 1, w + 2, h + 2), r + 1)
+    K.grad(K.R(x, y, w, h), r, C.WIN_FRAME, C.WIN_FRAME_D)
+    local f = min(4.2, w * 0.05)
+    local gx, gy, gw, gh = x + f, y + f, w - f * 2, h - f * 2
+    local rr = max(1, r - f)
+    K.col(C.WIN_EDGE)
+    K.box("fill", K.R(gx - 0.7, gy - 0.7, gw + 1.4, gh + 1.4), rr + 0.7)
+    K.grad(K.R(gx, gy, gw, gh), rr, C.GLASS_TOP, C.GLASS_FOOT)
+    -- (the sky's light low in it, the frame's shadow along its top)
+    K.glow(gx + gw * 0.55, gy + gh * 0.95, gw * 0.5, gh * 0.4, C.WHITE, 0.16)
+    K.grad(K.R(gx, gy, gw, min(4, gh * 0.12)), rr, C.AO_DARK, C.AO_CLEAR)
+    -- (glints: bands slanting across, clear of the rounded corners; the bright strip down the left)
+    local slant = gh * 0.32
+    glint(gx, gy, gw, gh, rr, slant, 0.08, gw * 0.07, 0.3)
+    glint(gx, gy, gw, gh, rr, slant, 0.2, gw * 0.025, 0.24)
+    glint(gx, gy, gw, gh, rr, slant, 0.56, gw * 0.04, 0.14)
+    K.col(C.WHITE, 0.85)
+    K.box("fill", K.R(gx + 1.6, gy + rr * 0.6 + 1, 1.6, gh - rr * 1.2 - 2), 0.8)
+    -- (the frame's lit top)
+    K.col(C.WHITE, 0.9)
+    K.box("fill", K.R(x + r, y + 0.5, w - r * 2, 0.7))
+  end
+
+  -- her PC turned to her: the monitor's side (its front edge toward her, the case narrowing behind it,
+  -- vents), on its stand, the screen's light falling on her side of it; `x` its front edge
+  local function drawPC(x, foot, w, h)
+    local G = K.graphics()
+    shadow(x + w * 0.5, foot, w * 0.7, 1.6, 0.4)
+    K.grad(K.R(x + w * 0.22, foot - h * 0.2, w * 0.3, h * 0.2), 0.6, C.PC_GREY, C.PC_GREY_D)
+    K.col(C.PC_EDGE)
+    K.box("fill", K.R(x + w * 0.02, foot - 1.4, w * 0.62, 1.4), 0.6)
+    local top, mh = foot - h, h * 0.8
+    local fw = w * 0.42
+    -- (the case's back, narrowing)
+    K.col(C.PC_EDGE)
+    quad(x + fw - 1, top + mh * 0.06, x + w, top + mh * 0.2, x + w, top + mh * 0.8, x + fw - 1, top + mh * 0.94)
+    K.col(C.PC_BODY_D)
+    quad(x + fw - 1, top + mh * 0.06 + 0.8, x + w - 0.8, top + mh * 0.2 + 0.7, x + w - 0.8, top + mh * 0.8 - 0.7,
+      x + fw - 1, top + mh * 0.94 - 0.8)
+    K.col(C.WHITE, 0.5)
+    quad(x + fw - 1, top + mh * 0.06 + 0.8, x + w - 0.8, top + mh * 0.2 + 0.7, x + w - 0.8, top + mh * 0.2 + 1.6,
+      x + fw - 1, top + mh * 0.06 + 1.8)
+    G.setLineWidth(max(1, 0.45 * K.sc))
+    K.col(C.PC_EDGE, 0.55)
+    for i = 1, 4 do
+      local vy = top + mh * (0.3 + i * 0.1)
+      G.line(K.X(x + fw + 1.5), K.Y(vy), K.X(x + w - 2.5), K.Y(vy))
+    end
+    -- (its front: the bezel's side, full height)
+    K.col(C.PC_EDGE)
+    K.box("fill", K.R(x - 0.7, top - 0.7, fw + 1.4, mh + 1.4), 1.6)
+    K.grad(K.R(x, top, fw, mh), 1.2, C.PC_BODY, C.PC_BODY_D)
+    K.col(C.WHITE, 0.8)
+    K.box("fill", K.R(x + fw * 0.35, top + 0.6, 0.7, mh - 1.2))
+    -- (the screen's edge toward her, its light)
+    K.glow(x - 1.5, top + mh * 0.45, w * 0.6, mh * 0.5, C.SCREEN_LIGHT, 0.4)
+    K.col(C.SCREEN_EDGE)
+    K.box("fill", K.R(x - 0.3, top + mh * 0.1, 1.3, mh * 0.78), 0.5)
+  end
+
+  -- the healing machine as its close-up has it, small, on the back of the counter against the wall (R its
+  -- size, fb its front's foot): the base's top and front (the team's dark screen, the red button with its
+  -- cyan ring), the red hood round the dark cavity, its cyan lines, the empty tray with its six sockets
+  local function drawHealer(cx, fb, R, clock)
+    local G = K.graphics()
+    local S, X0 = K.sc, K.X(cx)
+    local ft, depth = fb - R * 0.3, R * 0.34
+    local bw, inset = R * 1.16, R * 0.12
+    shadow(cx + R * 0.1, ft - depth - R * 0.42, R * 1.12, R * 0.78, 0.3)
+    shadow(cx, fb + 0.3, bw * 1.15, R * 0.14, 0.5)
+    K.col(C.BASE_TOP_D)
+    quad(cx - bw + inset, ft - depth, cx + bw - inset, ft - depth, cx + bw, ft, cx - bw, ft)
+    K.col(C.BASE_TOP, 0.85)
+    quad(cx - bw + inset * 1.1, ft - depth + 0.4, cx + bw - inset * 1.1, ft - depth + 0.4, cx + bw - 0.4, ft - 0.4,
+      cx - bw + 0.4, ft - 0.4)
+    -- (the hood's top, the cavity, the arch on its back wall)
+    local hoodY, d = ft - depth * 0.55, R * 0.13
+    K.col(C.HOOD_TOP)
+    G.arc("fill", "pie", X0, K.Y(hoodY - d), R * 0.97 * S, pi, 2 * pi, 40)
+    K.col(C.CAVITY)
+    G.arc("fill", "pie", X0, K.Y(hoodY), R * 0.78 * S, pi, 2 * pi, 36)
+    K.col(C.SCREEN_D)
+    G.arc("fill", "pie", X0, K.Y(hoodY - d * 0.9), R * 0.7 * S, pi, 2 * pi, 36)
+    K.col(C.SCREEN, 0.85)
+    G.arc("fill", "pie", X0, K.Y(hoodY - d * 0.9), R * 0.6 * S, pi, 2 * pi, 32)
+    local ar, ay = R * 0.17, hoodY - R * 0.4
+    G.setLineWidth(max(1, 0.5 * S))
+    K.col(C.CYAN, 0.8)
+    G.arc("line", "open", X0, K.Y(ay), ar * S, pi, 2 * pi, 16)
+    G.line(K.X(cx - ar), K.Y(ay), K.X(cx - ar), K.Y(ay + R * 0.18))
+    G.line(K.X(cx + ar), K.Y(ay), K.X(cx + ar), K.Y(ay + R * 0.18))
+    -- (the tray, out, its sockets empty)
+    local tfY, tbY, tfW, tbW = ft - R * 0.04, ft - R * 0.24, R * 0.82, R * 0.68
+    K.col(C.TRAY_D)
+    quad(cx - tfW, tfY, cx + tfW, tfY, cx + tfW, tfY + R * 0.05, cx - tfW, tfY + R * 0.05)
+    K.col(C.TRAY)
+    quad(cx - tbW, tbY, cx + tbW, tbY, cx + tfW, tfY, cx - tfW, tfY)
+    local my, mw = (tfY + tbY) / 2, (tfW + tbW) / 2
+    local slot = mw * 2 / 6
+    K.col(C.SOCKET)
+    for i = 1, 6 do
+      G.ellipse("fill", K.X(cx - mw + slot * (i - 0.5)), K.Y(my), slot * 0.36 * S, slot * 0.15 * S, 12)
+    end
+    -- (the hood's front: the thick red arch, its light, its cyan line)
+    local ringY = K.Y(hoodY)
+    G.setLineWidth(R * 0.22 * S)
+    K.col(C.DOME_D)
+    G.arc("line", "open", X0, ringY + 0.5 * S, R * 0.89 * S, pi, 2 * pi, 48)
+    K.col(C.DOME)
+    G.arc("line", "open", X0, ringY, R * 0.89 * S, pi, 2 * pi, 48)
+    G.setLineWidth(max(1, R * 0.08 * S))
+    K.col(C.DOME_L, 0.55)
+    G.arc("line", "open", X0, ringY, R * 0.92 * S, pi * 1.08, pi * 1.42, 18)
+    G.setLineWidth(max(1, 0.5 * S))
+    K.col(C.CYAN, 0.75 + 0.2 * sin(clock * 3))
+    G.arc("line", "open", X0, ringY, R * 0.86 * S, pi + 0.05, 2 * pi - 0.05, 40)
+    -- (the base's front: the dark screen, the button)
+    K.grad(K.R(cx - bw, ft, bw * 2, fb - ft), 1.2, C.BASE_FRONT, C.BASE_FRONT_D)
+    K.col(C.WHITE, 0.8)
+    K.box("fill", K.R(cx - bw + 0.6, ft, bw * 2 - 1.2, 0.4))
+    K.grad(K.R(cx - bw + R * 0.1, ft + (fb - ft) * 0.18, bw * 2 - R * 0.2, (fb - ft) * 0.64), 1, C.PANEL, C.PANEL_D, 0.97)
+    local btnR, by = (fb - ft) * 0.5, ft + (fb - ft) * 0.5
+    K.col(C.DOME_D)
+    G.circle("fill", X0, K.Y(by + btnR * 0.12), btnR * 1.04 * S, 24)
+    K.col(C.DOME)
+    G.circle("fill", X0, K.Y(by), btnR * S, 24)
+    G.setLineWidth(max(1, 0.4 * S))
+    K.col(C.CYAN, 0.85)
+    G.circle("line", X0, K.Y(by), btnR * 0.66 * S, 20)
+    K.glow(cx, hoodY - R * 0.3, R * 1.2, R * 0.7, C.CYAN, 0.1)
+  end
+
+  -- the magazine rack beside the counter (its right part in sight): a white case, two shelves of
+  -- magazines of every colour, leaning a little
+  local function drawRack(x, foot, w, h)
+    shadow(x + w / 2, foot, w * 0.6, 2, 0.4)
+    K.col(C.PC_EDGE)
+    K.box("fill", K.R(x - 0.8, foot - h - 0.8, w + 1.6, h + 0.8), 1.6)
+    K.grad(K.R(x, foot - h, w, h), 1.2, C.PC_BODY, C.PC_BODY_D)
+    local shH = (h - 6) / 2
+    for shelf = 0, 1 do
+      local sy = foot - h + 2 + shelf * (shH + 2)
+      K.col(C.RACK_BACK)
+      K.box("fill", K.R(x + 2, sy, w - 4, shH))
+      local mx, k = x + 2.6, shelf * 3
+      while mx < x + w - 5 do
+        k = k + 1
+        local mw = 3.4 + (k * 7 % 3) * 0.9
+        local mhh = shH * (0.66 + (k * 5 % 4) * 0.08)
+        local m = k % 5
+        K.col(m == 0 and C.MAG_A or (m == 1 and C.MAG_B or (m == 2 and C.MAG_C or (m == 3 and C.MAG_D or C.MAG_E))))
+        K.box("fill", K.R(mx, sy + shH - mhh, mw, mhh), 0.4)
+        K.col(C.WHITE, 0.4)
+        K.box("fill", K.R(mx + 0.5, sy + shH - mhh + 0.6, 0.6, mhh - 1.2))
+        mx = mx + mw + 0.7
+      end
+      K.col(C.PC_GREY_D)
+      K.box("fill", K.R(x + 1, sy + shH, w - 2, 1.4))
     end
   end
 
-  -- the wall (its wainscot), ceiling light, the shelf unit between its pillars
-  local function drawRoom(b, cx, counterY, clock)
+  -- the players' PC beside the counter (its left part in sight): white above, its green screen, the keys,
+  -- grey below, a green light
+  local function drawPlayerPC(x, foot, w, h)
+    local G = K.graphics()
+    shadow(x + w / 2, foot, w * 0.6, 2, 0.4)
+    K.col(C.PC_EDGE)
+    K.box("fill", K.R(x - 0.8, foot - h - 0.8, w + 1.6, h + 0.8), 3)
+    K.grad(K.R(x, foot - h, w, h), 2.6, C.PC_BODY, C.PC_BODY_D)
+    local sx, sy, sw, sh = x + w * 0.14, foot - h + h * 0.18, w * 0.72, h * 0.3
+    K.col(C.PC_EDGE)
+    K.box("fill", K.R(sx - 0.7, sy - 0.7, sw + 1.4, sh + 1.4), 1.4)
+    K.grad(K.R(sx, sy, sw, sh), 1.2, C.GREEN_SCREEN, C.GREEN_SCREEN_D)
+    K.col(C.WHITE, 0.45)
+    K.box("fill", K.R(sx + 1, sy + 1, 1, sh - 2))
+    local ky = sy + sh + h * 0.07
+    K.grad(K.R(x + w * 0.1, ky, w * 0.8, h * 0.13), 0.8, C.PC_GREY, C.PC_GREY_D)
+    for i = 0, 5 do
+      K.col(C.PC_BODY)
+      K.box("fill", K.R(x + w * 0.14 + i * w * 0.12, ky + h * 0.03, w * 0.08, h * 0.06), 0.3)
+    end
+    K.grad(K.R(x + 1, foot - h * 0.3, w - 2, h * 0.3 - 1), 1, C.PC_GREY, C.PC_GREY_D)
+    K.col(C.LED_ON)
+    G.circle("fill", K.X(x + w * 0.2), K.Y(foot - h * 0.22), 0.8 * K.sc, 10)
+  end
+
+  -- the floor beyond the counter's ends: pale, with Emerald's rounded tiles, larger nearer
+  local function drawFloor(x, y0, w, y1, cx, L)
+    K.grad(K.R(x, y0, w, y1 - y0), 0, C.FLOOR_FAR, C.FLOOR)
+    local ty, row = y0 + 2, 0
+    while ty < y1 do
+      local sz = 4.6 + row * 1.5
+      local step = sz * 1.45
+      for side = -1, 1, 2 do
+        local tx = cx + side * (L + step * 0.5)
+        while (side < 0 and tx + sz / 2 > x) or (side > 0 and tx - sz / 2 < x + w) do
+          K.col(C.FLOOR_TILE, 0.7)
+          K.box("fill", K.R(tx - sz / 2, ty, sz, sz * 0.62), sz * 0.18)
+          tx = tx + side * step
+        end
+      end
+      ty = ty + sz * 0.62 + 1.2 + row * 0.4
+      row = row + 1
+    end
+  end
+
+  local SLAT, WING, BACK, BTOP = 24, 20, 25, 6   -- (the slats; the counter's sides, how far back the wall is, its back's top)
+  local pcTop = 0    -- (her PC's top, this frame: the choice sits above it)
+  -- the room; L: the counter's half width -- an open rectangle round her, its sides at cx +- L, its back
+  -- against the wall (the machine on it); her PC on its desk inside, beside her
+  local function drawRoom(b, cx, counterY, clock, head, hU, L)
     local x, y, w, h = b[1], b[2], b[3], b[4]
-    K.grad(K.R(x, y, w, h), 0, C.WALL_TOP, C.WALL_FOOT)
-    local wy = counterY - h * 0.2
-    K.grad(K.R(x, wy, w, counterY - wy + 1), 0, C.WAIN_TOP, C.WAIN_FOOT)
-    K.col(C.MOLD)
-    K.box("fill", K.R(x, wy - 1.2, w, 1.4))
-    K.col(C.BLACK, 0.12)
-    K.box("fill", K.R(x, wy + 0.2, w, 0.8))
-    local uw = min(w * 0.64, h * 1.3)
-    local ux, uy = cx - uw / 2, y + h * 0.03
-    local uh = counterY - uy + 2
-    local pw = uw * 0.14
-    -- (ceiling light: a pool over the unit, a spot on each pillar)
-    K.glow(cx, y, uw * 0.7, h * 0.4, C.LAMP, 0.26 + 0.02 * sin(clock * 0.7))
-    bricks(ux - pw, y, pw, counterY - y + 2, 1)
-    bricks(ux + uw, y, pw, counterY - y + 2, -1)
-    K.glow(ux - pw / 2, y + 4, pw * 0.9, h * 0.22, C.LAMP, 0.16)
-    K.glow(ux + uw + pw / 2, y + 4, pw * 0.9, h * 0.22, C.LAMP, 0.16)
-    -- (the unit: its frame bevelled, its back lit from above and shadowed under each board)
-    shadow(cx, uy + uh / 2, uw * 0.58, uh * 0.56, 0.18)
-    K.col(C.FRAME)
-    K.box("fill", K.R(ux, uy, uw, uh), 0.6)
-    K.col(C.FRAME_HI)
-    K.box("fill", K.R(ux, uy, uw, 0.5))
-    K.box("fill", K.R(ux, uy, 0.5, uh))
-    K.col(C.FRAME_LO)
-    K.box("fill", K.R(ux + uw - 0.5, uy, 0.5, uh))
-    local ix, iw = ux + 2, uw - 4
-    K.grad(K.R(ix, uy + 2, iw, uh - 2), 0, C.BACK_TOP, C.BACK_FOOT)
-    local bay = (uh - 2) / 3
-    for i = 1, 3 do
-      local top = uy + 2 + bay * (i - 1)
-      local foot = top + bay - 2.2
-      -- (the board above's shadow on the back, a warm strip of light under it)
-      K.grad(K.R(ix, top, iw, min(bay * 0.35, 5)), 0, C.AO_DARK, C.AO_CLEAR)
-      K.glow(ix + iw * 0.5, top + 1.2, iw * 0.46, 2.6, C.LED, 0.35)
-      K.glow(ix + iw * 0.5, foot - bay * 0.5, iw * 0.42, bay * 0.45, C.WHITE, 0.18)
-      stock(i, ix, foot, iw, bay)
-      -- (the board: its top, its front edge)
-      K.col(C.BOARD_TOP)
-      K.box("fill", K.R(ix - 1, foot - 0.4, iw + 2, 1))
-      K.col(C.BOARD)
-      K.box("fill", K.R(ix - 1, foot + 0.6, iw + 2, 1.8))
-      K.col(C.WHITE, 0.18)
-      K.box("fill", K.R(ix - 1, foot + 0.6, iw + 2, 0.35))
+    local wallY = counterY - BACK
+    slatWall(x, y, w, wallY - y, cx, SLAT)
+    skirting(x, wallY, w)
+    -- (ceiling light: a pool on the wall over her)
+    K.glow(cx, y + 6, w * 0.42, h * 0.36, C.LAMP, 0.24 + 0.02 * sin(clock * 0.7))
+    -- (the window behind her, her head before its lower half)
+    local ww = min(w * 0.42, hU * 1.15, 116)
+    local wy = y + 12
+    drawWindow(cx - ww / 2, wy, ww, min(head + hU * 0.4, wallY - 11) - wy)
+    -- (the floor; the counter's top cream all round, the inside in shade: the back's face, the sides' inner
+    -- faces, their lit edges)
+    drawFloor(x, wallY, w, y + h, cx, L)
+    local lx = cx - L
+    K.grad(K.R(lx, wallY - 1, L * 2, counterY + 2 - wallY), 2.5, C.TOP_CREAM_D, C.TOP_CREAM)
+    local hx, hy, hw = lx + WING, wallY + BTOP, L * 2 - WING * 2
+    local hh = counterY + 2 - hy
+    K.grad(K.R(hx, hy, hw, hh), 1.2, C.BACK_FACE, C.BACK_FACE_D)
+    K.grad(K.R(hx, hy, hw, 1.3), 0, C.EDGE_TAN, C.EDGE_TAN_D)
+    for k = 1, 3 do
+      K.col(C.BLACK, 0.07)
+      K.box("fill", K.R(hx, hy, 1.3 * k, hh))
+      K.box("fill", K.R(hx + hw - 1.3 * k, hy, 1.3 * k, hh))
     end
+    K.col(C.WHITE, 0.6)
+    K.box("fill", K.R(hx - 0.7, hy + 0.6, 0.7, hh))
+    K.box("fill", K.R(hx + hw, hy + 0.6, 0.7, hh))
+    -- (beyond the counter's ends: the magazine rack on her right, the players' PC on her left)
+    local re = cx - L - 5
+    if re > x + 3 then drawRack(re - 40, wallY + 9, 40, 40) end
+    local pl = cx + L + 5
+    if pl < x + w - 3 then drawPlayerPC(pl, wallY + 9, 34, 52) end
+    -- (the healing machine against the wall on her right, over the counter)
+    local R = min(22, L * 0.19)
+    local mcx = min(lx + WING + R * 1.16 + 2, cx - hU * 0.4 - R * 0.46)
+    drawHealer(mcx, wallY + BTOP * 0.7, R, clock)
+    -- (her PC on its desk inside the counter by its side, on her left: the screen's right, turned to her; the desk
+    -- running to the counter's side, its cream top, its tan edge, its front in shade down behind the counter)
+    local pw, ph = min(22, w * 0.085), min(28, (counterY - head) * 0.46)
+    local px = max(cx + hU * 0.4, cx + L - WING - pw - 6)
+    local dx, dy = px - 6, counterY - 10
+    local dw = max(pw + 9, cx + L - WING - dx)
+    shadow(dx + dw / 2, dy + 2, dw * 0.6, 2.2, 0.3)
+    K.grad(K.R(dx, dy + 2.6, dw, counterY + 2 - dy - 2.6), 0, C.BACK_FACE, C.BACK_FACE_D)
+    K.grad(K.R(dx, dy - 1.6, dw, 3.4), 1, C.TOP_CREAM_D, C.TOP_CREAM)
+    K.grad(K.R(dx, dy + 1.8, dw, 1), 0, C.EDGE_TAN, C.EDGE_TAN_D)
+    drawPC(px, dy + 0.6, pw, ph)
+    pcTop = dy + 0.6 - ph
   end
 
   -- the nurse: her sheet's frame for the way she faces, at whole pixels, a soft light round her head;
   -- a nod while she talks, a bow; walking (st.walk: to the machine and back) her sheet's four steps in
-  -- turn, a little bounce with each, gliding along
-  local STEP = 0.12
+  -- turn, a slight lift with each (one pixel), gliding along
+  local STEP = 0.15
   local function drawNurse(cx, foot, hU, clock)
     local art = env.nurse and env.nurse()
     if not (art and art.image and art.quads) then return end
@@ -423,7 +493,7 @@ return function(K, env, st, T)
       if e < 1 then
         face = wk.face
         step = floor(since / STEP) % 4
-        lift = floor(abs(sin(since / STEP * pi)) * 1.6 + 0.5) * px
+        lift = floor(abs(sin(since / STEP * pi)) * 0.9 + 0.5) * px
       end
     end
     local q = art.quads[(FACE[face] or 0) * 4 + step] or art.quads[0]
@@ -439,52 +509,64 @@ return function(K, env, st, T)
     G.draw(art.image, q, X, Y, 0, px, px)
   end
 
-  -- the sign on the counter's front: a lit box, its frame, the Pokémon Center's ball (big) and its name
-  local function drawSign(cx, y, maxW, h)
+  -- the counter's front, as Emerald's (the room drew the rest of its rectangle): the cream top with the
+  -- white pad in front of her, a tan front edge, the body white in its own shadow with grey panels, rounded
+  -- at its ends; a big Poké Ball on a grey stand on each front corner, turned to face it
+  local TOP, PANEL_W = 8.5, 34
+  local function drawCounter(x, y, w, h, cx, L)
     local G = K.graphics()
-    local name = T("nurse.title")
-    local fs = 7.4
-    local r = h * 0.4
-    local tw = K.width(name, fs)
-    local w = min(maxW, r * 2 + tw + h * 1.1)
-    fs = K.fit(name, fs, w - r * 2 - h * 0.9)
-    tw = K.width(name, fs)
-    local sb = K.R(cx - w / 2, y, w, h)
-    K.glow(cx, y + h / 2, w * 0.66, h * 1.1, C.SIGN_GLOW, 0.32)
-    K.shadow(sb, 5, 1.6, 0.35)
-    K.col(C.SIGN_FRAME)
-    K.box("fill", sb, 5)
-    local face = K.R(sb[1] + 1.4, sb[2] + 1.4, sb[3] - 2.8, sb[4] - 2.8)
-    K.grad(face, 4, C.SIGN_TOP, C.SIGN_FOOT)
-    K.glow(face[1] + face[3] / 2, face[2] + face[4] * 0.35, face[3] * 0.5, face[4] * 0.6, C.WHITE, 0.4)
-    K.ring(face, 4, C.WHITE, 0.9, 0.5)
-    -- (the ball, in a white ring, and the name beside it)
-    local bx = face[1] + h * 0.5 + 0.2
-    local by = face[2] + face[4] / 2
-    K.col(C.WHITE)
-    G.circle("fill", K.X(bx), K.Y(by), (r + 1.1) * K.sc, 32)
-    ball(bx, by, r)
-    local gx = bx + r + 2.6
-    K.bold(name, gx, by - fs * 0.62 * K.textScale(), fs, C.SIGN_INK, "center", face[1] + face[3] - gx - 2)
-    -- (a sheen across the glass)
-    K.col(C.WHITE, 0.22)
-    K.box("fill", K.R(face[1] + 2, face[2] + 0.8, face[3] - 4, face[4] * 0.32), 3)
-  end
-
-  -- the counter she stands behind: its glossy top, its red front, the sign on it
-  local function drawCounter(x, y, w, h, cx)
+    local lx = cx - L
     shadow(cx, y + 0.6, 22, 2.4, 0.3)
-    K.grad(K.R(x, y + 4.6, w, h - 4.6), 0, C.COUNTER_TOP, C.COUNTER_FOOT)
-    K.col(C.WHITE, 0.1)
-    K.box("fill", K.R(x, y + 9, w, 3))
-    K.grad(K.R(x, y, w, 4.6), 0, C.SLAB_TOP, C.SLAB_FOOT)
-    K.col(C.WHITE, 0.85)
-    K.box("fill", K.R(x, y + 0.5, w, 0.6))
-    K.col(C.LIP)
-    K.box("fill", K.R(x, y + 4.4, w, 0.8))
-    K.col(C.BLACK, 0.18)
-    K.box("fill", K.R(x, y + 5.2, w, 1.4))
-    drawSign(cx, y + 8, min(w - 24, 160), 22)
+    -- (the top)
+    K.grad(K.R(lx, y, L * 2, TOP), TOP * 0.45, C.TOP_CREAM, C.TOP_CREAM_D)
+    K.col(C.WHITE, 0.8)
+    K.box("fill", K.R(lx + 3, y + 0.4, L * 2 - 6, 0.6))
+    -- (the pad in front of her)
+    shadow(cx, y + TOP * 0.6, 18, 3.4, 0.22)
+    K.col(C.PAD_EDGE)
+    G.ellipse("fill", K.X(cx), K.Y(y + TOP * 0.5), 16 * K.sc, 3.1 * K.sc, 40)
+    K.col(C.WHITE)
+    G.ellipse("fill", K.X(cx), K.Y(y + TOP * 0.46), 15 * K.sc, 2.5 * K.sc, 40)
+    K.col(C.PAD_EDGE, 0.35)
+    G.ellipse("fill", K.X(cx), K.Y(y + TOP * 0.56), 12.5 * K.sc, 1.2 * K.sc, 32)
+    -- (the front edge, rounded: tan, lit along its top)
+    K.grad(K.R(lx, y + TOP, L * 2, 2), 1, C.EDGE_TAN, C.EDGE_TAN_D)
+    K.col(C.WHITE, 0.35)
+    K.box("fill", K.R(lx + 1, y + TOP, L * 2 - 2, 0.4))
+    -- (the body: white in shadow, grey panels, a dark kick plate, its rounded ends darker)
+    local fy = y + TOP + 2
+    local fh = y + h - fy
+    K.grad(K.R(lx, fy, L * 2, fh), 0, C.FRONT_TOP, C.FRONT_FOOT)
+    K.grad(K.R(lx, fy, L * 2, 4), 0, C.AO_DARK, C.AO_CLEAR)
+    local px = cx - PANEL_W * 0.5 - PANEL_W * math.ceil((cx - PANEL_W * 0.5 - lx) / PANEL_W)
+    while px < cx + L do
+      if px > lx + 4 and px < cx + L - 4 then
+        K.col(C.FRONT_LINE, 0.55)
+        K.box("fill", K.R(px - 0.4, fy + 3, 0.8, fh - 8))
+        K.col(C.WHITE, 0.3)
+        K.box("fill", K.R(px + 0.4, fy + 3, 0.5, fh - 8))
+      end
+      px = px + PANEL_W
+    end
+    K.col(C.FRONT_LINE, 0.5)
+    K.box("fill", K.R(lx, fy + 2.4, L * 2, 0.6))
+    K.col(C.KICK)
+    K.box("fill", K.R(lx, y + h - 4, L * 2, 4))
+    for k = 1, 3 do
+      K.col(C.BLACK, 0.08)
+      K.box("fill", K.R(lx, y + TOP, 1.4 * k, h - TOP))
+      K.box("fill", K.R(cx + L - 1.4 * k, y + TOP, 1.4 * k, h - TOP))
+    end
+    -- (the Poké Balls on its corners, each turned to face its corner)
+    local r = min(10, WING * 0.52)
+    for side = -1, 1, 2 do
+      local bx, foot = cx + side * (L - WING * 0.5), y + TOP * 0.62
+      shadow(bx, foot, r * 1.15, r * 0.24, 0.45)
+      K.col(C.PC_EDGE)
+      K.box("fill", K.R(bx - r * 0.82, foot - r * 0.44, r * 1.64, r * 0.48), r * 0.2)
+      K.grad(K.R(bx - r * 0.72, foot - r * 0.4, r * 1.44, r * 0.36), r * 0.15, C.PC_GREY, C.PC_GREY_D)
+      turnedBall(bx, foot - r * 0.98, r, side)
+    end
   end
 
   -- frosted glass under a box: the scene behind it, blurred (the lighting's copy) -> true when it drew
@@ -616,10 +698,6 @@ return function(K, env, st, T)
   end
 
   -- ------- the healing machine, three-quarters from above
-  -- (a four-cornered shape: back left, back right, front right, front left; units)
-  local function quad(x1, y1, x2, y2, x3, y3, x4, y4)
-    K.graphics().polygon("fill", K.X(x1), K.Y(y1), K.X(x2), K.Y(y2), K.X(x3), K.Y(y3), K.X(x4), K.Y(y4))
-  end
   -- the team's screen on the machine's front: each Pokémon's icon and its health, three either side of
   -- the button
   local function drawTeam(px0, py, pw, ph, gap, e, glow0, clock)
@@ -676,11 +754,12 @@ return function(K, env, st, T)
     local depth = R * 0.34                   -- how far back its top runs
     local fb = ft + R * 0.3                  -- its front's foot
     local bw, inset = R * 1.16, R * 0.12
-    -- (the room: the brick wall right behind it, in the dim light, lit by the machine and shadowed by its
-    -- hood; the table it stands on meeting the wall just behind its base, glossy, the counter's red edge
-    -- along the foot)
+    -- (the room: the slatted orange wall right behind it, in the dim light, lit by the machine and shadowed by its
+    -- hood; the table it stands on meeting the wall just behind its base, glossy, the counter's tan edge
+    -- and its white front along the foot)
     local hz = ft - depth - R * 0.03
-    brickWall(x, y, w, hz - y + 0.5)
+    slatWall(x, y, w, hz - y + 0.5, cx, 30)
+    skirting(x, hz + 0.5, w)
     K.grad(K.R(x, y, w, hz - y + 0.5), 0, C.WALL_DIM_TOP, C.WALL_DIM_FOOT)
     shadow(cx + R * 0.1, hz - R * 0.42, R * 1.12, R * 0.78, 0.42)
     K.glow(cx, hz - R * 0.1, R * 1.9, R * 0.8, C.DOME_L, 0.18 + 0.16 * g)
@@ -690,9 +769,8 @@ return function(K, env, st, T)
     K.grad(K.R(x, hz, w, 2.5), 0, C.AO_DARK, C.AO_CLEAR)
     K.col(C.WHITE, 0.55)
     K.box("fill", K.R(x, te - 1.1, w, 0.5))
-    K.grad(K.R(x, te, w, y + h - te), 0, C.COUNTER_TOP, C.COUNTER_FOOT)
-    K.col(C.LIP)
-    K.box("fill", K.R(x, te, w, 0.5))
+    K.grad(K.R(x, te, w, 1.6), 0, C.EDGE_TAN, C.EDGE_TAN_D)
+    K.grad(K.R(x, te + 1.6, w, y + h - te - 1.6), 0, C.FRONT_TOP, C.FRONT_FOOT)
     shadow(cx, fb + 0.5, bw * 1.18, R * 0.16, 0.6)
     -- (the glow spilling onto the counter)
     if g > 0.01 then K.glow(cx, fb + R * 0.1, R * 1.7, R * 0.3, C.WHITE, 0.22 * g) end
@@ -840,6 +918,12 @@ return function(K, env, st, T)
   function V.draw(b, clock, portrait)
     local x, y, w, h = b[1], b[2], b[3], b[4]
     local G = K.graphics()
+    -- (fading from the field and back to it: only the black over it, the whole window)
+    if st.scene == "in" or st.scene == "out" then
+      G.setColor(0, 0, 0, st.black)
+      G.rectangle("fill", 0, 0, K.ww, K.wh)
+      return
+    end
     meshes()
     K.addHit(b, "win", V.SCREEN)
     local lit = Lt and Lt.begin(G)
@@ -857,9 +941,11 @@ return function(K, env, st, T)
       local head = y + (portrait and h * 0.16 or h * 0.12)
       local foot = head + hU
       local counterY = head + hU * 0.74
-      drawRoom(b, cx, counterY, clock)
+      -- (the counter's half width: room beyond its ends for the rack and the PC, never narrower than her)
+      local L = max(min(w / 2 - 22, 118), min(w / 2 - 2, hU * 0.5 + WING + 6))
+      drawRoom(b, cx, counterY, clock, head, hU, L)
       drawNurse(cx, foot, hU, clock)
-      drawCounter(x, counterY, w, y + h - counterY, cx)
+      drawCounter(x, counterY, w, y + h - counterY, cx, L)
       if lit then
         Lt.finish(G, K.X(x), K.Y(y), w * K.sc, h * K.sc, K.X(cx), K.Y(head + hU * 0.2), C.LOOK_ROOM)
         K.rescissor()
@@ -873,7 +959,7 @@ return function(K, env, st, T)
       if st.menu then
         local mw = min(w - 16, 96 + (TS - 1) * 40)
         local mh = #st.rows * ROW + 3
-        -- (beside her, over the shelves, the counter's sign clear; upright, above the words: there's room)
+        -- (beside her, over the wall; upright, above the words: there's room)
         local mx = min(x + w - mw - 8, bx + bww - mw + 14)
         local above = portrait
         if not portrait and mx < cx + 20 then
@@ -886,7 +972,8 @@ return function(K, env, st, T)
             above = true
           end
         end
-        drawMenu(mx, above and (by - mh - 5) or min(by - mh - 5, counterY - mh - 3), mw, clock)
+        -- (beside her: above her PC, the PC in sight)
+        drawMenu(mx, above and (by - mh - 5) or min(by - mh - 5, pcTop - mh - 4), mw, clock)
       end
     end
     if st.black > 0 then

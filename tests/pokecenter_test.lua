@@ -201,6 +201,13 @@ T.check(v.ctx.mode == "native" and v.ctx.nativePoll and not v.ctx.nativePoll(), 
 local W = Tm.state().win
 local st = W.state
 T.check(Tm.state().opts.chrome == false and Tm.state().opts.noHints == true, "no toolbar, no hints")
+-- (it fades in from the field: the field drawn under it going to black, then her counter up from black)
+T.check(W.see() == true and not Stack.fullscreen() and st.scene == "in", "it opens over the field, fading to black")
+frame(1, "a")
+T.eq(st.scene, "in", "A does nothing while it fades in")
+frame(40)
+T.check(not W.see() and Stack.fullscreen() and st.scene == "nurse", "then her counter, the field no longer drawn under it")
+frame(40)
 
 -- ------- the window, by buttons
 frame(2)
@@ -257,7 +264,16 @@ frame(1, "b")
 T.check(st.say.text:find("again", 1, true) and st.after == "close", "B: I'm all good, her goodbye")
 frame(60)
 frame(1, "a")
-T.check(not Tm.isOpen() and not Stack.has(Sh.MAP_ID), "A: closed")
+T.check(Tm.isOpen() and st.closed and not v.ctx.nativePoll(), "A: her counter fades to black, the VM still held")
+local sawField = false
+for _ = 1, 120 do
+  frame(1)
+  if not Tm.isOpen() then break end
+  if W.see() and not Stack.fullscreen() then sawField = true end
+end
+T.check(sawField, "the field fades back in from black under it")
+T.check(not Tm.isOpen() and not Stack.has(Sh.MAP_ID), "then closed")
+T.check(not Stack.fullscreen(), "the field drawn")
 T.check(v.ctx.nativePoll(), "the VM goes on")
 log = {}
 got = runVm(v)
@@ -272,6 +288,7 @@ v = newVm()
 runVm(v)
 W = Tm.state().win
 st = W.state
+frame(60)
 st.say, st.after = { text = "x", t = clock, n = 1 }, "machine"
 st.full = true
 frame(1, "a")

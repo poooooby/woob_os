@@ -162,10 +162,18 @@ return function(deps)
     if not r then return end
     local clock = now()
     local pw, ph = K.frame(G, vp, Tm.PAGE, clock - r.t0)
-    G.setColor(0, 0, 0, 1)
-    G.rectangle("fill", 0, 0, K.ww, K.wh)
     local b = r.body
     local w = r.win
+    -- (a window fading over the field shows it through: win.see() true)
+    local through = false
+    if w.see then
+      local okS, yes = pcall(w.see)
+      through = okS and yes == true
+    end
+    if not through then
+      G.setColor(0, 0, 0, 1)
+      G.rectangle("fill", 0, 0, K.ww, K.wh)
+    end
     local chrome = r.opts.chrome
     if chrome then
       -- (an app: the windows' grey, a toolbar with the way back and its title, the hints below)

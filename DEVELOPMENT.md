@@ -1290,16 +1290,28 @@ soft S-curve, and bloom (a quarter-size copy of what's past a threshold, nine ta
 `C.LOOK_ROOM` / `C.LOOK_MACHINE`. The words, the choice and the machine's team screen are drawn after
 the pass, sharp (the game's icons drawn inside the canvas left holes in its alpha: squares). No stencil
 anywhere (the canvas has none): the hood's arch is one thick stroke. Two meshes made once: a soft shadow
-(contact shadows, the machine's footprint) and a sphere's shading (the balls, the button, the sign's ball).
+(contact shadows, the machine's footprint) and a sphere's shading (the balls, the button).
 The machine is three-quarters from above: the base's top and front, the hood's thickness (its top drawn
 set back), the cavity, the tray in perspective sliding back into it (smaller, shadowed), the glow behind
 the tray so the balls stay dark against it. Without canvases or shaders (headless) it's drawn unlit. The
-counter's sign is a lit box: the ball big in a white ring, `nurse.title` beside it. The shelves hold the healing
-items drawn smooth after the games' designs (our own vector drawings, nothing copied): the sprays (`spray`:
-Potion, Super / Hyper / Max Potion, Full Restore, Antidote), Revive / Max Revive crystals, Ethers, a Poké
-Ball and a Great Ball; the middle of each shelf is left to her. The machine stands against the brick wall
-(`brickWall`, bricks of one size) on the counter's glossy top: the wall meets it just behind the base, the
-hood's shadow and the machine's light on the bricks. A preview renderer
+counter's room is Emerald's own Pokémon Center redrawn smooth (from an in-game shot of Oldale's): an orange
+wall of upright slats (`slatWall`, centred on her) under a cream trim, the big rounded window behind her
+(`drawWindow`: a grey frame, blue-grey glass, slanting glints kept clear of the corners); the counter an
+open rectangle round her (`L` its half width, `WING` its sides, `BACK` / `BTOP` its back against the wall):
+its top cream all round, the inside in shade; the healing machine on its back on her right (`drawHealer`:
+the close-up's machine small, its tray out and empty), her PC on its desk inside beside her on her left,
+turned to her (`drawPC`: the monitor's side); past its ends the floor's tiles (`drawFloor`), the magazine
+rack (`drawRack`) and the players' PC (`drawPlayerPC`), cut by the screen's edges; the front a cream top
+with the white pad in front of her, a tan edge, white in shadow with grey panels, a big Poké Ball on each
+corner turned 45 degrees about its upright to face it (`turnedBall`: the band level, the button off to
+that side). It fades in from the field and back out to it: `Sh.openFull(..., { fade = true })` pushes its layer so
+the field can draw under it (Gen 3: the stack's `fullscreen` a function of the shell's `seeField`; the Game Boy
+games: `H.opaque(id, yes)`, the state's `isOpaque` read each frame), `ctx.seeField(on)` turns that on and off,
+and the host skips its black fill while `win.see()` says so. The window's scenes "in" (the field to black,
+then her counter up from black) and "out" (her counter to black, then the field up from it; `ctx.done()` once
+it's up, so the game stays held until then). No sign. The choice sits above her PC
+(`pcTop`, set by `drawRoom` each frame). The machine stands against the same slatted wall on the same cream counter: the wall meets it just
+behind the base, the hood's shadow and the machine's light on the slats. A preview renderer
 (no engine) is the scratchpad's `pcshot/`. Tests: `tests/pokecenter_test.lua` (a stand-in VM over the
 cart's own scripts), `gb_test`'s Pokémon Center section.
 

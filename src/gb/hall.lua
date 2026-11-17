@@ -107,11 +107,29 @@ return function(H, Gd)
       end
       return plain(d and d.text and d.text[key] or ""), key
     end
-    local Sp, Strings = engine("src.script.gen2.Specials"), engine("src.core.Strings")
-    local ok, row = pcall(Sp and Sp.findOakRating or error, caught)
-    if not (ok and type(row) == "table") then return "", nil end
+    local Sp = engine("src.script.gen2.Specials")
+    if not Sp then return "", nil end
+    -- (the engine since 0.4.6: findOakRating(ratings, caught), the ratings the cart's own (oakRatings, from its
+    -- events), each row's text a ROM text label; before it: findOakRating(caught), the row's text the words)
+    local row
+    if Sp.oakRatings then
+      local okR, rows = pcall(Sp.oakRatings, d)
+      if okR and type(rows) == "table" then
+        local ok, got = pcall(Sp.findOakRating, rows, caught)
+        if ok and type(got) == "table" then row = got end
+      end
+    end
+    if not row then
+      local ok, got = pcall(Sp.findOakRating or error, caught)
+      if ok and type(got) == "table" then row = got end
+    end
+    if not row then return "", nil end
     local text = row.text
-    if Strings then
+    local RomText, Strings = H.engineFn and H.engineFn("src.core.RomText"), engine("src.core.Strings")
+    local okT, line = pcall(RomText or error, d, row.text)
+    if okT and type(line) == "string" and line ~= "" then
+      text = line
+    elseif Strings then
       local okS, t = pcall(Strings, row.text)
       if okS and t then text = t end
     end
