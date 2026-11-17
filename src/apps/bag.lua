@@ -17,6 +17,10 @@ local HINTS = {
   listMove = { { "^ v", "hint.move" }, { "L R", "hint.pocket" }, { "A", "hint.choose" }, { "SELECT", "bag.hint.move" },
                { "B", "hint.close" } },
   give = { { "^ v", "hint.move" }, { "L R", "hint.pocket" }, { "A", "bag.act.give" }, { "B", "hint.back" } },
+  -- (one page only -- the Pyramid's, a berry tree's: no L R)
+  list1 = { { "^ v", "hint.move" }, { "A", "hint.choose" }, { "B", "hint.close" } },
+  listMove1 = { { "^ v", "hint.move" }, { "A", "hint.choose" }, { "SELECT", "bag.hint.move" }, { "B", "hint.close" } },
+  pickOne1 = { { "^ v", "hint.move" }, { "A", "hint.choose" }, { "B", "hint.cancel" } },
   menu = { { "^ v", "hint.move" }, { "A", "hint.ok" }, { "B", "hint.back" } },
   qty = { { "^ v", "hint.one" }, { "< >", "hint.ten" }, { "A", "hint.ok" }, { "B", "hint.cancel" } },
   pickOne = { { "^ v", "hint.move" }, { "L R", "hint.pocket" }, { "A", "hint.choose" }, { "B", "hint.cancel" } },
@@ -492,9 +496,12 @@ return function(env, T, A, Pc)
     elseif B.c.location == "party" then h = HINTS.give
     elseif B.c.location == "berry_tree" then h = HINTS.berry
     elseif B.c.location == "blender" then h = HINTS.blender
-    elseif B.c.location then h = HINTS.pickOne
-    elseif Bg.canMove(B.c, B.pockets[B.pi]) and #rowsOf(B) > 1 then h = HINTS.listMove
-    else h = HINTS.list end
+    else
+      local one = #B.pockets < 2
+      if B.c.location then h = one and HINTS.pickOne1 or HINTS.pickOne
+      elseif Bg.canMove(B.c, B.pockets[B.pi]) and #rowsOf(B) > 1 then h = one and HINTS.listMove1 or HINTS.listMove
+      else h = one and HINTS.list1 or HINTS.list end
+    end
     return T.list(h)
   end
 
