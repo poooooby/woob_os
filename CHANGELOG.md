@@ -26,7 +26,13 @@ All notable changes to this mod are documented here, in
   as in the game), give, toss with how many, register, and SELECT to reorder a pocket. In battle: medicine
   on a Pokémon with its HP bar filling, X items, Poké Balls. The Pokémon menu's Give chooses from it, and
   so do the berry trees (the Berries only), the Berry Blender, the PC's item storage (deposit how many) and
-  a shop's selling (how many, what it comes to). Teachy TV keeps the game's own.
+  a shop's selling (how many, what it comes to). On Emerald the Battle Pyramid's bag is ours too (its own
+  items as one page). The PC mailbox's "give to a Pokémon" chooses in the new Pokémon menu.
+- **Teachy TV** (FireRed / LeafGreen) shows its lessons on the new screens: the Register and TMs lessons in
+  the Bag (the TM Case's lesson on its TM page, its words in the bubble), the catching and status lessons'
+  Poké Dude choosing from the Bag and using an item from the Pokémon menu, and the Old Man's catching lesson
+  in Viridian City the same way. Used from the Bag, Teachy TV opens over the field and the Bag comes back
+  when it's switched off.
 
 ### Fixed
 - A notification's banner no longer stays over the START menu, a summary, the Bag or a message opened while

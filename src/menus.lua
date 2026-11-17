@@ -186,7 +186,7 @@ return function(engine, deps)
     local Map, UR = engine("src.core.game3.map"), engine("src.core.game3.link.union_room")
     local okU, union = pcall(function() return UR.isUnionMap(Map.current) end)
     if okU and union then return true end
-    local Link = package.loaded["src.core.game3.link"]
+    local Link = engine("src.core.game3.link")
     if type(Link) == "table" and Link.link ~= nil then
       local okL, inRoom = pcall(Link.inLinkRoom)
       if okL and inRoom == true then return true end
@@ -259,7 +259,18 @@ return function(engine, deps)
       if not ok then log("the party's onClose failed: %s", tostring(err)) end
     end
     local chosen = res.chosen
-    if opts.onSelect and (res.list or res.cancelMulti) then
+    if res.pdCancel then
+      -- (the Pokédude stopped: its onCancel; a use done: its onSelect with the real slot)
+      if opts.onCancel then
+        local ok, err = pcall(opts.onCancel)
+        if not ok then log("the Pokédude's onCancel failed: %s", tostring(err)) end
+      end
+    elseif res.pdSelect then
+      if opts.onSelect then
+        local ok, err = pcall(opts.onSelect, res.pdSelect)
+        if not ok then log("the Pokédude's onSelect failed: %s", tostring(err)) end
+      end
+    elseif opts.onSelect and (res.list or res.cancelMulti) then
       local ok, err = pcall(opts.onSelect, res.list)
       if not ok then log("the party's onSelect failed: %s", tostring(err)) end
     elseif chosen and opts.onSelect then
@@ -314,7 +325,7 @@ return function(engine, deps)
       end
       return false
     end
-    if not on() or not partyOurs(opts) then return false end
+    if not on() or not (opts._pokedude or partyOurs(opts)) then return false end
     local Sh = deps.Sh
     if not (Sh and Sh.openFull) then return false end
     local s = opts.session
@@ -324,7 +335,9 @@ return function(engine, deps)
     local mode = opts.mode or "list"
     local battle = opts.battle == true or mode == "battle_switch" or mode == "battle_faint"
     local view, ov, order = party, overlay, nil
-    if mode == "battle_switch" or mode == "battle_faint" then view, ov, order = battleView(party, overlay, opts) end
+    if mode == "battle_switch" or mode == "battle_faint" or (mode == "use" and opts.battleOrder) then
+      view, ov, order = battleView(party, overlay, opts)
+    end
     local onSelect, validate = opts.onSelect, opts.validate
     local o = opts
     if order then
@@ -340,7 +353,7 @@ return function(engine, deps)
                 eligible = opts.eligible, validateChosen = opts.validateChosen, chooseFullMessage = opts.chooseFullMessage,
                 immediateChooseCancel = opts.immediateChooseCancel, eggFails = opts.eggFails,
                 chooseCancelStart = opts.chooseCancelStart, tutor = opts.tutor, autoSlot = opts.autoSlot,
-                onChoose = opts.onChoose }
+                onChoose = opts.onChoose, pd = opts._pokedude, pdUse = opts._pdUse }
     local c = { kind = "party", opts = o, menu = m }
     cur = c
     local PM = engine("src.ui.game3.party_menu")
@@ -364,7 +377,7 @@ return function(engine, deps)
   -- ------- the Bag
 
   local function teachyTv()
-    local Tv = package.loaded["src.ui.game3.teachy_tv"]
+    local Tv = engine("src.ui.game3.teachy_tv")
     if type(Tv) ~= "table" or type(Tv.isOpen) ~= "function" then return false end
     local ok, open = pcall(Tv.isOpen)
     return ok and open == true
@@ -384,7 +397,13 @@ return function(engine, deps)
     if opts.battle and type(st) == "table" and (st.pokedude or (st.link ~= nil and st.link ~= false)) then
       return false
     end
-    if linked() or teachyTv() then return false end
+    if linked() then return false end
+    -- (Teachy TV: its lessons' Bag is ours (Teachy TV waits, suspended, while one runs); any other while it's up
+    -- is the game's)
+    if teachyTv() then
+      local Tv = engine("src.ui.game3.teachy_tv")
+      return type(Tv) == "table" and Tv.suspended == true and loc == nil and not opts.battle
+    end
     return true
   end
 
@@ -410,6 +429,12 @@ return function(engine, deps)
       local b = res.battle
       return try(opts.onBattleUse, b.id, b.slot, b.moveSlot, b.used)
     end
+    if res.pokedude ~= nil then
+      -- (the Pokédude's Bag: the item it chose, or stopped)
+      try(opts.onClose)
+      if res.pokedude then return try(opts.onItem, res.pokedude) end
+      return try(opts.onCancel)
+    end
     if res.chosen ~= nil and opts.onChoose then
       -- (a Berry chosen, or none: the game's choose_done, onClose then onChoose(id | 0))
       try(opts.onClose)
@@ -420,13 +445,14 @@ return function(engine, deps)
     if m.after then try(m.after) end
   end
 
-  function Mn.openBag(sessionBag, opts)
+  -- (`extra`: what WoobOS's own ways in add -- the Pokédude's plan, the TM Case lesson)
+  function Mn.openBag(sessionBag, opts, extra)
     opts = opts or {}
     if cur then
       -- (the game asking for its bag again while ours is up -- Teachy TV's way back: ours is there)
-      return cur.kind == "bag" and opts.location == nil and not opts.battle
+      return cur.kind == "bag" and opts.location == nil and not opts.battle and not extra
     end
-    if not on() or not bagOurs(opts) then return false end
+    if not on() or not (extra or bagOurs(opts)) then return false end
     local Sh = deps.Sh
     if not (Sh and Sh.openFull) then return false end
     local s = opts.session
@@ -444,6 +470,28 @@ return function(engine, deps)
     local POCKET = { BERRIES = "BERRY_POUCH", TM_HM = "TM_CASE" }
     local m = { kind = "bag", bag = bag, battle = opts.battle == true, pocket = POCKET[opts.pocket] or opts.pocket,
                 location = opts.location }
+    if extra then
+      for k, v in pairs(extra) do m[k] = v end
+    elseif teachyTv() then
+      -- (a Teachy TV lesson's Bag: it sets BagMenu.cursor and reads BagMenu.list(); ours follows)
+      m.demo = true
+    end
+    if m.demo then
+      local BMm = engine("src.ui.game3.bag_menu")
+      m.sync = function(B)
+        local want = BMm and tonumber(BMm.cursor)
+        if want and want ~= m.syncCur then
+          local n = #(B.rows[B.pockets[B.pi]] or {})
+          if n > 0 then B.cur = math.max(1, math.min(n, want)) end
+        end
+        if BMm then BMm.cursor = B.cur end
+        m.syncCur = B.cur
+      end
+    end
+    -- (Teachy TV used from ours: ours steps aside and comes back after)
+    if not m.demo and not m.pd and not m.tmDemo and not opts.battle and opts.location == nil then
+      m.reopen = function() Mn.openBag(sessionBag, opts) end
+    end
     local c = { kind = "bag", opts = opts, menu = m, bag = sessionBag }
     cur = c
     local BM = engine("src.ui.game3.bag_menu")
@@ -458,6 +506,79 @@ return function(engine, deps)
       return false
     end
     aliases(s, true)
+    return true
+  end
+
+  -- ------- the Pokédude (Teachy TV's battles, the Old Man's catching lesson): the game's plans of presses,
+  -- played on ours (src/apps/bag.lua and party.lua replay them a frame at a time)
+
+  function Mn.openPokedudeBag(sessionBag, opts)
+    opts = opts or {}
+    local BM = engine("src.ui.game3.bag_menu")
+    local plan = BM and BM.POKEDUDE_PLANS and BM.POKEDUDE_PLANS[opts.plan]
+    if not plan then return false end
+    return Mn.openBag(sessionBag, { session = opts.session, battle = true, onItem = opts.onItem,
+                                    onCancel = opts.onCancel }, { pd = plan, pocket = "ITEMS" })
+  end
+
+  function Mn.openPokedudeParty(party, opts)
+    opts = opts or {}
+    local PM = engine("src.ui.game3.party_menu")
+    local plan = PM and PM.POKEDUDE_PLANS and PM.POKEDUDE_PLANS[opts.plan]
+    if not plan then return false end
+    if opts.plan == "switch" then
+      return Mn.openParty(party, nil, { mode = "battle_switch", session = opts.session, activeSlot = opts.activeSlot or 1,
+                                        battle = true, validate = opts.validate, onSelect = opts.onSelect,
+                                        onCancel = opts.onCancel, _pokedude = plan })
+    end
+    local s = opts.session
+    return Mn.openParty(party, s and s.move_overlay, { mode = "use", session = s, bag = opts.bag, item = opts.item,
+                                                      battle = true, battleOrder = opts.battleOrder,
+                                                      activeSlot = opts.activeSlot or 1, onSelect = opts.onSelect,
+                                                      onCancel = opts.onCancel, _pokedude = plan, _pdUse = opts.onUse })
+  end
+
+  -- ------- Teachy TV's TM Case lesson: our Bag on the TM page, the lesson's presses and its words (it writes
+  -- them into TmCase.messageText) shown in ours
+
+  function Mn.openTmDemo(session, bag, opts)
+    opts = opts or {}
+    local Tv = engine("src.ui.game3.teachy_tv")
+    if not (teachyTv() and type(Tv) == "table" and Tv.suspended == true) then return false end
+    local TC = engine("src.ui.game3.tm_case")
+    return Mn.openBag(bag or (session and session.bag), { session = session, onClose = opts.onClose },
+      { tmDemo = true, lockPocket = "TM_CASE", pocket = "TM_CASE",
+        mirrorText = function() if TC and TC.mode == "message" then return TC.messageText end end })
+  end
+
+  local function wrapTmCase()
+    local TC = engine("src.ui.game3.tm_case")
+    if not TC then return false end
+    local w = TC.__woobOs
+    if not w then
+      w = { orig = { show = TC.show, isOpen = TC.isOpen, close = TC.close, handleInput = TC.handleInput,
+                     update = TC.update, draw = TC.draw } }
+      TC.__woobOs = w
+      local o = w.orig
+      local function ours() local impl = w.impl return impl and impl.isOpen() end
+      TC.show = function(session, bag, opts, ...)
+        local impl = w.impl
+        if impl then
+          local ok, took = pcall(impl.open, session, bag, opts)
+          if ok and took then return end
+          if not ok and impl.log then impl.log("the TM Case lesson: %s", tostring(took)) end
+        end
+        return o.show(session, bag, opts, ...)
+      end
+      TC.isOpen = function(...) if ours() then return true end return o.isOpen(...) end
+      TC.close = function(...) if ours() then return w.impl.closeOurs() end return o.close(...) end
+      TC.handleInput = function(input, ...) if ours() then return w.impl.feed(input) end return o.handleInput(input, ...) end
+      TC.update = function(...) if ours() then return end if o.update then return o.update(...) end end
+      TC.draw = function(...) if ours() then return end return o.draw(...) end
+    end
+    w.impl = { open = Mn.openTmDemo, isOpen = function() return cur ~= nil and cur.menu.tmDemo == true end,
+               closeOurs = function() return Mn.closeOurs() end,
+               feed = function(input) if deps.feed then deps.feed(input) end end, log = log }
     return true
   end
 
@@ -671,6 +792,21 @@ return function(engine, deps)
         if impl and impl.isOpen() and impl.say(text, onDismiss) then return end
         return o.showMessage(text, onDismiss, ...)
       end
+      o.showPokedude, o.isPokedude = PM.showPokedude, PM.isPokedude
+      PM.showPokedude = function(party, opts, ...)
+        local impl = w.impl
+        if impl and impl.pokedude then
+          local ok, took = pcall(impl.pokedude, party, opts)
+          if ok and took then return end
+          if not ok and impl.log then impl.log("the Pokédude's party: %s", tostring(took)) end
+        end
+        return o.showPokedude(party, opts, ...)
+      end
+      PM.isPokedude = function(...)
+        local impl = w.impl
+        if impl and impl.isOpen() and cur and cur.menu.pd then return true end
+        return o.isPokedude(...)
+      end
       PM.showYesNo = function(text, cb, ...)
         local impl = w.impl
         if impl and impl.isOpen() and impl.ask(text, cb) then return end
@@ -678,6 +814,7 @@ return function(engine, deps)
       end
     end
     w.impl = { openParty = Mn.openParty, isOpen = function() return cur ~= nil and cur.kind == "party" end,
+               pokedude = function(party, opts) return Mn.openPokedudeParty(party, opts) end,
                say = function(text, after)
                  local win = cur and cur.menu.win
                  return win and win.say and win.say(text, after) or false
@@ -697,7 +834,8 @@ return function(engine, deps)
     local w = BM.__woobOs
     if not w then
       w = { orig = { show = BM.show, isOpen = BM.isOpen, close = BM.close, handleInput = BM.handleInput,
-                     draw = BM.draw, showMessage = BM.showMessage } }
+                     draw = BM.draw, showMessage = BM.showMessage, list = BM.list, showPokedude = BM.showPokedude,
+                     isPokedude = BM.isPokedude } }
       BM.__woobOs = w
       local o = w.orig
       BM.show = function(bag, opts)
@@ -721,13 +859,42 @@ return function(engine, deps)
       end
       BM.handleInput = function(input, ...)
         local impl = w.impl
-        if impl and impl.isOpen() then return impl.feed(input) end
+        if impl and impl.isOpen() then
+          -- (a lesson set the cursor just before this press: ours takes it first)
+          local m = cur and cur.menu
+          local B = m and m.win and m.win.bagState and m.win.bagState()
+          if m and m.sync and B then pcall(m.sync, B) end
+          return impl.feed(input)
+        end
         return o.handleInput(input, ...)
       end
       BM.draw = function(...)
         local impl = w.impl
         if impl and impl.isOpen() then return end
         return o.draw(...)
+      end
+      -- (a lesson reads the list it's moving along: ours)
+      BM.list = function(...)
+        local impl = w.impl
+        if impl and impl.isOpen() and impl.rows then
+          local rows = impl.rows()
+          if rows then return rows end
+        end
+        return o.list(...)
+      end
+      BM.showPokedude = function(bag, opts, ...)
+        local impl = w.impl
+        if impl and impl.pokedude then
+          local ok, took = pcall(impl.pokedude, bag, opts)
+          if ok and took then return end
+          if not ok and impl.log then impl.log("the Pokédude's Bag: %s", tostring(took)) end
+        end
+        return o.showPokedude(bag, opts, ...)
+      end
+      BM.isPokedude = function(...)
+        local impl = w.impl
+        if impl and impl.isOpen() and impl.isPokedude() then return true end
+        return o.isPokedude(...)
       end
       BM.showMessage = function(text, onDone, ...)
         local impl = w.impl
@@ -736,6 +903,14 @@ return function(engine, deps)
       end
     end
     w.impl = { openBag = Mn.openBag, isOpen = function() return cur ~= nil and cur.kind == "bag" end,
+               rows = function()
+                 local win = cur and cur.menu.win
+                 local B = win and win.bagState and win.bagState()
+                 if not B then return nil end
+                 return B.rows[B.pockets[B.pi]]
+               end,
+               pokedude = function(bag, opts) return Mn.openPokedudeBag(bag, opts) end,
+               isPokedude = function() return cur ~= nil and cur.menu.pd ~= nil end,
                closeOurs = function() return Mn.closeOurs() end,
                say = function(text, onDone)
                  local win = cur and cur.menu.win
@@ -791,6 +966,8 @@ return function(engine, deps)
     if not ok then log("the modern menus couldn't wrap the bag: %s", tostring(err)) end
     ok, err = pcall(wrapPyramid)
     if not ok then log("the modern menus couldn't wrap the Pyramid's bag: %s", tostring(err)) end
+    ok, err = pcall(wrapTmCase)
+    if not ok then log("the modern menus couldn't wrap the TM Case: %s", tostring(err)) end
   end
 
   return Mn

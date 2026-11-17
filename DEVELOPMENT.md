@@ -1289,6 +1289,42 @@ our own, in phases (the plan: the Summary, then the Party, then the Bag); the mo
   a wild battle's POKéMON → SUMMARY via `BattleBridge.startWild`, `Ui.askForget`; A through the battle's
   opening words; the first input after opening is the host's wait for the opening A to be let go).
 
+### The mailbox, the Battle Pyramid, Teachy TV
+
+- **A mod's `package.loaded` is its own**, not the engine's: an engine module is `engine(name)` (main.lua's
+  kept `require`), never `package.loaded[...]` (that read nil for Teachy TV, Link, LearnMove, the scripting
+  space; all moved).
+- **The mailbox** (`onChoose`, the PC's give-mail): "choose" with `onChoose` is ours; A calls it and ours stays
+  open; the mailbox answers through `PartyMenu.showMessage` / `close`, which reach ours.
+- **The Battle Pyramid's bag** (`src.ui.game3.rse.pyramid_bag`, wrapped: show / isOpen / close / handleInput /
+  update / draw): `Mn.openPyramid` for field, battle (with `onUse`) and "choose_toss"; ours with `m.pyramid`:
+  one page "PYRAMID" from `Pyramid.bagLists` (compacted first), the actions as its `ACTIONS`, USE in the field
+  only for an item on a Pokémon (else Dad's advice), GIVE / USE with the item lent to the party in a bag of
+  its own (`Bg.pyramidLend`: what the party used put back with `bagRemove` / `bagAdd`), TOSS through
+  `Pyramid.bagRemove` with the row's slot, SELECT moving within its lists, battle use as the Bag's. Closed:
+  a battle's use is `onUse(id, slot, moveSlot, used)` then `onClose()` (its close(after) order).
+- **Teachy TV** (FireRed / LeafGreen): its lessons drive the game's bag / TM Case / party menu by pressing keys,
+  setting `BagMenu.cursor`, reading `BagMenu.list()`, with their own layer on top (`drawUnder`):
+  - `Sh.frame` draws a modern menu under a `drawUnder` layer; the host's input guard lets a press through after
+    an empty input in the same frame (one empty input and one press a frame; `presses(input)`).
+  - Its Bag lessons: `bagOurs` takes a Bag while Teachy TV is suspended (`m.demo`): `m.sync` follows
+    `BagMenu.cursor` (also just before a fed press, in the `handleInput` wrap); `BagMenu.list` is ours.
+  - Its TM Case lesson: `src.ui.game3.tm_case` wrapped; `Mn.openTmDemo` opens ours on the TM page only
+    (`lockPocket`), its words (`TmCase.mode == "message"`, `TmCase.messageText`) mirrored into our bubble
+    (`m.mirrorText`), its close ours.
+  - The Pokédude (its battles, the Old Man's lesson): `BagMenu.showPokedude` / `PartyMenu.showPokedude`
+    wrapped; `Mn.openPokedudeBag` / `Mn.openPokedudeParty` open ours with the game's plan (`POKEDUDE_PLANS`):
+    `src/apps/bag.lua` / `party.lua` play it a frame at a time (`pdStep`: an item's row chosen, a key pressed
+    through `Bc.input` / `Pc.input` with `pdFeeding`, "exit" / "use"); real input only B (not the Old Man's,
+    `noInterrupt`) and the words. Answers: `onItem(id)` / `onCancel()`; the switch's `onSelect` as a battle's;
+    the item's `onUse(realSlot)` words, then `onSelect`.
+  - Used from our Bag (`ItemUse.isUsableTeachyTv`): ours leaves (`ui.leave`) and opens it with
+    `onClose = m.reopen` (our Bag again).
+- Tests: `tests/menus_test.lua` (the mailbox's onChoose, the Pyramid's bag on Emerald, the Pokédude plans, the
+  TM Case and Bag lessons with Teachy TV's state set by hand). Drivers in the scratchpad: `teachy_driver.lua`
+  (from our Bag, the lessons, the TV off), `teachy2_driver.lua` / `teachy3_driver.lua` (the TM Case, catching
+  and status lessons watched; A through the Poké Dude's words).
+
 ### Item pictures on Ruby / Sapphire
 
 Ruby / Sapphire have no item pictures (their own Bag shows none; Emerald brought the icon sheet), so main.lua's

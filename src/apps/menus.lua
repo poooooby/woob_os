@@ -183,6 +183,7 @@ return function(ctx, env, makeSummary, makeParty, makeBag)
   function W.giveFromBag(item, source, after)
     if st.party and not st.closed then Pc.giveFromBag(st.party, item, source, after) end
   end
+  function W.bagState() return st.bag end
   -- (the game's words for the Bag while it's up: ItemUse's field message)
   function W.say(text, after)
     if st.closed then return false end

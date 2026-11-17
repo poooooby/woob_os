@@ -82,6 +82,7 @@ return function(env, T, A, Ctl)
                 anim = nil, sum = nil, from = nil, at = now(), openAt = now(), lastRight = 2, hp = {},
                 order = {}, max = max(1, tonumber(m.count) or 0), autoSlot = tonumber(m.autoSlot) }
     if c.mode == "choose_multi" and (tonumber(m.count) or 0) <= 0 then P.max = 3 end
+    if m.pd then P.pd = { plan = m.pd, index = 1, frames = 0 } end
     refresh(P)
     P.cur = max(1, min(tonumber(m.cursor) or 1, max(1, P.n)))
     m.cursor = P.cur
@@ -518,6 +519,17 @@ return function(env, T, A, Ctl)
   function Pc.input(P, input, nv)
     if P.done then return "close" end
     local function pressed(k) return input:wasPressed(k) end
+    -- (the Pokédude's: its own presses only; B stops it)
+    if P.pd and not P.pdFeeding then
+      if pressed("b") and not P.prompt then
+        se("SE_SELECT")
+        P.m.result = { pdCancel = true }
+        P.done = true
+      elseif P.prompt then
+        promptInput(P, input, nv)
+      end
+      return Pc.result(P)
+    end
     if P.anim then
       if pressed("a") or pressed("b") then finishAnim(P) end
       return Pc.result(P)
@@ -640,9 +652,41 @@ return function(env, T, A, Ctl)
   end
 
   -- once a frame: an HP bar's fill ending, the game's move learning taking its turn
+  local function press(k)
+    return { wasPressed = function(_, x) return x == k end, isDown = function() return false end }
+  end
+  local NV = {}
+  -- (the Pokédude's next press, a frame at a time; "use": the item on the one chosen, the game's words, done)
+  local function pdStep(P)
+    local pd = P.pd
+    pd.frames = pd.frames + 1
+    local e = pd.plan[pd.index]
+    if not e or pd.frames < (e.at or 0) then return end
+    pd.index = pd.index + 1
+    if e.use then
+      local slot = P.c.order and P.c.order[P.cur] or P.cur
+      local ok, text = pcall(P.m.pdUse or function() return nil end, slot)
+      se("SE_USE_ITEM")
+      refresh(P)
+      return uiOf(P).say(ok and text or "", function()
+        -- (the shown slot: the battle's order turns it into the real one, as for a switch)
+        P.m.result = { pdSelect = P.cur }
+        P.done = true
+      end)
+    end
+    if e.key then
+      NV.up, NV.down, NV.left, NV.right = e.key == "up", e.key == "down", e.key == "left", e.key == "right"
+      P.pdFeeding = true
+      local ok, err = pcall(Pc.input, P, press(e.key), NV)
+      P.pdFeeding = false
+      if not ok and env.log then pcall(env.log, "the Pokédude's party: %s", tostring(err)) end
+    end
+  end
+
   function Pc.tick(P, clock)
     local a = P.anim
     if a and clock - a.t0 >= a.dur then finishAnim(P) end
+    if P.pd and not P.done and not P.prompt then pdStep(P) end
     -- (the tutor's script naming the one already: straight to it)
     if P.autoSlot and P.base == "move_tutor" and not P.prompt then
       local i = P.autoSlot
@@ -667,8 +711,10 @@ return function(env, T, A, Ctl)
     end)
   end
 
+  local LESSON = { { "B", "hint.skip" } }
   function Pc.hints(P)
     local h
+    if P.pd and not P.prompt then return T.list(LESSON) end
     if P.prompt then
       local k = P.prompt.kind
       h = k == "yesno" and HINTS.yesno or (k == "pick" and HINTS.pick or HINTS.msg)

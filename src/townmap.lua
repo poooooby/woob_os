@@ -202,9 +202,12 @@ return function(deps)
       -- (no toolbar: the whole page; an app's above its hints when it has some -- the map keeps clear itself)
       b[1], b[2], b[3], b[4] = 0, 0, pw, ph - ((r.opts.noHints or not r.opts.maker) and 0 or Tm.FOOT)
     end
+    local app = r.ctx.app
     local ok, err = pcall(w.draw, b, clock, pw < ph)
-    if not ok then log("the full-screen %s's draw failed: %s", tostring(r.ctx.app), tostring(err)) end
+    if not ok then log("the full-screen %s's draw failed: %s", tostring(app), tostring(err)) end
     K.scissor()
+    -- (the window closed itself while drawing -- a lesson's last press, an HP bar's end: nothing more of it)
+    if not r then return end
     if locked() then
       -- (the game's busy: nothing here that changes the party or the money until it's done)
       K.col(K.BLACK, 0.6)

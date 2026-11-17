@@ -853,6 +853,77 @@ if GAME == "emerald" then
   end
 end
 
+-- ------- the Pokédude (Teachy TV's battles, the Old Man's lesson): the game's plans played on ours
+do
+  local got
+  Bag.add(s.bag, POKE_BALL, 1)
+  BM.showPokedude(s.bag, { session = s, plan = "oldman", onItem = function(id) got = "item:" .. tostring(id) end,
+                           onCancel = function() got = "cancel" end })
+  T.check(bag() and bag().pd and BM.isPokedude(), "the Old Man's Bag: ours, playing its plan")
+  bframe(1, "b", true)
+  T.check(Tm.isOpen(), "B can't stop the Old Man's")
+  for _ = 1, 500 do if not Tm.isOpen() then break end bframe(1, nil, true) end
+  T.check(not Tm.isOpen() and got == "item:" .. POKE_BALL, "its plan done: the Poké Ball (" .. tostring(got) .. ")")
+  got = nil
+  BM.showPokedude(s.bag, { session = s, plan = "catching", onItem = function(id) got = "item" end,
+                           onCancel = function() got = "cancel" end })
+  bframe(1, nil, true)
+  bframe(1, "b", true)
+  T.check(not Tm.isOpen() and got == "cancel", "Teachy TV's catching lesson: B stops it, onCancel")
+  -- (the party: a switch, then an item on one)
+  local sel
+  PM.showPokedude(s.party, { plan = "switch", session = s, activeSlot = 1, validate = function() return nil end,
+                             onSelect = function(slot) sel = slot end, onCancel = function() sel = "cancel" end })
+  T.check(party() and party().pd and PM.isPokedude(), "the Pokédude's switch: ours")
+  for _ = 1, 400 do if not Tm.isOpen() then break end pframe(1, nil, true) end
+  T.check(not Tm.isOpen() and sel == 2, "its plan: the second sent in (" .. tostring(sel) .. ")")
+  sel = nil
+  local usedOn
+  PM.showPokedude(s.party, { plan = "item", session = s, bag = s.bag, item = 13, activeSlot = 1,
+                             onUse = function(slot) usedOn = slot return "It was cured of its poisoning." end,
+                             onSelect = function(slot) sel = slot end, onCancel = function() sel = "cancel" end })
+  for _ = 1, 120 do if party() and party().prompt then break end pframe(1, nil, true) end
+  T.check(usedOn == 1 and party() and party().prompt, "the item on the one chosen: the game's words")
+  pframe(1, "a", true)
+  T.check(not Tm.isOpen() and sel == 1, "then its onSelect (" .. tostring(sel) .. ")")
+end
+
+-- ------- Teachy TV's lessons (FireRed / LeafGreen): its Bag lesson and its TM Case lesson on ours
+if GAME == "firered" or GAME == "leafgreen" then
+  local Tv = require("src.ui.game3.teachy_tv")
+  local TC = require("src.ui.game3.tm_case")
+  local open0, susp0 = Tv.open, Tv.suspended
+  Tv.open, Tv.suspended = true, true
+  Bag.add(s.bag, TM28, 1)
+  local tmClosed = false
+  TC.show(s, s.bag, { cursor = 1, scroll = 0, onClose = function() tmClosed = true end })
+  B = bag()
+  T.check(B and B.m.tmDemo and #B.pockets == 1 and B.pockets[1] == "TM_CASE", "the TM Case lesson: ours, the TM page only")
+  TC.mode, TC.messageText = "message", "TMs are numbered."
+  bframe(1)
+  T.check(B and B.prompt and B.prompt.mirror == "TMs are numbered.", "its words shown in ours")
+  TC.mode, TC.messageText = "list", nil
+  bframe(1)
+  T.check(B and not B.prompt, "and gone with them")
+  TC.close()
+  T.check(not Tm.isOpen() and tmClosed, "its close: ours closes, its onClose")
+  -- (the Register lesson's Bag: ours; it sets the cursor and presses keys)
+  local regClosed = false
+  BM.show(s.bag, { session = s, pocket = "ITEMS", onClose = function() regClosed = true end })
+  B = bag()
+  T.check(B and B.m.demo, "a lesson's Bag: ours")
+  local rows = BM.list()
+  T.check(type(rows) == "table" and rows == B.rows[B.pockets[B.pi]], "BagMenu.list(): ours")
+  bframe(1)
+  BM.cursor = 2
+  BM.handleInput(input({ "a" }))
+  bframe(1)
+  T.check(B.cur == 2 and B.view == "menu", "the lesson's cursor and its press: in ours")
+  BM.close()
+  T.check(not Tm.isOpen() and regClosed, "its close: ours closes, its onClose")
+  Tv.open, Tv.suspended = open0, susp0
+end
+
 -- ------- the game's own for its other callers
 T.check(Mn.openBag(s.bag, { session = s, location = "party" }) == false, "the game's party's GIVE: not ours")
 T.check(Mn.openBag(s.bag, { session = s, onChoose = noop }) == false, "choosing without a place: not ours")

@@ -150,10 +150,30 @@ return function(mod, deps)
   Sh.mapLayer = MapLayer
   -- (its input once a frame: the stack's top layer gets it in the field, and in a battle the game hands it
   -- to a screen we stand in for -- src/menus.lua -- which sends it here; both in one frame, only the first)
+  -- (and presses fed from outside -- Teachy TV's lessons and the Pokédude pressing keys on our Bag and
+  -- Pokémon menu, an empty input on the frames between: an input that presses nothing doesn't use the frame
+  -- up, so the press after it in the same frame still lands)
   local frameN, fedAt = 0, -1
+  local KEYS = { "a", "b", "up", "down", "left", "right", "l", "r", "start", "select" }
+  local function presses(input)
+    local wp = input and input.wasPressed
+    if not wp then return false end
+    for i = 1, #KEYS do
+      local ok, yes = pcall(wp, input, KEYS[i])
+      if ok and yes then return true end
+    end
+    return false
+  end
+  local anyAt = -1
   local function feed(input)
-    if not Tm or fedAt == frameN then return end
-    fedAt = frameN
+    if not Tm then return end
+    if presses(input) then
+      if fedAt == frameN then return end
+      fedAt = frameN
+    elseif anyAt == frameN then
+      return
+    end
+    anyAt = frameN
     Tm.input(input)
   end
   function MapLayer.handleInput(input) feed(input) end
@@ -821,7 +841,8 @@ return function(mod, deps)
     if h and h == Tm and Stack and Stack.top then
       local r = Tm.state and Tm.state()
       local top = r and r.ctx and r.ctx.menu and Stack.top()
-      if top and top.id ~= id then return end
+      -- (a layer that draws what's under it -- Teachy TV's lessons over our Bag -- leaves ours drawn)
+      if top and top.id ~= id and not top.drawUnder then return end
     end
     if not (G and type(viewport) == "table" and (h or Nt)) then return end
     G.push("all")

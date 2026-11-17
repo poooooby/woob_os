@@ -72,7 +72,7 @@ return function(engine, deps)
     local Map, UR = engine("src.core.game3.map"), engine("src.core.game3.link.union_room")
     local okU, union = pcall(function() return UR.isUnionMap(Map.current) end)
     if okU and union then return true end
-    local Link = package.loaded["src.core.game3.link"]
+    local Link = engine("src.core.game3.link")
     if type(Link) == "table" and Link.link ~= nil then
       local okL, inRoom = pcall(Link.inLinkRoom)
       return okL and inRoom == true
@@ -324,7 +324,7 @@ return function(engine, deps)
         if ns and ns.saleMoney then s.money = ns.saleMoney(s.money) end
         if not ns or ns.questLog ~= false then
           local Q = engine("src.core.game3.quest_log_recorder")
-          local rt = package.loaded["src.core.game3.runtime"]
+          local rt = engine("src.core.game3.runtime")
           if Q then pcall(function() Q.event(s, "SoldItemsIncludingItem", { D0 = Q.location(rt and rt._game, s), D1 = row.name, D2 = earn }) end) end
         end
       end
@@ -432,6 +432,15 @@ return function(engine, deps)
     if call(IUm.needsPartyTarget, id) then
       if not (s.party and s.party[1]) then return ui.say(plain("gText_ThereIsNoPokemon")) end
       return ui.party("use", id)
+    end
+    -- (Teachy TV: ours steps aside -- its lessons open a Bag of their own -- and comes back when it's off)
+    if call(IUm.isUsableTeachyTv, s, id) then
+      local Tv = engine("src.core.game3.teachy_tv")
+      local reopen = c.reopen
+      return ui.leave(function()
+        local ok, err = pcall(Tv.show, s, c.bag, { onClose = reopen })
+        if not ok then log("Teachy TV: %s", tostring(err)) end
+      end)
     end
     local ok, kind, text = IUm.useField(s, c.bag, id, nil)
     if kind == "vs_seeker" then

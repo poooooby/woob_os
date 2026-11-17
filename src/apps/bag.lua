@@ -63,6 +63,12 @@ return function(env, T, A, Pc)
     local ok, list = pcall(Bg.pockets, B.c)
     -- (a berry tree or the Berry Blender: the Berries only)
     local loc = B.c.location
+    -- (one pocket only: Teachy TV's TM Case lesson)
+    if ok and B.m.lockPocket then
+      local only = {}
+      for _, p in ipairs(list) do if p == B.m.lockPocket then only[1] = p end end
+      list = #only > 0 and only or { B.m.lockPocket }
+    end
     if ok and (loc == "berry_tree" or loc == "blender") then
       local only = {}
       for _, p in ipairs(list) do if BERRIES[p] then only[#only + 1] = p end end
@@ -78,7 +84,8 @@ return function(env, T, A, Pc)
 
   local function remember(B)
     local s = B.c.session
-    if not s then return end
+    -- (a lesson's Bag leaves the player's places as they were)
+    if not s or B.m.pd or B.m.demo then return end
     local k = kept[s] or { cur = {} }
     kept[s] = k
     k.pocket = B.pockets[B.pi]
@@ -88,16 +95,17 @@ return function(env, T, A, Pc)
   function Bc.open(m, ctx)
     local s = ctx.session or (env.session and env.session())
     local c = { session = s, bag = m.bag or (s and (s.bag or s.inventory)), battle = m.battle == true,
-                location = m.location, pyramid = m.pyramid == true }
+                location = m.location, pyramid = m.pyramid == true, reopen = m.reopen }
     local B = { m = m, c = c, pockets = nil, rows = {}, pi = 1, cur = 1, view = "list", menu = nil, prompt = nil,
                 moving = nil, qty = nil, wait = nil, at = now(), openAt = now(), pageAt = now(), dir = 0 }
     c.view = B
+    if m.pd then B.pd = { plan = m.pd, index = 1, frames = 0, item = nil } end
     -- (what Ruby / Sapphire's bag skin reads off the game's bag: ours answers the same)
     B._battle, B._location, B._session, B._bag = c.battle, c.location, s, c.bag
     function B.currentPocket() return B.pockets and B.pockets[B.pi] or "ITEMS" end
     Bc.refresh(B)
-    -- (back where it was left; a pocket asked for first)
-    local k = s and kept[s]
+    -- (back where it was left; a pocket asked for first; a lesson's from the top)
+    local k = s and not (m.pd or m.demo) and kept[s] or nil
     local want = m.pocket or (k and k.pocket)
     for i, p in ipairs(B.pockets) do if p == want then B.pi = i end end
     B.cur = k and k.cur[B.pockets[B.pi]] or 1
@@ -315,9 +323,19 @@ return function(env, T, A, Pc)
     return nil
   end
 
+  -- the Pokédude's Bag (Teachy TV's battles, the Old Man's): its own presses only; B stops it (unless it can't be)
+  local function pdInput(B, input)
+    if input:wasPressed("b") and not B.pd.plan.noInterrupt then
+      se("SE_SELECT")
+      B.m.result = { pokedude = false }
+      B.done = true
+    end
+    return result(B)
+  end
   function Bc.input(B, input, nv)
     local function pressed(k) return input:wasPressed(k) end
     if B.done then return "close" end
+    if B.pd and not B.pdFeeding then return pdInput(B, input) end
     if B.wait then return nil end
     if B.prompt then
       Pc.promptInput(B, input, nv)
@@ -402,8 +420,54 @@ return function(env, T, A, Pc)
     B.scrolled = true
   end
 
-  -- once a frame: a delay's end (the flutes, an X item)
+  local function press(k)
+    return { wasPressed = function(_, x) return x == k end, isDown = function() return false end }
+  end
+  local NV = {}
+  -- (the Pokédude's next press, a frame at a time)
+  local function pdStep(B)
+    local pd = B.pd
+    pd.frames = pd.frames + 1
+    local e = pd.plan[pd.index]
+    if not e or pd.frames < (e.at or 0) then return end
+    pd.index = pd.index + 1
+    if e.item then
+      pd.item = e.item
+      for k, r in ipairs(rowsOf(B)) do
+        if tonumber(r.id) == e.item or tostring(r.id) == tostring(e.item) then B.cur = k end
+      end
+    end
+    if e.exit then
+      B.prompt, B.menu, B.view = nil, nil, "list"
+      B.m.result = { pokedude = pd.item or false }
+      B.done = true
+      return
+    end
+    if e.key then
+      NV.up, NV.down, NV.left, NV.right = e.key == "up", e.key == "down", e.key == "left", e.key == "right"
+      B.pdFeeding = true
+      local ok, err = pcall(Bc.input, B, press(e.key), NV)
+      B.pdFeeding = false
+      if not ok and env.log then pcall(env.log, "the Pokédude's Bag: %s", tostring(err)) end
+    end
+  end
+
+  -- once a frame: a delay's end (the flutes, an X item); a lesson's presses; what a lesson set from outside
   function Bc.tick(B, clock)
+    if B.m.sync then pcall(B.m.sync, B) end
+    -- (the TM Case lesson's words, written into the game's TM Case: shown in ours while they're there)
+    if B.m.mirrorText then
+      local okT, t = pcall(B.m.mirrorText)
+      t = okT and t or nil
+      if t then
+        if not (B.prompt and B.prompt.mirror == t) then
+          B.prompt = { kind = "msg", pages = env.party.pages(t), page = 1, mirror = t, at = now() }
+        end
+      elseif B.prompt and B.prompt.mirror then
+        B.prompt = nil
+      end
+    end
+    if B.pd and not B.done then pdStep(B) end
     local w = B.wait
     if w and clock >= w.untilT then
       B.wait = nil
@@ -413,8 +477,12 @@ return function(env, T, A, Pc)
     return result(B)
   end
 
+  local LESSON, WATCH = { { "B", "hint.skip" } }, {}
   function Bc.hints(B)
     local h
+    -- (a lesson plays itself: B skips it -- the Old Man's can't be)
+    if B.pd then return T.list(B.pd.plan.noInterrupt and WATCH or LESSON) end
+    if (B.m.demo or B.m.tmDemo) and not B.prompt then return T.list(LESSON) end
     if B.prompt then
       local k = B.prompt.kind
       h = k == "yesno" and HINTS.yesno or (k == "pick" and HINTS.pick or HINTS.msg)

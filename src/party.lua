@@ -494,7 +494,7 @@ return function(engine, deps)
   end
 
   function Pt.pump()
-    local LearnMove = package.loaded["src.core.game3.battle.learn_move"]
+    local LearnMove = engine("src.core.game3.battle.learn_move")
     if LearnMove and LearnMove.busy and LearnMove.busy() and LearnMove.pump then LearnMove.pump() end
   end
 

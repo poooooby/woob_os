@@ -715,7 +715,7 @@ return function(engine)
       if not names then return end
       local C = engine("src.core.game3.constants").of(row.id)
       local Flags = engine("src.core.game3.scripting.flags")
-      local Space = package.loaded["src.core.game3.scripting.space"]
+      local Space = engine("src.core.game3.scripting.space")
       local store = (Space and Space.store) or s.store
       if not (Flags and store) then return end
       if names.boxFullFlag then Flags.setFlag(store, nil, C:require("flags", names.boxFullFlag), false) end
