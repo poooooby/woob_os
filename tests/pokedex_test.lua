@@ -318,6 +318,61 @@ if okO and W then
   W.input(input({ "a" }), NONE)
   local kb2 = garbageOf(120, function() drawWin(W, false) end)
   T.check(kb2 < 0.5, string.format("a page: next to no garbage (%.3f KB/frame)", kb2))
+  -- (the search: Up from the top row, A its keyboard; a name's start, a number, a misspelling; an unseen
+  -- one's name never found; Go leaves the grid on it, B deletes and with nothing typed puts it away)
+  do
+    W.input(input({ "b" }), NONE)
+    W.tap(W.A.CELL + 2)
+    W.input(input({}), { left = true })
+    W.input(input({}), { up = true })
+    T.eq(st.focus, "searchBtn", "Up from the grid's top row: the search")
+    W.input(input({ "a" }), NONE)
+    T.check(st.kb ~= nil, "A: the keyboard")
+    local KB = st.KB
+    local function keyOf(ch)
+      for k, key in ipairs(KB.keys) do if key == ch then return k end end
+    end
+    local function typeW(s)
+      for ch in s:gmatch(".") do W.tap(W.A.KEY + keyOf(ch == " " and "SPACE" or ch)) end
+    end
+    local function clear() while st.kb and st.kb.text ~= "" do W.tap(W.A.KEY + keyOf("DEL")) end end
+    local caught = st.list[caughtAt]
+    local nm = caught.name:upper():gsub("[^%w]", "")
+    typeW(nm:sub(1, 3))
+    local got = st.list[st.sel]
+    T.check(got.seen and got.name:upper():gsub("[^%w]", ""):sub(1, 3) == nm:sub(1, 3),
+      "typed: the first seen one whose name starts so (" .. tostring(got.name) .. ")")
+    clear()
+    typeW(tostring(caught.num))
+    T.eq(st.sel, caughtAt, "a number: its entry")
+    clear()
+    if #nm >= 5 then
+      local wrong = nm:sub(1, 2) .. (nm:sub(3, 3) == "Q" and "Z" or "Q") .. nm:sub(4)
+      typeW(wrong)
+      T.eq(st.kb.hit, caughtAt, "misspelt (" .. wrong .. "): the nearest spelling")
+      clear()
+    end
+    local unseen = st.list[unseenAt]
+    typeW(unseen.name:upper():gsub("[^%w]", ""):sub(1, 12))
+    T.check(st.kb.hit ~= unseenAt, "an unseen one's name isn't found")
+    clear()
+    typeW(nm:sub(1, 4))
+    local kbS = garbageOf(120, function() drawWin(W, false) end)
+    T.check(kbS < 0.5, string.format("the keyboard: next to no garbage (%.3f KB/frame)", kbS))
+    local okN = pcall(function() drawWin(W, true) end)
+    T.check(okN, "the keyboard draws upright")
+    drawWin(W, false)
+    local hit = st.kb.hit
+    W.input(input({ "start" }), NONE)
+    T.check(st.kb == nil and st.sel == hit, "START: gone to it")
+    W.tap(W.A.SEARCH)
+    local from = st.sel
+    typeW("1")
+    W.input(input({ "b" }), NONE)
+    T.check(st.kb and st.kb.text == "", "B: deletes")
+    W.input(input({ "b" }), NONE)
+    T.check(st.kb == nil and st.sel == from, "B with nothing typed: put away, the grid where it was")
+  end
   -- (one not seen yet that's found in the wild: where to look for it, nothing else)
   local hintAt
   for i, e in ipairs(st.list) do

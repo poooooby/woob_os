@@ -52,9 +52,11 @@ controller, a touch screen, or a mouse and keyboard.
   and box names and wallpapers.
 - 🎒 **Items:** your Bag and your PC's items side by side.
 - ✉️ **Mail:** your PC's mailbox, and the mail your Pokémon are holding.
-- 📕 **Pokédex:** a modern Pokédex in place of the game's, from the START menu and as an app.
+- 📕 **Pokédex:** a modern Pokédex in place of the game's, from the START menu and as an app, with a
+  search by name or number.
 - 🗺️ **Map:** your region in 3D, built from the game's own maps, in place of the Town Map and the Fly
-  map. Emerald shows Kyogre's and Groudon's storms where they're rumoured.
+  map. Emerald shows Kyogre's and Groudon's storms where they're rumoured. At night the towns light up,
+  with the odd aurora and shooting star.
 - 📞 **Phone:** Match Call (Emerald), Trainer's Eyes (Ruby and Sapphire) or the Pokégear's phone book
   (Gold, Silver and Crystal). Calls are the game's own.
 - 📻 **Radio** (Gold, Silver and Crystal): the Pokégear's radio, with each station's artwork, a live

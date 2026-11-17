@@ -481,6 +481,21 @@ return function(engine, deps)
     return nil
   end
 
+  -- ------- the meteor over Hoenn: once the Hall of Fame's done Rayquaza waits at the Sky Pillar's top
+  -- (Emerald: its script shows it while FLAG_DEFEATED_RAYQUAZA is clear; Ruby / Sapphire: its battle sets
+  -- FLAG_HIDE_RAYQUAZA, caught or beaten) -> true while it waits
+  function M.meteor(region, s)
+    if not (region and region.id == "hoenn" and s) then return false end
+    local g = deps.gameId and deps.gameId() or nil
+    if g ~= "emerald" and g ~= "ruby" and g ~= "sapphire" then return false end
+    local R = engine("src.core.game3.rse.init")
+    if not R then return false end
+    local ok, clear, gone = pcall(function()
+      return R.flag("FLAG_SYS_GAME_CLEAR", s), R.flag(g == "emerald" and "FLAG_DEFEATED_RAYQUAZA" or "FLAG_HIDE_RAYQUAZA", s)
+    end)
+    return ok and clear == true and not gone or false
+  end
+
   -- ------- the everyday weather (Ruby / Sapphire / Emerald). A map's own weather covers all of it (Mt.
   -- Chimney's ash, Mt. Pyre's fog, Petalburg Woods' shade); a route's comes from tiles on it that change
   -- the weather when stepped on (a weather event, or a script's setweather: Route 111's desert), over

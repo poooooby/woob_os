@@ -150,7 +150,7 @@ return function(engine, deps)
     local menu = { kind = "summary", list = list, index = index, learn = learn, forgetMove = opts.forgetMove == true,
                    -- (its moves reordered only from the party's own summary, never in battle)
                    party = opts.mode == nil and opts.context == nil and not Mn.inBattle(),
-                   back = "menus.back" }
+                   back = "party.title" }
     local c = { kind = "summary", opts = opts, menu = menu }
     local s = opts.session or opts.playerState
     cur = c

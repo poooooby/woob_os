@@ -33,6 +33,16 @@ All notable changes to this mod are documented here, in
   Poké Dude choosing from the Bag and using an item from the Pokémon menu, and the Old Man's catching lesson
   in Viridian City the same way. Used from the Bag, Teachy TV opens over the field and the Bag comes back
   when it's switched off.
+- **The Pokédex's search:** the magnifier by the dex's switch (or Up from the grid's top row) opens a
+  keyboard. Type a name or a number and the dex goes to the closest match as you type: the first name that
+  starts that way, then one that contains it, then the nearest spelling ("Pikachi" finds Pikachu).
+  Pokémon you haven't seen aren't found by name.
+- **The 3D map at night:** windows lit, a lamp over each door (red at a Pokémon Center, blue at a Mart),
+  lamps along the towns' and cities' streets, a glow over Mt. Chimney's and Mt. Ember's craters and a
+  harbour ship's portholes. Now and then an aurora's curtains, and shooting stars.
+- **A meteor over Hoenn** (Ruby, Sapphire and Emerald): once you've entered the Hall of Fame and Rayquaza
+  waits at the top of the Sky Pillar, a meteor burns in the 3D map's sky, day and night, until Rayquaza is
+  beaten or caught.
 
 ### Changed
 - The summary is titled "Pokémon Info", with pictures of the Pokémon's type (flames, drops, bolts, leaves ...)
@@ -44,8 +54,14 @@ All notable changes to this mod are documented here, in
 - Selling asks with a card of its own: the item, the price each, how many, the total and your money after.
 - The game's words in a bubble shrink for a long page and keep clear of the continue arrow (Teachy TV's
   lessons).
+- The Pokémon menu is titled "Party". Each card shows its types as badges and an EXP bar under its HP, over
+  a large Poké Ball in the chosen Pokémon's colours. The lead's card
+  has a crown by its picture, its types by name, the EXP to its next level, and its ability, nature and
+  held item.
 
 ### Fixed
+- The News's Rookie Watch on Red, Blue, Yellow, Gold, Silver and Crystal showed "?" for your name, your
+  team and the trainer you beat; a trainer's name no longer comes out twice ("Falkner Falkner").
 - A notification's banner no longer stays over the START menu, a summary, the Bag or a message opened while
   it was showing: it waits, and slides in again (without its sound twice) once you're back in the field.
 

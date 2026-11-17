@@ -588,7 +588,11 @@ return function()
     end
     return hy
   end
-  function Tw.landmarks(region)
+  -- (lights, when given: where the landmarks' own lights are at night, { x, y, z, size, r, g, b, a, pulse })
+  local function light(lights, x, y, z, size, r, g, b, a, pulse)
+    if lights then lights[#lights + 1] = { x, y, z, size, r, g, b, a, pulse and true or false } end
+  end
+  function Tw.landmarks(region, lights)
     local W, MT = region.world, region.unit or 16
     local L = {}
     if not (W and W.h) then return L end
@@ -643,6 +647,14 @@ return function()
             box(L, lx, -0.01, lz, 0.7, 0.16, 0.08, { 0.95, 0.95, 0.97 }, { 0.75, 0.55, 0.35 }, 0, true)
             box(L, lx, 0.07, lz, 0.38, 0.11, 0.07, { 0.96, 0.96, 0.98 }, { 0.9, 0.9, 0.92 }, 0, true)
             prism(L, lx + 0.06, 0.14, lz, 8, 0.025, 0.024, 0.1, { 0.2, 0.42, 0.9 }, 0, true)
+            -- (at night its portholes along both sides, its cabins' windows, a light at the mast's top)
+            for p = -3, 3 do
+              light(lights, lx + p * 0.09, 0.05, lz + 0.085, 0.035, 1, 0.86, 0.55, 0.9)
+              light(lights, lx + p * 0.09, 0.05, lz - 0.085, 0.035, 1, 0.86, 0.55, 0.9)
+            end
+            for p = -2, 2 do light(lights, lx + p * 0.07, 0.12, lz + 0.06, 0.03, 1, 0.9, 0.62, 0.9) end
+            light(lights, lx + 0.06, 0.26, lz, 0.05, 1, 0.3, 0.25, 1, true)
+            light(lights, lx, 0.1, lz, 0.5, 1, 0.8, 0.5, 0.22)
             break
           end
         end
@@ -674,6 +686,9 @@ return function()
     end
     -- (a volcano's crater: a rim, the lava glowing in it, a few puffs of smoke drifting up)
     local function crater(x, y, z, r)
+      -- (at night the lava's glow over the rim, and the sky above it lit)
+      light(lights, x, y + 0.05, z, r * 2.6, 1, 0.45, 0.15, 0.9, true)
+      light(lights, x, y + 0.25, z, r * 6, 1, 0.35, 0.1, 0.35, true)
       prism(L, x, y, z, 14, r * 1.3, r * 1.05, 0.045, ROCK_D, 0, false)
       prism(L, x, y + 0.02, z, 14, r * 1.05, r * 1.05, 0.008, LAVA, F_WINDOW, true)
       for k = 0, 3 do

@@ -87,6 +87,7 @@ return function(ctx, env, opts)
     touch = {}, nTouch = 0, rect = { x = 0, y = 0, w = 1, h = 1 }, flyMon = nil, flyWhy = nil, three = false,
     storm = { on = false, kind = nil, place = nil, x = 0, z = 0, tx = 0, tz = 0, grow = 0 },
     wx = {}, wxBy = {}, wxRegion = nil,
+    sky = { meteor = false },
     problem = nil, problemLines = nil, problemAt = nil,
   }
   W.state = st
@@ -228,6 +229,10 @@ return function(ctx, env, opts)
     if st.region then pcall(Mdl.live, st.region, s) end
     if st.region then readStorm(s) end
     if st.region then readWeather(s) end
+    if st.region and Mdl.meteor then
+      local okM, yes = pcall(Mdl.meteor, st.region, s)
+      st.sky.meteor = okM and yes == true
+    end
     local ok, h, m = pcall(env.map3d.clock)
     if ok and h then st.hour, st.minute = h, m or 0 end
     if mode == "app" and env.map3d.flyCheck then
@@ -1207,7 +1212,7 @@ return function(ctx, env, opts)
     else
       Rd.camera(st.cam, rect)
       st.three = Rd.draw(G, st.region, rect, clock, Rd.night(st.hour, st.minute), Rd.dusk(st.hour, st.minute),
-        st.storm.grow > 0 and st.storm or nil, st.wx)
+        st.storm.grow > 0 and st.storm or nil, st.wx, st.sky)
     end
     drawStorm(clock)
     drawPins(clock)

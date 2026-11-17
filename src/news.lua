@@ -123,7 +123,11 @@ return function(engine, deps)
     until k == 0
     return s
   end
-  local function playerOf(s) return tostring(s and (s.name or s.playerName) or "?") end
+  -- (Gen 3 keeps it on the session, the Game Boy games on its player)
+  local function playerOf(s)
+    local p = type(s) == "table" and type(s.player) == "table" and s.player or nil
+    return tostring(s and (s.name or s.playerName or (p and p.name)) or "?")
+  end
   -- (the game's capitals, as the species are written: "Youngster Joey")
   local function titled(text)
     return (tostring(text):lower():gsub("(%a)([%w']*)", function(a, b) return a:upper() .. b end))

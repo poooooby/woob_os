@@ -112,7 +112,7 @@ return function(H, Gd)
     if type(b.mon) == "table" then return b.mon.species end
     return nil
   end
-  local fightKind, fightName, fightLeader, startAt, endAt = nil, nil, false, -10, -10
+  local fightKind, fightName, fightClass, fightLeader, startAt, endAt = nil, nil, nil, false, -10, -10
   local function now() return love and love.timer and love.timer.getTime() or os.clock() end
   local function sideOf(battle, battler)
     if type(battle) ~= "table" then return nil end
@@ -135,18 +135,34 @@ return function(H, Gd)
     return cls ~= nil and LEADERS[cls] == true
   end
 
+  -- the trainer's own name (Joey) and their class's (Youngster), from whichever of the game's events
+  -- carries them; the class only when it isn't the name again
+  local function namesOf(ev)
+    local tr = trainerOf(ev)
+    local nm = tr and type(tr.name) == "string" and tr.name ~= "" and tr.name or nil
+    local cls = tr and type(tr.className) == "string" and tr.className ~= "" and tr.className or nil
+    if not nm and ev.trainerId then nm = (tostring(ev.trainerId):gsub("^OPP_", ""):gsub("%d+$", "")) end
+    if nm == "" then nm = nil end
+    if cls == nm then cls = nil end
+    return nm, cls
+  end
+
   local translate = {}
   translate["battle.started"] = function(ev)
-    -- (once: Gen 2 raises it from the battle and again from its screen)
+    -- (once: Gen 2 raises it from the battle and again from its screen; the second only fills in a
+    -- trainer the first didn't name)
     local t = now()
-    if t - startAt < 2 then return nil end
+    if t - startAt < 2 then
+      if not fightName then fightName, fightClass = namesOf(ev) end
+      return nil
+    end
     startAt = t
     local kind = ev.kind or "trainer"
     local b = type(ev.battle) == "table" and ev.battle or {}
     local tr = trainerOf(ev)
     fightKind = kind
     fightLeader = leaderOf(ev)
-    fightName = tr and (tr.name or tr.className) or (ev.trainerId and tostring(ev.trainerId):gsub("^OPP_", "")) or nil
+    fightName, fightClass = namesOf(ev)
     local foe = {}
     for _, m in ipairs(tr and (tr.party or tr.mons) or {}) do
       if type(m) == "table" and m.species then foe[#foe + 1] = { species = m.species } end
@@ -161,8 +177,11 @@ return function(H, Gd)
     endAt = t
     local kind = fightKind or "wild"
     local b = type(ev.battle) == "table" and ev.battle or {}
+    if not fightName then fightName, fightClass = namesOf(ev) end
+    -- (the player's Pokémon out at the end: the team's one name when the start had none)
     return { result = ev.result, battle = { wild = kind == "wild", link = kind == "link", trainerName = fightName,
-                                            trainerClassName = fightName, trainerClass = fightLeader and 1 or 0,
+                                            trainerClassName = fightClass, trainerClass = fightLeader and 1 or 0,
+                                            player = { species = species(b.player) },
                                             turn = tonumber(b.turn) or tonumber(b.turnCount) or 0 } }
   end
   translate["battle.damage_dealt"] = function(ev)

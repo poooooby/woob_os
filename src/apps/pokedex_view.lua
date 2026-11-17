@@ -213,19 +213,156 @@ return function(K, env, T, st, A, KINDS)
     end
   end
 
+  -- ------- the search: its button by the grid's top, its keyboard on a glass sheet
+
+  -- a magnifier, r units round cx, cy
+  local function magnifier(cx, cy, r, c)
+    K.col(c)
+    G.setLineWidth(max(1, r * 0.3 * K.sc))
+    local ox, oy = cx - r * 0.22, cy - r * 0.22
+    G.circle("line", K.X(ox), K.Y(oy), r * 0.72 * K.sc)
+    G.line(K.X(ox + r * 0.52), K.Y(oy + r * 0.52), K.X(cx + r), K.Y(cy + r))
+  end
+  local function searchButton(bx, by, s)
+    local b = K.R(bx, by, s, s)
+    local on = st.focus == "searchBtn" and not st.kb
+    K.col(on and C.accent or C.white, on and 0.95 or 0.6)
+    K.box("fill", b, s / 2)
+    K.ring(b, s / 2, C.white, 0.85, 0.3)
+    if on then K.focusRing(b, s / 2) end
+    magnifier(bx + s / 2, by + s / 2, s * 0.3, on and C.white or C.accent)
+    K.addHit(b, "win", A.SEARCH)
+  end
+  -- Delete's mark: a key's outline pointing left, a cross in it
+  local function backspace(cx, cy, r, c)
+    K.col(c)
+    G.setLineWidth(max(1, r * 0.2 * K.sc))
+    local l, rr, t, b = cx - r * 1.3, cx + r * 1.1, cy - r * 0.75, cy + r * 0.75
+    G.line(K.X(l), K.Y(cy), K.X(l + r * 0.6), K.Y(t), K.X(rr), K.Y(t), K.X(rr), K.Y(b), K.X(l + r * 0.6), K.Y(b),
+      K.X(l), K.Y(cy))
+    local xc, d = cx + r * 0.2, r * 0.32
+    G.line(K.X(xc - d), K.Y(cy - d), K.X(xc + d), K.Y(cy + d))
+    G.line(K.X(xc - d), K.Y(cy + d), K.X(xc + d), K.Y(cy - d))
+  end
+  local KEY_GREY, KEY_SHADE = { 206, 210, 220 }, { 0, 0, 0, 0.13 }
+  local function drawSearch(body, clock)
+    local kb = st.kb
+    if not kb then
+      mv.kb = nil
+      return
+    end
+    if mv.kb ~= kb then mv.kb, mv.kbAt, mv.typedSeen, mv.typedClock = kb, clock, kb.typedAt, -1 end
+    if kb.typedAt ~= mv.typedSeen then mv.typedSeen, mv.typedClock = kb.typedAt, clock end
+    local KB = st.KB
+    local e = outCubic((clock - mv.kbAt) / 0.24)
+    local x, y, w, h = body[1], body[2], body[3], body[4]
+    K.scissor(body)
+    K.col(C.black, 0.22 * e)
+    K.box("fill", body)
+    K.addHit(body, "win", A.KB_SCRIM)
+    local g = K.textScale() - 1
+    local kh, gap = 9 + g * 3, 1.8
+    local fh = 12 + g * 3
+    local sw = min(w - M * 2, 236)
+    local sh = 3 + fh + 3 + 5 * kh + 4 * gap + 3
+    local sx = x + (w - sw) / 2
+    local sy = y + h - sh - M + (1 - e) * (sh + M + 6)
+    local sb = K.R(sx, sy, sw, sh)
+    K.glass(sb, 6, 0.95)
+    K.addHit(sb, "win", 0)
+    -- (the field: the words typed and a blinking caret, or what to type; the match at its right, a tap on
+    -- it goes there)
+    local fb = K.R(sx + 3, sy + 3, sw - 6, fh)
+    K.col(C.white, 0.92)
+    K.box("fill", fb, fh / 2)
+    K.ring(fb, fh / 2, C.accent, 0.9, 0.6)
+    magnifier(fb[1] + 5.5, fb[2] + fh / 2, 2.6, C.soft)
+    local ts = 5
+    local tx, ty = fb[1] + 10, fb[2] + (fh - ts * 1.2) / 2
+    local tw = 0
+    if kb.text == "" then
+      K.text(word("dex.search.place"), tx, ty, ts, C.faint)
+    else
+      K.bold(kb.text, tx, ty, ts, C.ink)
+      tw = K.width(kb.text, ts) + 0.4
+    end
+    if floor(clock * 2.2) % 2 == 0 then
+      K.col(C.accent)
+      G.rectangle("fill", K.X(tx + tw + 0.3), K.Y(ty), max(1, 0.5 * K.sc), ts * 1.2 * K.sc)
+    end
+    local en = kb.hit and st.list[kb.hit]
+    if en then
+      local name = en.seen and en.name or "???"
+      local ns, nums = 4.4, 3.6
+      local nmw = K.width(en.numText, nums)
+      local is = fh - 1
+      local mw = is + 1 + nmw + 1.5 + K.width(name, ns) + 4
+      local mb = K.R(fb[1] + fb[3] - mw - 1, fb[2] + 1, mw, fh - 2)
+      K.col(C.accent, 0.12)
+      K.box("fill", mb, (fh - 2) / 2)
+      if env.monIcon then
+        if en.seen then
+          env.monIcon(en.sp, mb[1] + 1, fb[2] + 0.2, is, floor(clock * 3) % 2, 1, 1, 1, K.getFade())
+        else
+          env.monIcon(en.sp, mb[1] + 1, fb[2] + 0.2, is, 0, 0.16, 0.17, 0.22, 0.5 * K.getFade())
+        end
+        K.rescissor()
+        K.scissor(body)
+      end
+      K.text(en.numText, mb[1] + is + 1, fb[2] + (fh - nums * 1.2) / 2, nums, C.soft)
+      K.bold(name, mb[1] + is + 1 + nmw + 1.5, fb[2] + (fh - ns * 1.2) / 2, ns, en.seen and C.ink or C.faint)
+      K.addHit(mb, "win", A.KB_GO)
+    elseif kb.text ~= "" then
+      K.text(word("dex.search.none"), fb[1], fb[2] + (fh - 4 * 1.2) / 2, 4, C.soft, "right", fb[3] - 4)
+    end
+    -- (the keys: white letters and digits, grey Delete and space, Go in the accent; the D-pad's key ringed,
+    -- the one just typed flashing)
+    local ky0 = sy + 3 + fh + 3
+    local unit = (sw - 6) / 10
+    for k = 1, #KB.keys do
+      local key = KB.keys[k]
+      local kx = sx + 3 + KB.x0[k] * unit + 0.8
+      local kw = KB.w[k] * unit - 1.6
+      local kyy = ky0 + (KB.row[k] - 1) * (kh + gap)
+      local kbx = K.R(kx, kyy, kw, kh)
+      local go = key == "GO"
+      K.col(KEY_SHADE)
+      K.box("fill", K.R(kx, kyy + 0.5, kw, kh), 2)
+      if go then K.col(C.accent) elseif key == "DEL" or key == "SPACE" then K.col(KEY_GREY) else K.col(C.white) end
+      K.box("fill", kbx, 2)
+      if kb.typedK == k and clock - mv.typedClock < 0.14 then
+        K.col(C.accent, 0.35)
+        K.box("fill", kbx, 2)
+      end
+      if k == kb.cur then K.ring(kbx, 2, C.accent, 1, 0.8) end
+      if key == "DEL" then
+        backspace(kx + kw / 2, kyy + kh / 2, kh * 0.3, C.ink)
+      else
+        local label, ls = key, 4.6
+        if key == "SPACE" then label, ls = word("dex.search.space"), 4
+        elseif go then label, ls = word("dex.search.go"), 4.2 end
+        K.text(label, kx, kyy + (kh - ls * 1.2) / 2, K.fit(label, ls, kw - 2), go and C.white or C.ink, "center", kw)
+      end
+      K.addHit(kbx, "win", A.KEY + k)
+    end
+  end
+
   -- ------- the grid
 
   local function drawGrid(x, y, w, h, clock, dt)
     local book, list = st.book, st.list
     local hh = 9
     local counts = book.counts[book.modes[st.mi]]
+    local swW = min(w * 0.58, 84, w - 46)
     if #book.modes > 1 then
       mv.mode = approach(mv.mode, st.mi, dt, 18)
-      K.glassSwitch(x, y, min(w * 0.58, 84), hh, mv.mode, "win", A.MODE + 1, st.modeWords[1], A.MODE + 2,
+      K.glassSwitch(x, y, swW, hh, mv.mode, "win", A.MODE + 1, st.modeWords[1], A.MODE + 2,
         st.modeWords[2], nil, nil, 4.3)
     else
       K.bold(st.modeWords[1] or "", x, y + 2, 5, C.ink)
+      swW = K.width(st.modeWords[1] or "", 5)
     end
+    searchButton(x + swW + 3, y, hh)
     local n = #list
     if counts then
       local cx = x + w
@@ -968,6 +1105,7 @@ return function(K, env, T, st, A, KINDS)
         drawPage(x + M, y + M + 9, w - M * 2, h - M * 2 - 9, clock, dt)
         if sh then G.pop() end
       end
+      drawSearch(body, clock)
       return
     end
     mv.push = 0
@@ -976,6 +1114,7 @@ return function(K, env, T, st, A, KINDS)
     local px = x + M + lw + GAP + 1
     st.pageX = px
     drawPage(px, y + M, x + w - M - 2 - px, h - M * 2, clock, dt)
+    drawSearch(body, clock)
   end
 
   return V

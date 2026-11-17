@@ -102,7 +102,7 @@ return function(env, T, A, Ctl)
     elseif c.battle then
       P.title = T("party.switchWhich")
     else
-      P.title = T("menus.back")
+      P.title = T("party.title")
     end
     return P
   end
@@ -154,7 +154,7 @@ return function(env, T, A, Ctl)
     function ui.forget(i, moveId, after)
       P.sumAfter = after
       P.sumForget = true
-      P.sum = Ctl.open(P.c.party, i, { session = function() return P.c.session end, learn = moveId, back = "menus.back" })
+      P.sum = Ctl.open(P.c.party, i, { session = function() return P.c.session end, learn = moveId, back = "party.title" })
       P.view = "summary"
     end
     -- (soft: only when the flow left nothing open after it -- Ruby / Sapphire's mail, chained prompts)
@@ -203,7 +203,7 @@ return function(env, T, A, Ctl)
   local function openSummary(P, i)
     P.sumAfter, P.sumForget = nil, false
     local party = P.base == "list" and not P.c.battle
-    P.sum = Ctl.open(P.c.party, i, { session = function() return P.c.session end, party = party, back = "menus.back" })
+    P.sum = Ctl.open(P.c.party, i, { session = function() return P.c.session end, party = party, back = "party.title" })
     P.view = "summary"
     P.menu = nil
   end

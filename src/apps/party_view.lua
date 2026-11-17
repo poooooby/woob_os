@@ -54,6 +54,65 @@ return function(K, env, T, A, sumView)
     local fs = 7
     K.bold(numT(card.orderN), x, y + r - fs * 0.6, fs, C.white, "center", r * 2)
   end
+  local bodyNow = nil
+  local Art = env.typeArt
+  local TYPE_KEY = {}
+  for id = 0, 18 do TYPE_KEY[id] = "type." .. id end
+  local BADGE_SHADE = { 0, 0, 0, 0.14 }
+  -- a type's badge, WoobleDex's look: a rounded square in its colour, a darker rim, its picture in white
+  local function typeBadge(id, x, y, s)
+    local c = id and TYPE[id]
+    if not c then return 0 end
+    local rad = s * 0.24
+    K.col(BADGE_SHADE)
+    K.box("fill", K.R(x, y + 0.45, s, s), rad)
+    K.col(c)
+    local b = K.R(x, y, s, s)
+    K.box("fill", b, rad)
+    K.ring(b, rad, K.dark(c, 0.38), 1, max(0.35, s * 0.08))
+    if Art then Art.type(id, x + s / 2, y + s / 2, s * 0.64, 0, C.white, 1) end
+    return s
+  end
+  -- (the badge with its type's name beside it) -> its width
+  local function typeChip(id, x, y, s, size, ink)
+    if not (id and TYPE[id]) then return 0 end
+    typeBadge(id, x, y, s)
+    local name = T(TYPE_KEY[id])
+    K.text(name, x + s + 1.2, y + (s - size * 1.2) / 2, size, ink)
+    return s + 1.2 + K.width(name, size)
+  end
+  local function chipW(id, s, size)
+    if not (id and TYPE[id]) then return 0 end
+    return s + 1.2 + K.width(T(TYPE_KEY[id]), size)
+  end
+  -- the lead's medal by its picture: a gold disc, a white edge, a crown
+  local GOLD, GOLD_D = { 250, 190, 40 }, { 205, 135, 20 }
+  local function leadBadge(x, y, r)
+    local cx, cy = K.X(x + r), K.Y(y + r)
+    K.col(C.black, 0.2)
+    G.circle("fill", cx, cy + 0.7 * K.sc, (r + 0.4) * K.sc)
+    K.col(GOLD)
+    G.circle("fill", cx, cy, r * K.sc)
+    K.ring(K.R(x, y, r * 2, r * 2), r, C.white, 1, max(0.6, r * 0.16))
+    -- (the crown: three points on a band, a jewel on each)
+    local w, h = r * 1.15, r * 0.82
+    local lx, ty = x + r - w / 2, y + r - h / 2 + r * 0.06
+    local bandY = ty + h * 0.64
+    K.col(C.white)
+    G.polygon("fill", K.X(lx), K.Y(bandY), K.X(lx), K.Y(ty + h * 0.14), K.X(lx + w * 0.36), K.Y(bandY))
+    G.polygon("fill", K.X(lx + w * 0.2), K.Y(bandY), K.X(lx + w * 0.5), K.Y(ty), K.X(lx + w * 0.8), K.Y(bandY))
+    G.polygon("fill", K.X(lx + w * 0.64), K.Y(bandY), K.X(lx + w), K.Y(ty + h * 0.14), K.X(lx + w), K.Y(bandY))
+    G.rectangle("fill", K.X(lx), K.Y(bandY - 0.05), w * K.sc, h * 0.32 * K.sc)
+    K.col(GOLD_D)
+    G.rectangle("fill", K.X(lx + w * 0.12), K.Y(bandY + h * 0.1), w * 0.76 * K.sc, h * 0.1 * K.sc)
+    local jr = max(0.35, r * 0.1) * K.sc
+    G.circle("fill", K.X(lx), K.Y(ty + h * 0.14), jr)
+    G.circle("fill", K.X(lx + w * 0.5), K.Y(ty), jr)
+    G.circle("fill", K.X(lx + w), K.Y(ty + h * 0.14), jr)
+  end
+  local EXP_C = { 64, 150, 255 }
+  -- the backdrop's big Poké Ball: the chosen one's colour (set each frame)
+  local BALL_BG = { 255, 255, 255 }
   -- the motion's numbers
   local mv = { r = 0.6, g = 0.6, b = 0.6, r2 = 0.6, g2 = 0.6, b2 = 0.6, coloured = false, lastT = nil,
                selX = nil, selY = nil, menuAt = 0, menu = nil, prompt = nil, promptAt = 0 }
@@ -62,7 +121,6 @@ return function(K, env, T, A, sumView)
   local GX, GY, GW, GH = { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }
   local shownHp = { -1, -1, -1, -1, -1, -1 }
   local shownMon = {}
-  local bodyNow = nil
 
   -- ------- words wrapped to a width (kept per slot until the text, size or width change)
   local wraps = {}
@@ -222,18 +280,29 @@ return function(K, env, T, A, sumView)
       bx = bx + pill(card.status, x, y - 0.6, size * 1.3, size * 0.82, STATUS_C[card.statusId] or C.statusC) + 1.5
     end
     local nw = K.width(hpText(card.maxHp * 1000 + card.maxHp), size * 0.9) + 1
-    bar(bx, y + size * 0.3, max(6, x + w - bx - nw - 2), size * 0.5, k, hpColour(k))
+    local bw = max(6, x + w - bx - nw - 2)
+    bar(bx, y + size * 0.3, bw, size * 0.5, k, hpColour(k))
     K.text(hpText(floor(hp + 0.5) * 1000 + card.maxHp), x + w - nw, y - 0.2, size * 0.9, ink, "right", nw, 0.9)
+    -- (the way to the next level, a thin blue line under the HP)
+    if card.expK then bar(bx, y + size * 0.3 + size * 0.5 + 0.8, bw, max(0.8, size * 0.22), card.expK, EXP_C, 0.95) end
   end
 
   -- the lead's big card: the picture, the name, the level, HP
+  -- (one of the lead's facts: its label, its value at the right) -> the next line's top
+  local function fact(label, value, x, y, w, size, ink, soft)
+    if not value or value == "" then return y end
+    K.text(label, x, y, size, soft, nil, nil, 0.9)
+    local lw = K.width(label, size) + 2
+    K.bold(value, x + lw, y, K.fit(value, size, w - lw), ink, "right", w - lw)
+    return y + lineH(size)
+  end
   local function bigCard(P, i, card, x, y, w, h, clock, dt, sel, mark)
     local b = K.R(x, y, w, h)
     pane(b, 6, card, sel, mark)
     local onDark = sel
     local ink = onDark and C.white or C.ink
     local soft = onDark and C.white or C.soft
-    local ps = max(20, min(w - 16, h * 0.46))
+    local ps = max(20, min(w - 16, h * 0.4))
     local bob = sel and sin(clock * 5) * 0.8 or 0
     local pcx, pcy = x + w / 2, y + 4 + ps / 2 + (card.active and 5 or 0)
     K.glow(pcx, pcy, ps * 0.6, ps * 0.5, C.white, sel and 0.32 or 0.2)
@@ -241,7 +310,13 @@ return function(K, env, T, A, sumView)
     G.ellipse("fill", K.X(pcx), K.Y(pcy + ps * 0.44), ps * 0.26 * K.sc, ps * 0.055 * K.sc)
     if env.monPic then env.monPic(card.sp, pcx - ps / 2, pcy - ps / 2 + bob, ps, 1, card.mon) end
     K.rescissor()
-    if card.active then chip(T("party.inBattle"), x + 3, y + 3, 7.4, 4.4, C.accent, "dot") end
+    -- (the lead's medal, unless a team's number takes its corner)
+    local cx0 = x + 3
+    if i == 1 and not card.orderN then
+      leadBadge(x + 2.5, y + 2.5, 5.2)
+      cx0 = x + 15
+    end
+    if card.active then chip(T("party.inBattle"), cx0, y + 3, 7.4, 4.4, C.accent, "dot") end
     if card.item then heldMark(card, x + w - 11, y + 3, 8) end
     local ty = pcy + ps / 2 + 2 + (K.textScale() - 1) * 2
     local fs = K.fit(card.name, 6, w - 14)
@@ -252,8 +327,34 @@ return function(K, env, T, A, sumView)
     if card.shiny then star(nx - 3.5, ty + 3.2, 2.3 + 0.4 * sin(clock * 5), C.gold) end
     ty = ty + lineH(fs)
     K.text(card.levelText, x, ty, 4.2, soft, "center", w, 0.9)
-    ty = ty + lineH(4.2) + 1.5
+    ty = ty + lineH(4.2) + 0.5
+    -- (its types: a badge each with the type's name, side by side)
+    if card.t1 and not card.egg then
+      local bs, ts = 6, 3.8
+      local w1, w2 = chipW(card.t1, bs, ts), card.t2 and chipW(card.t2, bs, ts) or 0
+      local tw = w1 + (w2 > 0 and w2 + 3 or 0)
+      local tx = x + (w - tw) / 2
+      typeChip(card.t1, tx, ty, bs, ts, ink)
+      if w2 > 0 then typeChip(card.t2, tx + w1 + 3, ty, bs, ts, ink) end
+      ty = ty + bs + 2.5
+    end
     vitals(P, i, card, x + 5, ty, w - 10, 4.2, clock, dt, onDark)
+    ty = ty + lineH(4.2) + 0.8
+    -- (the EXP still to go; then the facts while there's room)
+    if card.expText and not card.tag then
+      K.text(card.expText, x + 5, ty, 3.4, soft, "right", w - 10, 0.85)
+      ty = ty + lineH(3.4) + 1
+    end
+    local foot = y + h - 3
+    if not card.egg and ty + lineH(3.8) * 2 + 2 <= foot then
+      K.col(onDark and C.white or C.ink, 0.12)
+      G.rectangle("fill", K.X(x + 5), K.Y(ty), (w - 10) * K.sc, max(1, 0.25 * K.sc))
+      ty = ty + 1.8
+      local fsz = 3.8
+      if ty + lineH(fsz) <= foot then ty = fact(T("sum.ability"), card.ability, x + 5, ty, w - 10, fsz, ink, soft) end
+      if ty + lineH(fsz) <= foot then ty = fact(T("sum.nature"), card.nature, x + 5, ty, w - 10, fsz, ink, soft) end
+      if ty + lineH(fsz) <= foot then fact(T("sum.item"), card.itemTitle or card.itemName, x + 5, ty, w - 10, fsz, ink, soft) end
+    end
     orderBadge(card, x + 2, y + 2)
     K.addHit(b, "win", A.CARD + i)
   end
@@ -280,11 +381,21 @@ return function(K, env, T, A, sumView)
     local nx = tx + K.width(card.name, ns) + 1
     if card.gender and not K.hasSign(card.name) then K.sexMark(card.gender, nx, ny + 0.7, 4, 1, onDark and C.white or nil) nx = nx + 4.5 end
     if card.shiny then star(nx + 1.8, ny + 2.6, 1.9, C.gold) end
-    K.text(card.levelText, tx, ny + lineH(ns), 3.8, soft, nil, nil, 0.9)
+    local ly = ny + lineH(ns)
+    K.text(card.levelText, tx, ly, 3.8, soft, nil, nil, 0.9)
+    local lx = tx + K.width(card.levelText, 3.8) + 2
+    -- (its types' badges beside the level)
+    if card.t1 and not card.egg then
+      local bs = 4.8
+      lx = lx + typeBadge(card.t1, lx, ly - 0.1, bs) + 1
+      if card.t2 then lx = lx + typeBadge(card.t2, lx, ly - 0.1, bs) + 1 end
+      lx = lx + 1
+    end
     if card.active then
-      chip(T("party.inBattle"), tx + K.width(card.levelText, 3.8) + 2, ny + lineH(ns) - 0.8, 6.2, 3.8, C.accent, "dot")
+      chip(T("party.inBattle"), lx, ly - 0.8, 6.2, 3.8, C.accent, "dot")
     end
     vitals(P, i, card, x + w - right - 3, y + h / 2 - 2.2, right, 3.8, clock, dt, onDark)
+    if i == 1 and not card.orderN then leadBadge(x + 0.5, y + 0.5, 3.4) end
     orderBadge(card, x + 2, y + 2)
     K.addHit(b, "win", A.CARD + i)
   end
@@ -513,6 +624,14 @@ return function(K, env, T, A, sumView)
     mv.b2 = approach(mv.b2, (t2[3] + (255 - t2[3]) * k2) / 255, dt, rate)
     K.backdrop(body, clock, mv.r, mv.g, mv.b, mv.r2, mv.g2, mv.b2)
     K.scissor(body)
+    -- (the party's own: a large Poké Ball turning slowly behind the cards, a smaller one by it, in the
+    -- chosen one's colour)
+    if Art then
+      BALL_BG[1], BALL_BG[2], BALL_BG[3] = mv.r * 255 * 0.85, mv.g * 255 * 0.85, mv.b * 255 * 0.85
+      local big = min(h * 1.15, w * 0.9)
+      Art.pocket("POKE_BALLS", x + w * 0.68, y + h * 0.6, big, clock * 0.035, BALL_BG, 0.2)
+      Art.pocket("POKE_BALLS", x + w * 0.1, y + h * 0.18, big * 0.38, -clock * 0.05, BALL_BG, 0.14)
+    end
     drawTop(P, x + M, y + 1, w - M * 2)
     local top = y + TOP_H + 2
     layout(P, x + M, top, w - M * 2, y + h - M - top)

@@ -708,7 +708,17 @@ screenshots each. Settings changed by hand during it are the real ones.
   screens (`showRegistration` / `showCaughtMon`) are drawn inside battle: the game's.
 - **The app**: `pokedex`, glyph `dex`, available once `FLAG_SYS_POKEDEX_GET` (`Dx.available`, every game).
 - **Tests**: `tests/pokedex_test.lua` (the cart's data: Poliwag, Bulbasaur, the gender ratios, Magikarp's
-  rods; the rules; the window wide and upright; the takeover, START, the setting).
+  rods; the rules; the window wide and upright; the takeover, START, the setting; the search).
+- **The search** (`src/apps/pokedex.lua`): `st.kb` while the keyboard's up (`text`, the D-pad's key `cur`,
+  `from` the selection before it, `hit`); the keys `KB` (`st.KB`: each key's row, left edge and width in
+  tenths of a row; `A.KEY + k`), `A.SEARCH` (the magnifier, `searchButton` in `drawGrid`; the D-pad's Up from
+  the top row is focus `"searchBtn"`), `A.KB_GO` (the match in the field), `A.KB_SCRIM` (outside: put away,
+  the selection put back). `search(list, text)` (`st.search`): letters and digits only, lower case; digits:
+  `e.num`, else the nearest; a name: only the seen, the first that starts so, else contains it, else the
+  smallest edit distance (to the name's start or the whole name) within a third of the words' length. Each
+  key typed chooses the hit (quiet), the grid follows. No physical keyboard: the engine's `love.textinput`
+  isn't passed to mods, and the keys are the game's buttons. Drawn by `drawSearch` (the view) last, over both
+  layouts.
 
 ## The 3D map
 
@@ -969,6 +979,32 @@ the voxel diorama mod in the engine's checkout either (another author's).
   `PartyMenu.returnFromFlyMap()` from the Fly map), Ruby `onClose(false)`. START: `orig(opts)`.
   Settings' `map3d` off (or the Desktop option off): `orig` at once. FireRed's `RegionMap.open` is
   never set (`hud.lua` would route input to it).
+
+### At night: lights, the aurora, shooting stars; Hoenn's meteor
+
+- **Lights** (`render.lua` `worldGlows`, made with the buildings while the world's tile arrays are still
+  there, kept on disk as the `glows` slot, FORMAT `V`; `cache.lua` FORMAT 2 so older kept maps are built
+  again): flag `F_GLOW` 13 (13.5 pulsing). A vertex's position is its corner (x, y) and size (z), its normal
+  the light's place; the vertex shader turns the square to the eye and pulls it a size towards it (the
+  ground under it doesn't cut it), the corner passed on in `vGround`; the pixel stage a core in a halo,
+  `* uNight` (the pulse in `vFade`: `uTime` stays in the vertex stage). Drawn after the weather with
+  `setBlendMode("add")`, depth tested, not written. Sources: each footprint's windows (every other front
+  tile beside the door, up to four) and a door lamp (`DOOR_LAMP`: a Center's red, a Mart's blue) with a pool
+  on the ground; street lamps on a 5-tile grid of open ground (`cls` 10 with open ground round it) in maps
+  named TOWN / CITY / ISLAND; the landmarks' own through `Tw.landmarks(region, lights)` (a crater's glow and
+  the sky over it, a harbour ship's portholes, cabins and mast).
+- **The sky** (`drawSky(..., skyOpts)`, 2D behind the map): `R.auroraNow()` (stubbable) 0..1, ten-minute
+  spells of `os.time` (35% have one, easing in and out over their first and last eighth), three curtains
+  of a kept 194-vertex strip mesh (rays from two sines along it), added on; a shooting star in some 7 s
+  spells of `t` (`drawShootingStar`: eight fading segments); the meteor (`drawMeteor`, a kept 4-vertex fan
+  for the tail drawn twice, glow rings, the rock lit on its leading side; added on at night, laid over by
+  day).
+- **The meteor's rule** (`model.lua` `M.meteor(region, s)`, Hoenn on Ruby / Sapphire / Emerald):
+  `FLAG_SYS_GAME_CLEAR` and not Emerald's `FLAG_DEFEATED_RAYQUAZA` (Sky Pillar's top shows Rayquaza while it's
+  clear: `SkyPillar_Top_EventScript_TryShowRayquaza`) / Ruby and Sapphire's `FLAG_HIDE_RAYQUAZA` (set after its
+  battle, caught or beaten). The scene reads it with the storm (`st.sky.meteor`) and passes `st.sky` to
+  `R.draw`. Tests: `tests/world_test.lua` (the flags), the scratchpad's `night_driver.lua` (shots, the
+  aurora forced).
 
 ## The apps tied to play: Bank, Errands, Challenges, News
 
@@ -1308,6 +1344,14 @@ our own, in phases (the plan: the Summary, then the Party, then the Bag); the mo
 - The party (`party_view.lua`): `chip(s, x, y, h, size, c, mark)` with a check / cross / dot for the tags and
   In Battle; the team's badge a larger disc. The bubble (`drawPrompt`) wraps clear of the arrow (9 units) and
   drops to a smaller size when a page would take more than 45% of the screen.
+
+### The party's look (round two)
+
+- `Pt.card` (src/party.lua) adds `expK` (0..1), `expText` (`party.toNext`), `nature`, `ability` (titled), `itemTitle`;
+  `t2` nil when it's `t1` again. The view (`party_view.lua`): `typeBadge(id, x, y, s)` (WoobleDex's look: a
+  rounded square in the type's colour, a darker rim, `Art.type` in white), `typeChip` (badge + name),
+  `leadBadge` (a gold medal with a crown, slot 1 unless a team's number is there), the backdrop's two `Art.pocket("POKE_BALLS")` in `BALL_BG` (the eased type colour, a kept table set each
+  frame); the lead's facts (`fact`) only while they fit. Title `party.title`.
 
 ### The mailbox, the Battle Pyramid, Teachy TV
 

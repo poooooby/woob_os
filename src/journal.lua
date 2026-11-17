@@ -233,6 +233,8 @@ return function(engine, deps)
     local f = fight
     fight = nil
     if b.link then return end
+    -- (a team the battle's start didn't show: the Pokémon out at the end)
+    if f and #f.mine == 0 then join(f.mine, spOf(b.player)) end
     if f and f.legend then
       local how = ENDS[tostring(ev.result or "win")]
       if how then

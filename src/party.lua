@@ -124,6 +124,14 @@ return function(engine, deps)
     return out
   end
 
+  -- (a name the game keeps in capitals, as the summary writes it: "Bold", "Blaze")
+  local function titledName(s)
+    s = tostring(s or "")
+    if s == "" then return nil end
+    if s:find("%l") then return s end
+    return (s:lower():gsub("(%a)([%w']*)", function(a, b) return a:upper() .. b end))
+  end
+
   local STATUS = { [1] = "sum.status.psn", [2] = "sum.status.par", [3] = "sum.status.slp", [4] = "sum.status.frz",
                    [5] = "sum.status.brn", [7] = "sum.status.fnt" }
 
@@ -149,12 +157,27 @@ return function(engine, deps)
       c.statusId = st
       local types = p and call(p.types, c.sp)
       if type(types) == "table" then c.t1, c.t2 = tonumber(types[1]), tonumber(types[2]) end
+      if c.t2 == c.t1 then c.t2 = nil end
+      -- (the way to the next level, the nature and the ability: the lead's card shows them)
+      local prog = SD and call(SD.expProgress, mon, p and call(p.growthRate, c.sp))
+      if type(prog) == "table" then
+        c.expK = tonumber(prog.progressPercent) or 0
+        c.expNext = (tonumber(prog.level) or 100) < 100 and tonumber(prog.expNeeded) or nil
+        c.expText = c.expNext and Tw and Tw.f and Tw.f("party.toNext", c.expNext) or nil
+      end
+      local _, nature = call(SD and SD.nature, mon)
+      c.nature = nature and titledName(nature) or nil
+      local ability = tonumber(mon.ability or mon.abilityId)
+      if not ability then ability = tonumber(p and call(p.abilityId, c.sp, mon.personality)) end
+      local an = ability and p and call(p.abilityName, ability)
+      c.ability = an and titledName(an) or nil
     end
     c.item = heldOf(mon)
     c.mail = isMail(c.item)
     if c.item then
       local I = Items()
       c.itemName = tostring(I and call(I.displayName, c.item) or "")
+      c.itemTitle = titledName(c.itemName)
     end
     return c
   end

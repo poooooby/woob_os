@@ -526,6 +526,18 @@ end
 -- (the News)
 local bc = Nw.build(save)
 T.check(bc and #bc.stories > 0, "the News: today's stories (" .. (bc and #bc.stories or 0) .. ")")
+do
+  -- (the player by the name the Game Boy games keep on save.player)
+  save.player = save.player or {}
+  local was = save.player.name
+  save.player.name = "KRIS"
+  local named = false
+  for _, st in ipairs((Nw.build(save) or {}).stories or {}) do
+    if tostring(st.head):find("KRIS", 1, true) or tostring(st.body):find("KRIS", 1, true) then named = true end
+  end
+  T.check(named, "the News names the player (save.player.name)")
+  save.player.name = was
+end
 
 -- ------- WoobleSpritePack's party icons: its own in the windows, for every Pokémon it has one for
 do

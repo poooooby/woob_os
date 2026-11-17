@@ -1013,4 +1013,27 @@ elseif Sy and Nw then
   Space.store = keptStore
 end
 
+-- ------- the 3D map's meteor over Hoenn: once the Hall of Fame's done, until Rayquaza's beaten
+do
+  local M3 = X._test.map3d
+  local Mdl = M3 and M3.model
+  local hoenn = { id = "hoenn" }
+  if Mdl and Mdl.meteor and RSE_GAME then
+    local R = require("src.core.game3.rse.init")
+    local Space = require("src.core.game3.scripting.space")
+    local keptStore = Space.store
+    Space.store = { flags = {}, vars = {} }
+    local gone = GAME == "emerald" and "FLAG_DEFEATED_RAYQUAZA" or "FLAG_HIDE_RAYQUAZA"
+    T.check(not Mdl.meteor(hoenn, s), "the meteor: none before the Hall of Fame")
+    R.setFlag("FLAG_SYS_GAME_CLEAR", true)
+    T.check(Mdl.meteor(hoenn, s), "the meteor: Rayquaza waits at the Sky Pillar's top")
+    T.check(not Mdl.meteor({ id = "kanto" }, s), "the meteor: only over Hoenn")
+    R.setFlag(gone, true)
+    T.check(not Mdl.meteor(hoenn, s), "the meteor: gone once Rayquaza's beaten (" .. gone .. ")")
+    Space.store = keptStore
+  elseif Mdl and Mdl.meteor then
+    T.check(not Mdl.meteor(hoenn, s), "the meteor: never on FireRed / LeafGreen")
+  end
+end
+
 T.finish("woob_os world (" .. GAME .. ")")

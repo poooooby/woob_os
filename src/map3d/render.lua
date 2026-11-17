@@ -10,7 +10,11 @@
 --   - the everyday weather (Ruby / Sapphire / Emerald), far quieter than the storms: a few thin
 --     raindrops under pale clouds, ash or sand drifting, a low fog, an overcast; the ground under it
 --     softly tinted; each kind's bits and clouds one kept mesh, stretched over each place in the shader
---   - the sky: day, dusk, night (stars), from the device's clock
+--   - the sky: day, dusk, night (stars), from the device's clock; at night now and then an aurora's
+--     curtains and a shooting star; on Hoenn, once Rayquaza waits at the Sky Pillar's top, the meteor
+--     coming (day and night, until Rayquaza's beaten)
+--   - at night the towns' lights: windows, a lamp over each door, the streets' lamps, a crater's glow, a
+--     ship's portholes
 -- With no shader or mesh (the headless tests, an old GPU) the same camera draws the land as flat
 -- polygons, so the overlays (src/map3d/scene.lua) work alike.
 --
@@ -18,7 +22,8 @@
 --   R.camera(cam, rect)              cam = { x, y, z (the target), yaw, pitch, dist } ; rect = window
 --                                    pixels { x, y, w, h } -> the view-projection kept
 --   R.project(x, y, z) -> sx, sy, depth (window pixels; nil behind the eye)
---   R.draw(G, region, rect, t, night, dusk, storm, weather) -> true (3D) | false (the flat fallback drew it)
+--   R.draw(G, region, rect, t, night, dusk, storm, weather, sky) -> true (3D) | false (the flat fallback
+--                                    drew it); sky = { meteor = true | nil } | nil
 --                                    storm = { x, z, kind = "rain" | "sand", grow = 0..1 } | nil
 --                                    weather = { { kind, x, z, rx, rz, y, y0, grow } } | nil (src/map3d/
 --                                    model.lua's M.weather, each with how grown)
@@ -52,10 +57,12 @@ local FORMAT = {
 -- its anchor), 4 unlit (the slab's sides keep their colour), 5 a rain streak, 6 a storm's puff of cloud or
 -- dust, 7 a grain of sand, 8 a bit of everyday weather (its seed in the normal), 9 a lobe of its cloud or
 -- haze (its anchor in the normal); the world built to scale (FORMAT_W): 10 the ground, 11 a forest's
--- top, 12 a building's front
+-- top, 12 a building's front; 13 a light at night (its anchor in the normal, its corner and size in the
+-- position; 13.5 one that pulses), turned to face the eye and added on
 local F_SEA, F_WINDOW, F_CLOUD = 1, 2, 3
 local F_RAIN, F_PUFF, F_GRAIN = 5, 6, 7
 local F_WX, F_WXPUFF = 8, 9
+local F_GLOW, F_GLOW_PULSE = 13, 13.5
 local WX_MAX = 12          -- the most weathers shown at once (the shader's arrays)
 
 -- the tiles' own art, full size, for the world built to scale (src/map3d/render.lua's groundArt): which
@@ -140,7 +147,19 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
   vNormal = VertexNormal;
   vWave = 0.0;
   vFade = 1.0;
-  if (VertexFlag > 0.5 && VertexFlag < 1.5) {
+  vec2 glowAt = vec2(0.0);
+  if (VertexFlag > 12.5) {
+    // (a light at night: a square facing the eye round its anchor, pulled a little towards the eye so the
+    // ground it stands on doesn't cut it; a pulsing one breathes)
+    vec3 anchor = VertexNormal;
+    vec3 toEye = normalize(uEye - anchor);
+    vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), toEye));
+    vec3 up = cross(toEye, right);
+    glowAt = p.xy;
+    p = anchor + (right * p.x + up * p.y) * p.z + toEye * p.z * 0.9;
+    vNormal = vec3(0.0, 1.0, 0.0);
+    if (VertexFlag > 13.25) vFade = 0.78 + 0.22 * sin(uTime * 2.3 + anchor.x * 17.0 + anchor.z * 11.0);
+  } else if (VertexFlag > 0.5 && VertexFlag < 1.5) {
     float a = p.x * 1.9 + uTime * 1.2;
     float b = p.z * 2.4 - uTime * 0.9;
     float c = (p.x + p.z) * 3.1 + uTime * 1.7;
@@ -220,6 +239,7 @@ vec4 position(mat4 transform_projection, vec4 vertex_position) {
     vFade = k * smoothstep(1.0, 3.2, distance(p, uEye));
   }
   vGround = p.xz;
+  if (VertexFlag > 12.5) vGround = glowAt;
   vRel = p - uEye;
   vTC = VertexTexCoord.xy;
   return uViewProj * vec4(p, 1.0);
@@ -253,6 +273,13 @@ vec3 underStorm(vec3 c) {
   return mix(c, c * uStormTint.rgb, k * uStormTint.a) + vec3(0.25, 0.28, 0.4) * uFlash * k;
 }
 vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
+  if (vFlag > 12.5) {
+    // (a light: a bright core in a soft halo, only at night)
+    float r = length(vGround);
+    float k = exp(-r * r * 5.0) * 0.75 + exp(-r * r * 40.0) * 0.6;
+    k *= 1.0 - smoothstep(0.85, 1.0, r);
+    return vec4(color.rgb, k * color.a * vFade * uNight);
+  }
   if (vFlag > 9.5) {
     // (the overworld built to scale: the tiles' own colours from the mesh's picture, their own art near
     // on what faces up, a forest's top (11) and a building's front (12); where the art doesn't show, a
@@ -1215,6 +1242,80 @@ return function(deps)
   local KIND_H = { center = 1.15, mart = 1.05, gym = 1.5, lab = 1.15, contest = 1.3, institute = 1.25,
                    space = 1.3, museum = 1.25, school = 1.15, shipyard = 1.2, harbor = 1.15, corner = 1.25,
                    silph = 3.4, mansion = 1.45, plant = 1.3 }
+  -- the lights at night (F_GLOW): each a square of four corners round its anchor, the shader turns it to
+  -- the eye. Each house's windows on its front and a lamp over its door (a Center's red, a Mart's blue);
+  -- lamps along the towns' and cities' open ground; the landmarks' own (src/map3d/towns.lua: a crater's
+  -- glow, a ship's portholes)
+  local GLOW_CORNERS = { -1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1 }
+  local function glow(list, x, y, z, size, r, g, b, a, pulse)
+    local f = pulse and F_GLOW_PULSE or F_GLOW
+    for c = 1, 11, 2 do
+      list[#list + 1] = { GLOW_CORNERS[c], GLOW_CORNERS[c + 1], size, x, y, z, r, g, b, a, f }
+    end
+  end
+  local DOOR_LAMP = { center = { 1, 0.42, 0.42 }, mart = { 0.45, 0.65, 1 }, gym = { 1, 0.8, 0.45 } }
+  local GROUND_CLASS = 10   -- (src/map3d/world.lua's C.GROUND: open ground)
+  local function worldGlows(region, lights)
+    local W, MT = region.world, region.unit
+    local cols, rows = W.cols, W.rows
+    local out = {}
+    local Tw = deps.towns
+    for _, d in ipairs(W.doors) do
+      local f = d.foot
+      if f and not (Tw and Tw.replaces and Tw.replaces(d)) then
+        local tall = f.y1 - f.y0
+        local wallRows = tall >= 4 and 2 or 1
+        local base = W.h and W.h[d.k] or 0
+        local dk = W.deck and W.deck[d.k]
+        if dk and dk > base then base = dk end
+        local top = base + wallRows / MT * 1.1 * (KIND_H[d.kind] or 1)
+        local z = f.y1 / MT + 0.006
+        local wy = base + (top - base) * 0.55
+        -- (its windows: the tiles of its front either side of the door, every other one)
+        local n = 0
+        for gx = f.x0, f.x1 - 1 do
+          if abs(gx - d.x) >= 1 and (gx - f.x0) % 2 == 0 and n < 4 then
+            n = n + 1
+            local warm = 0.85 + ((gx * 7 + f.y0 * 3) % 5) * 0.03
+            glow(out, (gx + 0.5) / MT, wy, z, 0.55 / MT, 1, warm, 0.5, 1)
+          end
+        end
+        local lamp = DOOR_LAMP[d.kind]
+        local lr, lg, lb = 1, 0.86, 0.6
+        if lamp then lr, lg, lb = lamp[1], lamp[2], lamp[3] end
+        glow(out, (d.x + 0.5) / MT, base + (top - base) * 0.82, z + 0.002, 0.5 / MT, lr, lg, lb, 1)
+        glow(out, (d.x + 0.5) / MT, base + 0.02, z + 0.04, 2.6 / MT, lr, lg, lb, 0.38)
+      end
+    end
+    -- (the streets: a lamp on open ground every few tiles in the towns and cities, clear of the walls)
+    local cls, mapIx, maps = W.cls, W.mapIx, W.maps
+    if cls and mapIx and maps and W.h then
+      local town = {}
+      for i, mp in ipairs(maps) do
+        local id = tostring(mp.id or ""):upper()
+        town[i] = (id:find("TOWN", 1, true) or id:find("CITY", 1, true) or id:find("ISLAND$")) and true or false
+      end
+      local function open(i, j)
+        if i < 0 or j < 0 or i >= cols or j >= rows then return false end
+        return cls[j * cols + i + 1] == GROUND_CLASS
+      end
+      for j = 2, rows - 3, 5 do
+        for i = 2, cols - 3, 5 do
+          local k = j * cols + i + 1
+          if town[mapIx[k] or 0] and open(i, j) and open(i - 1, j) and open(i + 1, j) and open(i, j - 1)
+            and open(i, j + 1) then
+            local x, z = (W.x0 + i + 0.5) / MT, (W.y0 + j + 0.5) / MT
+            local y = W.h[k] or 0
+            glow(out, x, y + 1.5 / MT, z, 0.3 / MT, 1, 0.92, 0.7, 1)
+            glow(out, x, y + 0.03, z, 2.8 / MT, 1, 0.85, 0.55, 0.4)
+          end
+        end
+      end
+    end
+    for _, l in ipairs(lights or {}) do glow(out, l[1], l[2], l[3], l[4], l[5], l[6], l[7], l[8], l[9]) end
+    return out
+  end
+
   local function worldBuildings(G, region)
     local W = region.world
     local cols, rows, MT = W.cols, W.rows, region.unit
@@ -1336,8 +1437,9 @@ return function(deps)
     rbreathe("buildings")
     m.buildings = worldBuildings(G, region)
     rbreathe("landmarks")
+    local lights = {}
     if deps.towns and deps.towns.landmarks then
-      local okL, lv = pcall(deps.towns.landmarks, region)
+      local okL, lv = pcall(deps.towns.landmarks, region, lights)
       if okL then
         m.landmarks = newMesh(G, lv)
         if rkeep and m.landmarks then
@@ -1347,6 +1449,17 @@ return function(deps)
       elseif deps.log then
         deps.log("the map's landmarks failed: %s", tostring(lv))
       end
+    end
+    rbreathe("lights")
+    local okG, gv = pcall(worldGlows, region, lights)
+    if okG then
+      m.glows = newMesh(G, gv)
+      if rkeep and m.glows then
+        local okV, v = pcall(Mc.packV, gv, rbreathe)
+        if okV and v then rkeep.meshes[#rkeep.meshes + 1] = { slot = "glows", fmt = "V", n = #gv, ni = 0, v = v } else rkeep = nil end
+      end
+    elseif deps.log then
+      deps.log("the map's lights failed: %s", tostring(gv))
     end
     if rprog then rprog.r = 0.9 end
     rbreathe("done")
@@ -1417,6 +1530,8 @@ return function(deps)
         m.buildings = mesh
       elseif e.slot == "landmarks" then
         m.landmarks = mesh
+      elseif e.slot == "glows" then
+        m.glows = mesh
       end
       if rprog then rprog.r = 0.6 + 0.4 * n / #got.meshes end
       if n % 4 == 0 then rbreathe() end
@@ -1903,7 +2018,118 @@ return function(deps)
     fr, fg, fb = fr + (0.10 - fr) * night, fg + (0.13 - fg) * night, fb + (0.30 - fb) * night
     return tr, tg, tb, fr, fg, fb
   end
-  local function drawSky(G, w, h, night, dusk, t)
+  -- (the sky's sights) an aurora: some ten-minute spells of the device's clock have one, easing in and
+  -- out; three curtains of light waving across the top of the sky
+  local AUR_N, AUR_SPELL = 96, 600
+  local AUR_C = { { 0.3, 1.0, 0.55 }, { 0.35, 0.9, 0.85 }, { 0.7, 0.42, 1.0 } }
+  local aurora = nil
+  local function auroraNow()
+    local now = os.time()
+    local spell = floor(now / AUR_SPELL)
+    if hash(spell, 7, 13) > 0.35 then return 0 end
+    local f = (now % AUR_SPELL) / AUR_SPELL
+    return min(1, f * 8, (1 - f) * 8)
+  end
+  R.auroraNow = auroraNow
+  local function drawAurora(G, w, h, k, t)
+    if aurora == nil then
+      local v = {}
+      for i = 1, (AUR_N + 1) * 2 do v[i] = { 0, 0, 0, 0, 1, 1, 1, 0 } end
+      local ok, m = pcall(G.newMesh, v, "strip", "dynamic")
+      aurora = ok and m or false
+    end
+    if not aurora then return end
+    G.setBlendMode("add")
+    G.setColor(1, 1, 1, 1)
+    for c = 1, 3 do
+      local col = AUR_C[c]
+      local base = h * (0.17 + c * 0.055)
+      for i = 0, AUR_N do
+        local u = i / AUR_N
+        local wave = sin(u * 5 + t * 0.25 + c * 1.7) * 0.5 + sin(u * 11 - t * 0.4 + c) * 0.25
+        local y = base + wave * h * 0.05
+        local tall = h * (0.08 + 0.07 * (0.5 + 0.5 * sin(u * 17 + t * 0.6 + c * 2.3)))
+        local edge = min(1, u * 5, (1 - u) * 5)
+        -- (its rays: brighter and dimmer folds along the curtain, drifting)
+        local ray = 0.55 + 0.45 * sin(u * 71 + c * 3.1 + t * 0.7) * sin(u * 29 - t * 0.35 + c)
+        local a = k * edge * ray * (0.3 + 0.12 * sin(u * 23 + t * 1.1 + c))
+        aurora:setVertex(i * 2 + 1, u * w, y, 0, 0, col[1], col[2], col[3], a)
+        aurora:setVertex(i * 2 + 2, u * w, y - tall, 0, 0, col[1] * 0.6, col[2] * 0.4, col[3], 0)
+      end
+      G.draw(aurora)
+    end
+    G.setBlendMode("alpha")
+  end
+  -- a shooting star: some seven-second spells have one, a streak across the top of the sky
+  local SHOOT = 7
+  local function drawShootingStar(G, w, h, k, t)
+    local spell = floor(t / SHOOT)
+    if hash(spell, 3, 17) > 0.5 then return end
+    local ph = (t - spell * SHOOT) / 1.1
+    if ph >= 1 then return end
+    local sx, sy = w * (0.15 + 0.7 * hash(spell, 4, 17)), h * (0.04 + 0.2 * hash(spell, 5, 17))
+    local dx, dy = (hash(spell, 6, 17) > 0.5 and 1 or -1) * 0.86, 0.5
+    local travel = w * 0.28
+    local hx, hy = sx + dx * travel * ph, sy + dy * travel * ph
+    local len = w * 0.09 * min(1, ph * 4)
+    local a = k * min(1, ph * 6, (1 - ph) * 5)
+    G.setLineWidth(max(1, h / 260))
+    for s = 0, 7 do
+      local f0, f1 = s / 8, (s + 1) / 8
+      G.setColor(1, 1, 0.92, a * (1 - f0) * 0.9)
+      G.line(hx - dx * len * f0, hy - dy * len * f0, hx - dx * len * f1, hy - dy * len * f1)
+    end
+    G.setColor(1, 1, 1, a)
+    G.circle("fill", hx, hy, max(1, h / 240))
+  end
+  -- the meteor: high on the right, its tail back up to the left where it comes from, burning
+  local tail = nil
+  local function drawMeteor(G, w, h, night, t)
+    if tail == nil then
+      local v = {}
+      for i = 1, 4 do v[i] = { 0, 0, 0, 0, 1, 1, 1, 1 } end
+      local ok, m = pcall(G.newMesh, v, "fan", "dynamic")
+      tail = ok and m or false
+    end
+    local hx, hy = w * 0.8, h * 0.16
+    local r = max(3, h * 0.03)
+    local tx, ty = hx - w * 0.32, hy - h * 0.22
+    local dx, dy = hx - tx, hy - ty
+    local l = sqrt(dx * dx + dy * dy)
+    local ux, uy = dx / l, dy / l
+    local nx, ny = -uy, ux
+    local fl = 0.85 + 0.15 * sin(t * 9) * sin(t * 5.3)
+    -- (added on in the dark; laid over a bright sky, where adding would wash it white)
+    G.setBlendMode(night > 0.5 and "add" or "alpha")
+    if tail then
+      G.setColor(1, 1, 1, 1)
+      -- (the outer tail, then a hotter narrower one inside it)
+      for pass = 1, 2 do
+        local wd = pass == 1 and 1.7 or 0.8
+        local tl = pass == 1 and 1 or 0.6
+        tail:setVertex(1, hx + ux * r * 0.7, hy + uy * r * 0.7, 0, 0, 1, 0.95, 0.75, 0.9 * fl)
+        tail:setVertex(2, hx + nx * r * wd, hy + ny * r * wd, 0, 0, 1, pass == 1 and 0.62 or 0.85, 0.3, 0.8 * fl)
+        tail:setVertex(3, hx - ux * l * tl, hy - uy * l * tl, 0, 0, 1, 0.35, 0.15, 0)
+        tail:setVertex(4, hx - nx * r * wd, hy - ny * r * wd, 0, 0, 1, pass == 1 and 0.62 or 0.85, 0.3, 0.8 * fl)
+        G.draw(tail)
+      end
+    end
+    for i = 3, 1, -1 do
+      G.setColor(1, 0.55, 0.22, (0.1 + 0.08 * night) * fl)
+      G.circle("fill", hx, hy, r * (1 + i * 0.8))
+    end
+    G.setBlendMode("alpha")
+    -- (the rock, dark, its leading side burning)
+    G.setColor(1, 0.62, 0.25, 1)
+    G.circle("fill", hx, hy, r)
+    G.setColor(0.3, 0.17, 0.13, 1)
+    G.circle("fill", hx - ux * r * 0.22, hy - uy * r * 0.22, r * 0.86)
+    G.setColor(0.2, 0.11, 0.09, 1)
+    G.circle("fill", hx - ux * r * 0.35 + nx * r * 0.3, hy - uy * r * 0.35 + ny * r * 0.3, r * 0.2)
+    G.circle("fill", hx - ux * r * 0.1 - nx * r * 0.35, hy - uy * r * 0.1 - ny * r * 0.35, r * 0.14)
+  end
+
+  local function drawSky(G, w, h, night, dusk, t, skyOpts)
     if not sky then
       local ok, m = pcall(G.newMesh, { { 0, 0, 0, 0, 1, 1, 1, 1 }, { 1, 0, 0, 0, 1, 1, 1, 1 },
         { 1, 1, 0, 0, 1, 1, 1, 1 }, { 0, 1, 0, 0, 1, 1, 1, 1 } }, "fan", "dynamic")
@@ -1929,6 +2155,13 @@ return function(deps)
         G.rectangle("fill", s[1] * w, s[2] * h, sz, sz)
       end
     end
+    if night > 0.3 then
+      local k = (night - 0.3) / 0.7
+      local ak = R.auroraNow()
+      if ak > 0 then drawAurora(G, w, h, ak * k, t) end
+      drawShootingStar(G, w, h, k, t)
+    end
+    if skyOpts and skyOpts.meteor then drawMeteor(G, w, h, night, t) end
   end
 
   local function light(night, dusk)
@@ -1972,7 +2205,7 @@ return function(deps)
   end
 
   -- the region into rect (window pixels) at time t; night / dusk 0..1 -> true when drawn in 3D
-  function R.draw(G, region, rect, t, night, dusk, storm, weather)
+  function R.draw(G, region, rect, t, night, dusk, storm, weather, skyOpts)
     night, dusk = night or 0, dusk or 0
     local sh = getShader(G)
     local m = sh and meshes(G, region)
@@ -1990,7 +2223,7 @@ return function(deps)
     G.clear(0, 0, 0, 0, false, true)
     G.setShader()
     G.setDepthMode("always", false)
-    drawSky(G, w, h, night, dusk, t)
+    drawSky(G, w, h, night, dusk, t, skyOpts)
     light(night, dusk)
     CLOUD[1], CLOUD[2] = region.x0 - 2, region.w + 4
     G.setShader(sh)
@@ -2044,6 +2277,12 @@ return function(deps)
     if stormM then G.draw(stormM.fine) end
     drawWeather(G, sh, weather, t, false, false)
     drawWeather(G, sh, weather, t, false, true)
+    -- (the lights at night, added on: behind what stands in front of them, never hiding anything)
+    if m.glows and night > 0.02 then
+      G.setBlendMode("add")
+      G.draw(m.glows)
+      G.setBlendMode("alpha")
+    end
     -- (solid, so they write depth: a cloud's far side stays hidden behind its near side)
     G.setDepthMode("lequal", true)
     if m.clouds then G.draw(m.clouds) end
