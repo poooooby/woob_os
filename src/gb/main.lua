@@ -49,6 +49,10 @@ return function(mod, loadSibling)
   local makeGbShop, makeShop = loadSibling(mod, "src/gb/realshop.lua"), loadSibling(mod, "src/shop.lua")
   local ShopThemes = loadSibling(mod, "src/shop_themes.lua")
   local makeTowns = loadSibling(mod, "src/map3d/towns.lua")
+  -- the Pokémon Center: the nurse's counter full screen
+  local makePokecenter, pokecenterWindow = loadSibling(mod, "src/gb/pokecenter.lua"), loadSibling(mod, "src/apps/pokecenter.lua")
+  local pokecenterView, makeNurseArt = loadSibling(mod, "src/apps/pokecenter_view.lua"), loadSibling(mod, "src/nurse_art.lua")
+  local makeLighting = loadSibling(mod, "src/lighting.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell and makeHost) then return end
 
   local function warn(fmt, ...) mod.log:warn(fmt, ...) end
@@ -471,6 +475,8 @@ return function(mod, loadSibling)
     end
     return anchorArt[key] or nil
   end
+  env.nurse = makeNurseArt and makeNurseArt(mod) or nil
+  env.lighting = makeLighting and makeLighting({ log = function(fmt, ...) mod.log:warn(fmt, ...) end }) or nil
 
   -- (Gold / Silver / Crystal: the Pokégear's phone book; a tap stands in for A in a call's boxes)
   if gen == 2 and makePhone then
@@ -652,12 +658,29 @@ return function(mod, loadSibling)
     local okS, errS = pcall(env.realShop.install)
     if not okS then mod.log:warn("the shops keep their own screens: %s", tostring(errS)) end
   end
+  -- the Pokémon Center: the nurse's counter (src/gb/pokecenter.lua; the window is an app that's never on
+  -- the home screen: Sh.openFull opens it by id)
+  if makePokecenter and pokecenterWindow and pokecenterView and Gd then
+    Apps.register({ id = "pokecenter", labelKey = "nurse.title", label = "Pokémon Center", glyph = "pokeball",
+                    color = { 236, 80, 110 }, order = 99, pad = false, available = function() return false end,
+                    window = function(ctx, e) return pokecenterWindow(ctx, e, pokecenterView) end })
+    env.pokecenter = makePokecenter(Host, Gd, {
+      Sh = Sh, hooks = mod.hooks, on = function() return option("pokecenter", true) ~= false end,
+      log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+    })
+    -- (Gold / Silver / Crystal: the nurse's script, caught as it starts; Red / Blue / Yellow: at game.ready)
+    if gen == 2 then pcall(env.pokecenter.install) end
+  end
   local okI, errI = pcall(Sh.install)
   if not okI then mod.log:warn("the desktop's hooks failed: %s", tostring(errI)) end
   mod.events:on("game.ready", function(ev)
     if ev and ev.game then Host.bind(ev.game) end
     local ok, err = pcall(Sh.ready)
     if not ok then mod.log:warn("the PC keeps its own menu: %s", tostring(err)) end
+    if env.pokecenter and gen == 1 then
+      local okP, errP = pcall(env.pokecenter.install)
+      if not okP then mod.log:warn("the nurse keeps her own counter: %s", tostring(errP)) end
+    end
   end)
   mod.events:on("map.entered", function() Sh.forget() end)
   mod.events:on("save.loaded", function(ev)
@@ -692,7 +715,7 @@ return function(mod, loadSibling)
                         bx = env.bx, inv = env.inv, mb = env.mb, hall = env.hall, oak = env.oak, port = Port, play = Play,
                         mart = env.mart, bank = env.bank, auction = env.auction, slots = env.slots, gts = env.gts,
                         journal = env.journal, swarm = env.swarm, challenges = env.challenges, errands = env.errands,
-                        news = env.news, dex = env.dex,
+                        news = env.news, dex = env.dex, pokecenter = env.pokecenter,
                         settings = Settings, wall = Wall, arrange = Arrange, watch = Watch, pad = Watch,
                         notify = Nt, tick = tick, townmap = TownMap, host = Host }
 end

@@ -53,6 +53,13 @@ return {
     description = "Every shop counter opens the WoobOS Mart full screen, with that shop's own goods and look. Off: the game's own shop menus.",
   },
   {
+    key = "pokecenter",
+    label = "Pokémon Center",
+    type = "toggle",
+    default = true,
+    description = "The nurse's counter opens a close-up of the nurse, and your team heals in the healing machine. Off: the game's own nurse.",
+  },
+  {
     key = "mapInvertX",
     label = "Map: Invert X",
     type = "toggle",

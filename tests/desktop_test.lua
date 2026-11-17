@@ -2540,7 +2540,7 @@ local missing, named = {}, 0
 local NOT_WORDS = { ["game.ready"] = true }   -- (an engine event's name)
 local PREFIX = { hint = 1, menu = 1, logoff = 1, button = 1, about = 1, nav = 1, game = 1, app = 1, items = 1,
                  pocket = 1, reason = 1, mail = 1, settings = 1, wall = 1, failed = 1, mart = 1, auction = 1, slots = 1, gts = 1,
-                 notes = 1, bank = 1, challenges = 1, errands = 1, news = 1, dex = 1 }
+                 notes = 1, bank = 1, challenges = 1, errands = 1, news = 1, dex = 1, nurse = 1 }
 for _, file in ipairs({ "main.lua", "src/desktop.lua", "src/apps.lua", "src/apps/items.lua", "src/apps/mail.lua",
                         "src/apps/settings.lua", "src/apps/mart.lua", "src/mart.lua",
                         "src/apps/auction.lua", "src/auction.lua",
@@ -2548,7 +2548,9 @@ for _, file in ipairs({ "main.lua", "src/desktop.lua", "src/apps.lua", "src/apps
                         "src/apps/gts.lua", "src/gts.lua", "src/notes.lua",
                         "src/bank.lua", "src/apps/bank.lua", "src/challenges.lua", "src/apps/challenges.lua",
                         "src/errands.lua", "src/apps/errands.lua", "src/news.lua", "src/apps/news.lua",
-                        "src/dex.lua", "src/apps/pokedex.lua", "src/apps/pokedex_view.lua" }) do
+                        "src/dex.lua", "src/apps/pokedex.lua", "src/apps/pokedex_view.lua",
+                        "src/pokecenter.lua", "src/apps/pokecenter.lua", "src/apps/pokecenter_view.lua",
+                        "src/gb/pokecenter.lua" }) do
   local src = readFile(file) or ""
   for key in src:gmatch('"([%a][%w_]*%.[%w_%.]+)"') do
     if PREFIX[key:match("^(%a+)")] and not key:match("%.$") and not key:match("%.lua$") and not NOT_WORDS[key] then
@@ -2587,6 +2589,9 @@ for _, k in ipairs({ "ITEMS", "KEY_ITEMS", "POKE_BALLS", "TM_CASE", "BERRY_POUCH
 end
 for _, k in ipairs({ "firered", "leafgreen", "ruby", "sapphire", "emerald" }) do
   if not en["game." .. k] then missing[#missing + 1] = "game." .. k end
+end
+for _, k in ipairs({ "morning", "day", "night" }) do
+  if not en["nurse.hello." .. k] then missing[#missing + 1] = "nurse.hello." .. k end
 end
 for _, k in ipairs(Wall.BUILTIN) do
   if not en["wall." .. k] then missing[#missing + 1] = "wall." .. k end

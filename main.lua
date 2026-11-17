@@ -103,6 +103,11 @@ return function(mod)
   local makeSpawnArea = loadSibling(mod, "src/spawn_area.lua")
   local makeDecorate, decorateWindow = loadSibling(mod, "src/decorate.lua"), loadSibling(mod, "src/apps/decorate.lua")
   local makePokenav = loadSibling(mod, "src/pokenav.lua")
+  -- the Pokémon Center: the nurse's counter full screen (src/pokecenter.lua the takeover and the game's
+  -- side effects; the window and its look; the nurse's sprite)
+  local makePokecenter, pokecenterWindow = loadSibling(mod, "src/pokecenter.lua"), loadSibling(mod, "src/apps/pokecenter.lua")
+  local pokecenterView, makeNurseArt = loadSibling(mod, "src/apps/pokecenter_view.lua"), loadSibling(mod, "src/nurse_art.lua")
+  local makeLighting = loadSibling(mod, "src/lighting.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell) then return end
 
   local function warn(fmt, ...) mod.log:warn(fmt, ...) end
@@ -665,6 +670,8 @@ return function(mod)
     end
     return anchorArt[key] or nil
   end
+  env.nurse = makeNurseArt and makeNurseArt(mod) or nil
+  env.lighting = makeLighting and makeLighting({ log = function(fmt, ...) mod.log:warn(fmt, ...) end }) or nil
   -- (a species by the game's own name for it, "KYOGRE")
   local function speciesNamed(id)
     local Constants = engine("src.core.game3.constants")
@@ -1291,6 +1298,20 @@ return function(mod)
     log = function(fmt, ...) mod.log:warn(fmt, ...) end,
   }) or nil
   env.realShop = RealShop
+  -- the Pokémon Center: the nurse's counter full screen (src/pokecenter.lua; the window is an app that's
+  -- never on the home screen: Sh.openFull opens it by id)
+  if makePokecenter and pokecenterWindow and pokecenterView then
+    Apps.register({ id = "pokecenter", labelKey = "nurse.title", label = "Pokémon Center", glyph = "pokeball",
+                    color = { 236, 80, 110 }, order = 99, pad = false, available = function() return false end,
+                    window = function(ctx, e) return pokecenterWindow(ctx, e, pokecenterView) end })
+    env.pokecenter = makePokecenter(engine, {
+      Sh = Sh, on = function() return option("pokecenter", true) ~= false end,
+      log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+    })
+    mod.hooks:wrap("script.command", function(nxt, ctx, op, row, ...)
+      return env.pokecenter.command(nxt, ctx, op, row, ...)
+    end)
+  end
   mod.events:on("game.ready", function()
     if RealShop then
       local okR, errR = pcall(RealShop.wrap)
@@ -1378,7 +1399,7 @@ return function(mod)
   mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
                         mart = env.mart, auction = env.auction, slots = env.slots, pcgames = env.pcgames, gts = env.gts,
                         bank = env.bank, journal = env.journal, challenges = env.challenges, errands = env.errands,
-                        swarm = env.swarm, news = env.news, story = env.story,
+                        swarm = env.swarm, news = env.news, story = env.story, pokecenter = env.pokecenter,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange,
                         watch = Watch, pad = Watch, notify = Nt, tick = tick, map3d = env.map3d, townmap = TownMap,
                         phone = env.phone, condition = env.condition, ribbons = env.ribbons, hall = env.hall, oak = env.oak, decorate = env.decorate, pokenav = Pokenav, onCall = onCall, gear = Gear, gearPanel = GearPanel }

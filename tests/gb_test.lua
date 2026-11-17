@@ -45,6 +45,8 @@ if GEN == 2 then
     audio = { sfx = {} },
   }
   require("src.core.GameVersion").set(GAME)
+  -- (the engine's flags by name, bound from the cart's constants as the game binds them)
+  pcall(require("src.core.gen2.EngineFlags").bind, loadLua("data/generated/constants.lua").engineFlagOrder)
 else
   require("src.core.GameVersion").set(GAME)
   local Data = require("src.core.Data")
@@ -211,6 +213,8 @@ if GEN == 2 then
   T.check(#Rd.stations() > 5 and stations >= 1, "the dial's stations here (" .. stations .. " on the air)")
   local oak
   for _, row in ipairs(Rd.stations()) do if row.station and not oak then oak = row end end
+  -- (no station on the air: the shows' checks can't run; the failure above says so)
+  if oak then
   Rd.setKnob(oak.knob)
   local sta, nm = Rd.current()
   T.check(sta == oak.station and nm ~= nil, "tuned to " .. tostring(nm))
@@ -229,6 +233,7 @@ if GEN == 2 then
   T.check(codes == 0, "station names without the game's codes")
   if oak.station == "OAKS_POKEMON_TALK" then
     T.check(marks >= 1 and X._test.kit.hasSign(oak.name) == false, "Oak's talk named with the PkMn mark (not a ♀ / ♂)")
+  end
   end
   Rd.close()
   T.check(not Rd.isOpen() and Rd.historyCount() == 0, "closed, the transcript cleared")
@@ -859,6 +864,137 @@ do
     if Tm.isOpen() then Tm.state().ctx.done() end
     frame(2)
     T.eq(#stack.states, base, "the stack as it was")
+  end
+end
+
+-- ------- the Pokémon Center: the nurse's counter opens ours full screen; the machine heals the team as the
+-- game's does, with the game's own side effects; the game goes on when ours closes
+do
+  local Tm, Pc = X._test.townmap, X._test.pokecenter
+  T.check(Pc ~= nil, "the Pokémon Center's takeover is made")
+  local function inp(k)
+    return { wasPressed = function(_, kk) return kk == k end, isDown = function() return false end }
+  end
+  local NONE = inp(nil)
+  local function f(n, key)
+    for i = 1, n do
+      clock = clock + 1 / 60
+      Tm.input(i == 1 and key and inp(key) or NONE)
+      Tm.draw(G, VP)
+    end
+  end
+  local function hurt()
+    for _, m in ipairs(save.party) do m.hp = 1 end
+  end
+  local function full()
+    for _, m in ipairs(save.party) do
+      local max = GEN == 2 and m.maxHp or m.stats.hp
+      if m.hp ~= max then return false end
+    end
+    return true
+  end
+  -- (her greeting to the choice; Heal; the machine; her words to "anything else?"; B, her goodbye; A)
+  local function walk(st, label)
+    f(2)
+    for _ = 1, 10 do
+      if st.menu then break end
+      f(1, "a")
+      f(3)
+    end
+    T.check(st.menu and st.cursor == 1, label .. ": her greeting and the choice (" .. tostring(st.say and st.say.text) .. ")")
+    f(1, "a")
+    for _ = 1, 6 do
+      f(1, "a")
+      f(20)
+      if st.turnT or st.fadeT or st.scene == "machine" then break end
+    end
+    for _ = 1, 60 * 14 do
+      f(1)
+      if st.scene == "machine" and st.mc and st.mc.placed >= 1 and not st.seenBall then st.seenBall = true end
+      if st.seenBall and st.scene == "nurse" and st.black == 0 then break end
+    end
+    T.check(st.seenBall and st.scene == "nurse", label .. ": the machine, then back to her")
+    T.check(full(), label .. ": every HP full")
+    for _ = 1, 30 do
+      if st.menu then break end
+      f(1, "a")
+      f(3)
+    end
+    T.check(st.menu and st.say.text:find("anything else", 1, true) ~= nil, label .. ": anything else?")
+    local kb = math.huge
+    for _ = 1, 2 do
+      collectgarbage("collect")
+      collectgarbage("stop")
+      local k0 = collectgarbage("count")
+      for _ = 1, 120 do
+        clock = clock + 1 / 60
+        Tm.draw(G, VP)
+      end
+      kb = math.min(kb, (collectgarbage("count") - k0) / 120)
+      collectgarbage("restart")
+    end
+    T.check(kb < 0.5, ("%s: the counter's draw %.3f KB a frame"):format(label, kb))
+    f(1, "b")
+    f(40)
+    f(1, "a")
+  end
+  save.party = { newMon(GEN == 2 and "CYNDAQUIL" or "PIKACHU", 10), newMon("PIDGEY", 6) }
+  hurt()
+  if GEN == 1 then
+    overworld.map = { id = "VIRIDIAN_POKECENTER" }
+    overworld.player = { cellX = 3, cellY = 4 }
+    overworld.lastOutdoor = { id = "VIRIDIAN_CITY", x = 23, y = 26 }
+    save.lastHeal, save.usedPokecenter = nil, nil
+    local done = 0
+    local npc = { facePlayer = noop }
+    overworld:nurseHeal(function() done = done + 1 end, npc)
+    T.check(Tm.isOpen() and Tm.state().ctx.app == "pokecenter", "the nurse: ours, full screen")
+    walk(Tm.state().win.state, "Red / Blue / Yellow")
+    T.check(not Tm.isOpen() and done == 1 and #stack.states == base, "closed: the field goes on (once)")
+    T.check(save.lastHeal and save.lastHeal.map == "VIRIDIAN_POKECENTER" and save.lastHeal.x == 3
+            and save.lastHeal.outdoor and save.lastHeal.outdoor.id == "VIRIDIAN_CITY", "the blackout point set here")
+    T.check(save.usedPokecenter == true, "\"used a Pokémon Center\"")
+    -- (Yellow's Pewter scene stays the game's)
+    overworld.map = { id = "PEWTER_POKECENTER" }
+    overworld.pikachuPewterSleepScene = true
+    T.check(Pc.open1(overworld, noop, npc) == false and not Tm.isOpen(), "Pewter's sleeping-Jigglypuff scene: the game's")
+    overworld.pikachuPewterSleepScene = nil
+  else
+    local Pokerus = require("src.core.gen2.Pokerus")
+    local events, flags, ran = { [810] = GAME == "crystal" }, {}, {}
+    local vm = { scriptVar = 0, getTimeOfDayFn = function() return 2 end,
+                 specials = { party = function() return save.party end } }
+    vm.healPartyFn = function() for _, m in ipairs(save.party) do m.hp = m.maxHp end end
+    function vm:resume(v)
+      local ok, err = coroutine.resume(self.co, v)
+      if not ok then error(err) end
+    end
+    local function nxt(_, op, _, row)
+      ran[#ran + 1] = op
+      if op == "checkevent" then vm.scriptVar = events[row.event] and 1 or 0
+      elseif op == "clearevent" then events[row.event] = false
+      elseif op == "checkphonecall" then vm.scriptVar = 0
+      elseif op == "checkflag" then vm.scriptVar = flags[row.flag] and 1 or 0
+      elseif op == "setflag" then flags[row.flag] = true
+      elseif op == "specialphonecall" then vm.call = row.args[1]
+      elseif op == "jumpstd" then vm.theirs = true end
+    end
+    local inParty = Pokerus.inParty
+    Pokerus.inParty = function() return true end
+    vm.co = coroutine.create(function()
+      Pc.command(nxt, { vm = vm }, "jumpstd", {}, { op = "jumpstd", std = "PokecenterNurseScript" })
+      vm.finished = true
+    end)
+    vm:resume()
+    Pokerus.inParty = inParty
+    T.check(Tm.isOpen() and Tm.state().ctx.app == "pokecenter" and not vm.finished, "her script held, ours open")
+    local st = Tm.state().win.state
+    T.eq(st.model.time, "night", "the game's time of day")
+    T.eq(st.model.greet, GAME == "crystal" and "pokecom" or nil, "Crystal's Pokécom Center welcome")
+    walk(st, "Gold / Silver / Crystal")
+    T.check(not Tm.isOpen() and vm.finished and not vm.theirs and #stack.states == base, "closed: her script ends, never run")
+    T.check(flags[13] == true and vm.call == 1, "Pokérus: flag 13 set, Prof. Elm's call")
+    if GAME == "crystal" then T.check(events[810] == false, "the Pokécom welcome cleared") end
   end
 end
 

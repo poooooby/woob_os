@@ -466,14 +466,15 @@ return function(mod, deps)
   -- src/pokenav.lua; the START menu's Pokédex); onClose() when it closes -> true when it opened.
   -- o: { mode (ctx.mode, "pokenav" by default), backKey (the toolbar's way back), classic (the game's
   -- own screen instead: ctx.classic() closes ours and calls it), shop (a real shop counter's model,
-  -- src/shop.lua: the Mart in shop mode, ctx.shop) }
+  -- src/shop.lua: the Mart in shop mode, ctx.shop), nurse (the Pokémon Center's model, ctx.nurse),
+  -- chrome (false: no toolbar, the window the whole screen), noHints }
   function Sh.openFull(appId, s, onClose, state, o)
     if not Tm or Tm.isOpen() or D.isOpen() or (Wt and Wt.isOpen()) then return false end
     local app = A.byId(appId)
     if not (app and app.window) then return false end
     o = o or {}
     local ctx = { session = s, mode = o.mode or "pokenav", family = familyOf(gameId()), rows = {}, app = appId,
-                  shop = o.shop }
+                  shop = o.shop, nurse = o.nurse }
     if state then ctx.resume = { app = appId, state = state } end
     function ctx.row() return nil end
     local closed = false
@@ -497,7 +498,8 @@ return function(mod, deps)
         o.classic()
       end
     end
-    local so = { maker = app.window, app = appId, chrome = true, cancel = close, backKey = o.backKey }
+    local so = { maker = app.window, app = appId, chrome = o.chrome ~= false, cancel = close, backKey = o.backKey,
+                 noHints = o.noHints }
     if not Tm.open(ctx, so) then return false end
     if not push(Sh.MAP_ID, MapLayer) then
       Tm.close()

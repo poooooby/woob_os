@@ -23,6 +23,10 @@ controller, a touch screen, or a mouse and keyboard.
 - 🏪 **Real shops:** every shop counter opens the Mart full screen with that shop's own goods: Poké
   Marts, every department store floor, herb shops, the pharmacy, souvenir and decoration shops and the
   Underground's bargain stall, each dressed for its place and what it sells.
+- 🏥 **Pokémon Center:** talk to the nurse and she greets you in a close-up behind her counter. Choose
+  to heal and your Pokémon go into the healing machine: a ball for each, the machine's glow and its
+  jingle, and their health filling back up. Everything the game's own nurse does still happens, such as
+  Pokérus, Emerald's Gold Card and where you return after a loss.
 
 ### Apps
 
@@ -122,6 +126,7 @@ their Map can't Fly.
 | Pokédex | On / Off | On | Off: the game's own Pokédex, and no Pokédex app. |
 | Pokégear | On / Off | On | Gold, Silver and Crystal. Off: the game's own Pokégear. |
 | Real Shops | On / Off | On | Off: every shop counter opens the game's own shop menu. |
+| Pokémon Center | On / Off | On | Off: the nurse's counter is the game's own. |
 | Map: Invert X | On / Off | Off | The 3D map's camera turns the other way. |
 | Map: Invert Y | On / Off | Off | The 3D map's camera tilts the other way. |
 
@@ -164,6 +169,8 @@ turn it on for your games.
 Made by Wooble. The touch-screen look grew out of WoobleDex's vending machines.
 
 Original sprites by Wooble: the News anchor, and Mom, Scott and Mr. Stone in the Phone.
+
+The Pokémon Center's nurse: [InnerMobius](https://www.deviantart.com/innermobius).
 
 ---
 

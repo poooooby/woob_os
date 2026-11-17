@@ -1242,6 +1242,67 @@ The mod option `realShops`; with it off, or anything failing, the game's own scr
   department store's floor by what its shelves mostly hold (balls, medicine, battle items, TMs, gifts),
   else the Mart's blue. The sign: the kind of shop, and the floor for department stores.
 
+## The Pokémon Center
+
+The nurse's counter opens `src/apps/pokecenter.lua` (+ `_view.lua`, the view passed as the window's third
+argument) full screen: `Sh.openFull("pokecenter", s, onClose, nil, { nurse = model, chrome = false,
+noHints = true })`. `pokecenter` is a registered app that's never on the grid (`available` false), so
+`openFull` finds its window by id; `chrome = false` is the host without its toolbar (the window is the
+whole page). The model (`ctx.nurse`) is the generation's: `team` (as it came in: `mon`, `name`, `hp`, `max`,
+`egg`), `lead`, `time`, `greet` (nil / `gold` / `usual` / `pokecom`), `heal()` -> Pokérus to explain,
+`ball(i)`, `jingle()`, `jingleDone()`, `after()`, `pikachu`. The option `pokecenter`; off, or ours not
+opening (another host up), or anything failing: the game's own nurse.
+
+| Game | Caught at | Held / handed back |
+|---|---|---|
+| FireRed / LeafGreen / Ruby / Sapphire / Emerald (`src/pokecenter.lua`) | `script.command`: a `call` whose target's flow reaches `dofieldeffect 25` (FLDEFF_POKECENTER_HEAL; breadth first, a few jumps: Emerald's Gold Card branch reaches the heal one deeper) and isn't that list itself; ours opens at the first command inside it after `lock` / `faceplayer` (FireRed's starts with `special 391`) | `nxt(ctx, "return", ...)` back to the map's script, then `Natives.yieldHost` until ours closes; the `waitmessage` / `waitbuttonpress` after the call (Emerald / Ruby / Sapphire) skipped; the map's own `release` |
+| Red / Blue / Yellow (`src/gb/pokecenter.lua`) | `OverworldState.nurseHeal(self, onDone, npc)` wrapped once per process (`__woobOsNurse`: `__woobOs` is the PC's), at game.ready | `onDone()` (the field unfreezes); Pewter's sleeping-Jigglypuff scene stays the game's |
+| Gold / Silver / Crystal (same file) | `script.command`: `jumpstd` with `cmd.std == "PokecenterNurseScript"` (every map's nurse is that one row) | `Specials.block(vm, ...)` until ours closes; the `jumpstd` never runs, the map's script ends |
+
+What the game's nurse does besides talking, done with the game's own pieces:
+- **Gen 3**: the heal is `Natives.special({}, 0, vm.adapters)` (HealPlayerParty: FireRed / LeafGreen /
+  Emerald through the adapters' `nurseHeal`, Ruby / Sapphire synchronous); game stat 15 + 1 (as
+  `incrementgamestat`); FireRed / LeafGreen's quest log (`special 361`); Ruby / Sapphire / Emerald's
+  Pokérus words once (flag 273, `Pokemon.checkPartyPokerus(party, 0x3F)`); Emerald's Gold Card
+  (`FieldRse.countTrainerStars` 4: flag 345 set with the first visit's words, "the usual" after). Flags by
+  number on `vm.store` (the cart's scripts' own numbers). Sounds: `SE_BALL`, `Audio.playFanfare(role
+  "heal")`, done at `isFanfareFinished` (headless nothing counts it down: the test stubs it).
+- **Gen 1**: `Pokemon.heal` each one after `Music.stop()`; `save.lastHeal` (SetLastBlackoutMap: the map,
+  the player's cell, `lastOutdoor`), `save.usedPokecenter`; `Healing_Machine` a ball, `Music_PkmnHealed`
+  (`Music.playOnce` restores the map's music; `restoreMap` when it couldn't play).
+- **Gen 2**: her own rows run through `nxt` (the VM's handlers): Crystal's `checkevent` / `clearevent 810`
+  (the Pokécom Center's welcome), `checkphonecall`, `checkflag 13`, then `Specials.ALL.CheckPokerus`; on
+  close `setflag 13` and `specialphonecall 1` (Prof. Elm). `Specials.ALL.HealParty`; the time from
+  `vm.getTimeOfDayFn` (0 morning, 1 day, 2 night); `Sfx_SecondPartOfItemfinder` a ball, `Music_HealPokemon`,
+  `RestartMapMusic` only when the jingle couldn't play.
+
+The window steps its beats from `input` (every frame it's open): the menu once the words are out, the turn
+(`TURN`), the fades, the machine (`TIMING`: a ball every 0.42 s, the tray in, the heal and the jingle at the
+glow, held until the jingle ends, at most 7 s). The nurse's sheet (`assets/nurse.png`, by InnerMobius;
+`src/nurse_art.lua`, `env.nurse()`): 4 x 4 frames of 34 x 36, rows down / left / right / up; the owner's
+2x sheet halved frame by frame (each frame sat on its own pixel grid). The view's colours are one table
+`C` (the factory passed LuaJIT's 60 upvalues).
+
+The look is lit: `src/lighting.lua` (`env.lighting`, both mains) catches the scene in a canvas (as
+`src/frost.lua` does: the target set back before the push) and puts it back through one fragment shader:
+a key light round a point (the nurse's head; the machine's middle), a vignette, warmth in the shadows, a
+soft S-curve, and bloom (a quarter-size copy of what's past a threshold, nine taps). The looks are
+`C.LOOK_ROOM` / `C.LOOK_MACHINE`. The words, the choice and the machine's team screen are drawn after
+the pass, sharp (the game's icons drawn inside the canvas left holes in its alpha: squares). No stencil
+anywhere (the canvas has none): the hood's arch is one thick stroke. Two meshes made once: a soft shadow
+(contact shadows, the machine's footprint) and a sphere's shading (the balls, the button, the sign's ball).
+The machine is three-quarters from above: the base's top and front, the hood's thickness (its top drawn
+set back), the cavity, the tray in perspective sliding back into it (smaller, shadowed), the glow behind
+the tray so the balls stay dark against it. Without canvases or shaders (headless) it's drawn unlit. The
+counter's sign is a lit box: the ball big in a white ring, `nurse.title` beside it. The shelves hold the healing
+items drawn smooth after the games' designs (our own vector drawings, nothing copied): the sprays (`spray`:
+Potion, Super / Hyper / Max Potion, Full Restore, Antidote), Revive / Max Revive crystals, Ethers, a Poké
+Ball and a Great Ball; the middle of each shelf is left to her. The machine stands against the brick wall
+(`brickWall`, bricks of one size) on the counter's glossy top: the wall meets it just behind the base, the
+hood's shadow and the machine's light on the bricks. A preview renderer
+(no engine) is the scratchpad's `pcshot/`. Tests: `tests/pokecenter_test.lua` (a stand-in VM over the
+cart's own scripts), `gb_test`'s Pokémon Center section.
+
 ## Words
 
 Every word WoobOS shows is a key of `lang/en.lua`: `T("app.items")` in code, or a key in a
@@ -1293,6 +1354,7 @@ luajit mods/woob_os/tests/pad_test.lua [firered|leafgreen|ruby|sapphire|emerald]
 luajit mods/woob_os/tests/map3d_test.lua [firered|leafgreen|ruby|sapphire|emerald]
 luajit mods/woob_os/tests/pokenav_test.lua [firered|leafgreen|ruby|sapphire|emerald]
 luajit mods/woob_os/tests/gb_test.lua [red|blue|yellow|gold|silver|crystal]
+luajit mods/woob_os/tests/pokecenter_test.lua [firered|leafgreen|ruby|sapphire|emerald]
 SHOT_DIR=<dir> POKEPORT_GAME=firered POKEPORT_VERSION=firered \
   POKEPORT_DRIVER=mods/woob_os/tests/drivers/desktop_probe.lua love .
 python tools/modkit.py lint mods/woob_os
