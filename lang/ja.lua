@@ -293,6 +293,7 @@ return {
     ["party.moveTo"] = "どこへ うごかす？",
     ["party.useOnWhich"] = "どの ポケモンに つかう？",
     ["party.inBattle"] = "たたかっている",
+    ["party.partner"] = "パートナー",
     ["party.title"] = "てもち",
     ["party.toNext"] = "つぎの レベルまで %s",
     ["party.yes"] = "はい",

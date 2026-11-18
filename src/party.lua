@@ -323,11 +323,29 @@ return function(engine, deps)
   end
 
   -- a battle's: SHIFT (SEND OUT when one fainted), SUMMARY, CANCEL; an egg or a party of one, SUMMARY only
+  -- a partner's Pokémon in a battle fought beside one (Emerald's Steven, the Battle Tower's partner: the battle's
+  -- playerHalf, the partner's after the player's own) -> the partner's name ("" without one); nil for the player's
+  -- own. (A link's multi battle never gets here: that party menu is the game's.)
+  function Pt.ally(c, i)
+    if not c.battle then return nil end
+    local B = engine("src.core.game3.battle")
+    local st = B and B._st
+    local half = type(st) == "table" and tonumber(st.playerHalf) or nil
+    if not half then return nil end
+    local slot = tonumber(c.order and c.order[i] or i) or i
+    if slot <= half then return nil end
+    local p = type(st.partner) == "table" and st.partner or nil
+    return p and titledName(p.name) or ""
+  end
+
   function Pt.battleActions(c, i)
     local mon = c.party[i]
     local egg = mon and (mon.isEgg or (P() and call(P().isEgg, mon) == true))
     local rows = {}
-    if c.party[2] and not egg then rows[1] = row(c.mode == "battle_faint" and "SEND OUT" or "SHIFT") end
+    -- (a partner's can't be sent out by the player: SUMMARY only, as the game's "can't switch with an ally")
+    if c.party[2] and not egg and not Pt.ally(c, i) then
+      rows[1] = row(c.mode == "battle_faint" and "SEND OUT" or "SHIFT")
+    end
     rows[#rows + 1] = row("SUMMARY")
     rows[#rows + 1] = row("CANCEL")
     return hooked(c, i, rows, nil)

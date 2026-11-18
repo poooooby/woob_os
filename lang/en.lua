@@ -304,6 +304,7 @@ return {
     ["party.moveTo"] = "Move to where?",
     ["party.useOnWhich"] = "Use on which Pokémon?",
     ["party.inBattle"] = "In battle",
+    ["party.partner"] = "Partner",
     ["party.title"] = "Party",
     ["party.toNext"] = "%s to next Lv.",
     ["party.yes"] = "Yes",

@@ -182,6 +182,13 @@ return function(K, env, T, A, sumView)
     K.bold(s, x + 2 + mw, y + (h - size * 1.2) / 2, size, C.white, nil, nil)
     return pw
   end
+  -- (a chip in the room it has: whole, else a dot alone, else nothing) -> its width
+  local function fitChip(s, x, y, h, size, c, mark, room)
+    local mw = mark and h * 0.75 or 0
+    if K.width(s, size) + 5 + mw <= room then return chip(s, x, y, h, size, c, mark) end
+    if room >= h * 0.75 + 5 then return chip("", x, y, h, size, c, "dot") end
+    return 0
+  end
   local function pill(s, x, y, h, size, c, a)
     local pw = K.width(s, size) + 4
     K.col(c, a)
@@ -316,7 +323,8 @@ return function(K, env, T, A, sumView)
       leadBadge(x + 2.5, y + 2.5, 5.2)
       cx0 = x + 15
     end
-    if card.active then chip(T("party.inBattle"), cx0, y + 3, 7.4, 4.4, C.accent, "dot") end
+    if card.active then cx0 = cx0 + chip(T("party.inBattle"), cx0, y + 3, 7.4, 4.4, C.accent, "dot") + 1 end
+    if card.ally then chip(card.ally, cx0, y + 3, 7.4, 4.4, C.slate2, nil) end
     if card.item then heldMark(card, x + w - 11, y + 3, 8) end
     local ty = pcy + ps / 2 + 2 + (K.textScale() - 1) * 2
     local fs = K.fit(card.name, 6, w - 14)
@@ -380,7 +388,15 @@ return function(K, env, T, A, sumView)
     K.bold(card.name, tx, ny, ns, ink)
     local nx = tx + K.width(card.name, ns) + 1
     if card.gender and not K.hasSign(card.name) then K.sexMark(card.gender, nx, ny + 0.7, 4, 1, onDark and C.white or nil) nx = nx + 4.5 end
-    if card.shiny then star(nx + 1.8, ny + 2.6, 1.9, C.gold) end
+    if card.shiny then star(nx + 1.8, ny + 2.6, 1.9, C.gold) nx = nx + 4 end
+    -- (a partner's: whose it is, in the corner over the HP)
+    if card.ally then
+      local fs = K.fit(card.ally, 3.4, right - 8)
+      local chH = min(max(4.4, fs * 1.5), h / 2 - 5)
+      chip(card.ally, x + w - 3 - (K.width(card.ally, fs) + 5), y + 2.5, chH, fs, C.slate2, nil)
+    end
+    -- (nothing on the left runs into the HP: "In battle" a dot alone when there's no room for its words)
+    local hpX = x + w - right - 4
     local ly = ny + lineH(ns)
     K.text(card.levelText, tx, ly, 3.8, soft, nil, nil, 0.9)
     local lx = tx + K.width(card.levelText, 3.8) + 2
@@ -391,9 +407,7 @@ return function(K, env, T, A, sumView)
       if card.t2 then lx = lx + typeBadge(card.t2, lx, ly - 0.1, bs) + 1 end
       lx = lx + 1
     end
-    if card.active then
-      chip(T("party.inBattle"), lx, ly - 0.8, 6.2, 3.8, C.accent, "dot")
-    end
+    if card.active then lx = lx + fitChip(T("party.inBattle"), lx, ly - 0.8, 6.2, 3.8, C.accent, "dot", hpX - lx) + 1 end
     vitals(P, i, card, x + w - right - 3, y + h / 2 - 2.2, right, 3.8, clock, dt, onDark)
     if i == 1 and not card.orderN then leadBadge(x + 0.5, y + 0.5, 3.4) end
     orderBadge(card, x + 2, y + 2)
@@ -644,8 +658,12 @@ return function(K, env, T, A, sumView)
       if c then
         local sel = i == P.cur
         local mark = (picking and i == P.from) and C.green or nil
+        -- (a partner's faded while it isn't the one chosen)
+        local f0 = K.getFade()
+        if c.ally and not sel then K.setFade(f0 * 0.6) end
         if P.narrow or i > 1 then rowCard(P, i, c, GX[i], GY[i], GW[i], GH[i], clock, dt, sel, mark)
         else bigCard(P, i, c, GX[i], GY[i], GW[i], GH[i], clock, dt, sel, mark) end
+        K.setFade(f0)
       else
         emptyCard(i)
       end

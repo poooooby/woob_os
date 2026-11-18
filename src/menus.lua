@@ -23,8 +23,8 @@
 -- its validate and onSelect with the real slots), an item used from the game's bag / TM Case / Berry Pouch
 -- in the field (mode "use") and an item given (mode "give"). The game's for choosing Pokémon for something
 -- (the Day Care, a contest, the Frontier: "choose" / "choose_multi"), the Move Tutor, the Pokédude and
--- Oak's first battle, a multi battle's, a link's, an item used from the bag in battle (until the Bag is
--- ours) and Ruby / Sapphire's mail given. Ours answers as the game's: PartyMenu.open / cursor / _party /
+-- Oak's first battle, a link's multi battle (a partner's battle -- Steven's, the Battle Tower's -- is ours),
+-- a link's, an item used from the bag in battle (until the Bag is ours) and Ruby / Sapphire's mail given. Ours answers as the game's: PartyMenu.open / cursor / _party /
 -- _order set while it's up, then opts.onClose(), then opts.onSelect(slot, mon) when one was chosen; a
 -- field move runs after (ctx.menu.after). While ours is up the game's GIVE from its bag comes back through
 -- show(mode "give"): handed to our window (src/apps/menus.lua W.giveFromBag), the bag closed.
@@ -412,7 +412,9 @@ return function(engine, deps)
     cur = nil
     aliases(nil, false)
     local m, opts = c.menu, c.opts
-    if BM then BM.open = false end
+    -- (as the game's close: _battle cleared too, or FireRed's Berry Pouch opened later in the field reads a
+    -- battle that's over)
+    if BM then BM.open, BM._battle = false, false end
     local res = m.result or {}
     local function try(f, ...)
       if not f then return end

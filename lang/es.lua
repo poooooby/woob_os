@@ -292,6 +292,7 @@ return {
     ["party.moveTo"] = "¿Adónde moverlo?",
     ["party.useOnWhich"] = "¿En qué Pokémon?",
     ["party.inBattle"] = "En combate",
+    ["party.partner"] = "Compañero",
     ["party.title"] = "Equipo",
     ["party.toNext"] = "%s para subir de Nv.",
     ["party.yes"] = "Sí",

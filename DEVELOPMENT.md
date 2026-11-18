@@ -1504,6 +1504,14 @@ cards' held item is a small mark (`heldMark`, blue for mail). `itemIcon` returns
   (scripts and other screens read them). Closed: `PartyMenu.cursor` = ours, `onClose()`, then
   `onSelect(slot, mon)` when one was chosen, then `ctx.menu.after` (a field move). `SummaryMenu.isOpen` is
   ours only while the summary is (`cur.kind`), so the battle's `party_menu_input` reaches the party's input.
+- **A battle beside a partner** (Emerald's Steven, `Story.doStevenBattle`; the Battle Tower's multi battles
+  with a partner, `Tower` with `partner` / `playerHalf`): not a "multi" battle to the engine (`st.multi` is only
+  ever a link's), so the party is ours. The partner's Pokémon follow the player's in the party
+  (`st.playerHalf`); `Pt.ally(c, i)` (the real slot past it -> the partner's name from `st.partner.name`, titled,
+  else "party.partner") puts `card.ally` on the card: the view fades it while it isn't chosen and chips the name
+  in the row's corner over the HP; `Pt.battleActions` leaves out SHIFT / SEND OUT for it (the game's `validate`
+  still says "can't switch with an ally" if one comes through). Items in battle stay as the engine has them
+  (no rule against a partner's). Driver: scratchpad `steven_driver.lua` (emerald).
 - **A game screen over ours** (the bag for GIVE, the mail reader, the evolution scene, the game's summary
   for an evolution's move): `Sh.frame` doesn't draw a modern menu while its layer isn't the stack's top;
   the stack gives that screen the input. GIVE opens the game's bag with `location = "party"`; its GIVE

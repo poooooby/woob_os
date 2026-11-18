@@ -62,6 +62,9 @@ return function(env, T, A, Ctl)
           for k, sl in ipairs(P.order or {}) do if sl == i then card.orderN = k end end
         end
         card.active = c.battle and (i == 1 or (c.double and i == 2)) or false
+        -- (a partner's, in a battle fought beside one: the partner's name on it, the card faded)
+        local okA, ally = pcall(Pt.ally, c, i)
+        card.ally = okA and ally and (ally ~= "" and ally or T("party.partner")) or nil
         P.cards[i] = card
       else
         P.cards[i] = nil

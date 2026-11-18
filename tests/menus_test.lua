@@ -408,6 +408,28 @@ T.check(not Tm.isOpen() and order[#order] == "select:2", "SEND OUT: chosen")
 P = open(battleOpts())
 PM.close()
 T.check(not Tm.isOpen() and table.concat(order, " ") == "close", "PartyMenu.close(): ours closes, onClose")
+-- (a battle beside a partner -- Emerald's Steven, the Battle Tower's: the partner's after the player's own
+-- (playerHalf); theirs named and not sent out by the player)
+do
+  local Battle = require("src.core.game3.battle")
+  local was = Battle._st
+  Battle._st = { double = true, playerHalf = 2, partner = { name = "STEVEN" } }
+  local ob = battleOpts()
+  ob.layout = "double"
+  P = open(ob)
+  T.check(P and P.c.battle and not P.cards[1].ally and not P.cards[2].ally and P.cards[3].ally == "Steven",
+          "beside a partner: ours; the partner's card named (" .. tostring(P and P.cards[3].ally) .. ")")
+  pframe(1, "down", true)
+  pframe(1, "down", true)
+  T.check(P.cur == 3, "on the partner's")
+  pframe(1, "a", true)
+  T.eq(rowsOf(P), "SUMMARY CANCEL", "the partner's menu: no SHIFT")
+  pframe(1, "b", true)
+  T.check(pcall(pframe, 10), "the partner's card drawn")
+  pframe(1, "b", true)
+  T.check(not Tm.isOpen() and table.concat(order, " ") == "close", "B: closed, onClose only")
+  Battle._st = was
+end
 
 -- ------- an item used from the Bag: a Potion on a hurt one
 Bag.add(s.bag, POTION, 1)
@@ -714,9 +736,11 @@ bframe(1, "a", true)
 T.check(B.menu and B.menu.rows[1].act == "USE", "A: USE")
 bframe(1, "a", true)
 T.check(not Tm.isOpen() and table.concat(used, " ") == "use:4:nil", "USE: the battle told, no onClose (" .. table.concat(used, " ") .. ")")
+T.check(BM._battle == false, "USE: BagMenu._battle cleared, as the game's close (the Berry Pouch reads it)")
 B = battleBag()
 bframe(1, "b", true)
 T.check(not Tm.isOpen() and table.concat(used, " ") == "close use:nil:nil", "B: onClose, then onBattleUse(nil) (" .. table.concat(used, " ") .. ")")
+T.check(BM._battle == false, "B: BagMenu._battle cleared")
 B = battleBag()
 BM.close()
 T.check(not Tm.isOpen() and used[1] == "close", "BagMenu.close(): ours closes as B")

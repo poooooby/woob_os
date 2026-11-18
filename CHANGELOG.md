@@ -58,9 +58,13 @@ All notable changes to this mod are documented here, in
   a large Poké Ball in the chosen Pokémon's colours. The lead's card
   has a crown by its picture, its types by name, the EXP to its next level, and its ability, nature and
   held item.
+- In a battle beside a partner (Steven at Mossdeep, the Battle Tower's multi battles), the partner's Pokémon
+  carry their trainer's name and are faded on the Party screen, with no Shift to choose for them.
 
 ### Fixed
 - The 3D map's stars at night are scattered over the sky, no longer lined up in a dotted row.
+- After a battle, FireRed / LeafGreen's Berry Pouch opened in the field no longer acts as if the battle were
+  still on.
 - The 3D map's edge is clean: the sea, then the soil, then the stone, without thin blue and brown stripes
   fighting along it.
 - The News's Rookie Watch on Red, Blue, Yellow, Gold, Silver and Crystal showed "?" for your name, your
