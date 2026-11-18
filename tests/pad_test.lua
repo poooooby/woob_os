@@ -183,6 +183,16 @@ do
   local nav = Runtime.call("ui.start_menu.items", vanilla, {}, withNav)
   T.check(nav[3].id == "woob_watch" and not ids(nav):find("pokenav", 1, true) and #nav == #withNav,
     "in the PokéNav's place (" .. ids(nav) .. ")")
+  -- (Emerald's PokéNav tutorial: the Devon scientist's script waits for POKéNAV's row by its place)
+  local SM = require("src.ui.game3.start_menu")
+  local was = SM._tutorial
+  SM._tutorial = true
+  local tutList = startList(true)
+  table.insert(tutList, 4, { id = "pokenav", label = "POKéNAV" })
+  local tut = Runtime.call("ui.start_menu.items", vanilla, {}, tutList)
+  SM._tutorial = was
+  T.check(tut[4].id == "pokenav" and not ids(tut):find("woob_watch", 1, true),
+    "the PokéNav tutorial's menu left as the game's (" .. ids(tut) .. ")")
   got[4].onSelect({}, s)
 end
 T.check(Wt.isOpen() and Stack.has(PAD_ID), "chosen: the pad opens on its layer")
