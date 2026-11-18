@@ -76,6 +76,10 @@ All notable changes to this mod are documented here, in
   report names the town you won it in (it named where you last saved, or "?").
 - A notification's banner no longer stays over the START menu, a summary, the Bag or a message opened while
   it was showing: it waits, and slides in again (without its sound twice) once you're back in the field.
+
+## [0.17.3] - 2026-11-18
+
+### Fixed
 - Emerald: in Rustboro, when the Devon scientist adds Match Call and asks you to pick the POKéNAV from the
   START menu to call Mr. Stone, the menu is the game's own again. WOOBPAD had taken the POKéNAV's place, so
   the scene never went on and the story stopped there.
