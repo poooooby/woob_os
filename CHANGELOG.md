@@ -6,6 +6,9 @@ All notable changes to this mod are documented here, in
 ## [Unreleased]
 
 ### Added
+- **Item pictures on Red, Blue, Yellow, Gold, Silver and Crystal** when you've also imported Emerald,
+  FireRed or LeafGreen: the Mart, the Bag and the other apps show that game's pictures for the items (a TM
+  as a disc in its move's type's colour). Without one, each item is a tile in its pocket's colour, as before.
 - **A notice after the update** on FireRed, LeafGreen, Ruby, Sapphire and Emerald: the first time you're out in
   the field, a glass card asks whether to use the new menus for the Bag, the party and the summary, and tells
   you where to change it later. It shows once.

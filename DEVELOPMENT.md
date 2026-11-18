@@ -1230,6 +1230,17 @@ states on `game.stack`, the save is plain tables on `game.save`. `main.lua` retu
   as Gen 3's numbers (the pills' colours). Shiny: Gen 2 by DVs, never on Gen 1.
 - **Pictures:** `src/gb/art.lua` bakes each icon and front picture once into a canvas in colour (Gen 2
   through `GbcPalette` and the species' palette, Gen 1 through the palette shader), padded to one box.
+- **Items' pictures:** these games have none. With a Gen 3 game imported too, `src/gb/gen3_icons.lua` (Gi,
+  `env.gen3Icons`) draws Gen 3's: Emerald's sheet (24 px icons, one every 24 rows, by item number), else
+  FireRed's / LeafGreen's files (one per item number), read with `CacheFs.readAt` from that version's own
+  cache (`GameVersion.cachePrefix(v)` + the path the engine's `CacheContract.requiredFiles(v)` lists: the
+  sheet, or the Bag's `manifest.lua` beside `icons/`). Never through Gen 3's engine modules: the engine
+  refuses a mod `src.*.game3.*` on a Game Boy game (`crossGenerationDenial`, Loader.lua), so the item
+  numbers are the module's own `GEN3` table (made once from the engine's Emerald item constants; Gen 2's
+  Berries as the Gen 3 Berry that does the same), a TM / HM by its move's type (`TM_OF_TYPE` /
+  `HM_OF_TYPE`: Gen 3 has no Bug disc). No match, or no Gen 3 game: `src/gb/main.lua`'s tile (the pocket's
+  colour and a picture), remembered per item (`t.gen3 = false`). Headless there's no `love.image`: tiles.
+  Driver: scratchpad `gb3icon_driver.lua` (`NO_GEN3=1` hides the Gen 3 caches).
 - **The Pokédex:** the START menu's `PokedexMenu` / `Gen2PokedexMenu` registered as a carrier that opens
   ours full screen (`Sh.openFull`).
 - **Gen 2's own screens as apps:** Decorate pushes `Gen2DecorationMenu` from the bedroom's desktop and

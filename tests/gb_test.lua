@@ -1030,4 +1030,33 @@ do
   end
 end
 
+-- ------- Gen 3's item pictures (src/gb/gen3_icons.lua): these games' items matched to Gen 3's numbers
+do
+  local Gi = X._test.env.gen3Icons
+  T.check(Gi ~= nil, "Gen 3's item pictures: made")
+  if Gi then
+    T.eq(Gi.number("POTION"), 13, "Potion: by name")
+    T.eq(Gi.number("POKE_BALL"), 4, "Poké Ball")
+    T.eq(Gi.number("PARLYZ_HEAL"), 18, "Parlyz Heal: Gen 3's Paralyze Heal")
+    T.eq(Gi.number("THUNDERSTONE"), 96, "Thunderstone: Thunder Stone")
+    T.eq(Gi.number("NOT_AN_ITEM"), nil, "an unknown item: none (its tile)")
+    T.eq(Gi.number(nil), nil, "no id: none")
+    if GEN == 1 then
+      T.eq(Gi.number("TM_MEGA_PUNCH"), 293, "TM01 Mega Punch (Normal): a Normal disc")
+      T.eq(Gi.number("TM_ICE_BEAM"), 295, "Ice Beam (Ice): an Ice disc")
+      T.eq(Gi.number("HM_SURF"), 341, "HM Surf (Water): HM03's")
+    else
+      T.eq(Gi.number("TM_DYNAMICPUNCH"), 289, "TM01 DynamicPunch (Fighting): a Fighting disc")
+      T.eq(Gi.number("TM_FURY_CUTTER"), nil, "Fury Cutter (Bug): Gen 3 has no Bug disc, its tile")
+      T.eq(Gi.number("HM_WHIRLPOOL"), 341, "HM Whirlpool (Water): a Water HM")
+      T.eq(Gi.number("MIRACLEBERRY"), 141, "MiracleBerry: the Lum Berry")
+    end
+    -- (headless: no image module, so no picture is found and the tile is drawn, as with no Gen 3 game)
+    T.eq(Gi.source(), nil, "headless: no Gen 3 pictures")
+    T.eq(Gi.draw(X._test.kit.graphics(), "POTION", 0, 0, 1, 1), false, "and nothing drawn")
+    local ok = pcall(X._test.env.itemIcon, "POTION", 0, 0, 20, 1)
+    T.check(ok, "the item's picture: its tile")
+  end
+end
+
 T.finish("woob_os gb (" .. GAME .. ")")

@@ -96,7 +96,9 @@ The same desktop, WoobPad and most apps, with each game's own Pokémon, items an
 Silver and Crystal, WoobPad takes the Pokégear's place in the START menu: its Map, Phone and Radio do
 the Pokégear's jobs, and Fly and the wall maps open the 3D map. Condition, Ribbons and the PokéNav are
 Ruby, Sapphire and Emerald's only. Red, Blue and Yellow have no Mail, Phone, Radio or shiny Pokémon, and
-their Map can't Fly.
+their Map can't Fly. These games have no pictures for their items: if you've also imported Emerald, FireRed
+or LeafGreen, the Mart, the Bag and the other apps show that game's item pictures (a TM as a disc in its
+move's type's colour); otherwise each item is a tile in its pocket's colour.
 
 ## 📸 Gallery
 

@@ -28,6 +28,7 @@ return function(mod, loadSibling)
   -- the play-tied apps: Gen 3's models over the Game Boy games' port (src/gb/port.lua) and play (src/gb/play.lua)
   local makePort, makePlay = loadSibling(mod, "src/gb/port.lua"), loadSibling(mod, "src/gb/play.lua")
   local makeMart, martWindow = loadSibling(mod, "src/gb/mart.lua"), loadSibling(mod, "src/apps/mart.lua")
+  local makeGen3Icons = loadSibling(mod, "src/gb/gen3_icons.lua")
   local makeBank, bankWindow = loadSibling(mod, "src/bank.lua"), loadSibling(mod, "src/apps/bank.lua")
   local makeAuction, auctionWindow = loadSibling(mod, "src/auction.lua"), loadSibling(mod, "src/apps/auction.lua")
   local makeSlots, slotsWindow = loadSibling(mod, "src/slots.lua"), loadSibling(mod, "src/apps/slots.lua")
@@ -188,8 +189,11 @@ return function(mod, loadSibling)
     end
     env.monPic = function(sp, x, y, size, a, mon) return Art ~= nil and Art.drawPic(sp, x, y, size, a, mon) end
   end
-  -- an item's picture: the Game Boy games have none, so a tile in its pocket's colour with one of the
-  -- desktop's pictures on it (a TM in its move's type's colour)
+  -- an item's picture: the Game Boy games have none, so Gen 3's when a Gen 3 game is imported too
+  -- (src/gb/gen3_icons.lua), else a tile in its pocket's colour with one of the desktop's pictures on it
+  -- (a TM in its move's type's colour)
+  local Gi = Gd and makeGen3Icons and makeGen3Icons(engine, Gd) or nil
+  env.gen3Icons = Gi
   local POCKET_TILE = { ITEM = { { 88, 140, 220 }, "bag" }, BALL = { { 226, 70, 72 }, "pokeball" },
                         KEY_ITEM = { { 232, 168, 32 }, "medal" }, TM_HM = { { 140, 120, 200 }, "cube" },
                         MAIL = { { 64, 178, 236 }, "send" } }
@@ -224,10 +228,16 @@ return function(mod, loadSibling)
         colour = mv and TYPE_TILE[Gd.typeId(mv.type)] or colour
       end
       colour = BALL_TILE[id] or colour
-      t = { colour = colour, glyph = base[2] }
+      t = { colour = colour, glyph = base[2], gb = id }
       tileOf[key] = t
     end
     local G = Kit.graphics()
+    -- (`a` is the whole alpha, the kit's fade already in it, as the Gen 3 icons take it; none: the fade)
+    if Gi and t.gen3 ~= false then
+      local drawn = Gi.draw(G, t.gb, Kit.X(x), Kit.Y(y), size * Kit.sc / 24, a or Kit.getFade())
+      if drawn then return end
+      t.gen3 = false
+    end
     local b = Kit.R(x + size * 0.06, y + size * 0.06, size * 0.88, size * 0.88)
     -- (`a` is the whole alpha, the kit's fade already in it, as the Gen 3 icons take it; none: the fade)
     local al = a or Kit.getFade()
