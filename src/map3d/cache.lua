@@ -29,7 +29,8 @@
 
 local floor, max, min = math.floor, math.max, math.min
 
-local FORMAT = 2                 -- what's in the files; bumped when it changes (2: the lights at night)
+local FORMAT = 3                 -- what's in the files; bumped when it changes (2: the lights at night;
+                                 -- 3: the rocket's spotlights)
 local WORDS_W = "ffffffBBBBfff"  -- render.lua's FORMAT_W: position, normal, colour (bytes), flag, uv
 local WORDS_V = "ffffffBBBBf"    -- its FORMAT: position, normal, colour (bytes), flag
 local BATCH = 128                -- vertices a pack call (well under the C stack's limit on values)

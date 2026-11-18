@@ -627,8 +627,25 @@ return function()
         if SCALE_CAP[d.kind] then s = min(s, SCALE_CAP[d.kind]) end
         if first then BUILD[rep](L, fx, gy0, fz, s, 0) end
       elseif d.kind == "space" and f then
-        -- (the rocket on its pad beside the Space Center)
-        BUILD.rocket(L, fx + fw / 2 + 0.22, gy0, fz, 1.1)
+        -- (the rocket on its pad beside the Space Center; at night three spotlights round the pad's front
+        -- shining up at it: each a lamp, a beam of glows widening and fading as it goes, a lit patch on the
+        -- rocket)
+        local rx, s = fx + fw / 2 + 0.22, 1.1
+        BUILD.rocket(L, rx, gy0, fz, s)
+        if lights then
+          for k = 1, 3 do
+            local a = pi * (0.2 + 0.3 * k)
+            local lx, ly, lz = rx + cos(a) * 0.26 * s, gy0 + 0.025 * s, fz + sin(a) * 0.26 * s
+            local tx, ty, tz = rx + cos(a) * 0.07 * s, gy0 + (0.22 + 0.12 * k) * s, fz + sin(a) * 0.07 * s
+            light(lights, lx, ly, lz, 0.03, 0.9, 0.95, 1, 1)
+            for i = 1, 28 do
+              local t = i / 28
+              light(lights, lx + (tx - lx) * t, ly + (ty - ly) * t, lz + (tz - lz) * t, 0.03 + 0.065 * t,
+                0.82, 0.9, 1, 0.17 - 0.1 * t)
+            end
+            light(lights, tx, ty, tz, 0.11, 0.85, 0.92, 1, 0.4)
+          end
+        end
       elseif d.kind == "institute" and f then
         -- (a radar dish up on the roof)
         local top = gy0 + 2 / MT * 1.1

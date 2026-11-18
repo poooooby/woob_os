@@ -38,8 +38,8 @@ All notable changes to this mod are documented here, in
   starts that way, then one that contains it, then the nearest spelling ("Pikachi" finds Pikachu).
   Pokémon you haven't seen aren't found by name.
 - **The 3D map at night:** windows lit, a lamp over each door (red at a Pokémon Center, blue at a Mart),
-  lamps along the towns' and cities' streets, a glow over Mt. Chimney's and Mt. Ember's craters and a
-  harbour ship's portholes. Now and then an aurora's curtains, and shooting stars.
+  lamps along the towns' and cities' streets, a glow over Mt. Chimney's and Mt. Ember's craters, a
+  harbour ship's portholes, and spotlights shining up Mossdeep's rocket. Now and then an aurora's curtains, and shooting stars.
 - **A meteor over Hoenn** (Ruby, Sapphire and Emerald): once you've entered the Hall of Fame and Rayquaza
   waits at the top of the Sky Pillar, a meteor comes burning down at the tower in the 3D map's sky, day and
   night, until Rayquaza is beaten or caught.
@@ -60,6 +60,9 @@ All notable changes to this mod are documented here, in
   held item.
 
 ### Fixed
+- The 3D map's stars at night are scattered over the sky, no longer lined up in a dotted row.
+- The 3D map's edge is clean: the sea, then the soil, then the stone, without thin blue and brown stripes
+  fighting along it.
 - The News's Rookie Watch on Red, Blue, Yellow, Gold, Silver and Crystal showed "?" for your name, your
   team and the trainer you beat; a trainer's name no longer comes out twice ("Falkner Falkner").
 - A notification's banner no longer stays over the START menu, a summary, the Bag or a message opened while

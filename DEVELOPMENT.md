@@ -980,11 +980,19 @@ the voxel diorama mod in the engine's checkout either (another author's).
   Settings' `map3d` off (or the Desktop option off): `orig` at once. FireRed's `RegionMap.open` is
   never set (`hud.lua` would route input to it).
 
+### The slab's edge
+
+`slabMesh`: on the world built to scale its sides run to the world's own edge (`region.w / (cols - 1)` a
+sample: the terrain's last sample fell short by up to a step on the south and east, and the world's rim
+walls, the sea bed's blue, stood in front of the soil); each layer a little out from the one behind it
+(`SLAB_OUT` 0.02 the soil, `SLAB_FOOT_OUT` 0.035 the stone, with a ledge on top): on one plane they fought
+over each pixel. Not kept on disk (made with each load).
+
 ### At night: lights, the aurora, shooting stars; Hoenn's meteor
 
 - **Lights** (`render.lua` `worldGlows`, made with the buildings while the world's tile arrays are still
-  there, kept on disk as the `glows` slot, FORMAT `V`; `cache.lua` FORMAT 2 so older kept maps are built
-  again): flag `F_GLOW` 13 (13.5 pulsing). A vertex's position is its corner (x, y) and size (z), its normal
+  there, kept on disk as the `glows` slot, FORMAT `V`; `cache.lua` FORMAT 2, then 3 for the rocket's
+  spotlights, so older kept maps are built again): flag `F_GLOW` 13 (13.5 pulsing). A vertex's position is its corner (x, y) and size (z), its normal
   the light's place; the vertex shader turns the square to the eye and pulls it a size towards it (the
   ground under it doesn't cut it), the corner passed on in `vGround`; the pixel stage a core in a halo,
   `* uNight` (the pulse in `vFade`: `uTime` stays in the vertex stage). Drawn after the weather with
@@ -992,10 +1000,13 @@ the voxel diorama mod in the engine's checkout either (another author's).
   tile beside the door, up to four) and a door lamp (`DOOR_LAMP`: a Center's red, a Mart's blue) with a pool
   on the ground; street lamps on a 5-tile grid of open ground (`cls` 10 with open ground round it) in maps
   named TOWN / CITY / ISLAND; the landmarks' own through `Tw.landmarks(region, lights)` (a crater's glow and
-  the sky over it, a harbour ship's portholes, cabins and mast).
+  the sky over it, a harbour ship's portholes, cabins and mast, the Space Center rocket's three spotlights:
+  a lamp on the pad's front, a beam of 28 glows widening and fading up to a lit patch on the rocket). The
+  kept outline's doors have no `foot`.
 - **The sky** (`drawSky(..., skyOpts)`, 2D behind the map): `R.auroraNow()` (stubbable) 0..1, ten-minute
   spells of `os.time` (35% have one, easing in and out over their first and last eighth), three curtains
-  of a kept 194-vertex strip mesh (rays from two sines along it), added on; a shooting star in some 7 s
+  of a kept 194-vertex strip mesh (rays from two sines along it), each drawn twice: rising from its
+  brightest line and its foot fading in below it (no hard edge), added on; a shooting star in some 7 s
   spells of `t` (`drawShootingStar`: eight fading segments). The meteor (`drawMeteor(G, night, t, head, tail's
   end, r)`, a kept 4-vertex fan for the tail drawn twice, glow rings, the rock lit on its leading side; added
   on at night, laid over by day) is drawn after the clouds, over everything: its head `METEOR_AT` world units

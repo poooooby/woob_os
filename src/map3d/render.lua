@@ -613,15 +613,24 @@ return function(deps)
     return newMesh(G, verts, "triangles", map)
   end
 
-  -- the slab: the map's four sides, down to its foot (soil over stone)
+  -- the slab: the map's four sides, down to its foot (soil over stone). Each layer a little out from the
+  -- one behind it (SLAB_OUT, SLAB_FOOT_OUT): on one plane the world's own walls at its rim (the sea
+  -- bed's, blue), the soil and the stone fought over each pixel and showed as stripes
+  local SLAB_OUT, SLAB_FOOT_OUT = 0.02, 0.035
   local function slabMesh(G, region)
     local t, x0, z0, st = region.terrain, region.x0, region.z0, region.step
     local cols, rows = t.cols, t.rows
     local verts = {}
+    -- (the world built to scale: out to its own edge, which the terrain's last sample can fall short of
+    -- by up to a step, leaving the world's rim walls standing in front of the slab)
+    local sx, sz = st, st
+    if region.world and region.w and region.h and cols > 1 and rows > 1 then
+      sx, sz = region.w / (cols - 1), region.h / (rows - 1)
+    end
     local function top(i, j) return max(0, t.h[j * cols + i + 1]) end
     local function side(i0, j0, i1, j1, nx, nz)
-      local ax, az = x0 + i0 * st, z0 + j0 * st
-      local bx, bz = x0 + i1 * st, z0 + j1 * st
+      local ax, az = x0 + i0 * sx + nx * SLAB_OUT, z0 + j0 * sz + nz * SLAB_OUT
+      local bx, bz = x0 + i1 * sx + nx * SLAB_OUT, z0 + j1 * sz + nz * SLAB_OUT
       local ah, bh = top(i0, j0), top(i1, j1)
       quad(verts, ax, ah, az, bx, bh, bz, bx, SLAB, bz, ax, SLAB, az, 0.42, 0.33, 0.24, 1, 4, nx, 0, nz)
     end
@@ -633,13 +642,19 @@ return function(deps)
       side(0, j + 1, 0, j, -1, 0)
       side(cols - 1, j, cols - 1, j + 1, 1, 0)
     end
-    -- (a darker band at the foot: the stone)
-    local w, h = (cols - 1) * st, (rows - 1) * st
+    -- (a darker band at the foot: the stone, standing a little proud of the soil)
+    local o = SLAB_FOOT_OUT
+    local ax, az, bx, bz = x0 - o, z0 - o, x0 + (cols - 1) * sx + o, z0 + (rows - 1) * sz + o
     local fy = SLAB + 0.25
-    quad(verts, x0, fy, z0, x0 + w, fy, z0, x0 + w, SLAB, z0, x0, SLAB, z0, 0.27, 0.22, 0.18, 1, 4, 0, 0, -1)
-    quad(verts, x0 + w, fy, z0 + h, x0, fy, z0 + h, x0, SLAB, z0 + h, x0 + w, SLAB, z0 + h, 0.27, 0.22, 0.18, 1, 4, 0, 0, 1)
-    quad(verts, x0, fy, z0 + h, x0, fy, z0, x0, SLAB, z0, x0, SLAB, z0 + h, 0.27, 0.22, 0.18, 1, 4, -1, 0, 0)
-    quad(verts, x0 + w, fy, z0, x0 + w, fy, z0 + h, x0 + w, SLAB, z0 + h, x0 + w, SLAB, z0, 0.27, 0.22, 0.18, 1, 4, 1, 0, 0)
+    quad(verts, ax, fy, az, bx, fy, az, bx, SLAB, az, ax, SLAB, az, 0.27, 0.22, 0.18, 1, 4, 0, 0, -1)
+    quad(verts, bx, fy, bz, ax, fy, bz, ax, SLAB, bz, bx, SLAB, bz, 0.27, 0.22, 0.18, 1, 4, 0, 0, 1)
+    quad(verts, ax, fy, bz, ax, fy, az, ax, SLAB, az, ax, SLAB, bz, 0.27, 0.22, 0.18, 1, 4, -1, 0, 0)
+    quad(verts, bx, fy, az, bx, fy, bz, bx, SLAB, bz, bx, SLAB, az, 0.27, 0.22, 0.18, 1, 4, 1, 0, 0)
+    -- (the stone's top: a narrow ledge round the soil, so it doesn't stand open)
+    quad(verts, ax, fy, az, bx, fy, az, bx - o, fy, az + o, ax + o, fy, az + o, 0.32, 0.26, 0.21, 1, 4, 0, 1, 0)
+    quad(verts, bx, fy, bz, ax, fy, bz, ax + o, fy, bz - o, bx - o, fy, bz - o, 0.32, 0.26, 0.21, 1, 4, 0, 1, 0)
+    quad(verts, ax, fy, bz, ax, fy, az, ax + o, fy, az + o, ax + o, fy, bz - o, 0.32, 0.26, 0.21, 1, 4, 0, 1, 0)
+    quad(verts, bx, fy, az, bx, fy, bz, bx - o, fy, bz - o, bx - o, fy, az + o, 0.32, 0.26, 0.21, 1, 4, 0, 1, 0)
     return newMesh(G, verts)
   end
 
@@ -2018,7 +2033,12 @@ return function(deps)
   -- the sky: a gradient behind the map, and stars at night
   local sky = nil
   local STARS = {}
-  for i = 1, 70 do STARS[i] = { hash(i, 1, 31), hash(i, 2, 31) * 0.7, 0.4 + hash(i, 3, 31) * 0.6 } end
+  -- (scattered by a sine's far digits: hash() of numbers one apart lands them along a line)
+  local function scatter(i, j)
+    local v = sin(i * 12.9898 + j * 78.233) * 43758.5453
+    return v - floor(v)
+  end
+  for i = 1, 70 do STARS[i] = { scatter(i, 1), scatter(i, 2) * 0.7, 0.4 + scatter(i, 3) * 0.6 } end
   local function skyColours(night, dusk)
     -- top, foot
     local tr, tg, tb = 0.40 + dusk * 0.25, 0.64 - dusk * 0.12, 0.94 - dusk * 0.3
@@ -2053,19 +2073,28 @@ return function(deps)
     for c = 1, 3 do
       local col = AUR_C[c]
       local base = h * (0.17 + c * 0.055)
-      for i = 0, AUR_N do
-        local u = i / AUR_N
-        local wave = sin(u * 5 + t * 0.25 + c * 1.7) * 0.5 + sin(u * 11 - t * 0.4 + c) * 0.25
-        local y = base + wave * h * 0.05
-        local tall = h * (0.08 + 0.07 * (0.5 + 0.5 * sin(u * 17 + t * 0.6 + c * 2.3)))
-        local edge = min(1, u * 5, (1 - u) * 5)
-        -- (its rays: brighter and dimmer folds along the curtain, drifting)
-        local ray = 0.55 + 0.45 * sin(u * 71 + c * 3.1 + t * 0.7) * sin(u * 29 - t * 0.35 + c)
-        local a = k * edge * ray * (0.3 + 0.12 * sin(u * 23 + t * 1.1 + c))
-        aurora:setVertex(i * 2 + 1, u * w, y, 0, 0, col[1], col[2], col[3], a)
-        aurora:setVertex(i * 2 + 2, u * w, y - tall, 0, 0, col[1] * 0.6, col[2] * 0.4, col[3], 0)
+      -- (each curtain twice: up from its brightest line, fading into the sky; then its foot, fading in
+      -- below that line, so it has no hard edge)
+      for pass = 1, 2 do
+        for i = 0, AUR_N do
+          local u = i / AUR_N
+          local wave = sin(u * 5 + t * 0.25 + c * 1.7) * 0.5 + sin(u * 11 - t * 0.4 + c) * 0.25
+          local y = base + wave * h * 0.05
+          local tall = h * (0.08 + 0.07 * (0.5 + 0.5 * sin(u * 17 + t * 0.6 + c * 2.3)))
+          local edge = min(1, u * 5, (1 - u) * 5)
+          -- (its rays: brighter and dimmer folds along the curtain, drifting)
+          local ray = 0.55 + 0.45 * sin(u * 71 + c * 3.1 + t * 0.7) * sin(u * 29 - t * 0.35 + c)
+          local a = k * edge * ray * (0.3 + 0.12 * sin(u * 23 + t * 1.1 + c))
+          if pass == 1 then
+            aurora:setVertex(i * 2 + 1, u * w, y, 0, 0, col[1], col[2], col[3], a)
+            aurora:setVertex(i * 2 + 2, u * w, y - tall, 0, 0, col[1] * 0.6, col[2] * 0.4, col[3], 0)
+          else
+            aurora:setVertex(i * 2 + 1, u * w, y + tall * 0.35, 0, 0, col[1], col[2], col[3], 0)
+            aurora:setVertex(i * 2 + 2, u * w, y, 0, 0, col[1], col[2], col[3], a)
+          end
+        end
+        G.draw(aurora)
       end
-      G.draw(aurora)
     end
     G.setBlendMode("alpha")
   end
