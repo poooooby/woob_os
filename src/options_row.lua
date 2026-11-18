@@ -35,16 +35,26 @@ return function(mod, req)
     if m.screen == "options" then m.backStack = {} end
   end
 
-  -- (how many options, as the mod list says it -- "12 OPTIONS" -- counted once from the schema the engine loaded)
-  local counted = nil
+  -- (how many options, as the mod list says it -- "12 OPTIONS": the schema the engine loaded when it has it,
+  -- which is only once the mod manager has been open; before that, the rows of our own options.lua, counted
+  -- once here)
+  local counted, fromFile = nil, VALUE
+  do
+    local okR, src = pcall(mod.read, mod, "options.lua")
+    if okR and type(src) == "string" then
+      local n = 0
+      for _ in src:gmatch("key%s*=%s*[\"']") do n = n + 1 end
+      if n > 0 then fromFile = n .. " " .. VALUE end
+    end
+  end
   local function value(game)
     if counted then return counted end
     local loader = type(game) == "table" and game.mods or nil
     local schema = loader and loader.optionSchemas and loader.optionSchemas[modId]
-    if type(schema) ~= "table" then return VALUE end
+    if type(schema) ~= "table" then return fromFile end
     local n = 0
     for _, row in ipairs(schema) do if type(row) == "table" and type(row.key) == "string" then n = n + 1 end end
-    counted = n > 0 and (n .. " " .. VALUE) or VALUE
+    counted = n > 0 and (n .. " " .. VALUE) or fromFile
     return counted
   end
   local function activate(game)

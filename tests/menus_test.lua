@@ -962,6 +962,9 @@ do
   local Settings, No = X._test.settings, X._test.env.notice
   local cache0, free0 = Settings.cache, Sh.free
   Settings.cache = { read = function() return nil end, write = function() end }
+  -- (from nothing seen, whatever the real settings file says: the player may have answered it already)
+  local seen0 = Settings.get("noticesSeen", "")
+  Settings.set("noticesSeen", "")
   local MS = require("src.mods.ManagerState")
   local new0, set = MS.new, {}
   MS.new = function() return { setOption = function(_, id, k, v) set[#set + 1] = id .. ":" .. k .. ":" .. tostring(v) end } end
@@ -990,6 +993,7 @@ do
   t = t + 5
   No.step(game)
   T.check(not Tm.isOpen(), "never again")
+  Settings.set("noticesSeen", seen0)
   Sh.free, Settings.cache, MS.new = free0, cache0, new0
 end
 
@@ -1002,6 +1006,8 @@ do
   for _, r in ipairs(okR and rows or {}) do if r.id == "woob_os" then row = r end end
   T.check(okR and rows[1].id == "mods" and row ~= nil and row.label == "WOOBOS", "OPTIONS: a WOOBOS row after the rest")
   local fake = { mods = { optionSchemas = { woob_os = { { key = "a" }, { key = "b" }, { key = "c" } } } } }
+  T.check(row and tostring(row.value({})):match("^%d+ OPTIONS$") ~= nil,
+          "before the mod manager has loaded the list: counted from options.lua (" .. tostring(row and row.value({})) .. ")")
   T.eq(row and row.value(fake), "3 OPTIONS", "its value: how many options")
 end
 

@@ -72,7 +72,8 @@ All notable changes to this mod are documented here, in
 - The 3D map's edge is clean: the sea, then the soil, then the stone, without thin blue and brown stripes
   fighting along it.
 - The News's Rookie Watch on Red, Blue, Yellow, Gold, Silver and Crystal showed "?" for your name, your
-  team and the trainer you beat; a trainer's name no longer comes out twice ("Falkner Falkner").
+  team and the trainer you beat; a trainer's name no longer comes out twice ("Falkner Falkner"), and a Gym's
+  report names the town you won it in (it named where you last saved, or "?").
 - A notification's banner no longer stays over the START menu, a summary, the Bag or a message opened while
   it was showing: it waits, and slides in again (without its sound twice) once you're back in the field.
 

@@ -95,7 +95,17 @@ return function(H, Gd)
     names[mapId] = got
     return got
   end
+  -- (the live map the player is on -- the save's position is only where it was last saved: a Gym's
+  -- report named the town of the last save, or "?" before any)
   function Pl.mapNow(s)
+    local okG, game = pcall(function() return H.game and H.game() end)
+    game = okG and game or nil
+    if game then
+      local m
+      if gen == 2 then m = game.world and game.world.map else m = game.overworld and game.overworld.map end
+      local id = m and (type(m.id) == "string" and m.id or (m.def and type(m.def.id) == "string" and m.def.id))
+      if id then return id end
+    end
     if not s then return nil end
     if gen == 2 then
       local p = s.position
