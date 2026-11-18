@@ -5,6 +5,13 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.17.3] - 2026-11-18
+
+### Fixed
+- Emerald: in Rustboro, when the Devon scientist adds Match Call and asks you to pick the POKéNAV from the
+  START menu to call Mr. Stone, the menu is the game's own again. WOOBPAD had taken the POKéNAV's place, so
+  the scene never went on and the story stopped there.
+
 ## [0.17.2] - 2026-11-17
 
 ### Added

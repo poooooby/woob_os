@@ -832,6 +832,12 @@ return function(mod, deps)
     if not (Wt and type(list) == "table" and #list > 0) then return list end
     if Sh.enabled and not Sh.enabled() then return list end
     if deps.watchRow and not deps.watchRow() then return list end
+    -- (Emerald's PokéNav tutorial, Rustboro's Devon scientist: the game's fixed START list, its script
+    -- waiting for the POKéNAV row by its place: left exactly as it is, or the script waits forever)
+    if not H then
+      local SM = engine("src.ui.game3.start_menu")
+      if SM and SM._tutorial then return list end
+    end
     if H then
       local label = deps.watchLabel and deps.watchLabel() or "WATCH"
       return H.startRows(list, { id = "woob_watch", label = label, onSelect = function() Sh.openWatch(nil) end })
