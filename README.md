@@ -137,6 +137,8 @@ their Map can't Fly.
 
 ## ⚙️ Options
 
+In the game's OPTIONS menu, WOOBOS opens these directly (also under MODS > WoobOS).
+
 | Option | Choices | Default | What it does |
 |---|---|---|---|
 | Desktop | On / Off | On | Off: every PC opens the game's own menu. |

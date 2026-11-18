@@ -6,6 +6,10 @@ All notable changes to this mod are documented here, in
 ## [Unreleased]
 
 ### Added
+- **A notice after the update** on FireRed, LeafGreen, Ruby, Sapphire and Emerald: the first time you're out in
+  the field, a glass card asks whether to use the new menus for the Bag, the party and the summary, and tells
+  you where to change it later. It shows once.
+- **WOOBOS in the OPTIONS menu** on every game: straight to WoobOS's own options, and B back to OPTIONS.
 - **The Pokémon summary** on FireRed, LeafGreen, Ruby, Sapphire and Emerald: from the Pokémon menu in
   the field and in battle, a Pokémon's summary opens in the same glass as the Boxes' (its picture, info,
   stats with IVs and EVs, moves, moves reordered outside battle). Choosing a move to forget (a TM, a

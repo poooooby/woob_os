@@ -506,7 +506,7 @@ return function(mod, deps)
     if not (app and app.window) then return false end
     o = o or {}
     local ctx = { session = s, mode = o.mode or "pokenav", family = familyOf(gameId()), rows = {}, app = appId,
-                  shop = o.shop, nurse = o.nurse, menu = o.menu }
+                  shop = o.shop, nurse = o.nurse, menu = o.menu, notice = o.notice }
     if state then ctx.resume = { app = appId, state = state } end
     function ctx.row() return nil end
     local closed = false

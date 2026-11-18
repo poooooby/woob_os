@@ -956,4 +956,53 @@ Mn.on = false
 T.check(Mn.openBag(s.bag, { session = s }) == false, "the option off: not ours")
 Mn.on = nil
 
+-- ------- the update's notice: free in the field a moment -> the question; the answer is the mod option (as
+-- the mod list sets it) and the notice seen; the note; never again
+do
+  local Settings, No = X._test.settings, X._test.env.notice
+  local cache0, free0 = Settings.cache, Sh.free
+  Settings.cache = { read = function() return nil end, write = function() end }
+  local MS = require("src.mods.ManagerState")
+  local new0, set = MS.new, {}
+  MS.new = function() return { setOption = function(_, id, k, v) set[#set + 1] = id .. ":" .. k .. ":" .. tostring(v) end } end
+  local t, game = 100, {}
+  No.now = function() return t end
+  Sh.free = function() return true end
+  T.check(No and No.pending() and No.pending().id == "modernMenus-1", "the Modern Menus notice not yet seen")
+  No.step(game)
+  T.check(not Tm.isOpen(), "not the moment the field's free")
+  t = t + 2
+  No.step(game)
+  T.check(Tm.isOpen() and Tm.state().ctx.app == "notice", "free a moment: the notice opens")
+  local Wn = Tm.state().win.state
+  pframe(5)
+  T.check(Wn.page == "ask" and Wn.focus == 2, "the question, Yes chosen")
+  pframe(1, "left")
+  T.check(Wn.focus == 1, "Left: No")
+  pframe(1, "a")
+  T.check(Wn.page == "after" and set[1] == "woob_os:modernMenus:false", "No: the option off (" .. tostring(set[1]) .. ")")
+  T.check(No.seen("modernMenus-1") and No.pending() == nil, "seen the moment it's answered")
+  K.setTextScale(1.3)
+  T.check(pcall(pframe, 10), "the note at 130%")
+  K.setTextScale(1)
+  pframe(1, "a")
+  T.check(not Tm.isOpen(), "OK: closed")
+  t = t + 5
+  No.step(game)
+  T.check(not Tm.isOpen(), "never again")
+  Sh.free, Settings.cache, MS.new = free0, cache0, new0
+end
+
+-- ------- the OPTIONS menu's WOOBOS row (the ui.options.rows hook): after the others', its options counted
+do
+  local Runtime = require("src.mods.Runtime")
+  local okR, rows = pcall(Runtime.call, "ui.options.rows", function(_, r) return r end, {},
+    { { id = "mods", label = "MODS" } })
+  local row
+  for _, r in ipairs(okR and rows or {}) do if r.id == "woob_os" then row = r end end
+  T.check(okR and rows[1].id == "mods" and row ~= nil and row.label == "WOOBOS", "OPTIONS: a WOOBOS row after the rest")
+  local fake = { mods = { optionSchemas = { woob_os = { { key = "a" }, { key = "b" }, { key = "c" } } } } }
+  T.eq(row and row.value(fake), "3 OPTIONS", "its value: how many options")
+end
+
 T.finish("woob_os menus (" .. GAME .. ")")

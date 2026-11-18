@@ -50,6 +50,12 @@ local function loadSibling(mod, name)
 end
 
 return function(mod)
+  -- (every game: a WOOBOS row in the OPTIONS menu, straight to this mod's options)
+  local optionsRow = loadSibling(mod, "src/options_row.lua")
+  if optionsRow then
+    local ok, err = pcall(optionsRow, mod, require)
+    if not ok then mod.log:warn("the options' WOOBOS row couldn't be added: %s", tostring(err)) end
+  end
   -- (Red / Blue / Yellow, Gold / Silver / Crystal: the Game Boy games' own wiring, src/gb/main.lua -- the
   -- same kit, desktop and windows over their own models and host)
   if mod.generation == 1 or mod.generation == 2 then
@@ -70,6 +76,8 @@ return function(mod)
   local summaryCtl = loadSibling(mod, "src/apps/summary_ctl.lua")
   local typeArt = loadSibling(mod, "src/apps/type_art.lua")
   local makeMenus, menusWindow = loadSibling(mod, "src/menus.lua"), loadSibling(mod, "src/apps/menus.lua")
+  -- (an update's notice, once: src/notice.lua the list and when, src/apps/notice.lua the card)
+  local makeNotice, noticeWindow = loadSibling(mod, "src/notice.lua"), loadSibling(mod, "src/apps/notice.lua")
   local makeParty, partyCtl = loadSibling(mod, "src/party.lua"), loadSibling(mod, "src/apps/party.lua")
   local partyView = loadSibling(mod, "src/apps/party_view.lua")
   local makeBagRules, bagCtl = loadSibling(mod, "src/bag_rules.lua"), loadSibling(mod, "src/apps/bag.lua")
@@ -1237,6 +1245,7 @@ return function(mod)
   -- looked at once a second; each built once
   local mapPrep = { at = nil, game = nil, want = nil, nextLook = 0, built = {} }
   local function frame(game)
+    if env.notice then env.notice.step(game) end
     local m3 = env.map3d
     if not m3 then return end
     local g = gameId()
@@ -1354,6 +1363,14 @@ return function(mod)
       log = function(fmt, ...) mod.log:warn(fmt, ...) end,
     })
     env.menus = Menus
+  end
+  -- an update's notice (src/notice.lua): the first time free in the field, the newest one not yet seen
+  if makeNotice and noticeWindow then
+    Apps.register({ id = "notice", labelKey = "notice.title", label = "Notice", glyph = "pokeball",
+                    color = { 10, 132, 255 }, order = 99, pad = false, available = function() return false end,
+                    window = function(ctx, e) return noticeWindow(ctx, e) end })
+    env.notice = makeNotice(engine, { Sh = Sh, Settings = Settings, modId = mod.id or "woob_os",
+                                      log = function(fmt, ...) mod.log:warn(fmt, ...) end })
   end
   mod.events:on("game.ready", function()
     if Menus then pcall(Menus.wrap) end

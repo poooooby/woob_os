@@ -1316,6 +1316,27 @@ The mod option `realShops`; with it off, or anything failing, the game's own scr
 The game's own Summary, Party menu and Bag replaced on FireRed / LeafGreen / Ruby / Sapphire / Emerald by
 our own, in phases (the plan: the Summary, then the Party, then the Bag); the mod option `modernMenus`.
 
+- **The update's notice** (`src/notice.lua` No, `env.notice`; the card `src/apps/notice.lua`, app "notice", never
+  on the grid): `No.NOTICES` (each an `id`, the mod `option` it asks about, its words' keys); main.lua's `frame`
+  calls `No.step(game)` each frame (cheap: done once answered or none pending); free in the field `No.WAIT`
+  (1.5 s) -> the newest unseen opens through `Sh.openFull("notice", ..., { fade, chrome = false, notice })`
+  (`ctx.notice`; the window asks `ctx.seeField(true)` on its first draw). The look is the other windows' glass:
+  `K.backdrop` in the page's two colours faded in over the field (0.94: a hint of it stays), the page's pocket
+  picture scattered (`typeArt.scatter`), a glass card with a coloured head (`K.grad`) and the picture peeking
+  from its foot, popping in (`outBack`) for each page. No | Yes (Left / Right, A; B is No; touch): `No.answer`
+  sets the option as the mod list's own screen does (the engine's `src.mods.ManagerState.new(game):setOption(
+  modId, key, value)`: `loader.modOptions`, the save's options, `game:writeOptions()`, `mod.options_changed`)
+  and marks the id in Settings `noticesSeen` (comma-separated, the installation's) at once; then the note
+  (`notice.menus.after`) and OK. A later update's notice: a new entry (new id) and its words. Gen 3 only. Test:
+  `tests/menus_test.lua` (the end); driver scratchpad `notice_driver.lua` (Settings' writes and
+  `game.writeOptions` stood in for; `ANSWER=no`). A new game's notice shows in the moving truck (dark behind).
+- **OPTIONS > WOOBOS** (`src/options_row.lua`, installed at the top of main.lua so every game has it): the engine's
+  `ui.options.rows` hook (`next()` first, ours on the end: it lands with the other mods' rows after MODS), its
+  value "N OPTIONS" counted once from `loader.optionSchemas`. Chosen: Gen 3 `src.ui.game3.mod_manager.show` (the
+  manager in `._mgr`), the Game Boy games `src.ui.Screens.push(game, "ManagerState")`; then `openOptions(byId[
+  modId])` and `backStack = {}`, so B leaves the manager for OPTIONS. Drivers: scratchpad `optrow_driver.lua`
+  (Gen 3), `optrowgb_driver.lua` (Game Boy).
+
 - **The takeover** (`src/menus.lua`, Mn): `src.ui.game3.summary_menu`'s `openMenu` wrapped once per process
   (`SummaryMenu.__woobOs = { orig, impl }`). Ours for the party menu's SUMMARY (field and battle: no
   `context`) and every `mode = "select_move"` caller (battle level up `Ui.askForget`, the party menu's TM /
