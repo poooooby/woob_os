@@ -1034,8 +1034,11 @@ return function(K, env, T, st, A, KINDS)
     -- (the trainer: a silhouette, see-through on the glass)
     if tr then
       local k = ht * s * grow / th
-      G.setColor(1, 1, 1, 0.5 * la * fade)
-      G.draw(tr.image, K.X(tcx - (tr.u0 + tw / 2) * k), K.Y(base - tr.v1 * k), 0, k * K.sc, k * K.sc)
+      -- (Dark / OLED: the white copy, a light grey see-through)
+      local lightSil = tr.light and K.theme and K.theme() ~= "light"
+      G.setColor(1, 1, 1, (lightSil and 0.42 or 0.5) * la * fade)
+      G.draw(lightSil and tr.light or tr.image, K.X(tcx - (tr.u0 + tw / 2) * k), K.Y(base - tr.v1 * k), 0, k * K.sc,
+        k * K.sc)
     end
     -- (each one's height under it, imperial then metric; kept apart when they stand close)
     local lw = 28 + g * 8

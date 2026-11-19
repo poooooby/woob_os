@@ -210,6 +210,8 @@ return function(K)
   local function draw(fn, cx, cy, size, turn, c, a)
     if not fn then return end
     G = K.graphics()
+    -- (Dark / OLED: quieter, as they are on the light)
+    if K.theme and K.theme() ~= "light" then a = (a or 1) * 0.5 end
     local cv = canvasOf(fn)
     if cv then
       K.col(c, a)

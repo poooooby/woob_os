@@ -932,7 +932,14 @@ return function(deps)
       local tw = width(h[2], 5)
       if hx > hb[1] and hx + kw + 2 + tw > hb[1] + hb[3] then hx, hy = hb[1], hy + 10 end
       if hy + 8 <= hb[2] + hb[4] + 0.5 then
-        col(keyFill or WHITE, 0.9)
+        if themeN ~= 0 and hold == 0 then
+          -- (dark: a faint light cap, so it shows on any dark bar, OLED's black too)
+          hold = hold + 1
+          col(WHITE, 0.16)
+          hold = hold - 1
+        else
+          col(keyFill or WHITE, 0.9)
+        end
         box("fill", R(hx, hy, kw, 8), 4)
         text(h[1], hx, hy + 1.4, 4.5, keyInk, "center", kw)
         if wordColor then

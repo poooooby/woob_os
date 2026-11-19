@@ -3,7 +3,8 @@
 -- are inside its sheet (its picture's own size, not its frame's, is what a height means).
 --
 --   Sz = sizeArt(mod, kit)
---   Sz.trainer() -> { image, w, h, u0, v0, u1, v1 } | nil   (loaded once; u / v the drawn pixels' box,
+--   Sz.trainer() -> { image, light, w, h, u0, v0, u1, v1 } | nil   (loaded once; light: a white copy for
+--                                                           the dark themes; u / v the drawn pixels' box,
 --                                                           u1 / v1 one past them)
 --   Sz.bounds(image) -> u0, v0, u1, v1 | nil                 (read back through a canvas: an action or a
 --                                                           one-off per picture, never every frame;
@@ -71,12 +72,23 @@ return function(mod, Kit)
         local w, h = img:getDimensions()
         -- (its own pixels read from the file: no canvas needed)
         local u0, v0, u1, v1
-        local LI = love and love.image
+        local LI, LG = love and love.image, love and love.graphics
         local okP, full = pcall(mod.assets.path, mod.assets, PATH)
         local okD, data = false, nil
         if okP and LI and LI.newImageData then okD, data = pcall(LI.newImageData, full) end
         if okD and data then u0, v0, u1, v1 = scan(data, w, h) end
         got = { image = img, w = w, h = h, u0 = u0 or 0, v0 = v0 or 0, u1 = u1 or w, v1 = v1 or h }
+        -- (a white copy, its alpha kept: the silhouette drawn light on the dark themes)
+        if okD and data and LG and LG.newImage then
+          local okL, light = pcall(function()
+            local copy = data:clone()
+            copy:mapPixel(function(_, _, _, _, _, a) return 1, 1, 1, a end)
+            local im = LG.newImage(copy)
+            im:setFilter("nearest", "nearest")
+            return im
+          end)
+          if okL then got.light = light end
+        end
       end
     end
     return got or nil

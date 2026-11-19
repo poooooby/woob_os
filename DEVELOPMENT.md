@@ -1699,7 +1699,9 @@ same table every frame, so gradient meshes keep):
   shade of itself (0.66); light ink and bright strong colours stay. `K.toneFill(c)` / `K.toneInk(c)` give the theme's colour for
   something drawn outside the kit (the desktop's money sign, the menu bar's W).
 - **Hand-tuned:** `K.glass` (a faint sheen and edge), `K.backdrop` (a deep wash, OLED black, the lights
-  dimmer), `K.glassSwitch` (a dark track, a lighter thumb), `K.label`'s shadow and `K.glow` as given.
+  dimmer), `K.glassSwitch` (a dark track, a lighter thumb), `K.hints` (faint light key caps, seen on OLED's
+  black bar too), `K.label`'s shadow and `K.glow` as given; `type_art`'s pictures behind the Bag and the
+  summary at half; the Size tab's trainer drawn from a white copy (`Sz.trainer().light`).
 - **Held** (`K.themeHold(true / false)`, reset each `K.frame`): the Pokémon Center (`V.draw`) keeps its own
   colours. The market stalls (`stall_view`'s `backdrop` / `front`) are held too: the top scene (sky, sea,
   tent, vendor, goods) as the time of day draws it in every theme; in Dark / OLED only the beach below `band`
