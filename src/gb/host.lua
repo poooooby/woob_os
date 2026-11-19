@@ -494,7 +494,8 @@ return function(mod, deps)
   --     answers opts.onFly(spawn), B opts.onClose(); the World pops the screen in both
   --   the walls' Town Map (opts.townMap): our map; it pops itself, then opts.onClose() (the script goes on)
   --   the START menu's (no fly / townMap): WoobPad, which has the Map, Phone and Radio (onClose() closes the
-  --     START menu's item; the START row is WoobPad's already, so this is rare)
+  --     START menu's item; the START row is WoobPad's already, so this is rare); with the WoobPad option off
+  --     (deps.padOn), the game's own
   -- With the option off, without the desktop, or anything failing: the game's own Pokégear
   local function gearBuiltin(game, opts)
     local M = engine("src.ui.gen2.Pokegear")
@@ -528,6 +529,7 @@ return function(mod, deps)
       opts = opts or {}
       local wanted = Sh and (not deps.enabled or deps.enabled()) and (not deps.gearOn or deps.gearOn())
       if not wanted then return gearBuiltin(game, opts) end
+      if not (opts.fly or opts.townMap) and deps.padOn and not deps.padOn() then return gearBuiltin(game, opts) end
       local c = { isMenu = true, update = gearCarrierUpdate, draw = stateDraw, isOpaque = true, game = game,
                   opts = opts }
       local function popSelf()

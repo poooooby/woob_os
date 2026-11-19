@@ -3126,6 +3126,16 @@ st.ctx.logoff()
 -- counter's goods at its prices, bought by the game's rules; its onClose once
 do
   local Rs, Tm = X._test.env.realShop, X._test.townmap
+  -- (the host's fade through black: run through its steps at once)
+  local function unveil()
+    for _ = 1, 6 do
+      local r = Tm.isOpen() and Tm.state()
+      local v = r and r.veil
+      if not (v and v.phase and v.phase ~= "gone") then return end
+      v.t = v.t - 10
+      Tm.draw(G, VP)
+    end
+  end
   T.check(Rs ~= nil, "the real shops are made")
   local closedN = 0
   s.money = 5000
@@ -3142,6 +3152,8 @@ do
   for _ = 1, 30 do clock = clock + 1 / 60; Tm.draw(G, VP) end
   T.check(not Tm.state().winFailed, "the shop draws")
   Tm.state().ctx.done()
+  T.check(Tm.isOpen() and Tm.veiling() and closedN == 0, "closing: back through black first, the game waiting")
+  unveil()
   T.check(not Tm.isOpen() and closedN == 1, "closed: the game's onClose, once")
   Tm.close()
   T.eq(closedN, 1, "(not twice)")
@@ -3152,6 +3164,7 @@ do
   local outdoorId = rse and "EM_SLATEPORT_CITY" or "FR_VIRIDIAN_CITY"
   Map.currentDef = function() return { id = outdoorId } end
   local okS = Rs.open({ items = { 4, POTION }, session = s, onClose = noop })
+  unveil()
   local stallM = okS and Tm.isOpen() and Tm.state().ctx.shop
   T.check(stallM and stallM.kind == "stall" and stallM.sub == "Market Stall" and stallM.theme and stallM.theme.stripe[1] == 96,
           "a counter out in the open (" .. outdoorId .. "): a market stall (" .. tostring(stallM and stallM.kind) .. ")")
@@ -3178,12 +3191,44 @@ do
   FG.drawGlyph = glyph0
   T.check(kbS < 0.5, ("the stall: next to no garbage (%.3f KB a frame)"):format(kbS))
   if Tm.isOpen() then Tm.state().ctx.done() end
+  unveil()
   Map.currentDef = function() return { id = rse and "EM_SLATEPORT_CITY_MART" or "FR_VIRIDIAN_CITY_MART" } end
   local okM = Rs.open({ items = { 4, POTION }, session = s, onClose = noop })
   local martM = okM and Tm.isOpen() and Tm.state().ctx.shop
   T.check(martM and martM.kind == "mart", "the Poké Mart indoors: a Mart (" .. tostring(martM and martM.kind) .. ")")
   if Tm.isOpen() then Tm.state().ctx.done() end
+  unveil()
   Map.currentDef = def0
+  -- (straight to the counter: a clerk's script as the games have it -- the greeting, a flag's check, the
+  -- shop, the goodbye -- runs only its lock / faceplayer / checkflag / goto_if / pokemart / release)
+  local function clerk(oursOpens)
+    local list = {
+      { op = "lock" }, { op = "faceplayer" }, { op = "message", ptr = "hi" }, { op = "waitmessage" },
+      { op = "checkflag", flag = 116 }, { op = "goto_if", target = "x" }, { op = "pokemart", ptr = "goods" },
+      { op = "loadword", dest = 0, value = "bye" }, { op = "callstd", std = 4 }, { op = "release" },
+    }
+    local vm = { ctx = { pc = { listKey = "k", index = 1 } }, scripts = { k = list } }
+    local ran = {}
+    local function nxt(_, op)
+      ran[#ran + 1] = op
+      if op == "pokemart" and oursOpens then
+        Rs.open({ items = { 4, POTION }, session = s, onClose = noop })
+        if Tm.isOpen() then Tm.state().ctx.done() end
+        unveil()
+  unveil()
+      end
+      return false
+    end
+    for i, row in ipairs(list) do
+      vm.ctx.pc.index = i + 1
+      Rs.command(nxt, { runner = vm }, row.op, row)
+    end
+    return table.concat(ran, ",")
+  end
+  T.eq(clerk(true), "lock,faceplayer,checkflag,goto_if,pokemart,release",
+       "a clerk's script: no greeting or goodbye round ours")
+  T.eq(clerk(false), "lock,faceplayer,checkflag,goto_if,pokemart,loadword,callstd,release",
+       "the game's own shop (ours not opened): its goodbye kept")
 end
 
 run.release()

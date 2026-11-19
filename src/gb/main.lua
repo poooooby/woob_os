@@ -84,8 +84,10 @@ return function(mod, loadSibling)
   local function dexOn()
     return option("pokedex", true) ~= false and (not Settings or Settings.get("pokedexApp", true) ~= false)
   end
+  local env
   local Host = makeHost(mod, { gen = gen, require = require, log = mod.log, dexOn = dexOn,
                                gearOn = function() return option("pokegear", true) ~= false end,
+                               padOn = function() return not env or env.padOption() end,
                                enabled = function() return option("desktop", true) ~= false end })
   local engine = Host.engine
   local FALLBACK_FONT = "assets/fonts/plainpixel/PlainPixel-Regular.ttf"
@@ -138,7 +140,7 @@ return function(mod, loadSibling)
   })
   local function wallpaper() return Settings and Settings.get("wallpaper", "classic") or "classic" end
   local function wallpaperFit() return Settings and Settings.get("wallpaperFit", "fill") or "fill" end
-  local env = {
+  env = {
     K = Kit, session = session, now = function() return love and love.timer and love.timer.getTime() or 0 end,
     se = function(name) Host.se(name) end, gen = gen, host = Host,
     prewarm = function() end,
@@ -393,6 +395,8 @@ return function(mod, loadSibling)
   end
   -- the Pokédex (src/gb/dex.lua): the window is Gen 3's; the picture a breathing still with a hop when chosen
   env.dexOption = function() return option("pokedex", true) ~= false end
+  -- (the WoobPad option: off, no START row, and the game's own Pokégear from START)
+  env.padOption = function() return option("woobpad", true) ~= false end
   if Gd and makeDex then
     -- (WoobleSpawns, modern_spawns: the wild Pokémon it places, for the Where tab)
     local spawnArea = makeSpawnArea and makeSpawnArea({
@@ -658,7 +662,7 @@ return function(mod, loadSibling)
 
   Sh = makeShell(mod, { require = require, log = mod.log, desktop = Desktop, apps = Apps, watch = Watch,
                         notify = Nt, tick = tick, session = session, townmap = TownMap, host = Host, frame = frame,
-                        map3d = env.map3d,
+                        map3d = env.map3d, padOn = function() return env.padOption() end,
                         watchRow = function() return not Settings or Settings.get("watchRow", true) ~= false end,
                         watchLabel = function() return T and T("watch.start") or "WATCH" end })
   Sh.enabled = function() return option("desktop", true) ~= false end

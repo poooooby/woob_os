@@ -22,6 +22,7 @@ return function(engine, deps)
 
   local function log(fmt, ...) if deps.log then deps.log(fmt, ...) end end
   local function on() return not deps.enabled or deps.enabled() ~= false end
+  Pn.enabled = on
 
   -- the wrap of `mod.new`, once per process
   local function wrap(name, impl)

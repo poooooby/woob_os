@@ -256,8 +256,60 @@ return function(engine, deps)
       model.close()
       if opts.onClose then opts.onClose() end
     end
-    return Sh.openFull("mart", opts.session or session(), onClose, nil, { mode = "shop", shop = model,
-                                                                          backKey = "hint.close" }) == true
+    -- (veil: through black from the field and back to it, as the nurse's counter)
+    local opened = Sh.openFull("mart", opts.session or session(), onClose, nil, { mode = "shop", shop = model,
+                                                                                backKey = "hint.close", veil = true }) == true
+    if opened then Rs.opened = true end
+    return opened
+  end
+
+  -- ------- straight to the counter, as the nurse's: every clerk's script greets (`message` / `waitmessage`,
+  -- maybe a flag's check) right before its `pokemart`, and says goodbye after it (`loadword` + `callstd 4`,
+  -- "Please come again"). With the option on, the greeting is skipped; the goodbye too when ours was the
+  -- shop. The `lock` / `faceplayer` before and the `release` after are the script's, as ever.
+  local PASS = { waitmessage = true, checkflag = true, compare_var_to_value = true, goto_if = true }
+  local function martAt(list, i)
+    for j = i, math.min(#list, i + 4) do
+      local op = type(list[j]) == "table" and list[j].op or nil
+      if type(op) == "string" and op:find("^pokemart") then return true end
+      if not PASS[op] then return false end
+    end
+    return false
+  end
+  local goodbye = setmetatable({}, { __mode = "k" })   -- vm -> "loadword" | "callstd": the next one skipped
+  -- (vm.ctx.pc.index is the row after this one by the time the hook runs, as the shell's skips have it)
+  function Rs.command(nxt, ctx, op, row, ...)
+    local vm = type(ctx) == "table" and (ctx.runner or ctx.vm) or nil
+    local pc = vm and vm.ctx and vm.ctx.pc
+    local list = pc and vm.scripts and vm.scripts[pc.listKey]
+    if not list then return nxt(ctx, op, row, ...) end
+    local bye = goodbye[vm]
+    if bye then
+      goodbye[vm] = nil
+      if op == bye then
+        if op == "loadword" then
+          local r = list[pc.index]
+          if r and r.op == "callstd" and tonumber(r.std or r[1]) == 4 then goodbye[vm] = "callstd" end
+          return false
+        end
+        if tonumber(row and (row.std or row[1])) == 4 then return false end
+      end
+    end
+    if type(op) ~= "string" or (deps.on and not deps.on()) then return nxt(ctx, op, row, ...) end
+    if op == "message" or op == "waitmessage" then
+      local ok, skip = pcall(martAt, list, pc.index)
+      if ok and skip then return false end
+    elseif op:find("^pokemart") then
+      Rs.opened = false
+      local res = nxt(ctx, op, row, ...)
+      if Rs.opened then
+        Rs.opened = false
+        local r = list[pc.index]
+        if r and r.op == "loadword" then goodbye[vm] = "loadword" end
+      end
+      return res
+    end
+    return nxt(ctx, op, row, ...)
   end
 
   -- (once per process; this instance's open swapped in)

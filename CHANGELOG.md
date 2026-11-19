@@ -6,6 +6,9 @@ All notable changes to this mod are documented here, in
 ## [Unreleased]
 
 ### Added
+- **A WoobPad option** (OPTIONS > WOOBOS): turn it off and WoobPad leaves the START menu, and the
+  PokéNav (Ruby, Sapphire, Emerald) and the Pokégear (Gold, Silver, Crystal) are back in their rows as the
+  game's own. Fly and the wall maps on Gold, Silver and Crystal still follow the Pokégear option.
 - **Item pictures on Red, Blue, Yellow, Gold, Silver and Crystal** when you've also imported Emerald,
   FireRed or LeafGreen: the Mart, the Bag and the other apps show that game's pictures for the items (a TM
   as a disc in its move's type's colour). Without one, each item is a tile in its pocket's colour, as before.
@@ -52,6 +55,10 @@ All notable changes to this mod are documented here, in
   night, until Rayquaza is beaten or caught.
 
 ### Changed
+- Talking to a shop clerk on FireRed, LeafGreen, Ruby, Sapphire and Emerald opens the shop straight away, as the
+  Pokémon Center's nurse does: no greeting before it and no "Please come again" after.
+- Every shop counter (all eleven games) fades to black from the field and up into the shop, and back the same
+  way when you leave.
 - The summary is titled "Pokémon Info", with pictures of the Pokémon's type (flames, drops, bolts, leaves ...)
   drifting behind it.
 - The Bag has its pocket's pictures drifting behind it and a large one in the corner of the item's card; the chosen row

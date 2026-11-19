@@ -1107,5 +1107,11 @@ return function(ctx, env)
 
   refresh()
   greet()
+  -- (a counter that fades up through black: the clerk's first words once the shop's in sight)
+  local delay = tonumber(ctx.veilDelay)
+  if delay and delay > 0 and st.say then
+    st.say.t = st.say.t + delay
+    if st.moodT then st.moodT = st.moodT + delay end
+  end
   return W
 end

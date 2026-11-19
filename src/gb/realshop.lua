@@ -129,7 +129,8 @@ return function(H, Gd, deps)
     end
     c.fallback = fallback
     c.open = function()
-      return deps.Sh.openFull("mart", H.session(), c.finish, nil, { mode = "shop", shop = model, backKey = "hint.close" })
+      return deps.Sh.openFull("mart", H.session(), c.finish, nil, { mode = "shop", shop = model, backKey = "hint.close",
+                                                                 veil = true })
     end
     return c
   end

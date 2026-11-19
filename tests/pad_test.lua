@@ -177,6 +177,31 @@ do
   local off = Runtime.call("ui.start_menu.items", vanilla, {}, startList(true))
   T.check(not ids(off):find("woob_watch", 1, true), "Settings: the row off")
   Settings.set("watchRow", true)
+  -- (the mod's WoobPad option off: no row, the PokéNav's row the game's, no pad, the PokéNav's screens the
+  -- game's, and Settings without WoobPad's and the PokéNav's sections)
+  do
+    local env = X._test.env
+    local was = env.padOption
+    env.padOption = function() return false end
+    local offNav = startList(true)
+    table.insert(offNav, 3, { id = "pokenav", label = "POKéNAV" })
+    local n = #offNav
+    local plain = Runtime.call("ui.start_menu.items", vanilla, {}, offNav)
+    T.check(not ids(plain):find("woob_watch", 1, true) and plain[3].id == "pokenav" and #plain == n,
+      "WoobPad off: the game's rows, its POKéNAV (" .. ids(plain) .. ")")
+    T.check(not Sh.openWatch(s) and not Wt.isOpen(), "and no pad")
+    local Pn = X._test.pokenav
+    T.check(Pn == nil or not Pn.enabled(), "the PokéNav's own screens")
+    local okS, SW = pcall(dofile("mods/woob_os/src/apps/settings.lua"), { family = "rse", session = s }, env)
+    if okS and SW then
+      local has = {}
+      for _, sec in ipairs(SW.SECTIONS) do has[sec.id] = true end
+      T.check(not has.watch and not has.pokenav and has.notify, "Settings: no WoobPad or PokéNav section")
+    else
+      T.check(false, "Settings opened (" .. tostring(SW) .. ")")
+    end
+    env.padOption = was
+  end
   -- (Ruby / Sapphire / Emerald: in the PokéNav's place, the PokéNav's row gone)
   local withNav = startList(true)
   table.insert(withNav, 3, { id = "pokenav", label = "POKéNAV" })

@@ -105,6 +105,17 @@ local function frame(n)
     pressedNow = {}
   end
 end
+-- (the host's fade through black, a shop counter's: run through its steps at once)
+local function unveil()
+  local Tm = X._test.townmap
+  for _ = 1, 6 do
+    local st = Tm and Tm.isOpen() and Tm.state()
+    local v = st and st.veil
+    if not (v and v.phase and v.phase ~= "gone") then return end
+    v.t = v.t - 10
+    frame(1)
+  end
+end
 local function press(k)
   pressedNow = { [k] = true }
   stack:update(1 / 60)
@@ -208,6 +219,21 @@ if GEN == 2 then
   rows = Sh.startRows(rows)
   T.check(rows[4] and rows[4].woobOs and rows[4].onSelect ~= nil and rows[4].value == nil and #rows == 6,
           "START: WoobPad in the POKéGEAR row's place")
+  -- (the WoobPad option off: the game's own POKéGEAR row and Pokégear from it; Fly's still ours)
+  do
+    local env = X._test.env
+    local was = env.padOption
+    env.padOption = function() return false end
+    local plain = Sh.startRows({ { id = "pokedex" }, { id = "pokemon" }, { id = "pack" }, { id = "pokegear" },
+                                 { id = "status" }, { id = "save" } })
+    T.check(plain[4].id == "pokegear" and not plain[4].woobOs and #plain == 6, "WoobPad off: the POKéGEAR row the game's")
+    local own = Screens.build(game, "Gen2Pokegear", { save = save, onClose = noop })
+    T.check(type(own) == "table" and own.cancel == nil and own.opts == nil, "and the game's own Pokégear from START")
+    local fly2 = Screens.build(game, "Gen2Pokegear", { save = save, fly = { { spawn = "SPAWN_NEW_BARK" } }, onClose = noop })
+    T.check(type(fly2) == "table" and fly2.cancel ~= nil, "Fly's map still ours")
+    T.check(not Sh.openWatch(save) and not Wt.isOpen(), "no WoobPad at all")
+    env.padOption = was
+  end
   -- (the Radio: the Pokégear's card, its stations and shows the game's own)
   local Rd = X._test.env.radio
   local radioApp = X._test.apps.byId("radio")
@@ -828,6 +854,19 @@ if padRow then
   if st and st.ctx then st.ctx.done() end
   T.check(not Wt.isOpen() and #stack.states == base, "put away: the stack as it was")
 end
+do
+  local env = X._test.env
+  local was = env.padOption
+  env.padOption = function() return false end
+  local plain = {}
+  for i, r in ipairs(rows) do if not r.woobOs then plain[#plain + 1] = r end end
+  local n = #plain
+  local off = Sh.startRows(plain)
+  local any = false
+  for _, r in ipairs(off) do if r.woobOs then any = true end end
+  T.check(not any and #off == n, "the WoobPad option off: no row")
+  env.padOption = was
+end
 
 -- ------- the real shops: a counter's screen opens our Mart full screen with its own goods; the game hears
 -- what its screen would say
@@ -855,6 +894,9 @@ do
   stack:push(c)
   frame(2)
   T.check(Tm.isOpen() and Tm.state().ctx.shop ~= nil, "the Mart opens full screen")
+  T.check(Tm.veiling() and Tm.state().veil.phase == "in", "through black from the field")
+  unveil()
+  T.check(not Tm.veiling(), "  then the shop, still")
   local shopM = Tm.isOpen() and Tm.state().ctx.shop
   local first = shopM and shopM.tabs()[1].rows[1]
   T.check(first ~= nil and first.price > 0, "its goods: " .. tostring(first and first.name))
@@ -866,6 +908,9 @@ do
   frame(30)
   T.check(not Tm.state().winFailed, "the shop draws")
   Tm.state().ctx.done()
+  frame(2)
+  T.check(Tm.isOpen() and Tm.veiling() and closed == 0, "closing: back through black, the game waiting")
+  unveil()
   frame(2)
   T.check(not Tm.isOpen() and closed == 1 and #stack.states == base, "closed: the game's own answer, the stack as it was")
   if GEN == 2 then
@@ -882,6 +927,7 @@ do
       T.check(select(2, bm.buy(save, row.id, 1)) == "gone", "then sold out")
     end
     if Tm.isOpen() then Tm.state().ctx.done() end
+    unveil()
     frame(2)
     T.eq(#stack.states, base, "the stack as it was")
   end

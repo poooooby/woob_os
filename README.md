@@ -20,7 +20,7 @@ controller, a touch screen, or a mouse and keyboard.
 - 🔔 **Notifications:** when you're outbid or win on R-Bay, your GTS deposit is traded, a team is back
   from an errand, a challenge is done, and more. Pull down from the top of the screen to see them all.
 - 🛍️ **App Store:** remove the apps you don't want from your home screen, and get them back later.
-- 🏪 **Real shops:** every shop counter opens the Mart full screen with that shop's own goods: Poké
+- 🏪 **Real shops:** talking to a shop clerk fades straight into the Mart, full screen, with that shop's own goods: Poké
   Marts, every department store floor, herb shops, the pharmacy, souvenir and decoration shops, the
   Underground's bargain stall and Slateport's market stalls by the sea, each dressed for its place and
   what it sells.
@@ -147,6 +147,7 @@ In the game's OPTIONS menu, WOOBOS opens these directly (also under MODS > WoobO
 | Boot Screen | On / Off | On | The W boot screen before the desktop. |
 | 24-Hour Clock | On / Off | Off | The clock as 15:30 instead of 3:30 PM. |
 | Text Size | Normal / Large / Larger | Normal | Bigger text in every app. Also in Settings; whichever you changed last counts. |
+| WoobPad | On / Off | On | Off: no WoobPad, and the START menu's PokéNav (Ruby, Sapphire, Emerald) and Pokégear (Gold, Silver, Crystal) are the game's own. |
 | Pokédex | On / Off | On | Off: the game's own Pokédex, and no Pokédex app. |
 | Pokégear | On / Off | On | Gold, Silver and Crystal. Off: the game's own Pokégear. |
 | Real Shops | On / Off | On | Off: every shop counter opens the game's own shop menu. |

@@ -31,7 +31,8 @@
 --     move (src/notify.lua)
 --
 --   Sh = shell(mod, deps)   deps: require ; log ; desktop (made) ; watch (WoobPad: a desktop, made) ; apps ;
---                           notify (src/notify.lua) ; tick() ; session() ; watchRow() -> the START
+--                           notify (src/notify.lua) ; tick() ; session() ; padOn() -> the WoobPad option
+--                           (off: no row, no pad, the banners' taps the game's) ; watchRow() -> the START
 --                           row shown ; watchLabel() -> its words ; townmap (src/townmap.lua) ;
 --                           map3d (env.map3d: its model) ; map3dOn() -> the 3D Town Map wanted ;
 --                           pokenav (src/pokenav.lua) ; onCall(session, trainerId, msg) (a field call)
@@ -179,13 +180,16 @@ return function(mod, deps)
   function MapLayer.handleInput(input) feed(input) end
   function Sh.feedHost(input) if Tm and Tm.isOpen() then feed(input) end end
   function MapLayer.update() end
-  MapLayer.draw = Layer.draw
 
   -- (the desktop is full screen: the field isn't drawn under it; the pad's field stays, dimmed)
   local FULL, OVER = { hideBelow = true, fullscreen = true }, { hideBelow = true, fullscreen = false }
   -- (a full-screen window that fades in and out over the field: the field drawn under it while `seeField`)
   local seeField = false
   local SEE = { hideBelow = true, fullscreen = function() return not seeField end }
+  -- (the game's screen black under a full-screen window; nothing while the field shows through)
+  function MapLayer.draw()
+    if not seeField then Layer.draw() end
+  end
   local function push(id, layer, see)
     id, layer = id or Sh.LAYER_ID, layer or Layer
     if H then
@@ -337,6 +341,7 @@ return function(mod, deps)
   function Sh.openWatch(s, opts)
     if not Wt or Wt.isOpen() or D.isOpen() then return false end
     if Sh.enabled and not Sh.enabled() then return false end
+    if deps.padOn and not deps.padOn() then return false end
     s = s or (deps.session and deps.session())
     local ctx = { session = s, mode = "pad", host = "pad", family = familyOf(gameId()), rows = {}, warm = true }
     function ctx.row() return nil end
@@ -520,9 +525,18 @@ return function(mod, deps)
       if closed then return end
       closed = true
       Tm.close()
-      if o.fade then see(false) end
+      if o.fade or o.veil then see(false) end
       pop(Sh.MAP_ID)
       if onClose then onClose() end
+    end
+    -- (o.veil: the host fades through black from the field and back to it; the close waits for it)
+    if o.veil then
+      local shut = close
+      close = function()
+        if closed then return end
+        if not (Tm.leave and Tm.leave(shut)) then shut() end
+      end
+      ctx.veilDelay = Tm.VEIL and Tm.VEIL * 2 or 0
     end
     ctx.finish, ctx.done, ctx.logoff = close, close, close
     if o.fade then ctx.seeField = see end
@@ -539,12 +553,15 @@ return function(mod, deps)
       end
     end
     local so = { maker = app.window, app = appId, chrome = o.chrome ~= false, cancel = close, backKey = o.backKey,
-                 noHints = o.noHints }
+                 noHints = o.noHints, veil = o.veil and see or nil }
     if not Tm.open(ctx, so) then return false end
-    if not push(Sh.MAP_ID, MapLayer, o.fade) then
+    if not push(Sh.MAP_ID, MapLayer, o.fade or o.veil) then
       Tm.close()
+      if o.veil then see(false) end
       return false
     end
+    -- (the field asked for while opening, before the layer was there: the Game Boy host hears it now)
+    if (o.fade or o.veil) and seeField then see(true) end
     return true
   end
 
@@ -866,7 +883,8 @@ return function(mod, deps)
     if Gp and Gp.pointer(ev) then return true end
     local h = host()
     if h then return h.pointer(ev) end
-    if Nt and type(ev) == "table" and ev.phase == "pressed" then
+    -- (a banner's tap opens WoobPad on its app: not with the WoobPad option off, the tap the game's)
+    if Nt and type(ev) == "table" and ev.phase == "pressed" and not (deps.padOn and not deps.padOn()) then
       local rec = Nt.hitField(tonumber(ev.x) or 0, tonumber(ev.y) or 0)
       if rec then
         Sh.openWatch(nil, { app = rec.app, state = rec.state })
@@ -880,6 +898,8 @@ return function(mod, deps)
   function Sh.startRows(list)
     if not (Wt and type(list) == "table" and #list > 0) then return list end
     if Sh.enabled and not Sh.enabled() then return list end
+    -- (the WoobPad option off: the game's own rows, its PokéNav / Pokégear among them)
+    if deps.padOn and not deps.padOn() then return list end
     if deps.watchRow and not deps.watchRow() then return list end
     -- (Emerald's PokéNav tutorial, Rustboro's Devon scientist: the game's fixed START list, its script
     -- waiting for the POKéNAV row by its place: left exactly as it is, or the script waits forever)

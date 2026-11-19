@@ -11,6 +11,10 @@
 --                        (window(ctx, env)), app, chrome, backKey (the toolbar's way back; default the PokéNav's); cancel(): B, or that) ; Tm.close() ;
 --                        Tm.isOpen() ; Tm.state()
 --   Tm.draw(G, vp) ; Tm.input(input) ; Tm.pointer(ev) -> true ; Tm.wheel(dy) -> true
+--   opts.veil = see(on): a fade through black from the field and back to it, the host's own (a shop
+--                        counter): the field to black, then the window up from it; Tm.leave(after) the
+--                        same backwards, after() once the field is back. see(true) shows the field
+--                        through while it's under the black. Buttons and fingers wait while it fades.
 
 local floor, max, min, abs = math.floor, math.max, math.min, math.abs
 
@@ -46,6 +50,10 @@ return function(deps)
     r = { ctx = ctx, opts = opts, win = w, held = {}, touch = {}, t0 = now(), body = {} }
     -- (the A that chose the Town Map / Fly is still down: waited out)
     r.waitRelease = true
+    if opts.veil then
+      r.veil = { phase = "in", t = now(), after = nil }
+      pcall(opts.veil, true)
+    end
     return true
   end
   function Tm.close()
@@ -54,11 +62,66 @@ return function(deps)
     if w and w.close then pcall(w.close) end
   end
 
+  -- ------- the veil: in (the field to black), up (the window from black), down (the window to black),
+  -- out (the field from black); nil while still
+  Tm.VEIL = 0.45
+  -- -> true when it's going backwards now (after() comes later), false: no veil, close at once
+  function Tm.leave(after)
+    local v = r and r.veil
+    if not v then return false end
+    if v.phase == "down" or v.phase == "out" then return true end
+    -- (from partway up: down from where it is)
+    local k = v.phase == "up" and max(0, 1 - (now() - v.t) / Tm.VEIL) or 0
+    if v.phase == "in" then
+      -- (the field still showing: straight back out from the black it reached)
+      k = min(1, (now() - v.t) / Tm.VEIL)
+      v.phase, v.t, v.after = "out", now() - (1 - k) * Tm.VEIL, after
+      return true
+    end
+    v.phase, v.t, v.after = "down", now() - k * Tm.VEIL, after
+    return true
+  end
+  function Tm.veiling() return r ~= nil and r.veil ~= nil and r.veil.phase ~= nil end
+  -- (stepped once a frame from the draw: the black's amount; through: the field's under it, not the window)
+  local function veilStep()
+    local v = r.veil
+    if not (v and v.phase) then return 0, false end
+    local k = min(1, max(0, (now() - v.t) / Tm.VEIL))
+    local ph = v.phase
+    if ph == "in" then
+      if k >= 1 then
+        pcall(r.opts.veil, false)
+        v.phase, v.t = "up", now()
+        return 1, false
+      end
+      return k, true
+    elseif ph == "up" then
+      if k >= 1 then v.phase = nil; return 0, false end
+      return 1 - k, false
+    elseif ph == "down" then
+      if k >= 1 then
+        pcall(r.opts.veil, true)
+        v.phase, v.t = "out", now()
+        return 1, true
+      end
+      return k, false
+    end
+    -- (out: the field back up from black; then the window goes and the game hears)
+    if k >= 1 then
+      local after = v.after
+      v.phase, v.after = "gone", nil
+      if after then after() end
+      return 0, true
+    end
+    return 1 - k, true
+  end
+
   local cur
   local NAV = {}
   function Tm.input(input)
     if not (r and input) then return end
     cur = input
+    if Tm.veiling() then return end
     if r.waitRelease then
       local okD, down = pcall(input.isDown, input, "a")
       if input:wasPressed("a") or (okD and down) then return end
@@ -115,6 +178,10 @@ return function(deps)
   -- every finger to the map (it turns, tilts and pinches); a still one's release is a tap
   function Tm.pointer(ev)
     if not (r and type(ev) == "table") then return true end
+    if Tm.veiling() then
+      r.touch[ev.id or 1] = nil
+      return true
+    end
     local x, y, id = tonumber(ev.x) or 0, tonumber(ev.y) or 0, ev.id or 1
     local w = r.win
     local ux, uy = units(x, y)
@@ -154,7 +221,7 @@ return function(deps)
     return true
   end
   function Tm.wheel(dy)
-    if r and r.win.scroll then pcall(r.win.scroll, dy * 10) end
+    if r and r.win.scroll and not Tm.veiling() then pcall(r.win.scroll, dy * 10) end
     return true
   end
 
@@ -164,6 +231,16 @@ return function(deps)
     local pw, ph = K.frame(G, vp, Tm.PAGE, clock - r.t0)
     local b = r.body
     local w = r.win
+    -- (the host's veil: only the black over the field while it's under it)
+    local black, under = veilStep()
+    if not r then return end
+    if under then
+      if black > 0 then
+        G.setColor(0, 0, 0, black)
+        G.rectangle("fill", 0, 0, K.ww, K.wh)
+      end
+      return
+    end
     -- (a window fading over the field shows it through: win.see() true)
     local through = false
     if w.see then
@@ -229,6 +306,11 @@ return function(deps)
       K.hints(hints, K.R(hb[1] + 3, hb[2] + 1, hb[3] - 6, 8), KEY, true, INK, INK)
     end
     K.scissor()
+    -- (the veil's black over all of it: the toolbar and the hints too)
+    if black > 0 then
+      G.setColor(0, 0, 0, black)
+      G.rectangle("fill", 0, 0, K.ww, K.wh)
+    end
     if deps.keepHits then keepHits() end
   end
 

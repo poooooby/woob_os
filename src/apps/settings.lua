@@ -68,10 +68,11 @@ local ALL_SECTIONS = {
     note = "settings.displayNote" },
   { id = "notify", key = "settings.notifications", tile = C.notifyTile, toggles = NOTIFY_TOGGLES,
     note = "settings.notifyNote" },
-  { id = "watch", key = "settings.watch", tile = C.watchTile, toggles = WATCH_TOGGLES, note = "settings.watchNote" },
+  { id = "watch", key = "settings.watch", tile = C.watchTile, toggles = WATCH_TOGGLES, note = "settings.watchNote",
+    pad = true },
   { id = "map", key = "settings.map", tile = C.mapTile, toggles = MAP_TOGGLES, note = "settings.mapNote" },
   { id = "pokenav", key = "settings.pokenav", tile = C.navTile, toggles = NAV_TOGGLES, note = "settings.pokenavNote",
-    family = "rse" },
+    family = "rse", pad = true },
   { id = "game", key = "settings.game", tile = C.gameTile, toggles = GAME_TOGGLES, note = "settings.gameNote" },
 }
 -- (a switch's hit: TOGGLE + its section's place * 20 + its row)
@@ -91,10 +92,14 @@ local NO_T = setmetatable({ list = function(l) return l end, f = string.format, 
 return function(ctx, env)
   local K, T, Wall = env.K, env.T or NO_T, env.wall
   local W = { title = "Settings" }
-  -- (the sections this game has: the PokéNav's only on Ruby / Sapphire / Emerald)
+  -- (the sections this game has: the PokéNav's only on Ruby / Sapphire / Emerald; WoobPad's and the
+  -- PokéNav's only while the mod's WoobPad option is on)
   local SECTIONS = {}
+  local padOff = env.padOption and not env.padOption()
   for _, sec in ipairs(ALL_SECTIONS) do
-    if not (sec.family and ctx and ctx.family and ctx.family ~= sec.family) then SECTIONS[#SECTIONS + 1] = sec end
+    if not (sec.family and ctx and ctx.family and ctx.family ~= sec.family) and not (sec.pad and padOff) then
+      SECTIONS[#SECTIONS + 1] = sec
+    end
   end
   local function se(name) if env.se then pcall(env.se, name) end end
 

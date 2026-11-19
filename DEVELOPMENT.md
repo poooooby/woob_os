@@ -518,8 +518,13 @@ is up.
   T("watch.start") ("WOOBPAD"), onSelect }` in the `pokenav` row's place (Ruby / Sapphire / Emerald:
   the Map, Phone, Condition and Ribbons apps do its jobs), else
   under BAG, where it would be (FireRed / LeafGreen, and before the PokéNav is got), only in a menu with
-  SAVE (not a link room's or the Safari Zone's), the Desktop option and Settings' `watchRow` on
-  (the old ids kept: an installation's settings). `onSelect` runs with the START menu still on the
+  SAVE (not a link room's or the Safari Zone's), the Desktop option, the WoobPad option and Settings'
+  `watchRow` on (the old ids kept: an installation's settings).
+- **The WoobPad option** (`woobpad`, `env.padOption`, read live; the shell's `deps.padOn`): off, no row
+  (the game's own POKéNAV / POKéGEAR row), `Sh.openWatch` refuses, a banner's tap is the game's, the
+  PokéNav takeover stands down (`src/pokenav.lua` `enabled`, `Pn.enabled`), Gen 2's `Gen2Pokegear` from
+  START is the game's own (Fly / the walls' map still the `pokegear` option's), and Settings leaves out
+  the WoobPad and PokéNav sections (`pad = true` on them). Tests swap `env.padOption` (pad_test, gb_test). `onSelect` runs with the START menu still on the
   Stack, so popping the pad's layer is the menu again.
 - **The layer:** `woob_pad` (`Sh.PAD_ID`, also `Sh.WATCH_ID`), pushed `{ hideBelow = true,
   fullscreen = false }`: the START menu's box hides, the field is still drawn (the pad dims it).
@@ -1302,6 +1307,19 @@ The mod option `realShops`; with it off, or anything failing, the game's own scr
   history told to the TV on the way out (`tryPutSmartShopperOnAir`), Slateport's PokéNews half price;
   decorations one at a time through `decoration_inventory.add`; FireRed / LeafGreen's quest log event.
   The clerk: the last talked-to object's own sprite (`VAR_LAST_TALKED`, `Objects.find`, `OwSprites`).
+  Straight to the counter (`Rs.command`, a `script.command` wrap from main.lua): every clerk's script is
+  `message` / `waitmessage` (maybe `checkflag` / `goto_if`) then `pokemart*`, then `loadword` + `callstd 4`
+  ("Please come again") and `release` (all five games, 23-37 counters each). With the option on the greeting is
+  skipped (a `pokemart*` within four rows of passing ops); the goodbye only when ours opened (`Rs.opened`, set in
+  `Rs.open` during the synchronous `openShop`). Driver: scratchpad clerk_driver.lua (Oldale / Pewter).
+  The Game Boy games' greetings are the shop screen's own, which ours replaces.
+- **The fade** (both families): `Sh.openFull(..., { veil = true })` -> the host's own fade through black
+  (`src/townmap.lua` `r.veil`: in = the field to black, up = the window from black, down, out = the field
+  back; `Tm.VEIL` 0.45 s each, as the nurse's `FADE`; stepped in `Tm.draw`, buttons / fingers / the wheel
+  wait while `Tm.veiling()`). The ctx's close goes through `Tm.leave(shut)`: the game's onClose comes once
+  the field is back. The field shows through via the shell's `see` (the SEE layer flags; Game Boy
+  `H.opaque`); `MapLayer.draw` paints the game's screen black only while it doesn't. `ctx.veilDelay`: the
+  Mart's first words wait for it. Tests run it through at once (`unveil()`: the veil's `t` pushed back).
 - **Game Boy** (`src/gb/realshop.lua`): the registry's `ShopMenu` (Gen 1: `new(game, stock, onQuit)`;
   ours pops itself, `onQuit` may be nil) and `Gen2MartMenu` (`opts.martType` STANDARD / BITTER /
   BARGAIN / PHARMACY, Crystal's rooftop as STANDARD; `opts.onClose` pops the screen on top: ours). The

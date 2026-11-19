@@ -859,6 +859,8 @@ return function(mod)
   end
   -- (the mod's option: off, the game's own Pokédex everywhere and no app; read when asked, never per frame)
   env.dexOption = function() return option("pokedex", true) ~= false end
+  -- (the WoobPad option: off, no START row, and the game's own PokéNav)
+  env.padOption = function() return option("woobpad", true) ~= false end
   -- (WoobleSpawns, modern_spawns: the wild Pokémon it places, for the Where tab; its species by id, a
   -- slot's id from the content registry, read once; a map's group and number from its encounter record)
   local function registry(name)
@@ -1272,7 +1274,8 @@ return function(mod)
   local Pokenav = makePokenav and makePokenav(engine, {
     open = function(appId, s, onClose, state) return Sh and Sh.openFull(appId, s, onClose, state) or false end,
     enabled = function()
-      return option("desktop", true) ~= false and (not Settings or Settings.get("pokenavApps", true) ~= false)
+      return option("desktop", true) ~= false and env.padOption()
+        and (not Settings or Settings.get("pokenavApps", true) ~= false)
     end,
     log = function(fmt, ...) mod.log:warn(fmt, ...) end,
   }) or nil
@@ -1303,6 +1306,7 @@ return function(mod)
                           return env.dexOption() and (not Settings or Settings.get("pokedexApp", true) ~= false)
                         end or nil,
                         registerOwned = registerOwned,
+                        padOn = function() return env.padOption() end,
                         watchRow = function() return not Settings or Settings.get("watchRow", true) ~= false end,
                         watchLabel = function() return T and T("watch.start") or "WATCH" end })
   Sh.enabled = function() return option("desktop", true) ~= false end
@@ -1325,6 +1329,12 @@ return function(mod)
     log = function(fmt, ...) mod.log:warn(fmt, ...) end,
   }) or nil
   env.realShop = RealShop
+  -- (the clerk's greeting and goodbye skipped: the counter opens straight away)
+  if RealShop then
+    mod.hooks:wrap("script.command", function(nxt, ctx, op, row, ...)
+      return RealShop.command(nxt, ctx, op, row, ...)
+    end)
+  end
   -- the Pokémon Center: the nurse's counter full screen (src/pokecenter.lua; the window is an app that's
   -- never on the home screen: Sh.openFull opens it by id)
   if makePokecenter and pokecenterWindow and pokecenterView then

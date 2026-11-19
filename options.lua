@@ -32,6 +32,13 @@ return {
     description = "Bigger text in every WoobOS app. Words that don't fit get a little smaller to stay in place. Also in Settings > Display.",
   },
   {
+    key = "woobpad",
+    label = "WoobPad",
+    type = "toggle",
+    default = true,
+    description = "WoobPad in the START menu, in the PokéNav's place on Ruby, Sapphire and Emerald and the Pokégear's on Gold, Silver and Crystal. Off: no WoobPad, and the game's own PokéNav and Pokégear there.",
+  },
+  {
     key = "pokedex",
     label = "Pokédex",
     type = "toggle",
@@ -43,7 +50,7 @@ return {
     label = "Pokégear",
     type = "toggle",
     default = true,
-    description = "Gold, Silver and Crystal: WoobPad takes the Pokégear's place in the START menu, and its Map, Phone and Radio do the Pokégear's jobs (Fly and the wall maps open the 3D map). Off: the game's own Pokégear.",
+    description = "Gold, Silver and Crystal: WoobPad takes the Pokégear's place in the START menu (with the WoobPad option on), and its Map, Phone and Radio do the Pokégear's jobs (Fly and the wall maps open the 3D map). Off: the game's own Pokégear.",
   },
   {
     key = "realShops",
