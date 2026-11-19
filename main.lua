@@ -629,24 +629,36 @@ return function(mod)
     return titled((tostring(mapId or "?"):gsub("^%u%u_", ""):gsub("_", " ")))
   end
   -- the Mart's clerk: the game's own overworld sprite (FireRed / LeafGreen's clerk, Ruby / Sapphire /
-  -- Emerald's Mart employee), asked for until it comes (once a second at most); kept per game
-  local clerkSpr, clerkFor, clerkTry = nil, nil, -10
+  -- Emerald's Mart employee). His graphics id is kept per game; the sprite is asked of OwSprites.getDraw
+  -- each time, as the field does (a table lookup once loaded), so a mod's sprite set (Facets) is his too,
+  -- and a set chosen later shows at once; until it loads, asked once a second at most
+  local clerkId, clerkFor, clerkTry, clerkMiss = nil, nil, -10, nil
   env.clerk = function()
     local g = gameId()
-    if clerkSpr and clerkFor == g then return clerkSpr end
+    local Ow = engine("src.core.game3.ow_sprites")
+    if not (Ow and Ow.getDraw) then return nil end
+    if clerkFor ~= g then
+      local t = env.now()
+      if t - clerkTry < 1 then return nil end
+      clerkTry = t
+      local Constants = engine("src.core.game3.constants")
+      if not Constants then return nil end
+      local okC, C = pcall(Constants.of, g)
+      if not (okC and C) then return nil end
+      local okI, id = pcall(C.id, C, "event_objects", "OBJ_EVENT_GFX_CLERK")
+      if not (okI and id) then okI, id = pcall(C.id, C, "event_objects", "OBJ_EVENT_GFX_MART_EMPLOYEE") end
+      if not (okI and id) then return nil end
+      clerkId, clerkFor = id, g
+    end
     local t = env.now()
-    if t - clerkTry < 1 then return nil end
-    clerkTry, clerkSpr = t, nil
-    local Constants, Ow = engine("src.core.game3.constants"), engine("src.core.game3.ow_sprites")
-    if not (Constants and Ow and Ow.getDraw) then return nil end
-    local okC, C = pcall(Constants.of, g)
-    if not (okC and C) then return nil end
-    local okI, id = pcall(C.id, C, "event_objects", "OBJ_EVENT_GFX_CLERK")
-    if not (okI and id) then okI, id = pcall(C.id, C, "event_objects", "OBJ_EVENT_GFX_MART_EMPLOYEE") end
-    if not (okI and id) then return nil end
-    local okS, spr = pcall(Ow.getDraw, id)
-    if okS and type(spr) == "table" and spr.image and spr.quads then clerkSpr, clerkFor = spr, g end
-    return clerkSpr
+    if clerkMiss and t - clerkMiss < 1 then return nil end
+    local okS, spr = pcall(Ow.getDraw, clerkId)
+    if okS and type(spr) == "table" and spr.image and spr.quads then
+      clerkMiss = nil
+      return spr
+    end
+    clerkMiss = t
+    return nil
   end
   -- the News's anchor: a sheet per mood (assets/newscaster.png her everyday read, newscaster-cheer.png,
   -- newscaster-shock.png), square frames side by side (0 at rest), each loaded the first time it's

@@ -868,6 +868,35 @@ do
   env.padOption = was
 end
 
+-- ------- the Mart's clerk: made the way the field makes its people (SpriteRenderer.new), so another mod's
+-- sprite set (Facets) is his too; made again when a mod's option changes
+do
+  local SR = require("src.render.SpriteRenderer")
+  local own = SR.new
+  local fakeImg = { getDimensions = function() return 32, 288 end }
+  local frames = {}
+  for i = 0, 8 do frames[i] = { i } end
+  local gdData = X._test.gd.data()
+  local set = gdData and (GEN == 2 and gdData.gen2Sprites or gdData.sprites)
+  local clerkDef = set and set.SPRITE_CLERK
+  SR.new = function(def, seed, ...)
+    if def ~= nil and def == clerkDef then
+      return { def = { id = "SPRITE_CLERK", image = "facets/x.png", gbaArt = true }, image = fakeImg, frames = frames,
+               frameWidth = 32, frameHeight = 32, frameCount = 9 }
+    end
+    return own(def, seed, ...)
+  end
+  run.loader.events:emit("mod.options_changed", { mod = "facets", key = "classicNpcs" })
+  local c = X._test.env.clerk()
+  -- (the test's data may have no clerk's sprite: nothing to stand in for then)
+  T.check(clerkDef == nil or (c and c.image == fakeImg and c.width == 32 and c.height == 32 and c.frameCount == 9
+    and c.quads == frames), "the clerk: another mod's sprite set's sheet when it has one")
+  SR.new = own
+  run.loader.events:emit("mod.options_changed", { mod = "facets", key = "classicNpcs" })
+  local c2 = X._test.env.clerk()
+  T.check(c2 == nil or (c2.image ~= fakeImg and c2.width == 16), "the set off: the game's own again")
+end
+
 -- ------- the real shops: a counter's screen opens our Mart full screen with its own goods; the game hears
 -- what its screen would say
 do

@@ -318,7 +318,14 @@ The window is a shopfront (`src/apps/mart.lua`):
   `OBJ_EVENT_GFX_CLERK` (FireRed / LeafGreen) or `OBJ_EVENT_GFX_MART_EMPLOYEE` (Ruby / Sapphire /
   Emerald) with `Constants.of(game):id("event_objects", ...)`, then `OwSprites.getDraw(id)`. That's a
   16 x 32 sheet of nine frames (0 down, 1 up, 2 left; right is 2 flipped), its size in `width` /
-  `height`. It's asked for once a second until it comes, then kept per game. Drawn at whole pixels
+  `height`. The id is kept per game and the sprite asked of `getDraw` on every call, as the field
+  does (a lookup once loaded; a miss waits a second), so another mod's sprite set (Facets wraps
+  `OwSprites.get`) is his too, chosen before or after. The Game Boy games (src/gb/main.lua) make him
+  through `SpriteRenderer.new(def, "woob_os_clerk")`, the call the field makes its people with (Facets
+  wraps it): a renderer whose `def` isn't the game's is a mod's sheet, its `image` / `frames` /
+  `frameWidth` / `frameHeight` taken as they are (a grey one, neither `trueColor` nor `gbaArt`, painted
+  like the game's); else the game's grey sheet painted (`Art.colourSheet`). Kept, and made again on
+  `mod.options_changed`. gb_test stands in for such a mod. Drawn at whole pixels
   from the chest up behind the counter. `st.mood` / `st.moodT`: "hop" (a purchase or sale), "shake"
   (left and right: a no), "turn" (Buy / Sell); a glance along the shelves every nine seconds; a
   one-pixel nod while the words type.

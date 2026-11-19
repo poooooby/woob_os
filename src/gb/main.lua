@@ -437,17 +437,36 @@ return function(mod, loadSibling)
       end,
     }
   end
-  -- the Mart's clerk: the game's own overworld sprite (frames down, up, side: the window's order)
+  -- the Mart's clerk: the game's own overworld sprite (frames down, up, side: the window's order), made
+  -- the way the field makes its people (SpriteRenderer.new), so a mod's sprite set (Facets) is his too;
+  -- made again after any mod's option changes (a set chosen or turned off)
   local clerkSpr = nil
+  -- (a mod's sheet for him, as the field would draw him: its image and frames as they are; nil = the game's)
+  local function moddedClerk(spr)
+    local SR = engine("src.render.SpriteRenderer")
+    if not (SR and SR.new and type(spr) == "table") then return nil end
+    local ok, r = pcall(SR.new, spr, "woob_os_clerk")
+    if not (ok and type(r) == "table" and r.def ~= nil and r.def ~= spr and r.image and r.frames) then return nil end
+    local fw, fh = tonumber(r.frameWidth), tonumber(r.frameHeight)
+    if not (fw and fh and r.frames[0]) then return nil end
+    return { image = r.image, quads = r.frames, width = fw, height = fh, frameCount = tonumber(r.frameCount) or 1,
+             grey = type(r.def) == "table" and not r.def.trueColor and not r.def.gbaArt }
+  end
   env.clerk = function()
     if clerkSpr ~= nil then return clerkSpr or nil end
     clerkSpr = false
     local d = Gd and Gd.data()
     local set = d and (Host.gen == 2 and d.gen2Sprites or d.sprites)
     local spr = set and set.SPRITE_CLERK
-    local Assets = engine("src.render.Assets")
-    local ok, img = pcall(Assets and Assets.image or error, spr and spr.image)
     local G = love and love.graphics
+    local mine = moddedClerk(spr)
+    if mine and not mine.grey then
+      clerkSpr = mine
+      return clerkSpr
+    end
+    local Assets = engine("src.render.Assets")
+    local ok, img = true, mine and mine.image
+    if not img then ok, img = pcall(Assets and Assets.image or error, spr and spr.image) end
     -- (the game's grey sheet painted in its colours: Gen 2 the clerk's own palette, Gen 1 a shopkeeper's)
     if ok and img and Art and Art.colourSheet then
       local cols
@@ -461,7 +480,11 @@ return function(mod, loadSibling)
       local okC, painted = pcall(Art.colourSheet, img, cols)
       if okC and painted then img = painted end
     end
-    if ok and img and G and G.newQuad then
+    if mine and ok and img then
+      -- (a mod's grey sheet: painted as the game's would be, its own frames)
+      mine.image, mine.grey = img, nil
+      clerkSpr = mine
+    elseif ok and img and G and G.newQuad then
       local iw, ih = img:getDimensions()
       local n = math.max(1, math.floor(ih / 16))
       local quads = {}
@@ -703,6 +726,8 @@ return function(mod, loadSibling)
     end
   end)
   mod.events:on("map.entered", function() Sh.forget() end)
+  -- (a sprite set chosen or turned off in another mod: the clerk made again)
+  mod.events:on("mod.options_changed", function() clerkSpr = nil end)
   mod.events:on("save.loaded", function(ev)
     Sh.forget()
     if Play then Play.resetBadges() end

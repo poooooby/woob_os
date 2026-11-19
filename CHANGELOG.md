@@ -5,6 +5,12 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Fixed
+- The Mart's clerk (the Mart app and every shop counter) is drawn from another mod's NPC sprite set when
+  one is on, such as Facets': on Red, Blue, Yellow, Gold, Silver and Crystal he was always the game's own,
+  and on FireRed, LeafGreen, Ruby, Sapphire and Emerald the Mart app kept whichever clerk it saw first.
+  A set chosen or turned off shows on the next visit.
+
 ## [0.18.0] - 2026-11-19
 
 ### Added
