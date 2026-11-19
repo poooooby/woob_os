@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-19
+
 ### Added
 - **A WoobPad option** (OPTIONS > WOOBOS): turn it off and WoobPad leaves the START menu, notification
   banners stop showing over the field (the PC's desktop still shows them), and the PokéNav (Ruby, Sapphire, Emerald) and the Pokégear (Gold, Silver, Crystal) are back in their
