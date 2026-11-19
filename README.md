@@ -53,7 +53,7 @@ controller, a touch screen, or a mouse and keyboard.
 - 🎒 **Items:** your Bag and your PC's items side by side.
 - ✉️ **Mail:** your PC's mailbox, and the mail your Pokémon are holding.
 - 📕 **Pokédex:** a modern Pokédex in place of the game's, from the START menu and as an app, with a
-  search by name or number.
+  search by name or number, and a height chart for each Pokémon you've caught, standing beside a trainer.
 - 🗺️ **Map:** your region in 3D, built from the game's own maps, in place of the Town Map and the Fly
   map. Emerald shows Kyogre's and Groudon's storms where they're rumoured. At night the towns light up,
   with the odd aurora and shooting star.

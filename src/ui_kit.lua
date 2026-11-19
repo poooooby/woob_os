@@ -1007,8 +1007,8 @@ return function(deps)
   end
   -- a glass switch of two, three or four: its white thumb slides to `shown` (1 .. n, eased by the caller);
   -- each segment a hit of `kind`, args a1 .. a4 (the fourth after `size`)
-  function K.glassSwitch(x, y, w, h, shown, kind, a1, l1, a2, l2, a3, l3, size, a4, l4)
-    local n = a4 and 4 or (a3 and 3 or 2)
+  function K.glassSwitch(x, y, w, h, shown, kind, a1, l1, a2, l2, a3, l3, size, a4, l4, a5, l5)
+    local n = a5 and 5 or (a4 and 4 or (a3 and 3 or 2))
     local rad = h / 2
     local tb = R(x, y, w, h)
     col(WHITE, 0.32)
@@ -1021,7 +1021,7 @@ return function(deps)
     col(WHITE)
     box("fill", R(tx, y + 0.5, sw, h - 1), rad - 0.5)
     for i = 1, n do
-      local label = i == 1 and l1 or (i == 2 and l2 or (i == 3 and l3 or l4))
+      local label = i == 1 and l1 or (i == 2 and l2 or (i == 3 and l3 or (i == 4 and l4 or l5)))
       local sb = R(x + 0.5 + (i - 1) * sw, y + 0.5, sw, h - 1)
       local fs = K.fit(label, size or 4.3, sw - 2)
       local ty = sb[2] + (sb[4] - fs * 1.2) / 2
@@ -1030,7 +1030,7 @@ return function(deps)
       else
         text(label, sb[1], ty, fs, UI.secondary, "center", sb[3])
       end
-      K.addHit(sb, kind, i == 1 and a1 or (i == 2 and a2 or (i == 3 and a3 or a4)))
+      K.addHit(sb, kind, i == 1 and a1 or (i == 2 and a2 or (i == 3 and a3 or (i == 4 and a4 or a5))))
     end
   end
   -- a sheet or popover over a dimmed window: the dim, then the card with its shadow

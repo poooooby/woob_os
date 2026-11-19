@@ -47,6 +47,19 @@ local TYPE = {
 -- (each stat's colour: the radar's corners and the bars)
 local STAT_C = { { 255, 89, 89 }, { 245, 152, 90 }, { 240, 205, 80 }, { 120, 160, 245 }, { 120, 200, 110 },
                  { 245, 120, 165 } }
+-- the Size tab's chart: the gridlines' steps (metres on the left, feet ticked on the right; the first step
+-- giving at most five lines), the trainer's height in words, the chart's height and its side columns
+local STEPS_M = { 0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100 }
+local STEPS_FT = { 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500 }
+local TRAINER_I, TRAINER_M = "5'08\"", "1.7 m"
+local CHART_H, CHART_L, CHART_R, CHART_GAP = 80, 11, 9, 7
+local FT_PER_M = 3.28084
+local function niceStep(list, top, most)
+  for i = 1, #list do
+    if top / list[i] <= most then return list[i] end
+  end
+  return list[#list]
+end
 
 -- ------- easing (t: 0 .. 1)
 local function clamp01(t) return t < 0 and 0 or (t > 1 and 1 or t) end
@@ -74,6 +87,16 @@ return function(K, env, T, st, A, KINDS)
   local AB = { "ab1", "ab2", "ab3", "ab4", "ab5", "ab6" }
   local EMPTY = { types = {}, stats = { 0, 0, 0, 0, 0, 0 } }
   local num = K.textCache(function(n) return tostring(n) end)
+  -- (the chart's axis words: metres kept by centimetres, feet by half feet)
+  local mLabel = K.textCache(function(cm)
+    if cm % 100 == 0 then return ("%d m"):format(floor(cm / 100)) end
+    if cm % 10 == 0 then return ("%.1f m"):format(cm / 100) end
+    return ("%.2f m"):format(cm / 100)
+  end)
+  local ftLabel = K.textCache(function(halves)
+    if halves % 2 == 0 then return ("%d ft"):format(floor(halves / 2)) end
+    return ("%.1f ft"):format(halves / 2)
+  end)
   local mesh = nil
   local PX, PY, HX, HY = { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0 }
   local CHX, CHW = { 0, 0, 0, 0 }, { 0, 0, 0, 0 }
@@ -932,7 +955,106 @@ return function(K, env, T, st, A, KINDS)
     return ceil(#list / cols) * th
   end
 
-  local TAB_WORD = { moves = "dex.tab.moves", where = "dex.tab.where", info = "dex.tab.info", forms = "dex.info.forms" }
+  -- the Size tab: a height chart in glass. The Pokémon in its colours beside the trainer's silhouette (1.7 m),
+  -- both standing on one line and drawn to one scale, the taller one filling the chart and the other shrunk
+  -- against it, side by side, never over each other; the picture's own drawn pixels are its height
+  -- (env.dexSprite.measure), not its frame. Lines across the back at metre steps, named on the left, feet
+  -- ticked on the right; each one's height under it. The scale eases from the last Pokémon's, so the lines
+  -- and the trainer slide to the new one's; both rise from the line when it opens
+  local function sizeChart(x, y, w, e, pg, clock, dt)
+    local Sz = env.sizeArt
+    local tr = Sz and Sz.trainer()
+    local hm = max(0.05, tonumber(pg.heightMeters) or 0)
+    local ht = Sz and Sz.TRAINER_M or 1.7
+    local m = env.dexSprite and env.dexSprite.measure and env.dexSprite.measure(e.sp)
+    local fx0, fy0, fx1, fy1 = -0.4, -0.4, 0.4, 0.5
+    if m then fx0, fy0, fx1, fy1 = m.fx0, m.fy0, m.fx1, m.fy1 end
+    local artW, artH = max(0.02, fx1 - fx0), max(0.02, fy1 - fy0)
+    local tw, th = tr and (tr.u1 - tr.u0) or 9, tr and (tr.v1 - tr.v0) or 30
+    local wm, wt = hm * artW / artH, ht * tw / th
+    local g = grown()
+    local ch = CHART_H + g * 6
+    local px0, px1 = x + CHART_L + g * 3, x + w - CHART_R - g * 3
+    local top, base = y + 5, y + ch - 14 - g * 7
+    local plotH, plotW = base - top, px1 - px0
+    -- (the scale: the taller one fills the height, or both fit across)
+    local s = min(plotH / (max(hm, ht) * 1.1), (plotW - CHART_GAP - 4) / (wm + wt))
+    mv.sizeS = (mv.sizeS and mv.sizeS > 0) and approach(mv.sizeS, s, dt, 9) or s
+    s = mv.sizeS
+    local fade = K.getFade()
+    local grow = outBack((clock - mv.listAt) / 0.55)
+    local la = outCubic((clock - mv.listAt) / 0.3)
+    -- (the chart's pane)
+    local pane = K.R(x, y, w, ch)
+    K.col(C.white, 0.24 * fade)
+    K.box("fill", pane, 3.5)
+    K.ring(pane, 3.5, C.white, 0.7, 0.3)
+    -- (metres: a line at each step, its height on the left)
+    local topM = plotH / s
+    local step = niceStep(STEPS_M, topM, 5)
+    G.setLineWidth(max(1, 0.25 * K.sc))
+    local i = 1
+    while i * step <= topM + 1e-6 do
+      local ly = base - i * step * s
+      K.col(C.white, 0.75 * fade)
+      G.line(K.X(px0), K.Y(ly), K.X(px1), K.Y(ly))
+      K.col(C.faint, 0.6 * fade)
+      G.line(K.X(px0), K.Y(ly + 0.25), K.X(px1), K.Y(ly + 0.25))
+      K.text(mLabel(floor(i * step * 100 + 0.5)), x + 1, ly - 1.5, 2.7, C.soft, "right", px0 - x - 2.5)
+      i = i + 1
+    end
+    K.text(mLabel(0), x + 1, base - 1.5, 2.7, C.soft, "right", px0 - x - 2.5)
+    -- (feet: a tick on the right edge at each step)
+    local fstep = niceStep(STEPS_FT, topM * FT_PER_M, 5)
+    local j = 1
+    while j * fstep <= topM * FT_PER_M + 1e-6 do
+      local ly = base - j * fstep / FT_PER_M * s
+      K.col(C.soft, 0.7 * fade)
+      G.line(K.X(px1 - 1.2), K.Y(ly), K.X(px1 + 0.6), K.Y(ly))
+      K.text(ftLabel(floor(j * fstep * 2 + 0.5)), px1 + 1.2, ly - 1.4, 2.5, C.soft)
+      j = j + 1
+    end
+    -- (where the two stand: centred together, the Pokémon on the left)
+    local wmU, wtU = wm * s, wt * s
+    local start = px0 + (plotW - (wmU + CHART_GAP + wtU)) / 2
+    local mcx, tcx = start + wmU / 2, start + wmU + CHART_GAP + wtU / 2
+    -- (their shadows on the line)
+    K.col(C.black, 0.12 * la * fade)
+    G.ellipse("fill", K.X(mcx), K.Y(base), max(1, wmU * 0.42) * K.sc, max(0.4, min(1.6, wmU * 0.06)) * K.sc)
+    G.ellipse("fill", K.X(tcx), K.Y(base), max(1, wtU * 0.5) * K.sc, max(0.4, min(1.2, wtU * 0.1)) * K.sc)
+    -- (the ground line over them)
+    K.col(C.ink, 0.32 * fade)
+    G.setLineWidth(max(1, 0.4 * K.sc))
+    G.line(K.X(px0), K.Y(base), K.X(px1), K.Y(base))
+    -- (the Pokémon: its drawn pixels as tall as its height, its feet on the line)
+    local size = hm * s * grow / artH
+    if size > 0.2 and env.dexSprite then
+      env.dexSprite.draw(e.sp, mcx - (fx0 + fx1) / 2 * size, base - fy1 * size, size, clock, -10, 1, la * fade)
+    end
+    -- (the trainer: a silhouette, see-through on the glass)
+    if tr then
+      local k = ht * s * grow / th
+      G.setColor(1, 1, 1, 0.5 * la * fade)
+      G.draw(tr.image, K.X(tcx - (tr.u0 + tw / 2) * k), K.Y(base - tr.v1 * k), 0, k * K.sc, k * K.sc)
+    end
+    -- (each one's height under it, imperial then metric; kept apart when they stand close)
+    local lw = 28 + g * 8
+    local lm, lt = mcx, tcx
+    if lt - lm < lw then
+      local mid = (lm + lt) / 2
+      lm, lt = mid - lw / 2, mid + lw / 2
+    end
+    local ly = base + 2.2
+    local hi = pg.heightI or ""
+    K.bold(hi, lm - lw / 2, ly, K.fit(hi, 4, lw), C.ink, "center", lw, la)
+    K.text(pg.heightM or "", lm - lw / 2, ly + 5 + g * 2, 3, C.soft, "center", lw, la)
+    K.bold(TRAINER_I, lt - lw / 2, ly, 4, C.ink, "center", lw, la)
+    K.text(TRAINER_M, lt - lw / 2, ly + 5 + g * 2, 3, C.soft, "center", lw, la)
+    return ch
+  end
+
+  local TAB_WORD = { moves = "dex.tab.moves", where = "dex.tab.where", info = "dex.tab.info", size = "dex.tab.size",
+                     forms = "dex.info.forms" }
   local function tabs(x, y, w, e, pg, clock, dt)
     local yy = y
     local list = st.tabs
@@ -941,7 +1063,8 @@ return function(K, env, T, st, A, KINDS)
       mv.tabX = approach(mv.tabX, st.tab, dt, 18)
       K.glassSwitch(x, yy, w, 8, mv.tabX, "win", A.TAB + 1, word(TAB_WORD[list[1]]), A.TAB + 2, word(TAB_WORD[list[2]]),
         n >= 3 and A.TAB + 3 or nil, n >= 3 and word(TAB_WORD[list[3]]) or nil, 4.3,
-        n >= 4 and A.TAB + 4 or nil, n >= 4 and word(TAB_WORD[list[4]]) or nil)
+        n >= 4 and A.TAB + 4 or nil, n >= 4 and word(TAB_WORD[list[4]]) or nil,
+        n >= 5 and A.TAB + 5 or nil, n >= 5 and word(TAB_WORD[list[5]]) or nil)
       yy = yy + 11
     else
       K.bold(word(TAB_WORD[list[1] or "where"]), x + 1, yy + 1, 4.2, C.ink)
@@ -952,6 +1075,7 @@ return function(K, env, T, st, A, KINDS)
     if tab == "moves" then ch = moveRows(x + 3, yy + 3, w - 6, pg, clock, dt)
     elseif tab == "where" then ch = whereRows(x + 3, yy + 3, w - 6, pg, clock)
     elseif tab == "forms" then ch = formRows(x + 3, yy + 3, w - 6, clock)
+    elseif tab == "size" then ch = sizeChart(x + 1, yy + 1, w - 2, e, pg, clock, dt)
     else ch = infoRows(x + 3, yy + 3, w - 6, e, pg, clock) end
     return yy - y + ch + 8
   end

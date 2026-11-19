@@ -5,6 +5,12 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **A Size tab in the Pokédex** for each Pokémon you've caught: a height chart in glass, the Pokémon beside a
+  trainer's silhouette (1.7 m, 5'08"), both drawn to one scale on one line. A Gyarados towers over the
+  trainer and a Pikachu comes up to his knees; lines across the back mark the heights in metres, with feet
+  on the right, and each one's height is written under it.
+
 ### Fixed
 - The Mart's clerk (the Mart app and every shop counter) is drawn from another mod's NPC sprite set when
   one is on, such as Facets': on Red, Blue, Yellow, Gold, Silver and Crystal he was always the game's own,

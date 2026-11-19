@@ -280,6 +280,16 @@ if okO and W then
     end
   end)
   T.check(okT and st.tab == 3, "every tab and every list of moves draws")
+  -- (the Size tab: a height chart against the trainer, from the page's height in metres)
+  T.check(st.tabs[4] == "size" and (tonumber(st.page.heightMeters) or 0) > 0,
+    "a caught one's Size tab, its height in metres (" .. tostring(st.page.heightMeters) .. ")")
+  W.tap(W.A.TAB + 4)
+  local okS, errS = pcall(drawWin, W, false)
+  T.check(okS and st.tabId == "size", "the Size tab draws (" .. tostring(errS) .. ")")
+  pcall(drawWin, W, true)
+  local kbS = garbageOf(120, function() drawWin(W, false) end)
+  T.check(kbS < 0.5, string.format("the Size tab: next to no garbage (%.3f KB/frame)", kbS))
+  W.tap(W.A.TAB + 3)
   W.scroll(-40, 200)
   drawWin(W, false)
   T.check(st.detailTop > 0, "the page scrolls under the wheel")
@@ -419,12 +429,12 @@ if okO and W then
   W.tap(W.A.CELL + (caughtAt == 1 and 2 or 1))
   W.tap(W.A.CELL + caughtAt)
   T.check(#st.forms == 3 and st.forms[1].base and st.forms[1].caught, "its forms, the base one first")
-  T.check(st.tabs[4] == "forms", "a Forms tab after Info")
+  T.check(st.tabs[4] == "size" and st.tabs[5] == "forms", "a Forms tab after Info and Size")
   T.check(st.forms[3].name == "Galarian" and not st.forms[3].seen and st.forms[2].name == (formSp and "Alola" or "Galarian"),
           "each form's name (WoobleDex's, else its own)")
   T.check(caughtSp == nil or st.forms[2].caught, "a caught form: its Poké Ball")
   W.input(input({ "a" }), NONE)
-  W.tap(W.A.TAB + 4)
+  W.tap(W.A.TAB + 5)
   local okF, errF = pcall(drawWin, W, false)
   T.check(okF and st.tabId == "forms", "the Forms tab draws (" .. tostring(errF) .. ")")
   pcall(drawWin, W, true)
@@ -482,7 +492,9 @@ if okO and W then
   -- (a Pokémon without forms: three tabs)
   W.input(input({ "b" }), NONE)
   W.tap(W.A.CELL + (caughtAt == 1 and 2 or 1))
-  T.check(#st.forms == 0 and st.tabs[4] == nil, "no forms: no Forms tab")
+  local hasForms = false
+  for _, id in ipairs(st.tabs) do if id == "forms" then hasForms = true end end
+  T.check(#st.forms == 0 and not hasForms, "no forms: no Forms tab")
   Dx.wooble = prevWooble
 end
 

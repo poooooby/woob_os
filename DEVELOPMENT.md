@@ -604,6 +604,17 @@ screenshots each. Settings changed by hand during it are the real ones.
 
 ## The Pokédex
 
+- **The Size tab** (caught only, after Info; `st.tabs` "size"): the view's `sizeChart`. Heights from the page's
+  `heightMeters` (Gen 3 `dexEntry.height` / 10; Game Boy inches x 0.0254). The trainer: `src/size_art.lua`
+  (`env.sizeArt`: `assets/brendan-height-sprite.png`, 40 x 70, its drawn pixels' box read from the file;
+  1.7 m). A Pokémon's height is its picture's drawn pixels, not its frame: `env.dexSprite.measure(sp)` (both
+  mains) reads the still picture back through a canvas once per species (`Sz.bounds`, `K.rescissor` after)
+  and answers `{ fx0, fy0, fx1, fy1 }`, where those pixels sit in `draw()`'s size x size box round its centre;
+  headless (no canvas) a stand-in box. The scale fits the taller one to the chart (x 1.1) or both across it,
+  eased (`mv.sizeS`); gridlines at the first of `STEPS_M` giving at most five, feet ticks by `STEPS_FT`; both
+  rise from the line (`mv.listAt`); labels kept apart when they stand close. `K.glassSwitch` takes a fifth
+  segment (Moves / Where / Info / Size / Forms). Driver: scratchpad size_driver.lua (Emerald).
+
 - **The model** (`src/dex.lua` Dx, `env.dex`): `Dx.open(s)` makes the book each time the dex opens: the
   regional list (FireRed / LeafGreen the first 151, Ruby / Sapphire / Emerald by `Dex.regionalNumber`) and
   the National one (1..`Dex.NATIONAL_MAX` through `Pokemon.speciesFromNational`: WoobleDex's to 1025) only

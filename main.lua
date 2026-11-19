@@ -122,6 +122,7 @@ return function(mod)
   -- side effects; the window and its look; the nurse's sprite)
   local makePokecenter, pokecenterWindow = loadSibling(mod, "src/pokecenter.lua"), loadSibling(mod, "src/apps/pokecenter.lua")
   local pokecenterView, makeNurseArt = loadSibling(mod, "src/apps/pokecenter_view.lua"), loadSibling(mod, "src/nurse_art.lua")
+  local makeSizeArt = loadSibling(mod, "src/size_art.lua")
   local stallView = loadSibling(mod, "src/apps/stall_view.lua")
   local makeLighting = loadSibling(mod, "src/lighting.lua")
   if not (makeKit and makeApps and makeDesktop and makeShell) then return end
@@ -706,6 +707,8 @@ return function(mod)
     return anchorArt[key] or nil
   end
   env.nurse = makeNurseArt and makeNurseArt(mod) or nil
+  -- (the Pokédex's Size tab: the trainer it measures against, and a picture's drawn pixels)
+  env.sizeArt = makeSizeArt and makeSizeArt(mod, Kit) or nil
   env.summaryCtl = summaryCtl or nil
   env.typeArt = typeArt and env.K and typeArt(env.K) or nil
   env.stallView = stallView or nil
@@ -927,7 +930,7 @@ return function(mod)
     end
     local anim = { sp = nil, sprite = nil, acc = 0, last = nil, pack = false, packAt = -1, packPic = nil, shiny = false }
     -- (the pictures kept per species, a shiny's apart: the Boxes' summary shows a shiny in its colours)
-    local stills, frames, stillsS, framesS = {}, {}, {}, {}
+    local stills, frames, stillsS, framesS, measured = {}, {}, {}, {}, {}
     -- (WoobleSpritePack, g9-battle-sprites-gen3: its art comes through the engine's frontPic, one frame
     -- of its animated sheet per call by a shared clock (8 a second); a species it draws is asked again
     -- while it's shown, 16 times a second, instead of kept)
@@ -992,6 +995,24 @@ return function(mod)
         anim.sprite = sprite
       end,
       stop = function() anim.sp, anim.sprite, anim.pack, anim.packPic = nil, nil, false, nil end,
+      -- (where the still picture's drawn pixels sit in draw()'s size x size box round cx, cy, as fractions
+      -- of size: { fx0, fy0, fx1, fy1 }; read once per species (the Size tab's chart); nil without a picture
+      -- or a canvas to read it through)
+      measure = function(sp)
+        local m = measured[sp]
+        if m == nil then
+          m = false
+          local base = still(sp, false)
+          local Sz = env.sizeArt
+          if base and Sz then
+            local u0, v0, u1, v1 = Sz.bounds(base.image)
+            local bw = base.w or 64
+            if u0 then m = { fx0 = (u0 - 32) / bw, fy0 = (v0 - 32) / bw, fx1 = (u1 - 32) / bw, fy1 = (v1 - 32) / bw } end
+          end
+          measured[sp] = m
+        end
+        return m or nil
+      end,
       -- (tests: whether the chosen one is the pack's, and the picture last drawn from it)
       pack = function() return anim.pack, anim.packPic end,
       -- (centred on cx, cy, size units: the animation stepped at the game's 60 a second, its frames'

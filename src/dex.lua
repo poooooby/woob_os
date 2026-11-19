@@ -484,6 +484,7 @@ return function(engine, deps)
     pg.category = de.category and word("dex.category", titled(de.category)) or ""
     -- (each in metres and in feet: the page's chips show them apart)
     pg.heightM, pg.heightI = heightText(de.height)
+    pg.heightMeters = (tonumber(de.height) or 0) / 10
     pg.weightM, pg.weightI = weightText(de.weight)
     pg.heightText = pg.heightM .. "  ·  " .. pg.heightI
     pg.weightText = pg.weightM .. "  ·  " .. pg.weightI

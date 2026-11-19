@@ -400,6 +400,7 @@ return function(H, Gd, deps)
     end
     pg.category = kind and word("dex.category", Gd.title(kind)) or ""
     pg.heightM, pg.heightI = heights(inches)
+    pg.heightMeters = (tonumber(inches) or 0) * 0.0254
     pg.weightM, pg.weightI = weights(tenths)
     pg.heightText = pg.heightM .. "  ·  " .. pg.heightI
     pg.weightText = pg.weightM .. "  ·  " .. pg.weightI

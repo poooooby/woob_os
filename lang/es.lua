@@ -746,6 +746,7 @@ return {
     ["dex.tab.moves"] = "Movimientos",
     ["dex.tab.where"] = "Dónde",
     ["dex.tab.info"] = "Info",
+    ["dex.tab.size"] = "Tamaño",
     ["dex.moves.level"] = "Nivel",
     ["dex.moves.tm"] = "MT/MO",
     ["dex.moves.egg"] = "Huevo",

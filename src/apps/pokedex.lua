@@ -143,7 +143,8 @@ return function(ctx, env, makeView)
     focus = "grid", detail = false, narrow = false,
     gridTop = 0, cols = 4, visRows = 3, follow = true,
     detailTop = 0, detailH = 0, detailVis = 80,
-    -- (the page's tabs: ids, "moves" / "where" / "info" / "forms", for the one chosen; st.tab the index)
+    -- (the page's tabs: ids, "moves" / "where" / "info" / "size" / "forms", for the one chosen; st.tab the
+    -- index)
     tab = 1, tabId = "moves", tabs = {}, forms = {},
     -- (the forms: the one shown (1, the base) and the one the Forms tab's cursor is on; base: the grid's)
     formAt = 1, formSel = 1, base = nil,
@@ -156,13 +157,13 @@ return function(ctx, env, makeView)
 
   local function now() return env.now and env.now() or 0 end
 
-  -- the chosen one's tabs: caught, Moves / Where / Info; seen, Where; and Forms after them where it has
-  -- forms. The same tab kept when it's there
+  -- the chosen one's tabs: caught, Moves / Where / Info / Size; seen, Where; and Forms after them where it
+  -- has forms. The same tab kept when it's there
   local function setTabs(e)
     local list = st.tabs
     for i = #list, 1, -1 do list[i] = nil end
     if e and e.caught then
-      list[1], list[2], list[3] = "moves", "where", "info"
+      list[1], list[2], list[3], list[4] = "moves", "where", "info", "size"
     elseif e then
       list[1] = "where"
     end

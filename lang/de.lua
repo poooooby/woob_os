@@ -747,6 +747,7 @@ return {
     ["dex.tab.moves"] = "Attacken",
     ["dex.tab.where"] = "Fundorte",
     ["dex.tab.info"] = "Infos",
+    ["dex.tab.size"] = "Größe",
     ["dex.moves.level"] = "Level",
     ["dex.moves.tm"] = "TM/VM",
     ["dex.moves.egg"] = "Ei",

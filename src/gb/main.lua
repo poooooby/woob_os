@@ -53,6 +53,7 @@ return function(mod, loadSibling)
   -- the Pokémon Center: the nurse's counter full screen
   local makePokecenter, pokecenterWindow = loadSibling(mod, "src/gb/pokecenter.lua"), loadSibling(mod, "src/apps/pokecenter.lua")
   local pokecenterView, makeNurseArt = loadSibling(mod, "src/apps/pokecenter_view.lua"), loadSibling(mod, "src/nurse_art.lua")
+  local makeSizeArt = loadSibling(mod, "src/size_art.lua")
   local stallView = loadSibling(mod, "src/apps/stall_view.lua")
   local summaryCtl = loadSibling(mod, "src/apps/summary_ctl.lua")
   local typeArt = loadSibling(mod, "src/apps/type_art.lua")
@@ -411,8 +412,29 @@ return function(mod, loadSibling)
       local g, Sound = Host.game(), engine("src.core.Sound")
       if g and g.data and Sound and Sound.playCry then pcall(Sound.playCry, g.data, sp) end
     end
+    local measured = {}
     env.dexSprite = {
       start = function() end, stop = function() end,
+      -- (where the picture's drawn pixels sit in draw()'s size x size box round cx, cy, as fractions of
+      -- size: { fx0, fy0, fx1, fy1 }; read once per species (the Size tab's chart); nil without one)
+      measure = function(sp)
+        local m = measured[sp]
+        if m == nil then
+          m = false
+          local pic = Art and Art.pic(sp)
+          local Sz = env.sizeArt
+          if pic and Sz then
+            local u0, v0, u1, v1 = Sz.bounds(pic.image)
+            local box = pic.box or pic.w
+            if u0 and box then
+              m = { fx0 = (u0 - pic.w / 2) / box, fx1 = (u1 - pic.w / 2) / box,
+                    fy0 = (v0 - pic.h + box / 2) / box, fy1 = (v1 - pic.h + box / 2) / box }
+            end
+          end
+          measured[sp] = m
+        end
+        return m or nil
+      end,
       -- (WoobleSpritePack drawing it: true, its picture now)
       pack = function(sp)
         local pic = Art and sp and Art.livePic(sp)
@@ -516,6 +538,8 @@ return function(mod, loadSibling)
     return anchorArt[key] or nil
   end
   env.nurse = makeNurseArt and makeNurseArt(mod) or nil
+  -- (the Pokédex's Size tab: the trainer it measures against, and a picture's drawn pixels)
+  env.sizeArt = makeSizeArt and makeSizeArt(mod, Kit) or nil
   env.stallView = stallView or nil
   env.summaryCtl = summaryCtl or nil
   env.typeArt = typeArt and env.K and typeArt(env.K) or nil
