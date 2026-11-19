@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-19
+
 ### Added
 - **Dark and OLED themes:** the Theme option (OPTIONS > WOOBOS, or Settings > Display) turns every WoobOS
   screen dark (deep greys) or OLED (true black grounds) in place of Light: the desktop and WoobPad, every
