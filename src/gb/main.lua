@@ -731,7 +731,7 @@ return function(mod, loadSibling)
     list = function() return Apps.apps end,
     icons = Apps.icons,
   }
-  mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, env = env, i18n = T, gd = Gd, art = Art,
+  mod.exports._test = { post = notify, desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, env = env, i18n = T, gd = Gd, art = Art,
                         bx = env.bx, inv = env.inv, mb = env.mb, hall = env.hall, oak = env.oak, port = Port, play = Play,
                         mart = env.mart, bank = env.bank, auction = env.auction, slots = env.slots, gts = env.gts,
                         journal = env.journal, swarm = env.swarm, challenges = env.challenges, errands = env.errands,

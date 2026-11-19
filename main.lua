@@ -1467,7 +1467,7 @@ return function(mod)
     list = function() return Apps.apps end,
     icons = Apps.icons,
   }
-  mod.exports._test = { desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
+  mod.exports._test = { post = notify, desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
                         mart = env.mart, auction = env.auction, slots = env.slots, pcgames = env.pcgames, gts = env.gts,
                         bank = env.bank, journal = env.journal, challenges = env.challenges, errands = env.errands,
                         swarm = env.swarm, news = env.news, story = env.story, pokecenter = env.pokecenter, menus = env.menus,

@@ -196,11 +196,25 @@ do
     if okS and SW then
       local has = {}
       for _, sec in ipairs(SW.SECTIONS) do has[sec.id] = true end
-      T.check(not has.watch and not has.pokenav and has.notify, "Settings: no WoobPad or PokéNav section")
+      T.check(not has.watch and not has.pokenav and has.notify and has.game,
+        "Settings: no WoobPad or PokéNav section, Notifications kept")
     else
       T.check(false, "Settings opened (" .. tostring(SW) .. ")")
     end
+    -- (notifications still come, for the PC's desktop; no banner over the field)
+    local before = #Nt.list()
+    X._test.post("outbid", { name = "Pikachu", key = "x" })
+    T.eq(#Nt.list(), before + 1, "notifications still kept for the desktop")
+    local drawn = 0
+    local was0 = Nt.drawField
+    Nt.drawField = function() drawn = drawn + 1 end
+    Sh.frame({ phase = "field" }, { width = 480, height = 320, gameX = 0, gameY = 0, gameWidth = 480, gameHeight = 320, scale = 2 })
+    T.eq(drawn, 0, "no banner over the field")
     env.padOption = was
+    Sh.frame({ phase = "field" }, { width = 480, height = 320, gameX = 0, gameY = 0, gameWidth = 480, gameHeight = 320, scale = 2 })
+    T.eq(drawn, 1, "back on: the field's banner again")
+    Nt.drawField = was0
+    Nt.remove(Nt.list()[1])
   end
   -- (Ruby / Sapphire / Emerald: in the PokéNav's place, the PokéNav's row gone)
   local withNav = startList(true)

@@ -6,9 +6,9 @@ All notable changes to this mod are documented here, in
 ## [Unreleased]
 
 ### Added
-- **A WoobPad option** (OPTIONS > WOOBOS): turn it off and WoobPad leaves the START menu, and the
-  PokéNav (Ruby, Sapphire, Emerald) and the Pokégear (Gold, Silver, Crystal) are back in their rows as the
-  game's own. Fly and the wall maps on Gold, Silver and Crystal still follow the Pokégear option.
+- **A WoobPad option** (OPTIONS > WOOBOS): turn it off and WoobPad leaves the START menu, notification
+  banners stop showing over the field (the PC's desktop still shows them), and the PokéNav (Ruby, Sapphire, Emerald) and the Pokégear (Gold, Silver, Crystal) are back in their
+  rows as the game's own. Fly and the wall maps on Gold, Silver and Crystal still follow the Pokégear option.
 - **Item pictures on Red, Blue, Yellow, Gold, Silver and Crystal** when you've also imported Emerald,
   FireRed or LeafGreen: the Mart, the Bag and the other apps show that game's pictures for the items (a TM
   as a disc in its move's type's colour). Without one, each item is a tile in its pocket's colour, as before.

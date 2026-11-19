@@ -32,7 +32,7 @@
 --
 --   Sh = shell(mod, deps)   deps: require ; log ; desktop (made) ; watch (WoobPad: a desktop, made) ; apps ;
 --                           notify (src/notify.lua) ; tick() ; session() ; padOn() -> the WoobPad option
---                           (off: no row, no pad, the banners' taps the game's) ; watchRow() -> the START
+--                           (off: no row, no pad, no banner over the field) ; watchRow() -> the START
 --                           row shown ; watchLabel() -> its words ; townmap (src/townmap.lua) ;
 --                           map3d (env.map3d: its model) ; map3dOn() -> the 3D Town Map wanted ;
 --                           pokenav (src/pokenav.lua) ; onCall(session, trainerId, msg) (a field call)
@@ -861,6 +861,8 @@ return function(mod, deps)
       -- (a layer that draws what's under it -- Teachy TV's lessons over our Bag -- leaves ours drawn)
       if top and top.id ~= id and not top.drawUnder then return end
     end
+    -- (the WoobPad option off: no banner over the field; the PC's desktop still shows them)
+    if not h and deps.padOn and not deps.padOn() then return end
     if not (G and type(viewport) == "table" and (h or Nt)) then return end
     G.push("all")
     G.origin()

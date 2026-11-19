@@ -36,7 +36,7 @@ return {
     label = "WoobPad",
     type = "toggle",
     default = true,
-    description = "WoobPad in the START menu, in the PokéNav's place on Ruby, Sapphire and Emerald and the Pokégear's on Gold, Silver and Crystal. Off: no WoobPad, and the game's own PokéNav and Pokégear there.",
+    description = "WoobPad in the START menu, in the PokéNav's place on Ruby, Sapphire and Emerald and the Pokégear's on Gold, Silver and Crystal. Off: no WoobPad and no notification banners over the field (the PC still shows them), and the game's own PokéNav and Pokégear there.",
   },
   {
     key = "pokedex",

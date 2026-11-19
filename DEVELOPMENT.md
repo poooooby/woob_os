@@ -521,7 +521,8 @@ is up.
   SAVE (not a link room's or the Safari Zone's), the Desktop option, the WoobPad option and Settings'
   `watchRow` on (the old ids kept: an installation's settings).
 - **The WoobPad option** (`woobpad`, `env.padOption`, read live; the shell's `deps.padOn`): off, no row
-  (the game's own POKéNAV / POKéGEAR row), `Sh.openWatch` refuses, a banner's tap is the game's, the
+  (the game's own POKéNAV / POKéGEAR row), `Sh.openWatch` refuses, no field banner (`Sh.frame` returns
+  before `Nt.drawField`; notifications still come and the PC's desktop shows them; `X._test.post` posts one), the
   PokéNav takeover stands down (`src/pokenav.lua` `enabled`, `Pn.enabled`), Gen 2's `Gen2Pokegear` from
   START is the game's own (Fly / the walls' map still the `pokegear` option's), and Settings leaves out
   the WoobPad and PokéNav sections (`pad = true` on them). Tests swap `env.padOption` (pad_test, gb_test). `onSelect` runs with the START menu still on the
