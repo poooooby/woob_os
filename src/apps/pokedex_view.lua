@@ -93,6 +93,15 @@ return function(K, env, T, st, A, KINDS)
     if cm % 10 == 0 then return ("%.1f m"):format(cm / 100) end
     return ("%.2f m"):format(cm / 100)
   end)
+  -- (a height in words, kept by centimetres: metres, and feet and inches as the games write them)
+  local mHeight = K.textCache(function(cm) return ("%.1f m"):format(cm / 100) end)
+  local ftHeight = K.textCache(function(cm)
+    local inch = floor(cm / 2.54 + 0.5)
+    return ("%d'%02d\""):format(floor(inch / 12), inch % 12)
+  end)
+  -- (a long one's two lines: how tall it stands, and the Pokédex's number as its length, in feet and in
+  -- metres; made once per species)
+  local longLine = {}
   local ftLabel = K.textCache(function(halves)
     if halves % 2 == 0 then return ("%d ft"):format(floor(halves / 2)) end
     return ("%.1f ft"):format(halves / 2)
@@ -964,14 +973,18 @@ return function(K, env, T, st, A, KINDS)
   local function sizeChart(x, y, w, e, pg, clock, dt)
     local Sz = env.sizeArt
     local tr = Sz and Sz.trainer()
-    local hm = max(0.05, tonumber(pg.heightMeters) or 0)
+    -- (how tall it stands: WoobleDex's measured height for its picture, else the Pokédex's)
+    local row = env.artHeight and env.artHeight(e.sp, e.nat)
+    local hm = max(0.05, tonumber(row and row.standing) or tonumber(pg.heightMeters) or 0)
     local ht = Sz and Sz.TRAINER_M or 1.7
     local m = env.dexSprite and env.dexSprite.measure and env.dexSprite.measure(e.sp)
     local fx0, fy0, fx1, fy1 = -0.4, -0.4, 0.4, 0.5
     if m then fx0, fy0, fx1, fy1 = m.fx0, m.fy0, m.fx1, m.fy1 end
     local artW, artH = max(0.02, fx1 - fx0), max(0.02, fy1 - fy0)
     local tw, th = tr and (tr.u1 - tr.u0) or 9, tr and (tr.v1 - tr.v0) or 30
-    local wm, wt = hm * artW / artH, ht * tw / th
+    -- (WoobleDex's width when it has one, the room it takes; else the picture's own proportions)
+    local wm = tonumber(row and row.width) or hm * artW / artH
+    local wt = ht * tw / th
     local g = grown()
     local ch = CHART_H + g * 6
     local px0, px1 = x + CHART_L + g * 3, x + w - CHART_R - g * 3
@@ -1048,9 +1061,26 @@ return function(K, env, T, st, A, KINDS)
       lm, lt = mid - lw / 2, mid + lw / 2
     end
     local ly = base + 2.2
-    local hi = pg.heightI or ""
-    K.bold(hi, lm - lw / 2, ly, K.fit(hi, 4, lw), C.ink, "center", lw, la)
-    K.text(pg.heightM or "", lm - lw / 2, ly + 5 + g * 2, 3, C.soft, "center", lw, la)
+    -- (the game's own words when it stands as tall as its Pokédex height; else the measured height's, and
+    -- for a long one the Pokédex's number as its length)
+    local hi, lo = pg.heightI or "", pg.heightM or ""
+    if row and abs(hm - (tonumber(pg.heightMeters) or 0)) > 0.05 then
+      local cm = floor(hm * 100 + 0.5)
+      hi, lo = ftHeight(cm), mHeight(cm)
+      if row.long then
+        -- (both lines: the feet and inches with the length in feet, the metres with it in metres)
+        local ln = longLine[e.sp]
+        if not ln then
+          local L = word("dex.size.long")
+          ln = { hi .. "  ·  " .. L:format(pg.heightI or ""), lo .. "  ·  " .. L:format(pg.heightM or "") }
+          longLine[e.sp] = ln
+        end
+        hi, lo = ln[1], ln[2]
+      end
+    end
+    local lw2 = lo == pg.heightM and lw or lw + 22
+    K.bold(hi, lm - lw2 / 2, ly, K.fit(hi, 4, lw2), C.ink, "center", lw2, la)
+    K.text(lo, lm - lw2 / 2, ly + 5 + g * 2, K.fit(lo, 3, lw2), C.soft, "center", lw2, la)
     K.bold(TRAINER_I, lt - lw / 2, ly, 4, C.ink, "center", lw, la)
     K.text(TRAINER_M, lt - lw / 2, ly + 5 + g * 2, 3, C.soft, "center", lw, la)
     return ch

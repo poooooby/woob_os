@@ -289,6 +289,17 @@ if okO and W then
   pcall(drawWin, W, true)
   local kbS = garbageOf(120, function() drawWin(W, false) end)
   T.check(kbS < 0.5, string.format("the Size tab: next to no garbage (%.3f KB/frame)", kbS))
+  -- (WoobleDex's measured height when it has one: a long one drawn standing, its length in words; without
+  -- it the game's own height, as above)
+  local envX = X._test.env
+  local wasArt = envX.artHeight
+  local ROW = { standing = 3.8, long = true }
+  envX.artHeight = function() return ROW end
+  local okA, errA = pcall(drawWin, W, false)
+  T.check(okA, "the Size tab with WoobleDex's height draws (" .. tostring(errA) .. ")")
+  local kbA = garbageOf(120, function() drawWin(W, false) end)
+  T.check(kbA < 0.5, string.format("and next to no garbage (%.3f KB/frame)", kbA))
+  envX.artHeight = wasArt
   -- (the Dark theme: each colour's dark one made once, nothing per frame)
   local Kt = X._test.kit
   Kt.setTheme("dark")

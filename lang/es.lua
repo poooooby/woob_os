@@ -751,6 +751,7 @@ return {
     ["dex.tab.where"] = "Dónde",
     ["dex.tab.info"] = "Info",
     ["dex.tab.size"] = "Tamaño",
+    ["dex.size.long"] = "%s de largo",
     ["dex.moves.level"] = "Nivel",
     ["dex.moves.tm"] = "MT/MO",
     ["dex.moves.egg"] = "Huevo",

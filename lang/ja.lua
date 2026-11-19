@@ -752,6 +752,7 @@ return {
     ["dex.tab.where"] = "ばしょ",
     ["dex.tab.info"] = "じょうほう",
     ["dex.tab.size"] = "おおきさ",
+    ["dex.size.long"] = "ながさ %s",
     ["dex.moves.level"] = "レベル",
     ["dex.moves.tm"] = "わざマシン",
     ["dex.moves.egg"] = "タマゴ",

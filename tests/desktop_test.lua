@@ -69,9 +69,10 @@ local function draw(n, step)
 end
 -- KB a frame the draw makes over n frames: measured twice, the lower kept (a trace LuaJIT compiles
 -- in the middle of one lands on the heap once; garbage the draw makes shows in both)
+-- (the lowest of four: a one-off -- LuaJIT's traces, a first load -- lands in one measure, not in all four)
 local function garbageOf(n, setup)
   local best = math.huge
-  for _ = 1, 2 do
+  for _ = 1, 4 do
     if setup then setup() end
     collectgarbage("collect")
     collectgarbage("stop")
@@ -3207,7 +3208,7 @@ do
   FG.drawGlyph = function() return 7 end
   local function kbOf()
     local kb = math.huge
-    for _ = 1, 2 do
+    for _ = 1, 4 do
       collectgarbage("collect")
       collectgarbage("stop")
       local k0 = collectgarbage("count")

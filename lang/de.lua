@@ -752,6 +752,7 @@ return {
     ["dex.tab.where"] = "Fundorte",
     ["dex.tab.info"] = "Infos",
     ["dex.tab.size"] = "Größe",
+    ["dex.size.long"] = "%s lang",
     ["dex.moves.level"] = "Level",
     ["dex.moves.tm"] = "TM/VM",
     ["dex.moves.egg"] = "Ei",

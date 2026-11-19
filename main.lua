@@ -710,6 +710,31 @@ return function(mod)
   env.nurse = makeNurseArt and makeNurseArt(mod) or nil
   -- (the Pokédex's Size tab: the trainer it measures against, and a picture's drawn pixels)
   env.sizeArt = makeSizeArt and makeSizeArt(mod, Kit) or nil
+  -- (the Size tab's heights: WoobleDex's measured ones (exports.artHeights, its data/art_heights.lua: each
+  -- WoobleSprite picture's height standing, in metres), by species slot (the engine's), else by National Dex number; nil
+  -- without WoobleDex or a row: the Pokédex's own height from the game)
+  local artRows = nil
+  env.artHeight = function(sp, nat)
+    if artRows == nil then
+      artRows = false
+      local nd = mod.find("national_dex_gen3")
+      local okA, all = pcall(nd and nd.exports and nd.exports.artHeights or error)
+      if okA and type(all) == "table" then
+        artRows = { byKey = {}, byDex = {} }
+        for id, r in pairs(all) do
+          if type(r) == "table" and tonumber(r.standing) then
+            artRows.byKey[tonumber(r.slot) or id] = r
+            local d, sl = tonumber(r.dex), tonumber(r.slot) or math.huge
+            local was = d and artRows.byDex[d]
+            if d and (not was or (tonumber(was.slot) or math.huge) > sl) then artRows.byDex[d] = r end
+          end
+        end
+      end
+    end
+    if not artRows then return nil end
+    return artRows.byKey[tonumber(sp) or sp] or (nat and artRows.byDex[tonumber(nat)]) or nil
+  end
+
   env.summaryCtl = summaryCtl or nil
   env.typeArt = typeArt and env.K and typeArt(env.K) or nil
   env.stallView = stallView or nil

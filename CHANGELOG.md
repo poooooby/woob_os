@@ -16,7 +16,9 @@ All notable changes to this mod are documented here, in
 - **A Size tab in the Pokédex** for each Pokémon you've caught: a height chart in glass, the Pokémon beside a
   trainer's silhouette (1.7 m, 5'08"), both drawn to one scale on one line. A Gyarados towers over the
   trainer and a Pikachu comes up to his knees; lines across the back mark the heights in metres, with feet
-  on the right, and each one's height is written under it.
+  on the right, and each one's height is written under it. With WoobleDex installed, each Pokémon stands as tall
+  and as wide as its picture really is (an Onix's 8.8 m is a length: it stands 3.8 m tall, "8.8 m long");
+  without it, the game's own Pokédex height.
 
 ### Fixed
 - The Mart's clerk (the Mart app and every shop counter) is drawn from another mod's NPC sprite set when

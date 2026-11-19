@@ -604,8 +604,13 @@ screenshots each. Settings changed by hand during it are the real ones.
 
 ## The Pokédex
 
-- **The Size tab** (caught only, after Info; `st.tabs` "size"): the view's `sizeChart`. Heights from the page's
-  `heightMeters` (Gen 3 `dexEntry.height` / 10; Game Boy inches x 0.0254). The trainer: `src/size_art.lua`
+- **The Size tab** (caught only, after Info; `st.tabs` "size"): the view's `sizeChart`. Heights: WoobleDex's
+  measured ones first (`env.artHeight(sp, nat)`, both mains, from `exports.artHeights()` (its
+  data/art_heights.lua) read once: by the engine's species slot on Gen 3, the sprite id on the Game Boy games,
+  else the National Dex number): `standing` is drawn (the picture's drawn pixels that tall) and `width` is the
+  room it takes and the scale's fit; a `long` one (its Pokédex number a length: Onix, Gyarados, Wailord) says
+  "3.8 m · 8.8 m long" (`dex.size.long`). Without WoobleDex or a row, the page's `heightMeters` (Gen 3
+  `dexEntry.height` / 10; Game Boy inches x 0.0254) and the picture's own proportions. The trainer: `src/size_art.lua`
   (`env.sizeArt`: `assets/brendan-height-sprite.png`, 40 x 70, its drawn pixels' box read from the file;
   1.7 m). A Pokémon's height is its picture's drawn pixels, not its frame: `env.dexSprite.measure(sp)` (both
   mains) reads the still picture back through a canvas once per species (`Sz.bounds`, `K.rescissor` after)
