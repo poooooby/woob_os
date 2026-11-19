@@ -5,6 +5,7 @@
 --                        name) -> table | nil, err (src/i18n.lua's) ; log(fmt, ...)
 --   S.get(key, default) ; S.set(key, value) -> true when it changed (strings, numbers, booleans)
 --   S.cache: where set() writes (a test swaps in its own)
+--   S.theme(option) -> "light" | "dark" | "oled": the mod option's or Settings > Display's, whichever changed last
 --   S.textSize(option) -> percent: the mod option's text size or Settings > Display's, whichever changed
 --                        last (the app can't set the mod's option: the option's value last seen is kept
 --                        beside its own, "textSizeOpt")
@@ -58,6 +59,20 @@ return function(deps)
     values[key] = value
     write()
     return true
+  end
+
+  -- the theme ("light" | "dark" | "oled"), the same way as the text size: the option or Settings > Display,
+  -- whichever changed last
+  function S.theme(option)
+    local opt = (option == "dark" or option == "oled") and option or "light"
+    local seen = values.themeOpt
+    if seen ~= opt then
+      if seen ~= nil or values.theme == nil then S.set("theme", opt) end
+      S.set("themeOpt", opt)
+      return opt
+    end
+    local v = values.theme
+    return (v == "dark" or v == "oled" or v == "light") and v or opt
   end
 
   function S.textSize(option)

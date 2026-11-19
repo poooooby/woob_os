@@ -119,6 +119,10 @@ return {
     -- Settings
     ["settings.language"] = "Language",
     ["settings.display"] = "Display",
+    ["settings.theme"] = "Appearance",
+    ["settings.themeLight"] = "Light",
+    ["settings.themeDark"] = "Dark",
+    ["settings.themeOled"] = "OLED",
     ["settings.textSize"] = "Text Size",
     ["settings.textNormal"] = "Normal",
     ["settings.textLarge"] = "Large",

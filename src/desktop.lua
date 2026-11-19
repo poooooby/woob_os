@@ -1022,7 +1022,9 @@ return function(deps)
       if measure then
         ok, got = pcall(deps.currencyWidth, px)
       else
-        ok, got = pcall(deps.currency, K.graphics(), K.X(x), K.Y(y - (ts - 1) * size * 0.6), px, rgba(c, 1))
+        -- (in the theme's ink, as the digits beside it)
+        ok, got = pcall(deps.currency, K.graphics(), K.X(x), K.Y(y - (ts - 1) * size * 0.6), px,
+          rgba(K.toneInk and K.toneInk(c) or c, 1))
       end
       if ok and tonumber(got) then return tonumber(got) / sc end
     end
@@ -1697,7 +1699,8 @@ return function(deps)
       K.box("fill", wb, 2)
     end
     K.drawLogo(K.X(wb[1] + wb[3] / 2), K.Y(wb[2] + wb[4] / 2 + 0.2), 6.5 * K.sc,
-      (r.menuOpen or r.focus == "menubar") and C.bar or C.ink, 1, (r.menuOpen or r.focus == "menubar") and C.bar or C.soft)
+      (r.menuOpen or r.focus == "menubar") and C.bar or K.toneInk(C.ink), 1,
+      (r.menuOpen or r.focus == "menubar") and C.bar or K.toneInk(C.soft))
     K.addHit(wb, "wmenu")
     -- the clock, the money (right to left, while they fit); the player's name by the W, as the
     -- signed-in user

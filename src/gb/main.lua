@@ -160,6 +160,7 @@ return function(mod, loadSibling)
     setSetting = function(key, v)
       if Settings then Settings.set(key, v) end
       if key == "textSize" then Kit.setTextScale((tonumber(v) or 100) / 100) end
+      if key == "theme" then Kit.setTheme(v) end
     end,
   }
   if Gd then
@@ -660,6 +661,8 @@ return function(mod, loadSibling)
   local function applyTextSize()
     local pct = Settings and Settings.textSize(option("textSize", 100)) or tonumber(option("textSize", 100)) or 100
     Kit.setTextScale(pct / 100)
+    -- (the theme, the same way: Light, Dark or OLED)
+    Kit.setTheme(Settings and Settings.theme(option("theme", "light")) or option("theme", "light"))
   end
   applyTextSize()
   -- once a second: R-Bay's auctions and the GTS settle, challenges and errands, the News's day, a Badge

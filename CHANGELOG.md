@@ -6,6 +6,13 @@ All notable changes to this mod are documented here, in
 ## [Unreleased]
 
 ### Added
+- **Dark and OLED themes:** the Theme option (OPTIONS > WOOBOS, or Settings > Display) turns every WoobOS
+  screen dark (deep greys) or OLED (true black grounds) in place of Light: the desktop and WoobPad, every
+  app, the Pokédex, the Bag, the Pokémon menu and summaries, the shops, the maps' cards and the
+  notifications. Prices and other coloured words take a lighter shade, easy to read on the dark. The Pokémon
+  Center keeps its own colours; the market stalls keep their scene for the time of day, the panels dark below it.
+- **The Pokémon Center's window shows the sky for the time of day:** blue with a little sun and faint rays by
+  day, a sunset from cool overhead to warm at the horizon in the evening, and a few twinkling stars at night.
 - **A Size tab in the Pokédex** for each Pokémon you've caught: a height chart in glass, the Pokémon beside a
   trainer's silhouette (1.7 m, 5'08"), both drawn to one scale on one line. A Gyarados towers over the
   trainer and a Pikachu comes up to his knees; lines across the back mark the heights in metres, with feet

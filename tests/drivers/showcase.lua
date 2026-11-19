@@ -10,6 +10,7 @@
 --
 -- SHOWCASE_AUTO=<dir> walks every scene by itself through the same keys, a screenshot of each in <dir>
 -- and a log (driver.log), then quits. SHOWCASE_BARE=1: no caption over the screenshots.
+-- SHOWCASE_THEME=dark | oled: every scene in that theme (the kit's alone; Settings untouched).
 -- SHOWCASE_TEXT=<percent> (with SHOWCASE_AUTO): each scene's text audited at 100% and at that size (the kit's
 -- K.audit), what's new at that size logged ("TEXT" lines: texts running over each other or out of their
 -- clip), the screenshot taken at it; Settings' text size put back after.
@@ -47,6 +48,13 @@ local function body(game, log, auto)
   local T = X and X._test
   if not (T and T.desktop) then log("FAIL woob_os has no _test.desktop"); return end
   local D, Sh, Wt, Tm, Nt, M3 = T.desktop, T.shell, T.pad, T.townmap, T.notify, T.map3d
+  -- (SHOWCASE_THEME=dark | oled: every scene in that theme, on the kit alone: nothing written to Settings)
+  local theme = os.getenv("SHOWCASE_THEME")
+  if theme and T.kit and T.kit.setTheme then
+    T.kit.setTheme(theme)
+    T.kit.setTheme = function() end
+    log("theme", theme)
+  end
   local gid = Sh.gameId()
   local frlg = gid == "firered" or gid == "leafgreen"
   local rse, emerald = not frlg, gid == "emerald"

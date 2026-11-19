@@ -39,6 +39,14 @@ return {
     description = "WoobPad in the START menu, in the PokéNav's place on Ruby, Sapphire and Emerald and the Pokégear's on Gold, Silver and Crystal. Off: no WoobPad and no notification banners over the field (the PC still shows them), and the game's own PokéNav and Pokégear there.",
   },
   {
+    key = "theme",
+    label = "Theme",
+    type = "choice",
+    default = "light",
+    choices = { { "Light", "light" }, { "Dark", "dark" }, { "OLED", "oled" } },
+    description = "Light, Dark, or OLED (true black): the look of every WoobOS screen. The Pokémon Center keeps its own; the market stalls keep their scene for the time of day. Also in Settings > Display.",
+  },
+  {
     key = "pokedex",
     label = "Pokédex",
     type = "toggle",

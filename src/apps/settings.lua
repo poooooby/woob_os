@@ -43,7 +43,11 @@ local SOON_CHOICES = { 5, 10, 15, 30 }
 -- (Display: the text size, percent; each one's words)
 local TEXT_CHOICES = { 100, 115, 130 }
 local TEXT_WORDS = { [100] = "settings.textNormal", [115] = "settings.textLarge", [130] = "settings.textLarger" }
+-- (and the theme: Light, Dark, OLED)
+local THEME_CHOICES = { "light", "dark", "oled" }
+local THEME_WORDS = { light = "settings.themeLight", dark = "settings.themeDark", oled = "settings.themeOled" }
 local DISPLAY_TOGGLES = {
+  { key = "theme", label = "settings.theme", choices = THEME_CHOICES, default = "light", words = THEME_WORDS },
   { key = "textSize", label = "settings.textSize", choices = TEXT_CHOICES, default = 100, words = TEXT_WORDS },
 }
 local WATCH_TOGGLES = {
@@ -193,7 +197,10 @@ return function(ctx, env)
   end
   -- a choice row's value and its place among the choices
   local function choiceOf(t)
-    local v = env.setting and tonumber(env.setting(t.key, t.default)) or t.default
+    -- (a number's choices read as numbers; the theme's are words)
+    local raw = env.setting and env.setting(t.key, t.default)
+    local v = type(t.default) == "number" and tonumber(raw) or raw
+    if v == nil then v = t.default end
     for j, c in ipairs(t.choices) do if c == v then return v, j end end
     return t.default, 1
   end
@@ -505,7 +512,7 @@ return function(ctx, env)
         if wp.id == current then return wp.key and T(wp.key) or wp.name end
       end
     elseif id == "display" then
-      local t = DISPLAY_TOGGLES[1]
+      local t = DISPLAY_TOGGLES[2]
       local v = env.setting and tonumber(env.setting(t.key, t.default)) or t.default
       return T(TEXT_WORDS[v] or TEXT_WORDS[100])
     end

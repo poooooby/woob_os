@@ -108,6 +108,10 @@ return {
 
     ["settings.language"] = "Sprache",
     ["settings.display"] = "Anzeige",
+    ["settings.theme"] = "Erscheinungsbild",
+    ["settings.themeLight"] = "Hell",
+    ["settings.themeDark"] = "Dunkel",
+    ["settings.themeOled"] = "OLED",
     ["settings.textSize"] = "Textgröße",
     ["settings.textNormal"] = "Normal",
     ["settings.textLarge"] = "Groß",

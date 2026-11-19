@@ -87,6 +87,93 @@ return function(deps)
   end
   K.mix, K.light, K.dark, K.fade = mix, light, dark, fade
 
+  -- ------- the theme: Light (the colours as given), Dark or OLED. Every colour through the kit is seen to
+  -- here, each table once per theme (kept, by the table: the same table every frame, so the meshes keep):
+  --   a fill (K.col, K.box's colour, gradients): a light grey or white, or a pale tint, goes dark
+  --     (white, the cards, to an elevated grey; the window's grounds, near white, to the darkest; OLED
+  --     those black), its hue kept; a strong colour, a dark one (shadows, dims) and a faint white (a
+  --     highlight, alpha 0.35 and under) stay
+  --   ink (texts, rings, rules, chevrons): a dark one goes light (the words to near white, the greys to
+  --     mid greys); a strong but deep one (the Mart's gold prices) a lighter shade of itself; a light one,
+  --     or a bright strong colour, stays
+  -- K.themeHold(true / false): the colours as given while held (a scene with a look of its own: the
+  -- Pokémon Center, the market stalls, a dark window); the count starts over each frame
+  local themeN, themeName, hold = 0, "light", 0
+  -- (per theme: the light end's elevated grey, the grounds' grey, the mid greys' end)
+  local TONE = { [1] = { e = 0.17, b = 0.105, m = 0.40 }, [2] = { e = 0.105, b = 0.0, m = 0.36 } }
+  local toneFill, toneInk = { {}, {} }, { {}, {} }
+  for i = 1, 2 do
+    setmetatable(toneFill[i], { __mode = "k" })
+    setmetatable(toneInk[i], { __mode = "k" })
+  end
+  local function hsl(r, g, b)
+    local mx, mn = math.max(r, g, b), math.min(r, g, b)
+    local l = (mx + mn) / 2
+    if mx == mn then return 0, 0, l end
+    local d = mx - mn
+    local s = l > 0.5 and d / (2 - mx - mn) or d / (mx + mn)
+    local h
+    if mx == r then h = (g - b) / d + (g < b and 6 or 0) elseif mx == g then h = (b - r) / d + 2 else h = (r - g) / d + 4 end
+    return h / 6, s, l
+  end
+  local function hue(p, q, t)
+    if t < 0 then t = t + 1 elseif t > 1 then t = t - 1 end
+    if t < 1 / 6 then return p + (q - p) * 6 * t end
+    if t < 1 / 2 then return q end
+    if t < 2 / 3 then return p + (q - p) * (2 / 3 - t) * 6 end
+    return p
+  end
+  local function fromHsl(h, s, l, a)
+    if s == 0 then return { l * 255, l * 255, l * 255, a } end
+    local q = l < 0.5 and l * (1 + s) or l + s - l * s
+    local p = 2 * l - q
+    return { hue(p, q, h + 1 / 3) * 255, hue(p, q, h) * 255, hue(p, q, h - 1 / 3) * 255, a }
+  end
+  local function fillOf(c)
+    local kept = toneFill[themeN][c]
+    if kept then return kept end
+    local a = c[4] or 1
+    local h, s, l = hsl(c[1] / 255, c[2] / 255, c[3] / 255)
+    local out = c
+    if l >= 0.55 and not (a <= 0.35 and l > 0.85) and not (s > 0.5 and l < 0.8) then
+      local T = TONE[themeN]
+      local nl
+      if l >= 0.985 then nl = T.e
+      elseif l >= 0.95 then nl = T.b + (l - 0.95) / 0.035 * (T.e - T.b)
+      else nl = T.b + (0.95 - l) / 0.4 * (T.m - T.b) end
+      out = fromHsl(h, s * 0.8, nl, c[4])
+    end
+    toneFill[themeN][c] = out
+    return out
+  end
+  local function inkOf(c)
+    local kept = toneInk[themeN][c]
+    if kept then return kept end
+    local h, s, l = hsl(c[1] / 255, c[2] / 255, c[3] / 255)
+    local out = c
+    if l <= 0.5 and not (s > 0.5 and l > 0.3) then out = fromHsl(h, s, 1 - l * 0.85, c[4])
+    elseif s > 0.5 and l > 0.3 and l < 0.48 then
+      -- (a strong colour too deep to read on the dark: the Mart's gold prices, a deep green: a lighter shade)
+      out = fromHsl(h, s, 0.66, c[4])
+    end
+    toneInk[themeN][c] = out
+    return out
+  end
+  -- (a colour as the theme has it: a fill's, or ink's)
+  local function tf(c) if themeN == 0 or hold > 0 then return c end return fillOf(c) end
+  local function ti(c) if themeN == 0 or hold > 0 then return c end return inkOf(c) end
+  K.toneFill, K.toneInk = tf, ti
+  function K.setTheme(name)
+    name = (name == "dark" or name == "oled") and name or "light"
+    themeName = name
+    themeN = name == "dark" and 1 or (name == "oled" and 2 or 0)
+  end
+  -- (the theme the colours are drawn in now: "light" while held)
+  function K.theme() return hold > 0 and "light" or themeName end
+  function K.themeHold(on)
+    if on then hold = hold + 1 elseif hold > 0 then hold = hold - 1 end
+  end
+
   -- ------- the frame
 
   local G
@@ -135,10 +222,16 @@ return function(deps)
   -- frame: something fading in over a backdrop that isn't one colour)
   local fade = 1
   local function col(c, a)
-    c = c or WHITE
+    c = tf(c or WHITE)
     G.setColor(c[1] / 255, c[2] / 255, c[3] / 255, (a or 1) * (c[4] or 1) * fade)
   end
   K.col = col
+  -- (ink: a text's, a ring's, a rule's)
+  local function ink(c, a)
+    c = ti(c or WHITE)
+    G.setColor(c[1] / 255, c[2] / 255, c[3] / 255, (a or 1) * (c[4] or 1) * fade)
+  end
+  K.ink = ink
   function K.setFade(v) fade = v end
   function K.getFade() return fade end
   -- motion (the glass windows'; numbers only, nothing made): eases of t in 0..1, a value followed
@@ -212,6 +305,7 @@ return function(deps)
   local meshes, meshCount = {}, 0
   local function gradient(g, x, y, w, h, rad, top, foot, alpha)
     if w <= 0 or h <= 0 then return end
+    top, foot = tf(top), tf(foot)
     local byFoot = meshes[top]
     if not byFoot then
       byFoot = {}
@@ -269,7 +363,8 @@ return function(deps)
     end
     if not glowMesh then return end
     G.setBlendMode("add")
-    col(c, a)
+    c = c or WHITE
+    G.setColor(c[1] / 255, c[2] / 255, c[3] / 255, (a or 1) * (c[4] or 1) * fade)
     G.draw(glowMesh, X(cx), Y(cy), 0, rx * sc, ry * sc)
     G.setBlendMode("alpha")
   end
@@ -282,7 +377,7 @@ return function(deps)
     end
   end
   local function ring(b, rad, c, a, w)
-    col(c, a)
+    ink(c, a)
     G.setLineWidth(max(1, (w or 1) * sc))
     box("line", b, rad)
   end
@@ -561,7 +656,7 @@ return function(deps)
     end
     local f = font(size * sc)
     G.setFont(f)
-    col(c, a)
+    ink(c, a)
     if K.audit then auditText(s, x, y, size, align, w, f, a) end
     local p = signed(s)
     if p then
@@ -578,7 +673,9 @@ return function(deps)
   K.text = text
   -- text that sits on colour: a faint shadow under it
   function K.label(s, x, y, size, c, align, w, a)
+    hold = hold + 1
     text(s, x, y + 0.5, size, BLACK, align, w, 0.22 * (a or 1))
+    hold = hold - 1
     return text(s, x, y, size, c, align, w, a)
   end
   -- a font size that fits s in w units at the text size (smaller only; never under 3.5 units drawn)
@@ -646,7 +743,7 @@ return function(deps)
   -- start a frame: the page laid out on the window's safe area -> pw, ph (units), portrait
   function K.frame(g, vp, page, clock)
     G = g
-    nRect, nHitRec, fade, riseDepth = 0, 0, 1, 0
+    nRect, nHitRec, fade, riseDepth, hold = 0, 0, 1, 0, 0
     for i = #hits, 1, -1 do hits[i] = nil end
     local ww = tonumber(vp.width) or (tonumber(vp.gameX) or 0) * 2 + (tonumber(vp.gameWidth) or 240)
     local wh = tonumber(vp.height) or (tonumber(vp.gameY) or 0) * 2 + (tonumber(vp.gameHeight) or 160)
@@ -885,16 +982,16 @@ return function(deps)
   end
   -- a one-pixel rule (a list's separator), across or down
   function K.hairline(x, y, w, c, a)
-    col(c or UI.separator, a)
+    ink(c or UI.separator, a)
     G.rectangle("fill", X(x), floor(Y(y)), w * sc, max(1, 0.25 * sc))
   end
   function K.vline(x, y, h, c, a)
-    col(c or UI.separator, a)
+    ink(c or UI.separator, a)
     G.rectangle("fill", floor(X(x)), Y(y), max(1, 0.25 * sc), h * sc)
   end
   -- a chevron `s` units tall centred on cx, cy: dir 1 right, -1 left, 2 down
   function K.chevron(cx, cy, s, c, dir, a)
-    col(c, a)
+    ink(c, a)
     G.setLineWidth(max(1, s * 0.17 * sc))
     local h, d = s * 0.5, s * 0.28
     local x, y = X(cx), Y(cy)
@@ -970,20 +1067,33 @@ return function(deps)
     K.shadow(b, rad, 1.2, 0.07)
     col(tint or WHITE, a or 0.5)
     box("fill", b, rad)
-    grad(R(b[1], b[2], b[3], min(b[4], 16)), rad, SHEEN_TOP, SHEEN_FOOT, sheen)
-    ring(b, rad, WHITE, edge or 0.8, 0.35)
+    -- (dark: the sheen a faint light from the top, the edge dimmer; as given, not darkened)
+    local dk = themeN ~= 0 and hold == 0
+    hold = hold + 1
+    grad(R(b[1], b[2], b[3], min(b[4], 16)), rad, SHEEN_TOP, SHEEN_FOOT, (sheen or 1) * (dk and 0.16 or 1))
+    ring(b, rad, WHITE, (edge or 0.8) * (dk and 0.28 or 1), 0.35)
+    hold = hold - 1
   end
   -- the backdrop glass sits on: a pale wash of the first colour with four soft lights drifting slowly
   -- over b (the first colour, the second, a violet, a pink); colours 0..1, numbers only
   local blobMesh
   local function blob(cx, cy, rx, ry, r, g, bl, a)
+    if themeN ~= 0 and hold == 0 then a = a * (themeN == 2 and 0.3 or 0.42) end
     G.setColor(r, g, bl, a * fade)
     G.draw(blobMesh, X(cx), Y(cy), 0, rx * sc, ry * sc)
   end
   function K.backdrop(b, clock, r, g, bl, r2, g2, b2)
     local x, y, w, h = b[1], b[2], b[3], b[4]
     K.scissor(b)
-    G.setColor(0.93 + (r - 0.93) * 0.3, 0.93 + (g - 0.93) * 0.3, 0.95 + (bl - 0.95) * 0.3, fade)
+    -- (dark: a deep wash of the colour, OLED black; the lights dimmer over it)
+    local dk = themeN ~= 0 and hold == 0
+    if themeN == 2 and dk then
+      G.setColor(0, 0, 0, fade)
+    elseif dk then
+      G.setColor(0.07 + r * 0.1, 0.07 + g * 0.1, 0.08 + bl * 0.1, fade)
+    else
+      G.setColor(0.93 + (r - 0.93) * 0.3, 0.93 + (g - 0.93) * 0.3, 0.95 + (bl - 0.95) * 0.3, fade)
+    end
     box("fill", b)
     if blobMesh == nil then
       local v = { { 0, 0, 0, 0, 1, 1, 1, 1 } }
@@ -1011,15 +1121,19 @@ return function(deps)
     local n = a5 and 5 or (a4 and 4 or (a3 and 3 or 2))
     local rad = h / 2
     local tb = R(x, y, w, h)
-    col(WHITE, 0.32)
+    -- (dark: a dark track and a lighter thumb, as given)
+    local dk = themeN ~= 0 and hold == 0
+    hold = hold + 1
+    col(dk and BLACK or WHITE, dk and 0.45 or 0.32)
     box("fill", tb, rad)
-    ring(tb, rad, WHITE, 0.7, 0.3)
+    ring(tb, rad, WHITE, dk and 0.16 or 0.7, 0.3)
     local sw = (w - 1) / n
     local tx = x + 0.5 + (shown - 1) * sw
-    col(BLACK, 0.1)
+    col(BLACK, dk and 0.25 or 0.1)
     box("fill", R(tx, y + 0.9, sw, h - 1), rad - 0.5)
-    col(WHITE)
+    col(WHITE, dk and 0.24 or 1)
     box("fill", R(tx, y + 0.5, sw, h - 1), rad - 0.5)
+    hold = hold - 1
     for i = 1, n do
       local label = i == 1 and l1 or (i == 2 and l2 or (i == 3 and l3 or (i == 4 and l4 or l5)))
       local sb = R(x + 0.5 + (i - 1) * sw, y + 0.5, sw, h - 1)

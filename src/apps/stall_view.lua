@@ -36,6 +36,8 @@ local CLOTH, CLOTH_DEEP = rgb(240, 244, 252), rgb(200, 210, 230)
 local BOX, BOX_DEEP, COIN, COIN_DEEP = rgb(226, 72, 72), rgb(150, 30, 40), rgb(255, 222, 128), rgb(196, 146, 44)
 local BIRD = rgb(250, 252, 255)
 local AO_DARK, AO_CLEAR = { 0, 0, 0, 0.18 }, { 0, 0, 0, 0 }
+-- (what the scene's dimmed toward in the dark themes)
+local DIM_DARK, DIM_OLED = { 14, 18, 36 }, { 0, 0, 4 }
 
 return function(K, env, shop, now)
   local S = {}
@@ -242,6 +244,31 @@ return function(K, env, shop, now)
     K.box("fill", K.R(bx + 0.8, by + 0.6, 0.5, bh - 1.4), 0.25)
     st.tillX, st.tillY = bx + bw / 2, by - 1
     st.counterX, st.counterY = cx + 6, top - 3
+  end
+
+  -- (the open air -- sky, sea, tent, vendor, goods -- keeps its own colours for the time of day, whatever the
+  -- theme; in the dark themes only the beach under the window's panels goes under one layer of night blue
+  -- (Dark) or black (OLED), so the dark panels sit on dark)
+  if K.themeHold then
+    local back, front = S.backdrop, S.front
+    function S.backdrop(body, clock, band, ...)
+      local th = K.theme()
+      K.themeHold(true)
+      back(body, clock, band, ...)
+      if th ~= "light" then
+        local G = K.graphics()
+        local d = th == "oled" and DIM_OLED or DIM_DARK
+        local top = body[2] + (tonumber(band) or 0)
+        G.setColor(d[1] / 255, d[2] / 255, d[3] / 255, (th == "oled" and 0.86 or 0.62) * K.getFade())
+        G.rectangle("fill", K.X(body[1]), K.Y(top), body[3] * K.sc, (body[2] + body[4] - top) * K.sc)
+      end
+      K.themeHold(false)
+    end
+    function S.front(...)
+      K.themeHold(true)
+      front(...)
+      K.themeHold(false)
+    end
   end
 
   return S

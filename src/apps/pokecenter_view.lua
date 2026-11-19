@@ -15,7 +15,8 @@
 --     each Pokémon's icon and health; the round button; the glow flooding the cavity and spilling out
 -- Numbers only on each frame (src/ui_kit.lua's rules); without meshes, canvases or shaders it's drawn plainer.
 --
---   V = view(K, env, st, T)   st: the window's state ; V.draw(body, clock, portrait) ; V.release() ;
+--   V = view(K, env, st, T)   st: the window's state ; V.draw(body, clock, portrait) (the theme held: its own
+--                             look; the window's sky by the hour) ; V.release() ;
 --   V.ROW_AT, V.BOX, V.SCREEN (hit args)
 
 local floor, max, min, sin, cos, pi, abs = math.floor, math.max, math.min, math.sin, math.cos, math.pi, math.abs
@@ -33,6 +34,11 @@ local C = {
   SKIRT = { 228, 132, 62 },
   WIN_EDGE = { 74, 74, 96 }, WIN_FRAME = { 242, 242, 246 }, WIN_FRAME_D = { 172, 174, 190 },
   GLASS_TOP = { 190, 200, 230 }, GLASS_FOOT = { 132, 142, 186 },
+  -- (the sky in the window by the time of day: day blue, a little sun with faint rays; evening cool overhead
+  -- to warm at the horizon; night deep blue with a few stars)
+  SKY_DAY = { 96, 166, 246 }, SKY_DAY_FOOT = { 200, 230, 255 }, SUN = { 255, 244, 206 }, RAY = { 255, 250, 228 },
+  SKY_EVE = { 84, 86, 170 }, SKY_EVE_MID = { 214, 120, 150 }, SKY_EVE_FOOT = { 255, 176, 108 },
+  SKY_NIGHT = { 10, 16, 44 }, SKY_NIGHT_FOOT = { 40, 54, 108 }, STAR = { 255, 252, 236 },
   PC_BODY = { 252, 252, 254 }, PC_BODY_D = { 210, 212, 222 }, PC_EDGE = { 84, 84, 104 },
   PC_GREY = { 176, 178, 192 }, PC_GREY_D = { 128, 130, 148 }, LED_ON = { 120, 230, 120 },
   SCREEN_LIGHT = { 236, 246, 255 }, SCREEN_EDGE = { 70, 96, 124 },
@@ -208,7 +214,52 @@ return function(K, env, st, T)
     K.graphics().polygon("fill", K.X(x0), K.Y(gy), K.X(x0 + bw), K.Y(gy), K.X(x0 + bw - slant), K.Y(gy + gh),
       K.X(x0 - slant), K.Y(gy + gh))
   end
-  local function drawWindow(x, y, w, h)
+  -- the sky through the glass for the hour (the device's, as the market stalls): day (5 to 17), evening (17
+  -- to 20), night; read when the window opens
+  local hour = tonumber(os.date("%H")) or 12
+  local part = (hour >= 5 and hour < 17) and "day" or ((hour >= 17 and hour < 20) and "evening" or "night")
+  local STARS = { { 0.12, 0.2 }, { 0.3, 0.12 }, { 0.47, 0.34 }, { 0.62, 0.16 }, { 0.78, 0.3 }, { 0.88, 0.1 },
+                  { 0.22, 0.46 }, { 0.7, 0.5 } }
+  local function sky(gx, gy, gw, gh, rr, clock)
+    local G = K.graphics()
+    if part == "evening" then
+      K.grad(K.R(gx, gy, gw, gh * 0.55), rr, C.SKY_EVE, C.SKY_EVE_MID)
+      K.grad(K.R(gx, gy + gh * 0.5, gw, gh * 0.5), rr, C.SKY_EVE_MID, C.SKY_EVE_FOOT)
+      K.glow(gx + gw * 0.5, gy + gh * 1.02, gw * 0.6, gh * 0.4, C.SKY_EVE_FOOT, 0.28)
+      return
+    end
+    if part == "night" then
+      K.grad(K.R(gx, gy, gw, gh), rr, C.SKY_NIGHT, C.SKY_NIGHT_FOOT)
+      for i = 1, #STARS do
+        local st0 = STARS[i]
+        local tw = 0.45 + 0.55 * (0.5 + 0.5 * sin(clock * (1.1 + i * 0.23) + i * 1.7))
+        K.col(C.STAR, tw)
+        G.circle("fill", K.X(gx + gw * st0[1]), K.Y(gy + gh * st0[2]), (i % 3 == 0 and 0.55 or 0.38) * K.sc, 6)
+      end
+      return
+    end
+    K.grad(K.R(gx, gy, gw, gh), rr, C.SKY_DAY, C.SKY_DAY_FOOT)
+    -- (the sun just past the top right corner, its light and a few faint rays down across the glass)
+    local sx, sy = gx + gw * 0.9, gy - gh * 0.08
+    local px, py, pw, ph
+    if G.getScissor then px, py, pw, ph = G.getScissor() end
+    if G.intersectScissor then G.intersectScissor(K.X(gx), K.Y(gy), gw * K.sc, gh * K.sc) end
+    K.glow(sx, sy, gw * 0.3, gh * 0.38, C.SUN, 0.4)
+    G.setBlendMode("add")
+    for i = 0, 4 do
+      local ang = pi * (0.56 + i * 0.075) + 0.02 * sin(clock * 0.4 + i)
+      local len = gh * (1.3 + 0.1 * i)
+      local half = 0.035 + 0.01 * (i % 2)
+      local a = (0.045 + 0.02 * sin(clock * 0.6 + i * 1.3)) * K.getFade()
+      G.setColor(C.RAY[1] / 255, C.RAY[2] / 255, C.RAY[3] / 255, a)
+      G.polygon("fill", K.X(sx), K.Y(sy),
+        K.X(sx + cos(ang - half) * len), K.Y(sy + sin(ang - half) * len),
+        K.X(sx + cos(ang + half) * len), K.Y(sy + sin(ang + half) * len))
+    end
+    G.setBlendMode("alpha")
+    if px then G.setScissor(px, py, pw, ph) else G.setScissor() end
+  end
+  local function drawWindow(x, y, w, h, clock)
     if w <= 12 or h <= 12 then return end
     local r = min(10, h * 0.2)
     shadow(x + w / 2, y + h * 0.55, w * 0.56, h * 0.58, 0.2)
@@ -220,16 +271,18 @@ return function(K, env, st, T)
     local rr = max(1, r - f)
     K.col(C.WIN_EDGE)
     K.box("fill", K.R(gx - 0.7, gy - 0.7, gw + 1.4, gh + 1.4), rr + 0.7)
-    K.grad(K.R(gx, gy, gw, gh), rr, C.GLASS_TOP, C.GLASS_FOOT)
-    -- (the sky's light low in it, the frame's shadow along its top)
-    K.glow(gx + gw * 0.55, gy + gh * 0.95, gw * 0.5, gh * 0.4, C.WHITE, 0.16)
+    sky(gx, gy, gw, gh, rr, clock or 0)
+    -- (the sky's light low in it (not at night), the frame's shadow along its top)
+    if part ~= "night" then K.glow(gx + gw * 0.55, gy + gh * 0.95, gw * 0.5, gh * 0.4, C.WHITE, 0.12) end
     K.grad(K.R(gx, gy, gw, min(4, gh * 0.12)), rr, C.AO_DARK, C.AO_CLEAR)
     -- (glints: bands slanting across, clear of the rounded corners; the bright strip down the left)
+    -- (fainter at night: the glass is dark)
     local slant = gh * 0.32
-    glint(gx, gy, gw, gh, rr, slant, 0.08, gw * 0.07, 0.3)
-    glint(gx, gy, gw, gh, rr, slant, 0.2, gw * 0.025, 0.24)
-    glint(gx, gy, gw, gh, rr, slant, 0.56, gw * 0.04, 0.14)
-    K.col(C.WHITE, 0.85)
+    local gk = part == "night" and 0.35 or (part == "evening" and 0.7 or 1)
+    glint(gx, gy, gw, gh, rr, slant, 0.08, gw * 0.07, 0.3 * gk)
+    glint(gx, gy, gw, gh, rr, slant, 0.2, gw * 0.025, 0.24 * gk)
+    glint(gx, gy, gw, gh, rr, slant, 0.56, gw * 0.04, 0.14 * gk)
+    K.col(C.WHITE, 0.85 * gk)
     K.box("fill", K.R(gx + 1.6, gy + rr * 0.6 + 1, 1.6, gh - rr * 1.2 - 2), 0.8)
     -- (the frame's lit top)
     K.col(C.WHITE, 0.9)
@@ -433,7 +486,7 @@ return function(K, env, st, T)
     -- (the window behind her, her head before its lower half)
     local ww = min(w * 0.42, hU * 1.15, 116)
     local wy = y + 12
-    drawWindow(cx - ww / 2, wy, ww, min(head + hU * 0.4, wallY - 11) - wy)
+    drawWindow(cx - ww / 2, wy, ww, min(head + hU * 0.4, wallY - 11) - wy, clock)
     -- (the floor; the counter's top cream all round, the inside in shade: the back's face, the sides' inner
     -- faces, their lit edges)
     drawFloor(x, wallY, w, y + h, cx, L)
@@ -915,7 +968,14 @@ return function(K, env, st, T)
     end
   end
 
+  local drawAll
+  -- (its own look whatever the theme: the room by the hour)
   function V.draw(b, clock, portrait)
+    K.themeHold(true)
+    drawAll(b, clock, portrait)
+    K.themeHold(false)
+  end
+  function drawAll(b, clock, portrait)
     local x, y, w, h = b[1], b[2], b[3], b[4]
     local G = K.graphics()
     -- (fading from the field and back to it: only the black over it, the whole window)

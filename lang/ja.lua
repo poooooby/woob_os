@@ -108,6 +108,10 @@ return {
 
     ["settings.language"] = "げんご",
     ["settings.display"] = "ひょうじ",
+    ["settings.theme"] = "がいかん",
+    ["settings.themeLight"] = "ライト",
+    ["settings.themeDark"] = "ダーク",
+    ["settings.themeOled"] = "OLED",
     ["settings.textSize"] = "もじの おおきさ",
     ["settings.textNormal"] = "ふつう",
     ["settings.textLarge"] = "おおきい",

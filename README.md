@@ -41,7 +41,8 @@ controller, a touch screen, or a mouse and keyboard.
   Pokémon learns a new move with four already, you choose the one to forget there, with the new move shown
   below.
 - 🏥 **Pokémon Center:** talk to the nurse and she greets you in a close-up behind her counter, in a
-  room drawn after Emerald's own Pokémon Center. Choose to heal and your Pokémon go into the healing
+  room drawn after Emerald's own Pokémon Center, its window showing the sky for the time of day (sun by day,
+  a warm sunset in the evening, stars at night). Choose to heal and your Pokémon go into the healing
   machine: a ball for each, the machine's glow and its jingle, and their health filling back up.
   Everything the game's own nurse does still happens, such as Pokérus, Emerald's Gold Card and where
   you return after a loss.
@@ -146,6 +147,7 @@ In the game's OPTIONS menu, WOOBOS opens these directly (also under MODS > WoobO
 | Desktop | On / Off | On | Off: every PC opens the game's own menu. |
 | Boot Screen | On / Off | On | The W boot screen before the desktop. |
 | 24-Hour Clock | On / Off | Off | The clock as 15:30 instead of 3:30 PM. |
+| Theme | Light / Dark / OLED | Light | The look of every WoobOS screen; OLED's grounds are true black. The Pokémon Center keeps its own; the market stalls keep their scene for the time of day. Also in Settings; whichever you changed last counts. |
 | Text Size | Normal / Large / Larger | Normal | Bigger text in every app. Also in Settings; whichever you changed last counts. |
 | WoobPad | On / Off | On | Off: no WoobPad and no notification banners over the field (the PC still shows them), and the START menu's PokéNav (Ruby, Sapphire, Emerald) and Pokégear (Gold, Silver, Crystal) are the game's own. |
 | Pokédex | On / Off | On | Off: the game's own Pokédex, and no Pokédex app. |

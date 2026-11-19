@@ -107,6 +107,10 @@ return {
 
     ["settings.language"] = "Lingua",
     ["settings.display"] = "Schermo",
+    ["settings.theme"] = "Aspetto",
+    ["settings.themeLight"] = "Chiaro",
+    ["settings.themeDark"] = "Scuro",
+    ["settings.themeOled"] = "OLED",
     ["settings.textSize"] = "Dimensione testo",
     ["settings.textNormal"] = "Normale",
     ["settings.textLarge"] = "Grande",

@@ -1684,6 +1684,35 @@ behind the base, the hood's shadow and the machine's light on the slats. A previ
 (no engine) is the scratchpad's `pcshot/`. Tests: `tests/pokecenter_test.lua` (a stand-in VM over the
 cart's own scripts), `gb_test`'s Pokémon Center section.
 
+## The theme
+
+Light / Dark / OLED: the mod option `theme` and Settings > Display's row, whichever changed last
+(`Settings.theme(option)`, as the text size; both mains' `applyTextSize` sets `Kit.setTheme` at load, once a
+second and at once from the Settings app). No palette per window: the kit sees to every colour that passes
+through it (`src/ui_kit.lua`, "the theme"), each colour table mapped once per theme and kept (weak-keyed, the
+same table every frame, so gradient meshes keep):
+- **Fills** (`K.col`, gradients): a light neutral or a pale tint goes dark, its hue kept (white, the cards, to
+  an elevated grey; near-white grounds to the darkest; OLED black); strong colours, dark ones (shadows,
+  dims) and faint whites (alpha 0.35 and under: highlights) stay.
+- **Ink** (`K.text` / `K.bold`, `K.ring`, `K.hairline` / `K.vline`, `K.chevron`; `K.ink`): dark ink goes
+  light; a strong but deep colour (lightness 0.3 to 0.48: the Mart's `GOLD_INK` prices, a deep green) a lighter
+  shade of itself (0.66); light ink and bright strong colours stay. `K.toneFill(c)` / `K.toneInk(c)` give the theme's colour for
+  something drawn outside the kit (the desktop's money sign, the menu bar's W).
+- **Hand-tuned:** `K.glass` (a faint sheen and edge), `K.backdrop` (a deep wash, OLED black, the lights
+  dimmer), `K.glassSwitch` (a dark track, a lighter thumb), `K.label`'s shadow and `K.glow` as given.
+- **Held** (`K.themeHold(true / false)`, reset each `K.frame`): the Pokémon Center (`V.draw`) keeps its own
+  colours. The market stalls (`stall_view`'s `backdrop` / `front`) are held too: the top scene (sky, sea,
+  tent, vendor, goods) as the time of day draws it in every theme; in Dark / OLED only the beach below `band`
+  (behind the window's panels) goes under one layer of night blue (`DIM_DARK`, 0.62) or black (`DIM_OLED`, 0.86). Preview: scratchpad `stalltheme/`. Images and `G.setColor` calls are
+  never touched (the icons, the sprites, the wallpapers).
+- **Checks:** desktop_test (the Settings row, the mapping, held), pokedex_test (Dark's garbage); the showcase
+  takes `SHOWCASE_THEME=dark | oled` (the kit alone, Settings untouched).
+
+The Pokémon Center's window (`pokecenter_view` `sky`): the device's hour (as the stalls) read when it opens;
+day 5-17 (a blue gradient, the sun's glow past the top right and five faint additive rays under a scissor),
+evening 17-20 (cool to a pink middle to warm, a glow at the horizon), night (deep blue, eight stars
+twinkling); the glints fainter in the evening and at night. Preview: scratchpad `pcsky/` (an `os.date` stand-in).
+
 ## Words
 
 Every word WoobOS shows is a key of `lang/en.lua`: `T("app.items")` in code, or a key in a
