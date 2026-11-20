@@ -32,6 +32,9 @@ All notable changes to this mod are documented here, in
 ### Changed
 - The 3D map's cursor is pulled onto a town or landmark only when let go right by it, and glides there more
   gently.
+- With WoobleSpawns 0.18.0 or later, the Pokédex's Where tab shows its own odds for each place, exactly as it
+  draws its wild Pokémon: right on Red, Blue and Yellow, with Time of Day Spawns, and for the Good and Super
+  Rods on Gold, Silver and Crystal; a Pokémon met at several times of day shows every level it's met at.
 
 ## [0.19.0] - 2026-11-19
 

@@ -165,7 +165,28 @@ do
   T.check(Sa ~= nil, "the WoobleSpawns reader is there")
   if Sa then
     local prevS, prevId, prevMap = Sa.spawns, Dx.speciesId, Dx.mapGroupNum
-    local tod, on = "off", true
+    local tod, on, useEnc = "off", true, false
+    -- (its 0.18.0 export: each map's odds as its hook draws them -- numbers the slots alone wouldn't give)
+    local function encounters(mapId, opts)
+      local period = opts and opts.period
+      if mapId == "EM_LAKE_A" then
+        return { mapId = mapId, sections = {
+          { method = "grass", mons = { { id = "PIDGEY", chance = 83, minLevel = 3, maxLevel = 4 },
+                                       { id = "MAGIKARP", chance = 17, minLevel = 3, maxLevel = 4 } } },
+          { method = "old", mons = { { id = "MAGIKARP", chance = 70, minLevel = 5, maxLevel = 5 } } } } }
+      elseif mapId == "EM_SEA_B" then
+        if tod ~= "off" and period == "day" then
+          return { mapId = mapId, sections = { { method = "surf",
+            mons = { { id = "PIDGEY", chance = 100, minLevel = 3, maxLevel = 4 } } } } }
+        end
+        return { mapId = mapId, sections = { { method = "surf",
+          mons = { { id = "MAGIKARP", chance = 55, minLevel = 20, maxLevel = 22 },
+                   { id = "PIDGEY", chance = 45, minLevel = 3, maxLevel = 4 } } } } }
+      elseif mapId == "EM_HOME_L" then
+        return { mapId = mapId, sections = { { method = "grass",
+          mons = { { id = "PIDGEY", chance = 100, minLevel = 30, maxLevel = 32 } } } } }
+      end
+    end
     local function slots(n, at, lv)
       local out = {}
       for i = 1, n do out[i] = { species = "PIDGEY", minLevel = 3, maxLevel = 4 } end
@@ -176,6 +197,7 @@ do
       return {
         isActive = function() return on end,
         settings = function() return { timeOfDay = tod } end,
+        encounters = useEnc and encounters or nil,
         locate = function(id)
           if id ~= "MAGIKARP" then return {} end
           return { EM_LAKE_A = { land = true }, EM_SEA_B = { water = true }, EM_HOME_L = { grass = true } }
@@ -222,6 +244,19 @@ do
     sea = rowOf(page(129).where, "Sea B", "surf")
     T.check(sea and sea.when == "night" and sea.methodText:find(env.T("dex.where.night"), 1, true),
             "TIME OF DAY SPAWNS: only at night says so (" .. tostring(sea and sea.methodText) .. ")")
+    -- (WoobleSpawns 0.18.0: its own odds, map by map)
+    tod, useEnc = "off", true
+    w = page(129).where
+    lake, sea, home = rowOf(w, "Lake A", "grass"), rowOf(w, "Sea B", "surf"), rowOf(w, "Home L", "grass")
+    T.check(lake and lake.chanceText == "17%", "its encounters export: its own odds (" ..
+            tostring(lake and lake.chanceText) .. ")")
+    T.check(sea and sea.chanceText == "55%" and sea.lo == 20 and sea.hi == 22, "its levels too")
+    T.check(home and home.rare, "a legendary's home with no slot of its own: Rare")
+    T.check(rowOf(w, "Lake A", "old") == nil, "its Old Rod section left to the cart's rows")
+    tod = "on"
+    sea = rowOf(page(129).where, "Sea B", "surf")
+    T.check(sea and sea.when == "night", "TIME OF DAY SPAWNS: each period asked, only at night says so")
+    tod, useEnc = "off", false
     on = false
     local back = page(129).where
     T.check(rowOf(back, "Lake A", "grass") == nil and #back == #karp.where, "off: the cart's own again")

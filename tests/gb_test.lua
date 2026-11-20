@@ -824,7 +824,22 @@ if Dx then
   local Sa = Dx.spawnArea
   T.check(Sa ~= nil, "the WoobleSpawns reader is there")
   if Sa then
-    local prevS, on = Sa.spawns, true
+    local prevS, on, useEnc = Sa.spawns, true, false
+    -- (its 0.18.0 export: each map's odds as its hook draws them; Gen 2's grass a section per time of day)
+    local function encounters(mapId, opts)
+      local function sec(method, chance, lo, time)
+        return { method = method, time = time, mons = { { id = "PIDGEY", chance = chance, minLevel = lo, maxLevel = lo + 1 },
+                                                         { id = "RATTATA", chance = 100 - chance, minLevel = 2, maxLevel = 3 } } }
+      end
+      if GEN == 2 and mapId == "ROUTE_29" then
+        return { mapId = mapId, sections = { sec("grass", 10, 2, "MORN"), sec("grass", 25, 3, "DAY"), sec("grass", 5, 4, "NITE") } }
+      elseif GEN == 2 then
+        return { mapId = mapId, sections = { sec("good", 40, 12) } }
+      elseif mapId == "ROUTE_1" then
+        return { mapId = mapId, sections = { sec("grass", 21, 4) } }
+      end
+      return { mapId = mapId, sections = { sec("super", 30, 5) } }
+    end
     local function list(n, at, lv)
       local out = {}
       for i = 1, n do out[i] = { species = "RATTATA", level = 3 } end
@@ -835,6 +850,7 @@ if Dx then
       return {
         isActive = function() return on end,
         settings = function() return { timeOfDay = "off" } end,
+        encounters = useEnc and encounters or nil,
         locate = function(id)
           if id ~= "PIDGEY" then return {} end
           if GEN == 2 then return { ROUTE_29 = { grass = true }, ROUTE_30 = { ["fish.good"] = true } } end
@@ -880,6 +896,21 @@ if Dx then
       T.check(rod and rod.chanceText == "25%" and rod.lo == 5, "Gen 1: the Super Rod's list (" ..
               tostring(rod and rod.chanceText) .. ")")
     end
+    -- (WoobleSpawns 0.18.0: its own odds, map by map)
+    useEnc = true
+    sw = Dx.page(pidgey).where
+    grass = rowOf(sw, "grass")
+    local rodRow = rowOf(sw, GEN == 2 and "good" or "super")
+    if GEN == 2 then
+      T.check(grass and grass.chanceText == "25%" and grass.lo == 2 and grass.hi == 5,
+              "its encounters export: the best of the morning, day and night (" .. tostring(grass and grass.chanceText) .. ")")
+      T.check(rodRow and rodRow.chanceText == "40%" and rodRow.lo == 12, "its Good Rod's odds")
+    else
+      T.check(grass and grass.chanceText == "21%", "its encounters export: its own odds (" ..
+              tostring(grass and grass.chanceText) .. ")")
+      T.check(rodRow and rodRow.chanceText == "30%" and rodRow.lo == 5, "its Super Rod's odds")
+    end
+    useEnc = false
     on = false
     T.eq(#Dx.page(pidgey).where, #wp.where, "WoobleSpawns off: the cart's own again")
     Sa.spawns = prevS

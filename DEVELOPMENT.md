@@ -645,7 +645,11 @@ screenshots each. Settings changed by hand during it are the real ones.
 - **WoobleSpawns** (`modern_spawns`, the owner's; `src/spawn_area.lua` Sa, both dex models, every game): while
   its `isActive()`, a page's Where is made again each time it's asked (`whereNow`: its tables change with the
   seed, the mode and EVERY MAP's visits). `Sa.rows(id)`: its exports `locate(id)` (maps -> kinds), then each
-  map's `tableFor` (levels; a slot of its own its weight) and `poolFor` (COMPLETE: weight / the pool's size),
+  map's odds: since its 0.18.0 its `encounters(mapId, { period, time = "all" })` (`fromEncounters`: each
+  section's chance / levels for the species, as its hook draws them; sections of the methods it replaces
+  only, `cave` read as grass; Gen 2's times the best chance, every level; a map `locate` names with no
+  section holding it `rare`); before that, worked out here (kept as the fallback for an older WoobleSpawns):
+  `tableFor` (levels; a slot of its own its weight) and `poolFor` (COMPLETE: weight / the pool's size),
   per period with TIME OF DAY SPAWNS (one period only: `when`, "Grass · Night"); a map it lists with no slot
   holding the species is a legendary's home: `rare`. Gen 2 grass: MORN / DAY / NITE, pools 1-7 / 8-14 /
   15-21, the best of the three; its rods: rows of a running chance out of 255; Gen 1's Super Rod: a list.

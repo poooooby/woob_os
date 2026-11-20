@@ -2,8 +2,11 @@
 -- the wild Pokémon walking in grass, surfing and (where it makes them) biting a Good or Super Rod are its
 -- own, not the cart's, so those rows come from here; the rest (the Old Rod, Rock Smash) stay the cart's.
 -- Read only, through its public exports (api 2): locate (every map and kind a species can be met on),
--- tableFor (each slot's species and levels), poolFor (COMPLETE: what each slot can turn into, each equally
--- likely), settings (TIME OF DAY SPAWNS).
+-- settings (TIME OF DAY SPAWNS), and each map's odds: since its 0.18.0 its own `encounters(mapId, opts)`
+-- (every species on the map, its chance, levels and method, as its encounter hook draws them: the cart's
+-- odds per slot, COMPLETE's pools, TIME OF DAY SPAWNS' weights, Gen 2's rods only where there's water);
+-- before that worked out here from tableFor (each slot's species and levels) and poolFor (COMPLETE: what
+-- each slot can turn into, each equally likely), a little off on Gen 1 and with TIME OF DAY SPAWNS.
 --
 --   Sa = SpawnArea({ spawns = fn -> exports | nil, gen = 1 | 2 | 3 })
 --   Sa.active() -> the exports while it's on, else nil (read when a page is made, never per frame)
@@ -148,6 +151,76 @@ return function(deps)
     return c, l or al, h or ah
   end
 
+  -- (the rows made: a legendary's home -- no chance of its own -- Rare; with TIME OF DAY SPAWNS, a row met
+  -- only by day or only at night says so)
+  local function finish(out, periods)
+    for _, r in ipairs(out) do
+      if r.chance <= 0 then r.rare = true end
+      if periods[1] and not r.rare then
+        if r.seenIn.day and not r.seenIn.night then r.when = "day"
+        elseif r.seenIn.night and not r.seenIn.day then r.when = "night" end
+      end
+      r.seenIn = nil
+    end
+    return out
+  end
+
+  -- WoobleSpawns' own odds, map by map (exports.encounters): each section of the methods its tables stand in
+  -- for (the Old Rod and Rock Smash stay the cart's rows); Gen 2's morning, day and night sections the best
+  -- of the three; a map locate names with no slot of the species its home (Rare)
+  local FROM_EXPORT = { grass = "grass", cave = "grass", surf = "surf", good = "good", super = "super" }
+  local function fromEncounters(ex, id, maps, periods)
+    local out, byKey = {}, {}
+    local function rowFor(mapId, method)
+      local key = tostring(mapId) .. "|" .. method
+      local r = byKey[key]
+      if not r then
+        r = { mapId = mapId, method = method, chance = 0, seenIn = {} }
+        byKey[key] = r
+        out[#out + 1] = r
+      end
+      return r
+    end
+    for mapId, kinds in pairs(maps) do
+      local want = {}
+      for kind in pairs(type(kinds) == "table" and kinds or {}) do
+        local m = METHOD[gen][kind]
+        if m then want[m] = true end
+      end
+      for _, period in ipairs(periods) do
+        local enc = call(ex.encounters, mapId, { period = period or nil, time = "all" })
+        for _, sec in ipairs(type(enc) == "table" and type(enc.sections) == "table" and enc.sections or {}) do
+          local method = FROM_EXPORT[sec.method]
+          if method and REPLACES[gen][method] then
+            local hit, secLo, secHi
+            for _, m in ipairs(type(sec.mons) == "table" and sec.mons or {}) do
+              local l = tonumber(m.minLevel) or 0
+              local h = tonumber(m.maxLevel) or l
+              secLo, secHi = min(secLo or l, l), max(secHi or h, h)
+              if m.id == id and (tonumber(m.chance) or 0) > 0 then hit = m end
+            end
+            if hit then
+              local r = rowFor(mapId, method)
+              local l = tonumber(hit.minLevel) or 0
+              local h = tonumber(hit.maxLevel) or l
+              r.chance = max(r.chance, tonumber(hit.chance))
+              r.lo, r.hi = min(r.lo or l, l), max(r.hi or h, h)
+              if period then r.seenIn[period] = true end
+            elseif want[method] and secLo then
+              local r = rowFor(mapId, method)
+              if r.chance <= 0 then r.lo, r.hi = min(r.lo or secLo, secLo), max(r.hi or secHi, secHi) end
+            end
+          end
+        end
+      end
+      for m in pairs(want) do
+        if REPLACES[gen][m] and not byKey[tostring(mapId) .. "|" .. m] then rowFor(mapId, m) end
+      end
+    end
+    for _, r in ipairs(out) do r.lo, r.hi = r.lo or 0, r.hi or r.lo or 0 end
+    return finish(out, periods)
+  end
+
   function Sa.rows(id)
     local ex = Sa.active()
     if not ex or id == nil then return nil end
@@ -157,6 +230,7 @@ return function(deps)
     local settings = call(ex.settings)
     local tod = type(settings) == "table" and settings.timeOfDay
     local periods = (tod and tod ~= "off" and tod ~= false) and { "day", "night" } or { false }
+    if type(ex.encounters) == "function" then return fromEncounters(ex, id, maps, periods) end
     local out, byKey = {}, {}
     for mapId, kinds in pairs(maps) do
       for kind in pairs(type(kinds) == "table" and kinds or {}) do
@@ -182,15 +256,7 @@ return function(deps)
         end
       end
     end
-    for _, r in ipairs(out) do
-      if r.chance <= 0 then r.rare = true end
-      if periods[1] and not r.rare then
-        if r.seenIn.day and not r.seenIn.night then r.when = "day"
-        elseif r.seenIn.night and not r.seenIn.day then r.when = "night" end
-      end
-      r.seenIn = nil
-    end
-    return out
+    return finish(out, periods)
   end
 
   -- (a chance as the tab shows it: whole percent, "<1%" under one)
