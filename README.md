@@ -6,113 +6,61 @@
 
 </div>
 
-A mod for [Gen1Recomp](https://github.com/bryanthaboi/gen1recomp)'s games: Red, Blue and Yellow,
-Gold, Silver and Crystal, FireRed, LeafGreen, Ruby, Sapphire and Emerald. Every PC in a Pokémon
-Center, and the one in your bedroom, opens a desktop of apps instead of a text menu. Play it with a
-controller, a touch screen, or a mouse and keyboard.
+The Pokémon PC has always been a stack of text menus. WoobOS swaps it for a desktop you'd actually want to use, with a home screen of apps, a dock, notifications and a wallpaper of
+your choosing. Walk up to any PC, in a Pokémon Center or in your bedroom, and it boots straight into it.
 
-## ✨ Features
+It doesn't stop at the PC. **WoobPad** carries the same desktop with you as a tablet from the START menu,
+and the Pokédex, the Town Map, the shops and the Pokémon Center all get a modern, glassy look to match.
 
-### The desktop
+WoobOS is a mod for [Gen1Recomp](https://github.com/bryanthaboi/gen1recomp) and works on all eleven of its
+games: Red, Blue, Yellow, Gold, Silver, Crystal, FireRed, LeafGreen, Ruby, Sapphire and Emerald. Play it
+with a controller, a touch screen, or a mouse and keyboard.
 
-- 🗂️ **Your home screen:** press and hold an app (or press SELECT) to move it around or into the dock.
-- 📱 **WoobPad:** the same desktop as a tablet, from the START menu, wherever you can open it.
-- 🔔 **Notifications:** when you're outbid or win on R-Bay, your GTS deposit is traded, a team is back
-  from an errand, a challenge is done, and more. Pull down from the top of the screen to see them all.
-- 🛍️ **App Store:** remove the apps you don't want from your home screen, and get them back later.
-- 🏪 **Real shops:** talking to a shop clerk fades straight into the Mart, full screen, with that shop's own goods: Poké
-  Marts, every department store floor, herb shops, the pharmacy, souvenir and decoration shops, the
-  Underground's bargain stall and Slateport's market stalls by the sea, each dressed for its place and
-  what it sells.
-- 🎒 **Bag:** on FireRed, LeafGreen, Ruby, Sapphire and Emerald, the Bag opens in glass from the START
-  menu and in battle: each pocket a page (FireRed and LeafGreen's TM Case and Berry Pouch too), the chosen
-  item's picture and words beside the list, a TM's move with its type, power, accuracy and PP. Use, give,
-  toss (choosing how many), register and reorder items there; an item used on a Pokémon opens the
-  Pokémon menu over the Bag, in battle too. Planting a Berry, the Berry Blender, putting items in the PC and
-  selling at a shop choose from it as well, Emerald's Battle Pyramid has its bag there, and Teachy TV's
-  lessons and the Old Man's catching lesson play on it.
-- 📋 **Pokémon menu and summary:** on FireRed, LeafGreen, Ruby, Sapphire and Emerald, the Pokémon menu
-  is six glass cards over lights in the chosen Pokémon's colours: the lead's picture, every Pokémon's
-  level, HP, status and held item. Each one's menu has its summary, its field moves, Switch and its item or
-  mail; in battle, Shift or Send Out. Items used from the Bag (a Potion's HP filling, a TM's able / not
-  able on every card, a Rare Candy's new stats), items given to hold, choosing a Pokémon for the Day Care
-  or a trade, choosing a team for the Battle Tower and Frontier, and the Move Tutor happen there too. A Pokémon's
-  summary is the same glass as the Boxes' one: its picture, info, stats with IVs and EVs, and moves. When a
-  Pokémon learns a new move with four already, you choose the one to forget there, with the new move shown
-  below.
-- 🏥 **Pokémon Center:** talk to the nurse and she greets you in a close-up behind her counter, in a
-  room drawn after Emerald's own Pokémon Center, its window showing the sky for the time of day (sun by day,
-  a warm sunset in the evening, stars at night). Choose to heal and your Pokémon go into the healing
-  machine: a ball for each, the machine's glow and its jingle, and their health filling back up.
-  Everything the game's own nurse does still happens, such as Pokérus, Emerald's Gold Card and where
-  you return after a loss.
+## ✨ What's inside
 
-### Apps
+### 🗂️ Your Pokémon, sorted
 
-- 🔴 **Boxes:** move, swap, or drag a whole group of Pokémon at once; their Summary, items, Release,
-  and box names and wallpapers.
-- 🎒 **Items:** your Bag and your PC's items side by side.
-- ✉️ **Mail:** your PC's mailbox, and the mail your Pokémon are holding.
-- 📕 **Pokédex:** a modern Pokédex in place of the game's, from the START menu and as an app, with a
-  search by name or number, and a height chart for each Pokémon you've caught, standing beside a trainer.
-- 🗺️ **Map:** your region in 3D, built from the game's own maps, in place of the Town Map and the Fly
-  map. Emerald shows Kyogre's and Groudon's storms where they're rumoured. At night the towns light up,
-  with the odd aurora and shooting star. Choose any spot (A, or a tap) for its menu: Fly there once
-  you've visited, or put down a marker (a Flag, Star, Berry or Poké Ball, up to 20, one per town or
-  landmark) that stays in sight from every angle, day and night.
-- 🧭 **GPS** (FireRed, LeafGreen, Ruby, Sapphire, Emerald, Gold, Silver and Crystal): Set Waypoint on any
-  town, landmark or spot and the map draws a glowing line along the shortest walk there, through caves,
-  forests and gatehouses, Mt. Chimney's cable car, the Magnet Train and the S.S. Aqua. It keeps to the
-  story's way, taking the shortcuts your HMs open (Cut, Rock Smash, Strength, and on Gold, Silver and
-  Crystal Whirlpool and Waterfall); where the only way needs one you can't use yet, it still shows the way
-  and marks the spot. On Gold, Silver and Crystal the story's roadblocks are marked the same way until
-  they're out of the way: Sudowoodo, the sleeping Snorlax, Team Rocket in Mahogany Town, Victory Road
-  Gate's guards and Badge check, the Cycling Road's Bicycle, the Magnet Train's Pass and the S.S. Ticket.
-  Water counts once you can Surf; a place only Fly reaches (or a boat, on FireRed, LeafGreen, Ruby,
-  Sapphire and Emerald) says "No Route Found". Turn on Overworld GPS (an option, or in Settings > Map) for a small arrow on the field that points to
-  the next exit, ladder, hole or door on the way. Arriving, or flying anywhere, clears the waypoint.
-- 📞 **Phone:** Match Call (Emerald), Trainer's Eyes (Ruby and Sapphire) or the Pokégear's phone book
-  (Gold, Silver and Crystal). Calls are the game's own.
-- 📻 **Radio** (Gold, Silver and Crystal): the Pokégear's radio, with each station's artwork, a live
-  transcript of the show, presets and a tuner. Every station and show is the game's,
-  and the music you leave playing keeps doing what it does in the game (the Poké Flute, the March and
-  the Lullaby).
-- 🎀 **Condition** and **Ribbons:** your Pokémon's contest conditions and Ribbons (Ruby, Sapphire and
-  Emerald).
-- 🌐 **GTS:** Wonder Trade, other Trainers' offers, and a deposit of your own. Traded Pokémon act like
-  real trades: they can evolve on arrival and may not obey without enough Badges.
-- 🛒 **Mart:** buy and sell from the PC, with more stock for each Badge.
-- 🚀 **R-Bay:** Team Rocket's Pokémon auctions. They run on your device's clock, even while the game
-  is off.
-- 🎰 **Slots:** a five-reel slot machine played with your money, with prizes for its tickets. Four
-  limited prizes change every day: a sought-after Pokémon, a held item, a 10th Anniversary Pokémon,
-  and a special: an event ticket (Eon, Mystic, Aurora or the Old Sea Map) that sails from the harbor
-  like the real one, or an event Pokémon as it was given out (Aura Mew, Mystery Mew, Space Center
-  Deoxys, Doel Deoxys). The 10th Anniversary Pokémon, the specials and the tickets are on FireRed,
-  LeafGreen, Ruby, Sapphire and Emerald, each ticket on the games whose harbor takes it.
-- 🏦 **Bank:** holds the money your wallet can't (past ₽999,999) and pays a little interest each day.
-- 👟 **Errands:** send up to three Pokémon on a timed job for money, an item and EXP.
-- 🏅 **Challenges:** five goals a week, counted from how you play, each with a reward.
-- 📰 **News:** the day's stories about your battles, catches and week, and where today's swarm is.
-  A battle with a legendary Pokémon gets its own report, catch or not. On FireRed, LeafGreen, Ruby,
-  Sapphire and Emerald the News follows the region's story as it happens: Team Rocket's schemes from
-  Mt. Moon to Silph Co. and the Sevii Islands, or Team Magma and Team Aqua's, the legend's awakening
-  and the drought or downpour it brings. It also says where Raikou, Entei or Suicune, or Latias or
-  Latios, has been seen.
-- 📟 **Oak's PC**, 🏆 **Hall of Fame**, and 🛋️ **Decorate** at your bedroom PC.
-- 🕹️ **PC Games:** with the PC Games mod installed, its games get an icon too.
-- ⚙️ **Settings:** language, wallpaper, text size, notifications for each app, and switches for
-  WoobPad, the 3D map, the field's GPS arrow, the PokéNav apps and daily swarms.
+**Boxes** lets you move, swap or drag a whole group of Pokémon at once, with each one's summary a tap
+away. **Items** puts your Bag and your PC side by side, and **Mail** is an inbox for your letters. The
+**Pokédex** is rebuilt from the ground up, with a search, a page for every form, and a height chart that
+stands each Pokémon beside your trainer.
 
-### On Red, Blue, Yellow, Gold, Silver and Crystal
+### 🗺️ A map that knows the way
 
-The same desktop, WoobPad and most apps, with each game's own Pokémon, items and moves. On Gold,
-Silver and Crystal, WoobPad takes the Pokégear's place in the START menu: its Map, Phone and Radio do
-the Pokégear's jobs, and Fly and the wall maps open the 3D map. Condition, Ribbons and the PokéNav are
-Ruby, Sapphire and Emerald's only. Red, Blue and Yellow have no Mail, Phone, Radio or shiny Pokémon, and
-their Map can't Fly. These games have no pictures for their items: if you've also imported Emerald, FireRed
-or LeafGreen, the Mart, the Bag and the other apps show that game's item pictures (a TM as a disc in its
-move's type's colour); otherwise each item is a tile in its pocket's colour.
+The Town Map becomes your whole region in 3D, built from the game's own maps, its towns lighting up at
+night. Pick any spot to fly there, drop a marker, or set a waypoint: a glowing line traces the shortest
+walk there, through caves and forests, keeping to the story's path and pointing out whatever still stands
+in your way. Turn on Overworld GPS and a small arrow beside your trainer leads you to the next door.
+
+<table>
+  <tr>
+    <td align="center" width="50%"><img src="docs/screenshots/gps-map.png" alt="A waypoint's route on the 3D map, with markers"><br><sub>A waypoint's route, a Rock Smash sign and markers</sub></td>
+    <td align="center" width="50%"><img src="docs/screenshots/gps-overworld.png" alt="The Overworld GPS arrow pointing to a cave"><br><sub>Overworld GPS pointing the way</sub></td>
+  </tr>
+</table>
+
+### 🎒 The game's own screens, modernised
+
+Talk to a nurse and you'll see her up close behind her counter while your Pokémon go into the healing
+machine. Talk to a shop clerk and the shop opens full screen, dressed for wherever you are. On FireRed,
+LeafGreen, Ruby, Sapphire and Emerald, the Bag, the Pokémon menu and each Pokémon's summary are redone in
+frosted glass too.
+
+### 🎰 Things to do
+
+Bid against Team Rocket on **R-Bay**, trade with strangers on the **GTS**, try your luck at **Slots** for
+prizes that change every day, send your Pokémon on **Errands**, take on weekly **Challenges**, and keep up
+with the **News**, which reports on your battles and follows the region's story as it unfolds. The
+**Bank** holds whatever your wallet can't.
+
+### 📱 And the rest
+
+A **Phone** for calls (and a **Radio** on Gold, Silver and Crystal), **Condition** and **Ribbons** for
+contest fans, Oak's PC, the Hall of Fame and Decorate. Arrange your home screen however you like, remove
+the apps you don't use, and pull down from the top for your notifications.
+
+**Read more:** [every app](docs/apps.md) · [the map and GPS](docs/map.md) ·
+[the menus, shops and Pokémon Center](docs/in-game.md) · [what each game has](docs/games.md)
 
 ## 📸 Gallery
 
@@ -151,60 +99,38 @@ move's type's colour); otherwise each item is a tile in its pocket's colour.
   </tr>
 </table>
 
+## 💾 Getting started
+
+Install WoobOS from Gen1Recomp's mod manager (or unzip a release into the game's `mods` folder) and turn
+it on for your games. Then walk up to any PC.
+
+It's safe to add to a save you're already playing, and to turn off again later. WoobOS keeps only its own
+things in your save (R-Bay bids, a GTS deposit, teams out on errands, the Bank, this week's challenges),
+and they wait for it while it's off.
+
 ## ⚙️ Options
 
-In the game's OPTIONS menu, WOOBOS opens these directly (also under MODS > WoobOS).
-
-| Option | Choices | Default | What it does |
-|---|---|---|---|
-| Desktop | On / Off | On | Off: every PC opens the game's own menu. |
-| Boot Screen | On / Off | On | The W boot screen before the desktop. |
-| 24-Hour Clock | On / Off | Off | The clock as 15:30 instead of 3:30 PM. |
-| Theme | Light / Dark / OLED | Light | The look of every WoobOS screen; OLED's grounds are true black. The Pokémon Center keeps its own; the market stalls keep their scene for the time of day. Also in Settings; whichever you changed last counts. |
-| Text Size | Normal / Large / Larger | Normal | Bigger text in every app. Also in Settings; whichever you changed last counts. |
-| WoobPad | On / Off | On | Off: no WoobPad and no notification banners over the field (the PC still shows them), and the START menu's PokéNav (Ruby, Sapphire, Emerald) and Pokégear (Gold, Silver, Crystal) are the game's own. |
-| Pokédex | On / Off | On | Off: the game's own Pokédex, and no Pokédex app. |
-| Pokégear | On / Off | On | Gold, Silver and Crystal. Off: the game's own Pokégear. |
-| Real Shops | On / Off | On | Off: every shop counter opens the game's own shop menu. |
-| Pokémon Center | On / Off | On | Off: the nurse's counter is the game's own. |
-| Modern Menus | On / Off | On | Off: the Bag, the Pokémon menu and the summary are the game's own. |
-| Overworld GPS | On / Off | Off | With a waypoint set, an arrow by your trainer on the field points the way (FireRed, LeafGreen, Ruby, Sapphire, Emerald, Gold, Silver, Crystal). Also in Settings; whichever you changed last counts. |
-| Map: Invert X | On / Off | Off | The 3D map's camera turns the other way. |
-| Map: Invert Y | On / Off | Off | The 3D map's camera tilts the other way. |
-
-## 💾 Installation
-
-Install it from Gen1Recomp's mod manager, or unzip a release into the game's `mods` folder, then
-turn it on for your games.
+If you'd rather keep the game's own version of something, you can switch it back piece by piece: the
+desktop itself, WoobPad, the Pokédex, the Pokégear, the shops, the Pokémon Center and the modern menus.
+The options also hold the theme (Light, Dark or OLED), the text size, a 24-hour clock and Overworld GPS.
+Find them under OPTIONS > WOOBOS in the game, or MODS > WoobOS. [Every option](docs/options.md)
 
 ## 🔗 Works With
 
-- **Any save:** you can turn WoobOS on and off whenever you like. It only keeps its own things in
-  your save (R-Bay bids, a GTS deposit, teams on errands, the Bank, this week's challenges), and they
-  wait for it while it's off.
-- **Other mods:** they can add their own apps to the desktop.
+- **Other mods** can add their own apps to the desktop.
 - **Kanto Gear:** Slots, R-Bay and the GTS are apps in its Silph Store, on the Gear's own screen.
-- **WoobleDex:** every box of its Bigger PC; its Pokémon in R-Bay and the Pokédex, and a page for each of
-  its forms (regional forms included); Dynamax Level and G-Max Factor in Boxes.
-- **Galar Rising:** Dynamax Level and G-Max Factor in a Pokémon's Summary.
-- **WoobleSpawns:** the Pokédex shows where its wild Pokémon are, forms included.
-- **WoobleSpritePack:** its animated sprites in the Pokédex, and its icons and pictures on the Game
-  Boy games.
+- **WoobleDex:** every box of its Bigger PC, its Pokémon in R-Bay and the Pokédex, a page for each of its
+  forms, and Dynamax Level and G-Max Factor in Boxes.
+- **Galar Rising:** Dynamax Level and G-Max Factor in a Pokémon's summary.
+- **WoobleSpawns:** the Pokédex shows where its wild Pokémon live, and how likely you are to meet them.
+- **WoobleSpritePack:** its animated sprites in the Pokédex, and its icons and pictures on the Game Boy
+  games.
 
 ## 📌 Good to Know
 
-- **Fly and calls need the open air**, and the PC is indoors: use them from WoobPad.
-- **Boxes follows the game's rules:** your party keeps a Pokémon that can battle, a Pokémon holding
-  mail can't go in a box (take the letter off in Mail first), and Eggs can't be released.
-- **Your own wallpapers:** put PNG or JPG pictures in the mod's `wallpapers` folder and pick them in
-  Settings. SELECT switches between filling the screen and stretching to it.
-- **Your own language:** copy `lang/en.lua` to a new file in the same folder, write the language's
-  name at the top and translate the words. It shows up in Settings.
-- **Settings** are kept for the whole game, not per save file.
-- **R-Bay bids** are saved with your game: load an older save and its bids and money come back with
-  it. A won Pokémon waits if your party and PC are both full.
-- **Notifications** wait until you're free to move, and aren't kept after you close the game.
-- **WoobPad** isn't in the START menu in a link room or the Safari Zone. Decorate stays at the PC.
+- **Fly and phone calls need the open air,** and the PC is indoors: use them from WoobPad.
+- **Make it yours:** add your own wallpapers, or translate WoobOS into your language.
+- More in [tips and questions](docs/tips.md).
 
 ## 🪪 Credits
 

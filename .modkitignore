@@ -19,6 +19,8 @@ tests/gb_test.lua
 docs/screenshots/boxes.png
 docs/screenshots/condition.png
 docs/screenshots/desktop.png
+docs/screenshots/gps-map.png
+docs/screenshots/gps-overworld.png
 docs/screenshots/gts.png
 docs/screenshots/hall-of-fame.png
 docs/screenshots/items.png
