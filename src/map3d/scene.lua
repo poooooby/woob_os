@@ -5,18 +5,22 @@
 -- an overcast), and on Emerald the storm over wherever Kyogre or Groudon is rumoured to be. The same window
 -- in every host: the desktop's and WoobPad's Map app, and the game's own Town Map / Fly screen
 -- (src/townmap.lua).
---   buttons  the D-pad moves a cursor freely over the land (the way the camera faces; let go near a
---            town or a landmark and it glides onto it, as the game's own map's), L / R (or the right
---            stick) turn, the right stick tilts, A zooms (the region, nearer, near, a close-up of the
---            place), SELECT the flat map (the game's own picture,
---            north up; there L / R change the region)
---            (Fly mode: A flies to a visited town), the region's chip the next region (Sevii's), START Fly
---            (the app) or the classic map (the Town Map), B back
---   touch    drag turns and tilts, two fingers (or the wheel) zoom, a tap picks a place, the card's
---            Fly button, the region's chip, the "you" chip back to the player, the compass north up
+--   buttons  the D-pad moves a cursor freely over the land (the way the camera faces; let go right by a
+--            town or a landmark and it glides onto it), L / R (or the right stick) turn, the right stick
+--            tilts, A the spot's menu (Fly there, Set Waypoint / Clear Waypoint, Place Marker / Remove
+--            Marker), START zooms (the region, nearer, near, a close-up of the place; the Town Map's START
+--            the classic map, its zoom in the menu), SELECT the flat map (the game's own picture, north up;
+--            there L / R change the region), the region's chip the next region (Sevii's), B back
+--   touch    drag turns and tilts, two fingers (or the wheel) zoom, a tap on the land moves the cursor
+--            there and opens its menu, a tap picks a place (again: its menu) or a marker, the card's Fly
+--            button, the region's chip, the "you" chip back to the player, the compass north up
+--   the GPS  (env.gps, Ruby / Sapphire / Emerald / FireRed / LeafGreen: src/gps/route.lua) a waypoint's
+--            line along the walk there, glowing; markers (env.marks: src/marks.lua) on every game
 --
 --   Scene(ctx, env, opts) -> win (src/apps.lua's window contract)
 --     env.map3d = { model, render, clock() -> hour, minute, fly(ctx, region, place) -> ok, reason }
+--     env.gps = { ready(), work(budget), set(spec) -> status, clear(), dest(), line(region), spotAt(region, x, z) }
+--     env.marks = src/marks.lua's Mk
 --     opts = { mode = "app" | "fly" | "town", pick(region, place) (Fly mode), classic() (the Town Map's
 --              START), footer (units kept clear at the foot: the Town Map's hints) }
 --   win.glass(b, rad, a, tint): the overlays' frosted glass, for the host's own pieces
@@ -25,6 +29,7 @@ local floor, max, min, abs, sqrt, pi, exp = math.floor, math.max, math.min, math
 
 -- hit args
 local A_REGION, A_ME, A_FLY, A_NORTH, A_FLAT, A_PLACE = 1001, 1002, 1003, 1004, 1005, 2000
+local A_GROUND, A_MENU, A_PICK, A_MARK = 1006, 3000, 3100, 4000
 local STICK_DEAD = 0.22    -- the right stick's dead zone
 local STICK_TURN, STICK_TILT = 2.2, 1.1   -- radians a second at full tilt
 local TURN = 1.7        -- radians a second, L / R held
@@ -35,28 +40,32 @@ local PITCH_MIN, PITCH_MAX = 0.42, 1.38
 local ZOOMS = 4
 local CLOSE_DIST, CLOSE_PITCH = 2.4, 0.62
 local MIN_DIST = 1.4                 -- the wheel and two fingers stop here (the tiles' art close)
-local SNAP = 1.1        -- let go this near a town or a landmark (units): the cursor glides onto it
+local SNAP = 0.6        -- let go this near a town or a landmark (units): the cursor glides onto it
 local LOAD_SLICE = 0.012   -- seconds a frame given to building a region while its bar shows
-local GLIDE = 11        -- how fast it glides (per second)
+local GLIDE = 5         -- how fast it glides (per second): a gentle pull
+local CATCH = 0.8       -- the cursor's speed over a town or a landmark (a little slower: it catches there)
+local MENU_W, MENU_ROW = 66, 10   -- the spot's menu (units)
 local M = 3
 
 local HINTS = {
-  flat = { { "+", "map.hint.go" }, { "L R", "map.hint.region" }, { "A", "map.hint.zoom" }, { "SELECT", "map.hint.3d" },
-           { "B", "hint.back" } },
-  flatFly = { { "+", "map.hint.go" }, { "L R", "map.hint.region" }, { "A", "map.fly" }, { "SELECT", "map.hint.3d" },
-              { "B", "hint.back" } },
-  app = { { "+", "map.hint.go" }, { "L R", "map.hint.turn" }, { "A", "map.hint.zoom" }, { "SELECT", "map.hint.flat" },
-          { "B", "hint.back" } },
-  appFly = { { "+", "map.hint.go" }, { "L R", "map.hint.turn" }, { "A", "map.hint.zoom" }, { "SELECT", "map.hint.flat" },
-             { "START", "map.fly" },
-             { "B", "hint.back" } },
-  fly = { { "+", "map.hint.go" }, { "L R", "map.hint.turn" }, { "A", "map.fly" }, { "SELECT", "map.hint.flat" },
-          { "B", "hint.back" } },
-  town = { { "+", "map.hint.go" }, { "L R", "map.hint.turn" }, { "A", "map.hint.zoom" }, { "SELECT", "map.hint.flat" },
+  flat = { { "+", "map.hint.go" }, { "L R", "map.hint.region" }, { "A", "map.hint.menu" }, { "START", "map.hint.zoom" },
+           { "SELECT", "map.hint.3d" }, { "B", "hint.back" } },
+  app = { { "+", "map.hint.go" }, { "L R", "map.hint.turn" }, { "A", "map.hint.menu" }, { "START", "map.hint.zoom" },
+          { "SELECT", "map.hint.flat" }, { "B", "hint.back" } },
+  town = { { "+", "map.hint.go" }, { "L R", "map.hint.turn" }, { "A", "map.hint.menu" }, { "SELECT", "map.hint.flat" },
            { "START", "map.classic" },
            { "B", "hint.back" } },
+  menu = { { "+", "hint.choose" }, { "A", "hint.ok" }, { "B", "hint.back" } },
   loading = { { "B", "hint.back" } },
 }
+-- the spot's menu's rows and their words; the markers' kinds, their colours and words
+local ROW_WORD = { fly = "map.fly", waypoint = "map.menu.waypoint", clear = "map.menu.clearWaypoint",
+                   mark = "map.menu.mark", unmark = "map.menu.unmark", zoom = "map.hint.zoom" }
+local MARK_KINDS = { "flag", "star", "berry", "ball" }
+-- the HMs a route can need that the player can't use yet (src/gps/graph.lua's masks) and their words
+local HM_WORDS = { { 1, "map.hm.cut" }, { 2, "map.hm.smash" }, { 4, "map.hm.strength" } }
+local HM_WORD = { [1] = "map.hm.cut", [2] = "map.hm.smash", [4] = "map.hm.strength" }
+local MARK_WORD = { flag = "map.mark.flag", star = "map.mark.star", berry = "map.mark.berry", ball = "map.mark.ball" }
 local NO_T = setmetatable({ list = function(l) return l end, f = string.format }, { __call = function(_, k) return k end })
 
 return function(ctx, env, opts)
@@ -89,6 +98,10 @@ return function(ctx, env, opts)
     wx = {}, wxBy = {}, wxRegion = nil,
     sky = { meteor = false },
     problem = nil, problemLines = nil, problemAt = nil,
+    -- (the spot's menu: { x, z, place, mark, rows, n, sel, pick, pickSel }; the cursor's and markers' places
+    -- on the screen last frame; the route's line and its heights; a waypoint waiting for the routes)
+    menu = nil, curX = nil, curY = nil, nearMark = nil, line = nil, lineKey = nil, lineY = {}, lineSX = {}, lineSY = {},
+    finding = nil,
   }
   W.state = st
 
@@ -109,6 +122,10 @@ return function(ctx, env, opts)
 
   -- the place under the cursor (a town over its landmarks; nothing over the sea)
   local function place() return st.here end
+  local function regionId() local d = st.regions[st.ri]; return d and d.id end
+  local function gpsHere()
+    return env.gps ~= nil and st.region ~= nil and st.region.world ~= nil
+  end
   -- the camera's goal: the cursor (the whole region at the widest zoom, leaning toward it)
   local function follow()
     local r, g = st.region, st.goal
@@ -238,6 +255,13 @@ return function(ctx, env, opts)
     if mode == "app" and env.map3d.flyCheck then
       local okF, mon, why = pcall(env.map3d.flyCheck, ctx, s)
       st.flyMon, st.flyWhy = okF and mon or nil, okF and why or "none"
+    end
+    -- (the waypoint's line, from where the player is; kept by the route while nothing moved)
+    st.line = nil
+    if gpsHere() and env.gps.dest() then
+      local okL, L = pcall(env.gps.line, st.region)
+      st.line = okL and L or nil
+      if not okL and env.log then env.log("the GPS's line failed: %s", tostring(L)) end
     end
   end
 
@@ -449,6 +473,194 @@ return function(ctx, env, opts)
     se("SE_SELECT")
   end
 
+  -- ------- the spot's menu: Fly, the waypoint, a marker
+
+  -- (the waypoint's at this spot: its place, or right by it)
+  local function isWaypoint(m)
+    local d = gpsHere() and env.gps.dest()
+    if not (d and d.region == regionId()) then return false end
+    if m.place and m.place.kind ~= "route" then return d.place == m.place.id end
+    return d.place == nil and abs((d.wx or 0) - m.x) < 0.2 and abs((d.wz or 0) - m.z) < 0.2
+  end
+  local function canFlyTo(p)
+    return p ~= nil and p.kind == "town" and p.canFly and (mode == "fly" or (mode == "app" and st.flyMon ~= nil))
+  end
+  local function fillRows(m)
+    local rows, n = m.rows, 0
+    local p = m.place
+    if canFlyTo(p) then n = n + 1; rows[n] = "fly" end
+    if gpsHere() then
+      if isWaypoint(m) then
+        n = n + 1; rows[n] = "clear"
+      else
+        n = n + 1; rows[n] = "waypoint"
+        if env.gps.dest() then n = n + 1; rows[n] = "clear" end
+      end
+    end
+    if env.marks then
+      local mk = m.mark or (p and p.kind ~= "route" and env.marks.onPlace(regionId(), p.id)) or nil
+      m.mark = mk
+      n = n + 1
+      rows[n] = mk and "unmark" or "mark"
+    end
+    if mode == "town" then n = n + 1; rows[n] = "zoom" end
+    for i = n + 1, #rows do rows[i] = nil end
+    m.n = n
+  end
+  -- (a spot: the cursor's; the place under it, a marker by it)
+  local function openMenu(x, z, mark)
+    -- (a marker still there: the one by the cursor may have gone since it was drawn)
+    if mark and env.marks then
+      local still = false
+      for _, k in ipairs(env.marks.list()) do if k == mark then still = true end end
+      if not still then mark = nil end
+    end
+    local m = { x = x, z = z, place = place(), mark = mark, rows = {}, n = 0, sel = 1, pick = false, pickSel = 1,
+                at = env.now and env.now() or 0 }
+    -- (a marker tapped on a town or a landmark: that place's)
+    if mark and mark.place ~= nil then
+      for _, p in ipairs(st.region and st.region.places or {}) do
+        if p.id == mark.place then m.place = p end
+      end
+    end
+    fillRows(m)
+    if m.n == 0 then return end
+    st.menu = m
+    st.dirX, st.dirY = 0, 0
+    se("SE_SELECT")
+  end
+  local function closeMenu() st.menu = nil end
+
+  -- the waypoint: the place itself (a town anywhere in it), or the spot on a route
+  local function specOf(m)
+    local p = m.place
+    local onPlace = p and p.kind ~= "route"
+    local wx, wz = m.x, m.z
+    if onPlace then wx, wz = p.x, p.z end
+    local id, tx, ty = env.gps.spotAt(st.region, wx, wz)
+    if not id and onPlace then id, tx, ty = env.gps.spotAt(st.region, m.x, m.z) end
+    if not id then return nil end
+    return { map = id, x = tx, y = ty, name = (p and p.name) or T("map.waypoint"), region = regionId(),
+             wx = wx, wz = wz, place = onPlace and p.id or nil, sec = p and p.kind == "town" and p.id or nil }
+  end
+  local STATUS_WORD = { surf = "map.route.surf", none = "map.route.none", here = "map.route.here" }
+  local function setWaypoint(m)
+    local spec = specOf(m)
+    if not spec then
+      se("SE_FAILURE")
+      return toastOf("map.route.none")
+    end
+    local ok, status = pcall(env.gps.set, spec)
+    status = ok and status or "none"
+    if status == "busy" then
+      st.finding = m
+      return toastOf("map.route.finding", false)
+    end
+    if status == "ok" then
+      se("SE_SUCCESS")
+      st.liveAt = -10
+      -- (the only way goes through an HM's obstacle the player can't move yet: set, and said which)
+      local need = env.gps.needs and env.gps.needs() or 0
+      if need ~= 0 then
+        local names = {}
+        for _, h in ipairs(HM_WORDS) do
+          if math.floor(need / h[1]) % 2 == 1 then names[#names + 1] = T(h[2]) end
+        end
+        st.toast = { text = T.f("map.route.setHm", table.concat(names, ", ")), bad = false, t = env.now and env.now() or 0 }
+        return
+      end
+      return toastOf("map.route.set", false)
+    end
+    se("SE_FAILURE")
+    toastOf(STATUS_WORD[status] or "map.route.none")
+  end
+  local function takeRow(m, row)
+    if row == "fly" then
+      closeMenu()
+      return fly()
+    elseif row == "waypoint" then
+      closeMenu()
+      return setWaypoint(m)
+    elseif row == "clear" then
+      closeMenu()
+      pcall(env.gps.clear)
+      st.line, st.lineKey = nil, nil
+      se("SE_SELECT")
+      return toastOf("map.route.cleared", false)
+    elseif row == "mark" then
+      if env.marks and #env.marks.list() >= env.marks.MAX then
+        se("SE_FAILURE")
+        closeMenu()
+        return toastOf("map.mark.full")
+      end
+      m.pick, m.pickSel = true, 1
+      return se("SE_SELECT")
+    elseif row == "unmark" then
+      closeMenu()
+      if m.mark then env.marks.remove(m.mark) end
+      st.nearMark = nil
+      return se("SE_SELECT")
+    elseif row == "zoom" then
+      closeMenu()
+      return setZoom(st.zoom + 1)
+    end
+  end
+  local function placeMark(m, kind)
+    local p = m.place
+    local onPlace = p and p.kind ~= "route"
+    local x, z = m.x, m.z
+    if onPlace then x, z = p.x, p.z end
+    local made, why = env.marks.add(regionId(), x, z, kind, onPlace and p.id or nil)
+    closeMenu()
+    if not made then
+      se("SE_FAILURE")
+      return toastOf(why == "full" and "map.mark.full" or "map.mark.full")
+    end
+    se("SE_SUCCESS")
+  end
+  -- (the menu open: the D-pad picks a row (or a marker), A takes it, B goes back)
+  local function menuInput(input)
+    local m = st.menu
+    local p = function(k) return input:wasPressed(k) end
+    if m.pick then
+      local d = (p("right") or p("down")) and 1 or ((p("left") or p("up")) and -1 or 0)
+      if d ~= 0 then
+        m.pickSel = (m.pickSel - 1 + d) % #MARK_KINDS + 1
+        se("SE_SELECT")
+      elseif p("a") then
+        placeMark(m, MARK_KINDS[m.pickSel])
+      elseif p("b") then
+        m.pick = false
+        se("SE_SELECT")
+      end
+      return true
+    end
+    local d = p("down") and 1 or (p("up") and -1 or 0)
+    if d ~= 0 and m.n > 1 then
+      m.sel = (m.sel - 1 + d) % m.n + 1
+      se("SE_SELECT")
+    elseif p("a") then
+      takeRow(m, m.rows[m.sel])
+    elseif p("b") then
+      closeMenu()
+      se("SE_SELECT")
+    end
+    return true
+  end
+  -- (a tap on the land: the spot under it, on the ground)
+  local function groundAt(sx, sy)
+    if not Rd.unproject then return nil end
+    local r = st.region
+    local x, z = Rd.unproject(sx, sy, 0)
+    if not x or st.flat then return x, z end
+    for _ = 1, 2 do
+      local nx, nz = Rd.unproject(sx, sy, Mdl.heightAt(r, x, z))
+      if not nx then break end
+      x, z = nx, nz
+    end
+    return x, z
+  end
+
   -- ------- the window's contract
 
   local cur
@@ -460,6 +672,10 @@ return function(ctx, env, opts)
   function W.input(input, nav)
     cur = input
     if st.loading then return not input:wasPressed("b") end
+    if st.menu then
+      st.dirX, st.dirY, st.turn = 0, 0, 0
+      return menuInput(input)
+    end
     st.turn = st.flat and 0 or ((down("l") and -1 or 0) + (down("r") and 1 or 0))
     -- (the right stick: the engine keeps its position)
     local axis = input.rightStickAxis
@@ -474,22 +690,53 @@ return function(ctx, env, opts)
       return true
     end
     if pressed("a") then
-      if mode == "fly" then fly() else setZoom(st.zoom + 1) end
+      openMenu(st.cx, st.cz, st.nearMark)
     elseif pressed("select") then
       st.flat = not st.flat
       se("SE_SELECT")
     elseif st.flat and (pressed("l") or pressed("r")) then nextRegion(pressed("l") and -1 or 1)
     elseif pressed("start") then
-      if mode == "town" and opts.classic then opts.classic()
-      elseif mode == "app" then fly() end
+      if mode == "town" and opts.classic then opts.classic() else setZoom(st.zoom + 1) end
     elseif pressed("b") then
       return false
     end
     return true
   end
 
-  function W.tap(arg)
+  function W.tap(arg, x, y)
     if st.loading then return end
+    local m = st.menu
+    if m then
+      if type(arg) == "number" and arg > A_PICK and arg <= A_PICK + #MARK_KINDS and m.pick then
+        return placeMark(m, MARK_KINDS[arg - A_PICK])
+      end
+      if type(arg) == "number" and arg > A_MENU and arg <= A_MENU + m.n and not m.pick then
+        m.sel = arg - A_MENU
+        return takeRow(m, m.rows[m.sel])
+      end
+      -- (anywhere else: the menu closes)
+      closeMenu()
+      return se("SE_SELECT")
+    end
+    if arg == A_GROUND then
+      local gx, gz = groundAt(tonumber(x) or 0, tonumber(y) or 0)
+      local r = st.region
+      if not (gx and r) then return end
+      st.cx = max(r.x0, min(r.x0 + r.w, gx))
+      st.cz = max(r.z0, min(r.z0 + r.h, gz))
+      st.snapTo, st.moving = nil, false
+      updateHere()
+      follow()
+      return openMenu(st.cx, st.cz, nil)
+    end
+    if type(arg) == "number" and arg > A_MARK and env.marks then
+      local mk = env.marks.list()[arg - A_MARK]
+      if not mk then return end
+      st.cx, st.cz, st.snapTo = mk.x, mk.z, nil
+      updateHere()
+      follow()
+      return openMenu(mk.x, mk.z, mk)
+    end
     if arg == A_REGION then return nextRegion(1) end
     if arg == A_ME then return toPlayer() end
     if arg == A_FLY then return fly() end
@@ -506,9 +753,9 @@ return function(ctx, env, opts)
     if type(arg) == "number" and arg > A_PLACE then
       local i = arg - A_PLACE
       if st.nav[i] and st.nav[i] == st.here then
-        if mode == "fly" then return fly() end
-        -- (the chosen place tapped again: in closer, to the close-up, then back out)
-        return setZoom(st.zoom >= ZOOMS and 2 or max(3, st.zoom + 1))
+        -- (the chosen place tapped again: its menu)
+        local p = st.nav[i]
+        return openMenu(p.x, p.z, nil)
       end
       return choose(i)
     end
@@ -575,13 +822,16 @@ return function(ctx, env, opts)
 
   function W.hints()
     if st.loading then return T.list(HINTS.loading) end
-    if st.flat then return T.list(mode == "fly" and HINTS.flatFly or HINTS.flat) end
-    if mode == "fly" then return T.list(HINTS.fly) end
+    if st.menu then return T.list(HINTS.menu) end
+    if st.flat then return T.list(HINTS.flat) end
     if mode == "town" then return T.list(HINTS.town) end
-    return T.list(st.flyMon and HINTS.appFly or HINTS.app)
+    return T.list(HINTS.app)
   end
 
-  function W.close() st.touch, st.nTouch = {}, 0 end
+  function W.close()
+    st.touch, st.nTouch = {}, 0
+    st.menu, st.finding = nil, nil
+  end
   -- (for ctx.resume: the region and the place)
   function W.save()
     local p = place()
@@ -607,7 +857,7 @@ return function(ctx, env, opts)
       local l = sqrt(mx * mx + mz * mz)
       if l > 0 then
         local speed = max(2.4, st.cam.dist * 0.3)
-        if st.here and st.here.kind ~= "route" then speed = speed * 0.55 end
+        if st.here and st.here.kind ~= "route" then speed = speed * CATCH end
         st.cx = max(r.x0, min(r.x0 + r.w, st.cx + mx / l * speed * dt))
         st.cz = max(r.z0, min(r.z0 + r.h, st.cz + mz / l * speed * dt))
       end
@@ -869,12 +1119,14 @@ return function(ctx, env, opts)
   local CURSOR = { 255, 64, 64 }
   local function drawCursor(clock)
     local r = st.region
+    st.curX, st.curY = nil, nil
     if not r then return end
     local G = K.graphics()
     local h = Mdl.heightAt(r, st.cx, st.cz)
     local gx, gy, depth = Rd.project(st.cx, h, st.cz)
     local tx, ty = Rd.project(st.cx, h + 0.35, st.cz)
     if not (gx and tx) then return end
+    st.curX, st.curY = gx, gy
     local s = max(2.2, min(6, 60 / depth))
     local pulse = 0.75 + 0.25 * math.sin(clock * 6)
     K.col(SHADOW, 0.35)
@@ -895,6 +1147,317 @@ return function(ctx, env, opts)
     K.col(WHITE, 0.9)
     G.setLineWidth(max(1, 0.35 * K.sc))
     G.polygon("line", tx - u, by - u * 1.3, tx + u, by - u * 1.3, tx, by)
+  end
+
+  -- ------- the waypoint's route: a glowing line along the walk there (a cave or a building between:
+  -- dashed), a light running along it; at its end a beacon
+
+  local LINE_GLOW, LINE_CORE, LINE_RUN = { 10, 132, 255 }, { 196, 232, 255 }, { 255, 255, 255 }
+  local function drawRoute(clock)
+    local L = st.line
+    if not (L and L.n and L.n > 1 and st.region) then return end
+    local G = K.graphics()
+    local xs, zs, gap = L.x, L.z, L.gap
+    local ys, sx, sy = st.lineY, st.lineSX, st.lineSY
+    if st.lineKey ~= L.key then
+      st.lineKey = L.key
+      for k = 1, L.n do ys[k] = Mdl.heightAt(st.region, xs[k], zs[k]) + 0.04 end
+    end
+    for k = 1, L.n do
+      local px, py = Rd.project(xs[k], st.flat and 0 or ys[k], zs[k])
+      sx[k], sy[k] = px or false, py or false
+    end
+    local total = 0
+    for pass = 1, 3 do
+      local w = pass == 1 and 2.8 or (pass == 2 and 1.4 or 0.55)
+      K.col(pass == 3 and LINE_CORE or LINE_GLOW, pass == 1 and 0.2 or (pass == 2 and 0.5 or 0.95))
+      G.setLineWidth(max(1, w * K.sc))
+      for k = 2, L.n do
+        local ax, ay, bx, by = sx[k - 1], sy[k - 1], sx[k], sy[k]
+        if ax and bx and not gap[k] then
+          G.line(ax, ay, bx, by)
+          if pass == 1 then total = total + sqrt((bx - ax) ^ 2 + (by - ay) ^ 2) end
+          -- (the joins rounded)
+          if pass < 3 then G.circle("fill", bx, by, w * 0.5 * K.sc) end
+        end
+      end
+    end
+    -- (a stretch underground or indoors -- a cave, a tunnel, a gatehouse -- isn't walked on the map: faint dots
+    -- straight between its two doors, never the glow, and a dark mouth at each door)
+    for k = 2, L.n do
+      local ax, ay, bx, by = sx[k - 1], sy[k - 1], sx[k], sy[k]
+      if ax and bx and gap[k] then
+        local l = sqrt((bx - ax) ^ 2 + (by - ay) ^ 2)
+        local step = 2.6 * K.sc
+        local n = max(1, floor(l / step))
+        for d = 1, n - 1 do
+          local px, py = ax + (bx - ax) * d / n, ay + (by - ay) * d / n
+          K.col(SHADOW, 0.35)
+          G.circle("fill", px, py + 0.2 * K.sc, max(1, 0.62 * K.sc))
+          K.col(LINE_CORE, 0.85)
+          G.circle("fill", px, py, max(1, 0.5 * K.sc))
+        end
+        for e = 0, 1 do
+          local mx, my = e == 0 and ax or bx, e == 0 and ay or by
+          K.col(SHADOW, 0.55)
+          G.ellipse("fill", mx, my, 1.9 * K.sc, 1.2 * K.sc)
+          K.col(LINE_CORE, 0.9)
+          G.setLineWidth(max(1, 0.4 * K.sc))
+          G.ellipse("line", mx, my, 1.9 * K.sc, 1.2 * K.sc)
+        end
+      end
+    end
+    -- (a light running along it, toward the waypoint)
+    if total > 1 then
+      local at = (clock * 60 * K.sc) % total
+      for k = 2, L.n do
+        local ax, ay, bx, by = sx[k - 1], sy[k - 1], sx[k], sy[k]
+        if ax and bx and not gap[k] then
+          local l = sqrt((bx - ax) ^ 2 + (by - ay) ^ 2)
+          if at <= l and l > 0 then
+            local px, py = ax + (bx - ax) * at / l, ay + (by - ay) * at / l
+            K.col(LINE_GLOW, 0.35)
+            G.circle("fill", px, py, 2.2 * K.sc)
+            K.col(LINE_RUN, 0.95)
+            G.circle("fill", px, py, 0.9 * K.sc)
+            break
+          end
+          at = at - l
+        end
+      end
+    end
+  end
+  -- (where the way needs an HM the player can't use yet: a sign over the spot, the move's name on it)
+  local HM_FILL = { 255, 149, 0 }
+  local function drawHms()
+    local L = st.line
+    if not (L and L.hn and L.hn > 0 and st.region) then return end
+    local G = K.graphics()
+    for k = 1, L.hn do
+      local x, z = L.hx[k], L.hz[k]
+      local h = st.flat and 0 or Mdl.heightAt(st.region, x, z)
+      local gx, gy, depth = Rd.project(x, h, z)
+      if gx then
+        local s = max(2.6, min(5.5, 70 / depth))
+        local word = T(HM_WORD[L.hk[k]] or "map.hm.cut")
+        local fs = 3.8
+        local tw = K.width(word, fs) + 6
+        local ux, uy = U(gx), V(gy) - s * 2.2
+        K.col(SHADOW, 0.35)
+        G.ellipse("fill", gx, gy, s * 0.5 * K.sc, s * 0.22 * K.sc)
+        K.col(HM_FILL)
+        G.setLineWidth(max(1, 0.45 * K.sc))
+        G.line(gx, gy, gx, K.Y(uy + 3.4))
+        local b = K.R(ux - tw / 2, uy - 3.6, tw, 7.2)
+        K.shadow(b, 3.6, 1, 0.3)
+        K.col(HM_FILL)
+        K.box("fill", b, 3.6)
+        K.grad(b, 3.6, ACCENT_TOP, GLOSS0)
+        K.ring(b, 3.6, WHITE, 0.8, 0.45)
+        K.bold(word, b[1], b[2] + 1.1, fs, WHITE, "center", b[3])
+      end
+    end
+  end
+
+  -- (the waypoint itself: a beam up and rings spreading, in the route's colour)
+  local function drawDest(clock)
+    local d = gpsHere() and env.gps.dest()
+    if not (d and d.region == regionId() and d.wx) then return end
+    local G = K.graphics()
+    local h = st.flat and 0 or Mdl.heightAt(st.region, d.wx, d.wz)
+    local gx, gy, depth = Rd.project(d.wx, h, d.wz)
+    if not gx then return end
+    local s = max(2.4, min(6, 70 / depth))
+    local tx, ty = gx, gy - s * 2.6 * K.sc
+    for k = 0, 1 do
+      local wave = (clock * 0.7 + k * 0.5) % 1
+      K.col(LINE_GLOW, 0.8 * (1 - wave))
+      G.setLineWidth(max(1, 0.45 * K.sc))
+      G.ellipse("line", gx, gy, s * (0.4 + wave * 1.8) * K.sc, s * (0.18 + wave * 0.8) * K.sc)
+    end
+    K.col(LINE_GLOW, 0.3)
+    G.setLineWidth(max(1, s * 0.6 * K.sc))
+    G.line(gx, gy, tx, ty)
+    K.col(LINE_CORE, 0.9)
+    G.setLineWidth(max(1, s * 0.2 * K.sc))
+    G.line(gx, gy, tx, ty)
+    K.col(LINE_GLOW, 0.35)
+    G.circle("fill", tx, ty, s * 1.0 * K.sc)
+    K.col(WHITE)
+    G.circle("fill", tx, ty, s * 0.62 * K.sc)
+    K.col(LINE_GLOW)
+    G.circle("fill", tx, ty, s * 0.44 * K.sc)
+  end
+
+  -- ------- the markers: a badge standing over its spot, always facing the screen, never smaller than a
+  -- few units however far out (it can leave the screen), a halo at night
+
+  local MARK_C = { flag = { 255, 69, 58 }, star = { 255, 184, 0 }, berry = { 175, 82, 222 }, ball = { 255, 59, 48 } }
+  local LEAF, DARK = { 52, 199, 89 }, { 28, 28, 34 }
+  local function starPoint(x, y, r, k, inner)
+    local a = -pi / 2 + k * pi / 5
+    local rr = inner and r * 0.42 or r
+    return x + math.cos(a) * rr, y + math.sin(a) * rr
+  end
+  -- (a badge: window pixels, its middle and radius)
+  local function drawBadge(kind, x, y, r, a)
+    local G = K.graphics()
+    K.col(SHADOW, 0.35 * a)
+    G.circle("fill", x, y + r * 0.14, r * 1.12)
+    if kind == "ball" then
+      K.col(MARK_C.ball, a)
+      G.arc("fill", x, y, r, pi, 2 * pi)
+      K.col(WHITE, a)
+      G.arc("fill", x, y, r, 0, pi)
+      K.col(DARK, a)
+      G.rectangle("fill", x - r, y - r * 0.1, r * 2, r * 0.2)
+      G.circle("fill", x, y, r * 0.38)
+      K.col(WHITE, a)
+      G.circle("fill", x, y, r * 0.22)
+      K.col(DARK, a)
+      G.setLineWidth(max(1, r * 0.12))
+      G.circle("line", x, y, r)
+      return
+    end
+    K.col(MARK_C[kind] or MARK_C.flag, a)
+    G.circle("fill", x, y, r)
+    K.col(WHITE, 0.22 * a)
+    G.ellipse("fill", x, y - r * 0.45, r * 0.62, r * 0.32)
+    K.col(WHITE, a)
+    if kind == "flag" then
+      G.setLineWidth(max(1, r * 0.14))
+      G.line(x - r * 0.32, y + r * 0.56, x - r * 0.32, y - r * 0.56)
+      G.polygon("fill", x - r * 0.3, y - r * 0.56, x + r * 0.52, y - r * 0.3, x - r * 0.3, y - r * 0.04)
+    elseif kind == "star" then
+      for k = 0, 8, 2 do
+        local ox, oy = starPoint(x, y + r * 0.06, r * 0.66, k, false)
+        local ax, ay = starPoint(x, y + r * 0.06, r * 0.66, k - 1, true)
+        local bx, by = starPoint(x, y + r * 0.06, r * 0.66, k + 1, true)
+        G.polygon("fill", ox, oy, bx, by, ax, ay)
+      end
+      local x1, y1 = starPoint(x, y + r * 0.06, r * 0.66, 1, true)
+      local x2, y2 = starPoint(x, y + r * 0.06, r * 0.66, 3, true)
+      local x3, y3 = starPoint(x, y + r * 0.06, r * 0.66, 5, true)
+      local x4, y4 = starPoint(x, y + r * 0.06, r * 0.66, 7, true)
+      local x5, y5 = starPoint(x, y + r * 0.06, r * 0.66, 9, true)
+      G.polygon("fill", x1, y1, x2, y2, x3, y3, x4, y4, x5, y5)
+    elseif kind == "berry" then
+      G.circle("fill", x, y + r * 0.14, r * 0.44)
+      K.col(LEAF, a)
+      G.polygon("fill", x + r * 0.02, y - r * 0.26, x + r * 0.5, y - r * 0.58, x + r * 0.2, y - r * 0.18)
+      K.col(WHITE, a)
+      G.setLineWidth(max(1, r * 0.1))
+      G.line(x, y - r * 0.26, x - r * 0.08, y - r * 0.5)
+    end
+    K.col(WHITE, 0.95 * a)
+    G.setLineWidth(max(1, r * 0.15))
+    G.circle("line", x, y, r)
+    K.col(DARK, 0.55 * a)
+    G.setLineWidth(max(1, r * 0.07))
+    G.circle("line", x, y, r * 1.12)
+  end
+  W.drawBadge = drawBadge
+
+  local function drawMarks(clock)
+    st.nearMark = nil
+    local Mk = env.marks
+    if not (Mk and st.region) then return end
+    local G = K.graphics()
+    local rid = regionId()
+    local night = st.flat and 0 or Rd.night(st.hour, st.minute)
+    local best = 7 * K.sc
+    local cx, cy = st.curX, st.curY
+    for i, m in ipairs(Mk.list()) do
+      if m.region == rid then
+        local h = st.flat and 0 or Mdl.heightAt(st.region, m.x, m.z)
+        local gx, gy, depth = Rd.project(m.x, h, m.z)
+        if gx then
+          local s = max(3.4, min(7, 85 / depth))
+          local r = s * 0.55 * K.sc
+          local hx, hy = gx, gy - s * 1.45 * K.sc
+          -- (its stem down to the spot, and the spot)
+          K.col(SHADOW, 0.3)
+          G.ellipse("fill", gx, gy, r * 0.55, r * 0.22)
+          K.col(WHITE, 0.8)
+          G.setLineWidth(max(1, 0.4 * K.sc))
+          G.line(gx, gy, hx, hy + r)
+          if night > 0.05 then
+            G.setBlendMode("add")
+            K.col(MARK_C[m.kind] or MARK_C.flag, 0.4 * night)
+            G.circle("fill", hx, hy, r * 2.1)
+            K.col(WHITE, 0.25 * night)
+            G.circle("fill", hx, hy, r * 1.4)
+            G.setBlendMode("alpha")
+          end
+          drawBadge(m.kind, hx, hy, r, 1)
+          local ux, uy = U(hx), V(hy)
+          K.addHit(K.R(ux - s * 0.7, uy - s * 0.7, s * 1.4, s * 1.4), "win", A_MARK + i)
+          if cx then
+            local d = sqrt((gx - cx) ^ 2 + (gy - cy) ^ 2)
+            if d < best then best, st.nearMark = d, m end
+          end
+        end
+      end
+    end
+  end
+
+  -- the spot's menu: a glass card beside the spot, a row each (the chosen one in the accent); Place
+  -- Marker opens the four markers in it
+  local MENU_DOT = { fly = ACCENT, waypoint = LINE_GLOW, clear = { 142, 142, 147 }, mark = MARK_C.star,
+                     unmark = MARK_C.flag, zoom = WHITE }
+  local function drawMenu(body)
+    local m = st.menu
+    if not m then return end
+    local h0 = st.flat and 0 or Mdl.heightAt(st.region, m.x, m.z)
+    local hx, hy = Rd.project(m.x, h0, m.z)
+    local ux, uy = hx and U(hx) or body[1] + body[3] / 2, hy and V(hy) or body[2] + body[4] / 2
+    local g = K.textScale() - 1
+    local rowH = MENU_ROW + g * 4
+    local w, h
+    if m.pick then
+      w, h = 84 + g * 20, 36 + g * 8
+    else
+      w, h = MENU_W + g * 22, m.n * rowH + 4
+    end
+    local x = ux + 8
+    if x + w > body[1] + body[3] - M then x = ux - 8 - w end
+    x = max(body[1] + M, min(body[1] + body[3] - M - w, x))
+    local y = max(body[2] + M + 12, min(body[2] + body[4] - M - h - (opts.footer or 0), uy - h / 2))
+    local b = K.R(x, y, w, h)
+    glass(b, 5, 0.55)
+    if not m.pick then
+      for i = 1, m.n do
+        local row = m.rows[i]
+        local rb = K.R(b[1] + 2, b[2] + 2 + (i - 1) * rowH, b[3] - 4, rowH)
+        if i == m.sel then
+          K.col(ACCENT, 0.9)
+          K.box("fill", rb, 3.5)
+          K.grad(rb, 3.5, ACCENT_TOP, GLOSS0)
+        end
+        K.col(MENU_DOT[row] or WHITE)
+        K.box("fill", K.R(rb[1] + 3.5, rb[2] + rowH / 2 - 1.6, 3.2, 3.2), 1.6)
+        local words = T(ROW_WORD[row])
+        K.bold(words, rb[1] + 9.5, rb[2] + (rowH - 4.6 * K.textScale() * 1.2) / 2 + 0.6,
+          K.fit(words, 4.6, rb[3] - 12), WHITE)
+        K.addHit(rb, "win", A_MENU + i)
+      end
+    else
+      K.bold(T("map.mark.title"), b[1], b[2] + 2.5, K.fit(T("map.mark.title"), 4.2, b[3] - 6), WHITE, "center", b[3])
+      local tile = (b[3] - 10) / 4
+      for i, kind in ipairs(MARK_KINDS) do
+        local tb = K.R(b[1] + 5 + (i - 1) * tile, b[2] + 10 + g * 2, tile, tile)
+        if i == m.pickSel then
+          K.col(WHITE, 0.16)
+          K.box("fill", tb, 4)
+          K.ring(tb, 4, WHITE, 0.7, 0.5)
+        end
+        local r = tile * 0.32 * K.sc * (i == m.pickSel and (0.95 + 0.08 * K.pulse()) or 0.9)
+        drawBadge(kind, K.X(tb[1] + tb[3] / 2), K.Y(tb[2] + tb[4] / 2), r, 1)
+        K.addHit(tb, "win", A_PICK + i)
+      end
+      local word = T(MARK_WORD[MARK_KINDS[m.pickSel]])
+      K.text(word, b[1], b[2] + b[4] - 7 - g * 2, 4, SOFT, "center", b[3])
+    end
   end
 
   -- the chosen place's name over its pin: a glass capsule pointing down at it
@@ -1214,15 +1777,33 @@ return function(ctx, env, opts)
       st.three = Rd.draw(G, st.region, rect, clock, Rd.night(st.hour, st.minute), Rd.dusk(st.hour, st.minute),
         st.storm.grow > 0 and st.storm or nil, st.wx, st.sky)
     end
+    -- (a tap on the land anywhere: under every other hit)
+    K.addHit(K.R(body[1], body[2], body[3], body[4]), "win", A_GROUND)
     drawStorm(clock)
+    drawRoute(clock)
     drawPins(clock)
+    drawHms()
+    drawDest(clock)
     drawCursor(clock)
+    drawMarks(clock)
     drawLabel()
     local compact = body[3] < 150 or body[4] < 110
     drawChips(body)
     drawProblem(body, clock)
     st.cardLift = 0
     drawCard(body, compact)
+    drawMenu(body)
+    -- (a waypoint set while the routes were still being worked out: on with them, then set)
+    if st.finding and env.gps then
+      pcall(env.gps.work, LOAD_SLICE)
+      if env.gps.ready() then
+        local m = st.finding
+        st.finding = nil
+        setWaypoint(m)
+      elseif not st.toast then
+        toastOf("map.route.finding", false)
+      end
+    end
     if st.toast and not K.toast(st.toast, clock, K.R(body[1], body[2], body[3], body[4] - 34 - (opts.footer or 0)),
         UI.red, UI.green, UI.hud) then
       st.toast = nil

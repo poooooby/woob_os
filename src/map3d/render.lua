@@ -514,6 +514,25 @@ return function(deps)
     return view.x + (cx / cw * 0.5 + 0.5) * view.w, view.y + (0.5 - cy / cw * 0.5) * view.h, cw
   end
   local project = R.project
+  -- back from the screen: the point at height y under window pixels sx, sy -> x, z (nil: the sky, or
+  -- behind the eye). The projection solved for x and z with y fixed (a pair of linear equations)
+  function R.unproject(sx, sy, y)
+    y = y or 0
+    local nx = ((sx - view.x) / max(1, view.w) - 0.5) * 2
+    local ny = (0.5 - (sy - view.y) / max(1, view.h)) * 2
+    local wy = VP[8] * y + VP[16]
+    local a11, a12 = VP[1] - nx * VP[4], VP[9] - nx * VP[12]
+    local a21, a22 = VP[2] - ny * VP[4], VP[10] - ny * VP[12]
+    local b1 = nx * wy - (VP[5] * y + VP[13])
+    local b2 = ny * wy - (VP[6] * y + VP[14])
+    local det = a11 * a22 - a12 * a21
+    if abs(det) < 1e-12 then return nil end
+    local x = (b1 * a22 - a12 * b2) / det
+    local z = (a11 * b2 - b1 * a21) / det
+    local cw = VP[4] * x + VP[8] * y + VP[12] * z + VP[16]
+    if cw <= nearNow * 0.5 then return nil end
+    return x, z
+  end
 
   -- ------- the light: day, dusk and night from the clock
 

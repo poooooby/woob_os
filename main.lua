@@ -108,6 +108,9 @@ return function(mod)
   local mapScene, makeTownMap = loadSibling(mod, "src/map3d/scene.lua"), loadSibling(mod, "src/townmap.lua")
   local makeTowns, makeWorld = loadSibling(mod, "src/map3d/towns.lua"), loadSibling(mod, "src/map3d/world.lua")
   local makeMapCache = loadSibling(mod, "src/map3d/cache.lua")
+  -- the map's GPS (a waypoint's walk, the field's arrow) and its markers
+  local makeGpsGraph, makeGpsRoute = loadSibling(mod, "src/gps/graph.lua"), loadSibling(mod, "src/gps/route.lua")
+  local makeGpsArrow, makeMarks = loadSibling(mod, "src/gps/arrow.lua"), loadSibling(mod, "src/marks.lua")
   local makePhone, phoneWindow = loadSibling(mod, "src/phone.lua"), loadSibling(mod, "src/apps/phone.lua")
   local makeCondition, conditionWindow = loadSibling(mod, "src/condition.lua"), loadSibling(mod, "src/apps/condition.lua")
   local makeRibbons, ribbonsWindow = loadSibling(mod, "src/ribbons.lua"), loadSibling(mod, "src/apps/ribbons.lua")
@@ -460,7 +463,7 @@ return function(mod)
   end
   -- (which app a kind of notification belongs to; R-Bay's are the rest)
   local NOTIFY_APP = { gts = "gts", call = "phone", bank = "bank", challenge = "challenges", errand = "errands",
-                       swarm = "news", story = "news" }
+                       swarm = "news", story = "news", gps = "map" }
   local function notify(kind, data, quiet)
     if not Nt then return end
     local app = NOTIFY_APP[kind] or "auction"
@@ -876,6 +879,60 @@ return function(mod)
         Field.flyTo(region.family == "rse" and place.id or place.sym, mon, info)
         return true
       end,
+    }
+  end
+  -- the map's markers (every game) and its GPS: the walk graph built once in the background (kept on disk),
+  -- the waypoint's route, the field's arrow (Settings: fieldGps, off unless turned on)
+  if makeMarks then env.marks = makeMarks({ save = mod.save }) end
+  local Gps
+  if env.map3d and makeGpsGraph and makeGpsRoute then
+    local Version = engine("src.core.Version")
+    local function mapDefs()
+      local g = mod.game
+      return g and g.data and g.data.maps or nil
+    end
+    local graph = makeGpsGraph(engine, {
+      maps = mapDefs, game = function() return mod.game end, cache = mod.cache, gameId = gameId, version = version,
+      engine = Version and Version.engine, log = warn })
+    local Player = engine("src.core.game3.player")
+    local route = makeGpsRoute(engine, {
+      graph = graph, save = mod.save, session = session, log = warn,
+      surfing = function() return Player ~= nil and Player.surfing == true end,
+      -- (a field move the player can use: its badge, and a Pokémon in the party that knows it)
+      can = function(s, key)
+        local FM, Space = engine("src.core.game3.field_moves"), engine("src.core.game3.scripting.space")
+        if not (FM and s) then return false end
+        local okB, badge = pcall(FM.hasBadge, { store = Space and Space.store, session = s }, key)
+        if not (okB and badge) then return false end
+        local okU, mon = pcall(FM.partyMoveUser, s.party, key)
+        return okU and mon ~= nil and mon ~= false
+      end,
+      mapDef = function(id) local all = mapDefs(); return all and all[id] end,
+      notify = function(kind, data) if Nt then Nt.push(kind, data) end end,
+    })
+    local arrow = makeGpsArrow and makeGpsArrow({
+      K = Kit, route = route,
+      on = function() return Settings ~= nil and Settings.get("fieldGps", false) == true end,
+      -- (the player, the field's camera, and where the engine put its world canvas this frame)
+      player = function()
+        local Map = engine("src.core.game3.map")
+        if not (Player and Map) then return nil end
+        local FV, R = engine("src.core.game3.field_view"), engine("src.render.Renderer")
+        local camX, camY = FV and tonumber(FV._lastCamX), FV and tonumber(FV._lastCamY)
+        local ox, oy, sx, sy
+        if R and camX then ox, oy, sx, sy = tonumber(R.wipeWox), tonumber(R.wipeWoy), tonumber(R.wipeSx), tonumber(R.wipeSy) end
+        return tonumber(Player.px), tonumber(Player.py), Map.current, camX, camY, ox, oy, sx, sy
+      end,
+    }) or nil
+    Gps = { graph = graph, route = route, arrow = arrow, at = nil }
+    env.gps = {
+      ready = graph.ready,
+      work = function(budget)
+        graph.prepare()
+        graph.step(budget)
+      end,
+      set = route.set, clear = route.clear, dest = route.dest, line = route.line, spotAt = route.spotAt,
+      needs = function() return route.needs end,
     }
   end
   -- the PokéNav's apps: the Phone (its contacts, the game's calls, recents and favourites in the
@@ -1315,6 +1372,15 @@ return function(mod)
     if mapPrep.game ~= g then mapPrep.game, mapPrep.at, mapPrep.want, mapPrep.built = g, nil, nil, {} end
     local now = love and love.timer and love.timer.getTime() or 0
     if not (Sh and Sh.free(game)) then return end
+    -- (the GPS's walk graph: once the map's region is ready, a few milliseconds a frame; read back from the
+    -- disk after the first time)
+    if Gps and not mapPrep.want and not Gps.graph.ready() then
+      Gps.at = Gps.at or now + 6
+      if now >= Gps.at then
+        Gps.graph.prepare()
+        Gps.graph.step(0.003)
+      end
+    end
     if not mapPrep.want then
       if now < mapPrep.nextLook then return end
       mapPrep.nextLook = now + 1
@@ -1368,6 +1434,7 @@ return function(mod)
                         end or nil,
                         registerOwned = registerOwned,
                         padOn = function() return env.padOption() end,
+                        fieldDraw = Gps and Gps.arrow and function(G, vp, free, t) Gps.arrow.draw(G, vp, free, t) end or nil,
                         watchRow = function() return not Settings or Settings.get("watchRow", true) ~= false end,
                         watchLabel = function() return T and T("watch.start") or "WATCH" end })
   Sh.enabled = function() return option("desktop", true) ~= false end
@@ -1503,11 +1570,45 @@ return function(mod)
       end)
     end
   end
+  -- the GPS: each step and each map (there yet? the arrow's next warp); a loaded save's own waypoint and
+  -- markers; Fly (the game's or ours: both through Field.flyTo, wrapped once per process) clears the waypoint
+  if Gps then
+    local Player = engine("src.core.game3.player")
+    mod.events:on("world.stepped", function(ev)
+      if type(ev) == "table" and Gps.route.dest() then
+        pcall(Gps.route.step, ev.mapId, tonumber(ev.x) or 0, tonumber(ev.y) or 0)
+      end
+    end)
+    mod.events:on("map.entered", function(ev)
+      if type(ev) == "table" and Gps.route.dest() and Player then
+        pcall(Gps.route.step, ev.mapId, tonumber(Player.cellX) or 0, tonumber(Player.cellY) or 0)
+      end
+    end)
+    local Field = engine("src.core.game3.field")
+    if Field and Field.flyTo then
+      local w = rawget(Field, "__woobOsGps")
+      if not w then
+        w = { orig = Field.flyTo }
+        Field.__woobOsGps = w
+        Field.flyTo = function(...)
+          if w.impl then pcall(w.impl) end
+          return w.orig(...)
+        end
+      end
+      w.impl = function() Gps.route.clear() end
+    end
+  end
+  local function reloadSaved()
+    if Gps then pcall(Gps.route.load) end
+    if env.marks then pcall(env.marks.load) end
+  end
+  mod.events:on("checkpoint.restored", reloadSaved)
   -- (a new map or a loaded save: the next PC boots again)
   mod.events:on("map.entered", function() Sh.forget() end)
   mod.events:on("save.loaded", function(ev)
     Sh.forget()
     Sh.closeGear()
+    reloadSaved()
     -- (auctions that ended while the game was closed: settled with the save they belong to)
     if env.auction then pcall(env.auction.settle, ev and ev.save or session()) end
     if env.gts then pcall(env.gts.settle, ev and ev.save or session()) end
@@ -1534,5 +1635,6 @@ return function(mod)
                         swarm = env.swarm, news = env.news, story = env.story, pokecenter = env.pokecenter, menus = env.menus,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange,
                         watch = Watch, pad = Watch, notify = Nt, tick = tick, map3d = env.map3d, townmap = TownMap,
-                        phone = env.phone, condition = env.condition, ribbons = env.ribbons, hall = env.hall, oak = env.oak, decorate = env.decorate, pokenav = Pokenav, onCall = onCall, gear = Gear, gearPanel = GearPanel }
+                        phone = env.phone, condition = env.condition, ribbons = env.ribbons, hall = env.hall, oak = env.oak, decorate = env.decorate, pokenav = Pokenav, onCall = onCall, gear = Gear, gearPanel = GearPanel,
+                        gps = Gps, marks = env.marks }
 end

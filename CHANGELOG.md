@@ -5,6 +5,29 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **A menu for any spot on the 3D map:** A (or a tap on the land, or a second tap on a place) opens it, with
+  Fly (a visited town, when you can Fly), Set Waypoint and Place Marker. START zooms in its place; on the
+  START menu's Town Map, START still opens the classic map and the menu has Zoom.
+- **Markers on the map** (every game): a Flag, Star, Berry or Poké Ball anywhere, up to 20, one per town or
+  landmark. They stand upright facing you whichever way the map is turned, never shrink out of sight as you
+  zoom out, and glow at night. Each save keeps its own.
+- **The GPS** (FireRed, LeafGreen, Ruby, Sapphire and Emerald): Set Waypoint draws a glowing line along the
+  shortest walk to that town, landmark or spot, through caves, forests, gatehouses, tunnels and Mt.
+  Chimney's cable car, a light running along it; a cave or tunnel is a dotted line between its doors. Water counts
+  once you have Surf ("No suitable route found. Requires Surf" until then); somewhere only Fly or a boat
+  reaches says "No Route Found". It keeps to the story's way: Cut trees, Rock Smash rocks and Strength
+  boulders stand in the way until you can use that HM, and then the shortcuts they open are taken. Where the
+  only way goes through one you can't use yet, the route is still drawn, with a sign on the spot (Cut, Rock
+  Smash or Strength) and the HM named when it's set. Arriving clears it with a notification, and so does flying anywhere.
+- **Overworld GPS** (Settings > Map, off unless you turn it on): a small glass arrow by the player on the
+  field, pointing to the next exit, ladder, hole or door on the way to the waypoint, with a mark over it
+  once it's in sight.
+
+### Changed
+- The 3D map's cursor is pulled onto a town or landmark only when let go right by it, and glides there more
+  gently.
+
 ## [0.19.0] - 2026-11-19
 
 ### Added

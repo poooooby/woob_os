@@ -655,6 +655,12 @@ if M3 then
           "the player where they stand (" .. tostring(rid) .. ")")
   Mdl.live(region, save)
   T.check(Mdl.flyCheck() == nil, "no Fly from it")
+  -- (the map's markers here too; the GPS is Ruby / Sapphire / Emerald / FireRed / LeafGreen's: no waypoint)
+  local Mk = X._test.marks
+  T.check(Mk ~= nil and Mk.add(first, home.x, home.z, "ball", home.id) ~= nil, "a marker on the map")
+  T.eq(Mk and Mk.onPlace(first, home.id) and Mk.onPlace(first, home.id).kind, "ball", "kept for its town")
+  if Mk then for i = #Mk.list(), 1, -1 do Mk.remove(Mk.list()[i]) end end
+  T.eq(X._test.env.gps, nil, "no GPS here: the menu has no waypoint")
   if GEN == 2 then
     local k = Mdl.region("kanto")
     T.check(k and #k.world.maps >= 25, "Gold / Silver / Crystal's Kanto, a world of its own")

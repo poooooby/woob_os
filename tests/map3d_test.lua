@@ -341,33 +341,33 @@ do
   T.check(not st.flat, "the chip: 3D again")
   draw(30)
 end
--- (A zooms; the card's Fly refused without the badge)
+-- (START zooms; the card's Fly refused without the badge)
 local z0 = st.zoom
-W.input(input({ "a" }), NONE)
-T.check(st.zoom == z0 % 4 + 1, "A zooms")
+W.input(input({ "start" }), NONE)
+T.check(st.zoom == z0 % 4 + 1, "START zooms")
 -- (four set zooms: the region, nearer, near, then a close-up of the place, at a fixed distance and a
--- lower angle; A again, the region)
+-- lower angle; START again, the region)
 do
   for _ = 1, 4 do
-    if st.zoom ~= 3 then W.input(input({ "a" }), NONE) end
+    if st.zoom ~= 3 then W.input(input({ "start" }), NONE) end
   end
-  T.eq(st.zoom, 3, "A steps through to near")
+  T.eq(st.zoom, 3, "START steps through to near")
   local near = st.goal.dist
-  W.input(input({ "a" }), NONE)
+  W.input(input({ "start" }), NONE)
   T.check(st.zoom == 4 and math.abs(st.goal.dist - 2.4) < 1e-6 and st.goal.dist < near and st.goal.pitch < 0.78,
-    ("A again: the close-up (%.2f units, near was %.2f; pitch %.2f)"):format(st.goal.dist, near, st.goal.pitch))
+    ("START again: the close-up (%.2f units, near was %.2f; pitch %.2f)"):format(st.goal.dist, near, st.goal.pitch))
   W.scroll(-40)
   T.check(st.goal.dist > 2.4, "the wheel out from the close-up")
   W.scroll(400)
   T.check(st.goal.dist >= 1.4 - 1e-6 and st.goal.dist < 2.4, "the wheel in: on past the close-up (" .. st.goal.dist .. ")")
-  W.input(input({ "a" }), NONE)
-  T.eq(st.zoom, 1, "A after the close-up: the whole region again")
+  W.input(input({ "start" }), NONE)
+  T.eq(st.zoom, 1, "START after the close-up: the whole region again")
 end
 W.focus(firstTown)
 draw(70)
 T.eq(st.flyWhy, "badge", "no badge that allows Fly: refused for that")
-W.input(input({ "start" }), NONE)
-T.check(st.toast ~= nil and not ctx.closed, "START (Fly) says why, and stays")
+W.tap(1003)
+T.check(st.toast ~= nil and not ctx.closed, "the card's Fly says why, and stays")
 do
   local FM = require("src.core.game3.field_moves")
   local flag = FM.badgeFlag("FLY")
@@ -397,6 +397,112 @@ if pinHit then
   W.tap(arg)
   draw(90)
   T.eq(st.sel, arg - 2000, "a tap on a pin: the cursor glides there")
+end
+-- (A: the spot's menu. No Fly while it isn't allowed; a marker placed on a town, one only, removed; twenty
+-- at most; B closes the menu, not the map)
+do
+  local Mk = X._test.marks
+  T.check(Mk ~= nil, "the markers' model is made")
+  for i = #Mk.list(), 1, -1 do Mk.remove(Mk.list()[i]) end
+  st.zoom = 2
+  W.focus(firstTown)
+  draw(2)
+  W.input(input({ "a" }), NONE)
+  T.check(st.menu ~= nil, "A opens the spot's menu")
+  local rows = {}
+  for i = 1, st.menu and st.menu.n or 0 do rows[st.menu.rows[i]] = i end
+  T.check(rows.mark ~= nil and rows.fly == nil, "its rows: Place Marker, no Fly while it's not allowed")
+  local menuHints = W.hints()
+  T.check(menuHints[#menuHints][1] == "B", "the menu's hints")
+  W.input(input({ "right" }, { "right" }), NONE)
+  draw(5)
+  T.check(st.cx == firstTown.x, "the cursor stays while the menu's open")
+  for _ = 1, 6 do if st.menu and st.menu.rows[st.menu.sel] ~= "mark" then W.input(input({ "down" }), NONE) end end
+  W.input(input({ "a" }), NONE)
+  T.check(st.menu and st.menu.pick, "Place Marker: the four markers")
+  draw(1)
+  local pickHits = 0
+  for _, h in ipairs(K.hits) do if h.kind == "win" and h.arg > 3100 and h.arg <= 3104 then pickHits = pickHits + 1 end end
+  T.eq(pickHits, 4, "four to tap")
+  W.input(input({ "right" }), NONE)
+  W.input(input({ "a" }), NONE)
+  local m1 = Mk.list()[1]
+  T.check(st.menu == nil and #Mk.list() == 1 and m1.kind == "star" and m1.place == firstTown.id,
+    "a Star on the town, kept for it")
+  draw(2)
+  local markHit
+  for _, h in ipairs(K.hits) do if h.kind == "win" and h.arg == 4001 then markHit = h end end
+  T.check(markHit ~= nil, "the marker drawn, a tap away")
+  W.input(input({ "a" }), NONE)
+  local un
+  for i = 1, st.menu and st.menu.n or 0 do if st.menu.rows[i] == "unmark" then un = i end end
+  T.check(un ~= nil, "a town with a marker: Remove Marker instead")
+  if un then
+    st.menu.sel = un
+    W.input(input({ "a" }), NONE)
+  end
+  T.check(#Mk.list() == 0 and st.menu == nil, "and it's gone")
+  for i = 1, Mk.MAX do Mk.add("elsewhere", i, i, "flag") end
+  local okFull, why = Mk.add("elsewhere", 0, 0, "flag")
+  T.check(okFull == nil and why == "full", "twenty markers at most")
+  W.input(input({ "a" }), NONE)
+  for _ = 1, 6 do if st.menu and st.menu.rows[st.menu.sel] ~= "mark" then W.input(input({ "down" }), NONE) end end
+  st.toast = nil
+  W.input(input({ "a" }), NONE)
+  T.check(st.menu == nil and st.toast and st.toast.text == X._test.i18n("map.mark.full"), "a twenty-first: says so")
+  for i = #Mk.list(), 1, -1 do Mk.remove(Mk.list()[i]) end
+  W.input(input({ "a" }), NONE)
+  T.check(W.input(input({ "b" }), NONE) == true and st.menu == nil, "B closes the menu, the map stays")
+  -- (a marker on each town: drawn every frame, next to no garbage)
+  local rid = st.regions[st.ri].id
+  for _, p in ipairs(st.nav) do Mk.add(rid, p.x, p.z, Mk.KINDS[#Mk.list() % 4 + 1], p.id) end
+  st.zoom = 1
+  draw(40)
+  local mkKb = garbageOf(120, function() draw(1) end)
+  T.check(mkKb < 0.5, string.format("the markers make next to no garbage (%.3f KB/frame)", mkKb))
+  for i = #Mk.list(), 1, -1 do Mk.remove(Mk.list()[i]) end
+  st.zoom = 2
+  W.focus(firstTown)
+  draw(30)
+end
+-- (back from the screen: a point's place on it gives the point again; a tap on the land moves the cursor
+-- there and opens its menu)
+do
+  local Rd = M3.render
+  local r = st.region
+  local tx, tz = firstTown.x + 0.3, firstTown.z + 0.2
+  local h = st.flat and 0 or Mdl.heightAt(r, tx, tz)
+  local sx, sy = Rd.project(tx, h, tz)
+  local ux, uz = Rd.unproject(sx, sy, h)
+  T.check(ux and math.abs(ux - tx) < 1e-3 and math.abs(uz - tz) < 1e-3,
+    ("unproject undoes project (%s, %s for %.3f, %.3f)"):format(tostring(ux), tostring(uz), tx, tz))
+  local groundHit
+  for _, hh in ipairs(K.hits) do if hh.kind == "win" and hh.arg == 1006 then groundHit = hh end end
+  T.check(groundHit ~= nil, "the land's own hit, under the rest")
+  W.tap(1006, sx, sy)
+  T.check(st.menu ~= nil and math.abs(st.cx - tx) < 0.05 and math.abs(st.cz - tz) < 0.05,
+    ("a tap on the land: the cursor there, its menu (%.3f, %.3f)"):format(st.cx, st.cz))
+  W.tap(1006, sx, sy)
+  T.check(st.menu == nil, "a tap off the menu closes it")
+end
+-- (let go a little further off: no pull)
+do
+  local far
+  for _, p in ipairs(st.nav) do
+    local clear = true
+    for _, q in ipairs(st.nav) do
+      if q ~= p and (q.x - p.x - 0.75) ^ 2 + (q.z - p.z) ^ 2 < 0.8 ^ 2 then clear = false end
+    end
+    if clear and not far then far = p end
+  end
+  if far then
+    st.cx, st.cz, st.snapTo, st.moving = far.x + 0.75, far.z, nil, true
+    W.input(input(), NONE)
+    draw(60)
+    T.check(math.abs(st.cx - far.x - 0.75) < 0.01, "three quarters of a unit off a town: the cursor stays put")
+  end
+  W.focus(firstTown)
+  draw(10)
 end
 -- (drags turn and tilt, two fingers zoom, the wheel too)
 do
@@ -599,7 +705,9 @@ local tw = Tm.state().win
 T.eq(tw.state.zoom, 1, "Fly mode starts on the whole region")
 tw.focus(firstTown)
 press("a")
-T.check(not Tm.isOpen() and not Stack.has(Sh.MAP_ID), "A on a visited town: the map closes")
+T.check(tw.state.menu and tw.state.menu.rows[1] == "fly", "A on a visited town: its menu, Fly first")
+press("a")
+T.check(not Tm.isOpen() and not Stack.has(Sh.MAP_ID), "Fly: the map closes")
 if RSE then
   T.check(picked and picked[1] == firstTown.id and type(picked[2]) == "table" and picked[2].posWithinMapSec == 0
     and closed == true, "Fly handed back as the game's map hands it: the section, its place in it, then onClose(true)")

@@ -861,6 +861,17 @@ return function(mod, deps)
       -- (a layer that draws what's under it -- Teachy TV's lessons over our Bag -- leaves ours drawn)
       if top and top.id ~= id and not top.drawUnder then return end
     end
+    -- (over the field, nothing of ours open: the GPS's arrow, the WoobPad option or not)
+    if not h and deps.fieldDraw and G and type(viewport) == "table" then
+      G.push("all")
+      G.origin()
+      G.setScissor()
+      G.setShader()
+      G.setBlendMode("alpha")
+      local okF, errF = pcall(deps.fieldDraw, G, viewport, Sh.free(game), t)
+      G.pop()
+      if not okF and log then log:warn("the GPS's arrow failed: %s", tostring(errF)) end
+    end
     -- (the WoobPad option off: no banner over the field; the PC's desktop still shows them)
     if not h and deps.padOn and not deps.padOn() then return end
     if not (G and type(viewport) == "table" and (h or Nt)) then return end

@@ -11,7 +11,8 @@
 --                      setting(key, default) -> an app's own switch (Settings > Notifications)
 --   Nt.APPS: the apps that tell the player things, in Settings' order ; Nt.SETTING[app]: its switch's key
 --       (on unless turned off; off: nothing from it at all, no banner and nothing in the list)
---   Nt.push(kind, data, quiet) kind "outbid" | "won" | "lost" | "soon" | "gts" | "call"; data { name, sp, key,
+--   Nt.push(kind, data, quiet) kind "outbid" | "won" | "lost" | "soon" | "gts" | "call" | "gps" (the
+--       waypoint reached) ...; data { name, sp, key,
 --       where }; quiet: into the list only (the app the player is looking at said so itself)
 --   Nt.list() -> the records, newest first: { kind, app, title, text, sp, at, state }
 --   Nt.unread() / Nt.seen() ; Nt.remove(rec) (swiped away: gone from the list) ; Nt.clear() (all of them)
@@ -28,15 +29,15 @@ local KEEP, WAITING = 20, 3
 -- the list only
 local IN, HOLD, OUT, STALE = 0.3, 4, 0.35, 600
 local APP = { outbid = "auction", won = "auction", lost = "auction", soon = "auction", gts = "gts", call = "phone",
-              bank = "bank", challenge = "challenges", errand = "errands", swarm = "news", story = "news" }
+              bank = "bank", challenge = "challenges", errand = "errands", swarm = "news", story = "news", gps = "map" }
 local SOUND = { outbid = "SE_FAILURE", won = "SE_SUCCESS", lost = "SE_SELECT", soon = "SE_SELECT", gts = "SE_PC_LOGIN",
                 call = "SE_POKENAV_CALL", bank = "SE_M_PAY_DAY", challenge = "SE_SUCCESS",
-                errand = "SE_BALL_TRAY_BALL", swarm = "SE_PIN", story = "SE_PIN" }
+                errand = "SE_BALL_TRAY_BALL", swarm = "SE_PIN", story = "SE_PIN", gps = "SE_SUCCESS" }
 local TEXT = { outbid = "notify.outbid", won = "notify.won", lost = "notify.lost", soon = "notify.soon", gts = "notify.gts",
                call = "notify.call", bank = "notify.bank", challenge = "notify.challenge",
-               errand = "notify.errand", swarm = "notify.swarm", story = "notify.story" }
+               errand = "notify.errand", swarm = "notify.swarm", story = "notify.story", gps = "notify.gps" }
 local TITLE = { auction = "app.auction", gts = "app.gts", phone = "app.phone", bank = "app.bank",
-                challenges = "app.challenges", errands = "app.errands", news = "app.news" }
+                challenges = "app.challenges", errands = "app.errands", news = "app.news", map = "app.map" }
 -- each app's own switch (Settings > Notifications), and the order Settings lists them in
 local SETTING = { auction = "notifyAuction", gts = "notifyGts", phone = "notifyPhone", bank = "notifyBank",
                   errands = "notifyErrands", challenges = "notifyChallenges", news = "notifyNews" }

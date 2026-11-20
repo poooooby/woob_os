@@ -57,6 +57,8 @@ local WATCH_TOGGLES = {
 local NOTIFY_TOGGLES = {}
 local MAP_TOGGLES = {
   { key = "map3d", label = "settings.map3d" },
+  -- (the GPS's arrow over the field: off unless turned on; only where there's a GPS)
+  { key = "fieldGps", label = "settings.fieldGps", default = false, gps = true },
 }
 local NAV_TOGGLES = {
   { key = "pokenavApps", label = "settings.pokenavApps" },
@@ -102,6 +104,24 @@ return function(ctx, env)
   local padOff = env.padOption and not env.padOption()
   for _, sec in ipairs(ALL_SECTIONS) do
     if not (sec.family and ctx and ctx.family and ctx.family ~= sec.family) and not (sec.pad and padOff) then
+      -- (a row only where it does something: the GPS's on Ruby / Sapphire / Emerald / FireRed / LeafGreen)
+      local rows = sec.toggles
+      if rows and not env.gps then
+        local kept
+        for _, t in ipairs(rows) do
+          if t.gps then
+            kept = {}
+            for _, u in ipairs(rows) do if not u.gps then kept[#kept + 1] = u end end
+            break
+          end
+        end
+        if kept then
+          local copy = {}
+          for k, v in pairs(sec) do copy[k] = v end
+          copy.toggles = kept
+          sec = copy
+        end
+      end
       SECTIONS[#SECTIONS + 1] = sec
     end
   end
@@ -193,7 +213,10 @@ return function(ctx, env)
   end
   local function toggled(i)
     local t = toggles() and toggles()[i]
-    return t ~= nil and (not env.setting or env.setting(t.key, true) ~= false)
+    if t == nil then return false end
+    local def = t.default ~= false
+    if not env.setting then return def end
+    return env.setting(t.key, def) ~= false
   end
   -- a choice row's value and its place among the choices
   local function choiceOf(t)

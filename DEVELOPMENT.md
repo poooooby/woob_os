@@ -1050,6 +1050,80 @@ over each pixel. Not kept on disk (made with each load).
   storm (`st.sky.meteor`) and passes `st.sky` to `R.draw`. Tests: `tests/world_test.lua` (the flags), the scratchpad's `night_driver.lua` (shots, the
   aurora forced).
 
+### The spot's menu, markers and the snap
+
+- **The menu** (`scene.lua` `openMenu` / `fillRows` / `takeRow` / `drawMenu`): A at the cursor
+  (`st.nearMark`: the marker drawn nearest the cursor last frame, checked it's still there), a tap on the
+  land (`A_GROUND` 1006, a hit over the whole body under every other one; `groundAt` through
+  `R.unproject(sx, sy, y)`, the projection solved for x and z at a height, then twice on `Mdl.heightAt`;
+  flat: height 0), a second tap on a place's pin, a tap on a marker (`A_MARK + i`). Rows: `fly` (a town with
+  `canFly` while Fly's allowed: `mode == "fly"`, or the app with `st.flyMon`), `waypoint` / `clear`
+  (`env.gps` and a region built to scale), `mark` / `unmark`, `zoom` (the Town Map, whose START is the
+  classic map). Hits `A_MENU + i`, the picker's `A_PICK + k`; anything else tapped closes it. While it's
+  open the input is the menu's (`menuInput`); `W.hints` HINTS.menu. START zooms (`setZoom`), A no longer.
+- **Markers** (`src/marks.lua` Mk; `env.marks` on both families): `mod.save` "marks" `{ list }`, read back
+  on `save.loaded` / `checkpoint.restored`; `Mk.MAX` 20; one per place (`m.place` = the place's id, placing
+  again changes its kind). Drawn after the line (`drawMarks`) in 2D through `R.project`: a stem to the
+  ground, the badge `max(3.4, min(7, 85 / depth))` units over it (so it faces the screen at every angle and
+  never shrinks away), an added halo by `R.night`; `drawBadge` (the flag, a five-point star as triangles
+  round a pentagon, the berry, a Poké Ball) is `W.drawBadge`.
+- **The snap**: `SNAP` 0.6 units (was 1.1), `GLIDE` 5 a second (was 11), the cursor `CATCH` 0.8 as fast over
+  a town or landmark (was 0.55).
+
+## The GPS
+
+Ruby / Sapphire / Emerald / FireRed / LeafGreen (`env.gps`, main.lua; the Game Boy games have none: no
+waypoint row).
+
+- **The walk graph** (`src/gps/graph.lua` Gw), from `mod.game.data.maps`: every map but those never walked
+  through (`SKIP`) and houses with one way in and out (one warp destination, no connection). A map's tiles
+  (`Gw.tiles`, the last `KEEP_TILES` kept): `src.core.CollPermissions` (the engine's own; `src.world.gen2.*`
+  is refused a Gen 3 mod) for land and ledges (their hops in `LEDGE_HOPS`), `Collision.isWaterOn` minus
+  waterfalls for water, the behaviours' one-way walls, elevations; a warp's tile fires as `collision.lua`'s
+  `installWarps` decides; Cut trees, Rock Smash rocks and Strength boulders (`def.objects`,
+  `FieldMoves.GFX_IDS`) are `rec.obst` kinds (`HM_CUT` 1, `HM_SMASH` 2, `HM_STRENGTH` 4): walls unless the
+  walk's `hms` has that HM, `OBSTACLE` steps more when it does, the HMs a way used kept per state (`MK`,
+  `reach(i, d, hm)`). The walk (`Gw.walk`) is the player's: a state per tile and elevation (17: 0..15, 16
+  surfing), a bucket queue (a ledge's hop is 2), a firing warp ends it. Points: an arrival
+  on every warp's tile and each connection's landing, an exit on each firing warp and each run (`RUN` 12) of
+  an edge's tiles; ways: each arrival to each exit of its map it walks to (on foot `EL`, with Surf `ES`, -1
+  none; through the HMs' obstacles `EHL` / `EHS`, the HMs that took `EML` / `EMS`: FORMAT 2), an exit to where it leads (warps through `Collision.resolveWarpDestination`; dynamic ones left
+  out), `LINKS` (Mt. Chimney's cable car, a script). Built in the background (main.lua `frame`, once the 3D
+  map's region is ready, 3 ms a frame; 0.4-0.8 s in all), kept on disk as `mod.cache` `gps/<game>.txt`
+  (lines M / N / E, stamped by `fingerprint`: FORMAT, versions, the maps' count, warps, connections). Not
+  edges: boats and ferries, Emerald's cracked floors (`setholewarp`), Dive.
+- **The route** (`src/gps/route.lua` Rt): `Rt.set(spec)` (the scene's `specOf`: a town or landmark's middle,
+  or the spot; `Rt.spotAt` finds its map and tile from `region.world.maps`; `settle` the nearest tile to
+  stand on within `NEAR`) runs a Dijkstra back from the waypoint (seeds: each arrival of its map's walk to
+  it) per mode (`solve(surf, hms)`, kept in `sols` until the waypoint changes). `pick`: the player's own
+  mode (`deps.can(s, "SURF" | "CUT" | "ROCK_SMASH" | "STRENGTH")`: the badge and a Pokémon that knows it:
+  the story's way, the shortcuts their HMs open); else through every HM's obstacle (`Rt.needs`: those the
+  player can't use, from the chosen ways' `mk`; the scene's toast `map.route.setHm`); else "surf" (a way
+  with Surf) or "none". "here" too; only "ok" keeps it (`mod.save` "gps"). The mode is picked again each
+  step (an HM learnt on the way). `Rt.step(map, x, y)` on
+  `world.stepped` / `map.entered`: arrived (a town: any map of its section; else `ARRIVE` steps) clears it
+  and pushes the `gps` notification; else a walk from the player picks the exit with the fewest steps in all
+  (`Rt.target`, an edge's way over it in `dx`, `dy`; under 1 ms a step on Route 119). `Rt.line(region)`: the
+  player's walk to it, then each point's successor (`succ`), the corners of each map placed in the region
+  (`region.world.byId`), the obstacles on it the player can't move yet (`hn`, `hx`, `hz`, `hk`: their spot,
+  or the door of the cave they're in; drawn as signs by the scene's `drawHms`; none for an HM they have), a gap for those that aren't (drawn as faint dots between the two doors, a dark mouth at each,
+  never the glow: straight across, it read as a walk through a forest); kept by a key of the player's tile.
+  `Rt.chain()` the maps on the way. `Field.flyTo` is wrapped once per process (`Field.__woobOsGps`): any Fly
+  clears it.
+- **The line on the map** (`scene.lua` `drawRoute`, `drawDest`): fetched once a second (`refreshLive`),
+  heights once per line, three passes and a light running along it, round joins; the waypoint a beam and
+  rings in the line's colour.
+- **The field's arrow** (`src/gps/arrow.lua`, Settings `fieldGps`, off by default: settings.lua's
+  `toggled()` honours a row's `default`; the row only where `env.gps` is): drawn from `Sh.frame`
+  (`deps.fieldDraw`, before the WoobPad option's check) over the field, in window pixels: the player's
+  middle from the field's camera (`FieldView._lastCamX/Y`) and where the engine put its world canvas this
+  frame (`Renderer.wipeWox / wipeWoy / wipeSx`: the field's zoom isn't the HUD's), the arrow's size
+  `max(world scale, HUD scale * 0.55)`. A warp in sight gets a mark bobbing over it.
+- Tests: `tests/gps_test.lua` (the cart's own maps: routes, Surf, Fly-only, arriving, the line, the arrow's
+  garbage, the markers), `map3d_test.lua` (the menu, markers, unproject, the snap). Drivers: the
+  scratchpad's `gps_driver.lua` (`GPS_START`, `GPS_FROM`, `GPS_TO`, `GPS_STEPS`), with `run_drv_shared.sh`;
+  delete `mod_cache/woob_os/gps/` after changing the graph's builder.
+
 ## The apps tied to play: Bank, Errands, Challenges, News
 
 - **The Bank** (`src/bank.lua`): `main.lua` wraps the engine's `Prize.apply` once per process
@@ -1769,6 +1843,7 @@ From the gen1recomp root (the mod is linked as `mods/woob_os`):
 luajit mods/woob_os/tests/desktop_test.lua [firered|leafgreen|ruby|sapphire|emerald]
 luajit mods/woob_os/tests/pad_test.lua [firered|leafgreen|ruby|sapphire|emerald]
 luajit mods/woob_os/tests/map3d_test.lua [firered|leafgreen|ruby|sapphire|emerald]
+luajit mods/woob_os/tests/gps_test.lua [emerald|firered|...]
 luajit mods/woob_os/tests/pokenav_test.lua [firered|leafgreen|ruby|sapphire|emerald]
 luajit mods/woob_os/tests/gb_test.lua [red|blue|yellow|gold|silver|crystal]
 luajit mods/woob_os/tests/pokecenter_test.lua [firered|leafgreen|ruby|sapphire|emerald]

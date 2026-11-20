@@ -50,6 +50,7 @@ return function(mod, loadSibling)
   local makeGbShop, makeShop = loadSibling(mod, "src/gb/realshop.lua"), loadSibling(mod, "src/shop.lua")
   local ShopThemes = loadSibling(mod, "src/shop_themes.lua")
   local makeTowns = loadSibling(mod, "src/map3d/towns.lua")
+  local makeMarks = loadSibling(mod, "src/marks.lua")
   -- the Pokémon Center: the nurse's counter full screen
   local makePokecenter, pokecenterWindow = loadSibling(mod, "src/gb/pokecenter.lua"), loadSibling(mod, "src/apps/pokecenter.lua")
   local pokecenterView, makeNurseArt = loadSibling(mod, "src/apps/pokecenter_view.lua"), loadSibling(mod, "src/nurse_art.lua")
@@ -277,6 +278,8 @@ return function(mod, loadSibling)
   local Play = Gd and makePlay and makePlay(Host, Gd) or nil
   env.port = Port
   env.log = warn
+  -- (the map's markers: the save's own)
+  if makeMarks then env.marks = makeMarks({ save = mod.save }) end
   -- (the Map app: its region built in the background once the player's been in the field a while)
   if makeGbMap and makeWorld and makeMapRender and mapScene and Gd then
     local Wd = makeWorld(function() return nil end, {})
@@ -780,8 +783,10 @@ return function(mod, loadSibling)
   mod.events:on("map.entered", function() Sh.forget() end)
   -- (a sprite set chosen or turned off in another mod: the clerk made again)
   mod.events:on("mod.options_changed", function() clerkSpr = nil end)
+  mod.events:on("checkpoint.restored", function() if env.marks then pcall(env.marks.load) end end)
   mod.events:on("save.loaded", function(ev)
     Sh.forget()
+    if env.marks then pcall(env.marks.load) end
     if Play then Play.resetBadges() end
     local s = ev and ev.save or session()
     if env.auction then pcall(env.auction.settle, s) end
@@ -809,6 +814,7 @@ return function(mod, loadSibling)
     icons = Apps.icons,
   }
   mod.exports._test = { post = notify, desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, env = env, i18n = T, gd = Gd, art = Art,
+                        marks = env.marks,
                         bx = env.bx, inv = env.inv, mb = env.mb, hall = env.hall, oak = env.oak, port = Port, play = Play,
                         mart = env.mart, bank = env.bank, auction = env.auction, slots = env.slots, gts = env.gts,
                         journal = env.journal, swarm = env.swarm, challenges = env.challenges, errands = env.errands,

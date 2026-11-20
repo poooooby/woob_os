@@ -57,7 +57,15 @@ controller, a touch screen, or a mouse and keyboard.
   search by name or number, and a height chart for each Pokémon you've caught, standing beside a trainer.
 - 🗺️ **Map:** your region in 3D, built from the game's own maps, in place of the Town Map and the Fly
   map. Emerald shows Kyogre's and Groudon's storms where they're rumoured. At night the towns light up,
-  with the odd aurora and shooting star.
+  with the odd aurora and shooting star. Choose any spot (A, or a tap) for its menu: Fly there once
+  you've visited, or put down a marker (a Flag, Star, Berry or Poké Ball, up to 20, one per town or
+  landmark) that stays in sight from every angle, day and night.
+- 🧭 **GPS** (FireRed, LeafGreen, Ruby, Sapphire and Emerald): Set Waypoint on any town, landmark or
+  spot and the map draws a glowing line along the shortest walk there, through caves, forests, gatehouses
+  and Mt. Chimney's cable car. It keeps to the story's way, taking the shortcuts your HMs open (Cut,
+  Rock Smash, Strength); where the only way needs one you can't use yet, it still shows the way and marks
+  the spot. Water counts once you can Surf; a place only Fly (or a boat) reaches says "No Route Found". Turn on Overworld GPS in Settings > Map for a small arrow on the field that points to
+  the next exit, ladder, hole or door on the way. Arriving, or flying anywhere, clears the waypoint.
 - 📞 **Phone:** Match Call (Emerald), Trainer's Eyes (Ruby and Sapphire) or the Pokégear's phone book
   (Gold, Silver and Crystal). Calls are the game's own.
 - 📻 **Radio** (Gold, Silver and Crystal): the Pokégear's radio, with each station's artwork, a live
@@ -89,7 +97,7 @@ controller, a touch screen, or a mouse and keyboard.
 - 📟 **Oak's PC**, 🏆 **Hall of Fame**, and 🛋️ **Decorate** at your bedroom PC.
 - 🕹️ **PC Games:** with the PC Games mod installed, its games get an icon too.
 - ⚙️ **Settings:** language, wallpaper, text size, notifications for each app, and switches for
-  WoobPad, the 3D map, the PokéNav apps and daily swarms.
+  WoobPad, the 3D map, the field's GPS arrow, the PokéNav apps and daily swarms.
 
 ### On Red, Blue, Yellow, Gold, Silver and Crystal
 
