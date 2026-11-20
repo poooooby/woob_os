@@ -82,6 +82,13 @@ return {
     description = "The Bag, the Pokémon menu and a Pokémon's summary open in WoobOS's glass, from the START menu and in battle, and when it's time to forget a move (FireRed, LeafGreen, Ruby, Sapphire, Emerald). Off: the game's own.",
   },
   {
+    key = "fieldGps",
+    label = "Overworld GPS",
+    type = "toggle",
+    default = false,
+    description = "With a waypoint set on the 3D map, a small arrow by your trainer on the field points to the next exit, ladder, hole or door on the way (FireRed, LeafGreen, Ruby, Sapphire, Emerald, Gold, Silver and Crystal). Also in Settings > Map.",
+  },
+  {
     key = "mapInvertX",
     label = "Map: Invert X",
     type = "toggle",

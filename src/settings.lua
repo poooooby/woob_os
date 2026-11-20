@@ -75,6 +75,25 @@ return function(deps)
     return (v == "dark" or v == "oled" or v == "light") and v or opt
   end
 
+  -- the Overworld GPS switch, the same way: the mod option or Settings > Map, whichever changed last (a
+  -- switch already turned on in Settings before the option was there stays on)
+  function S.fieldGps(option)
+    local opt = option == true
+    local seen = values.fieldGpsOpt
+    if seen ~= opt then
+      if seen == nil and values.fieldGps ~= nil then
+        S.set("fieldGpsOpt", opt)
+        return values.fieldGps == true
+      end
+      S.set("fieldGps", opt)
+      S.set("fieldGpsOpt", opt)
+      return opt
+    end
+    local v = values.fieldGps
+    if v == nil then return opt end
+    return v == true
+  end
+
   function S.textSize(option)
     local opt = tonumber(option) or 100
     local seen = tonumber(values.textSizeOpt)

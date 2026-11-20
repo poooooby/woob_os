@@ -822,6 +822,8 @@ return function(mod, loadSibling)
     Kit.setTextScale(pct / 100)
     -- (the theme, the same way: Light, Dark or OLED)
     Kit.setTheme(Settings and Settings.theme(option("theme", "light")) or option("theme", "light"))
+    -- (the Overworld GPS switch: the mod option or Settings > Map, whichever changed last)
+    if Settings then Settings.fieldGps(option("fieldGps", false)) end
   end
   applyTextSize()
   -- once a second: R-Bay's auctions and the GTS settle, challenges and errands, the News's day, a Badge

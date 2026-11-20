@@ -25,7 +25,7 @@ All notable changes to this mod are documented here, in
   Diglett's Cave, Team Rocket holding Mahogany Town's east road, Victory Road Gate's guards and its Badge
   check, the Cycling Road's Bicycle, the Magnet Train's Pass and the S.S. Ticket. Arriving clears it with a
   notification, and so does flying anywhere.
-- **Overworld GPS** (Settings > Map, off unless you turn it on): a small glass arrow by the player on the
+- **Overworld GPS** (an option, and in Settings > Map; off unless you turn it on): a small glass arrow by the player on the
   field, pointing to the next exit, ladder, hole or door on the way to the waypoint, with a mark over it
   once it's in sight.
 

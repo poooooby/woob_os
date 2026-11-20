@@ -69,7 +69,7 @@ controller, a touch screen, or a mouse and keyboard.
   they're out of the way: Sudowoodo, the sleeping Snorlax, Team Rocket in Mahogany Town, Victory Road
   Gate's guards and Badge check, the Cycling Road's Bicycle, the Magnet Train's Pass and the S.S. Ticket.
   Water counts once you can Surf; a place only Fly reaches (or a boat, on FireRed, LeafGreen, Ruby,
-  Sapphire and Emerald) says "No Route Found". Turn on Overworld GPS in Settings > Map for a small arrow on the field that points to
+  Sapphire and Emerald) says "No Route Found". Turn on Overworld GPS (an option, or in Settings > Map) for a small arrow on the field that points to
   the next exit, ladder, hole or door on the way. Arriving, or flying anywhere, clears the waypoint.
 - 📞 **Phone:** Match Call (Emerald), Trainer's Eyes (Ruby and Sapphire) or the Pokégear's phone book
   (Gold, Silver and Crystal). Calls are the game's own.
@@ -168,6 +168,7 @@ In the game's OPTIONS menu, WOOBOS opens these directly (also under MODS > WoobO
 | Real Shops | On / Off | On | Off: every shop counter opens the game's own shop menu. |
 | Pokémon Center | On / Off | On | Off: the nurse's counter is the game's own. |
 | Modern Menus | On / Off | On | Off: the Bag, the Pokémon menu and the summary are the game's own. |
+| Overworld GPS | On / Off | Off | With a waypoint set, an arrow by your trainer on the field points the way (FireRed, LeafGreen, Ruby, Sapphire, Emerald, Gold, Silver, Crystal). Also in Settings; whichever you changed last counts. |
 | Map: Invert X | On / Off | Off | The 3D map's camera turns the other way. |
 | Map: Invert Y | On / Off | Off | The 3D map's camera tilts the other way. |
 

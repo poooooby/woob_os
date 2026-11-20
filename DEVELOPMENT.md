@@ -1154,7 +1154,8 @@ Red / Blue / Yellow have none: no waypoint row).
 - **The line on the map** (`scene.lua` `drawRoute`, `drawDest`): fetched once a second (`refreshLive`),
   heights once per line, three passes and a light running along it, round joins; the waypoint a beam and
   rings in the line's colour.
-- **The field's arrow** (`src/gps/arrow.lua`, Settings `fieldGps`, off by default: settings.lua's
+- **The field's arrow** (`src/gps/arrow.lua`, Settings `fieldGps`, off by default, and the mod option `fieldGps`:
+  `Settings.fieldGps(option)` once a second, whichever changed last, as the theme and text size; settings.lua's
   `toggled()` honours a row's `default`; the row only where `env.gps` is): drawn from `Sh.frame`
   (`deps.fieldDraw`, before the WoobPad option's check) over the field, in window pixels: the player's
   middle from the field's camera (`FieldView._lastCamX/Y`) and where the engine put its world canvas this
