@@ -4,7 +4,7 @@
 -- as the player is free to move or not. Placed on the field as the engine drew it (its camera, and where
 -- and how big its world canvas went on the window: the zoom can differ from the HUD's); no tables made.
 --
---   Ar = arrow(deps)   deps: K ; route (Rt) ; on() -> the setting ; player() -> px, py (the player's pixels
+--   Ar = arrow(deps)   deps: K ; route (Rt) ; on() -> the setting ; player(vp) -> px, py (the player's pixels
 --                      on its map), mapId, camX, camY (the field's camera), ox, oy, sx, sy (the world canvas
 --                      on the window: its origin and scale; nil: the game's own rectangle, the HUD's scale)
 --   Ar.draw(G, vp, free, clock)
@@ -29,7 +29,7 @@ return function(deps)
     local t = deps.route and deps.route.target
     local on = deps.on and deps.on()
     local px, py, map, camX, camY, ox, oy, wsx, wsy
-    if on and t and t.on then px, py, map, camX, camY, ox, oy, wsx, wsy = deps.player() end
+    if on and t and t.on then px, py, map, camX, camY, ox, oy, wsx, wsy = deps.player(vp) end
     local want = free and on and t and t.on and px ~= nil and map == t.map
     Ar.a = approach(Ar.a, want and 1 or 0, dt * (want and 5 or 7))
     if Ar.a < 0.02 or (not want and Ar.angle == nil) then return end

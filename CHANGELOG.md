@@ -12,14 +12,19 @@ All notable changes to this mod are documented here, in
 - **Markers on the map** (every game): a Flag, Star, Berry or Poké Ball anywhere, up to 20, one per town or
   landmark. They stand upright facing you whichever way the map is turned, never shrink out of sight as you
   zoom out, and glow at night. Each save keeps its own.
-- **The GPS** (FireRed, LeafGreen, Ruby, Sapphire and Emerald): Set Waypoint draws a glowing line along the
-  shortest walk to that town, landmark or spot, through caves, forests, gatehouses, tunnels and Mt.
-  Chimney's cable car, a light running along it; a cave or tunnel is a dotted line between its doors. Water counts
-  once you have Surf ("No suitable route found. Requires Surf" until then); somewhere only Fly or a boat
-  reaches says "No Route Found". It keeps to the story's way: Cut trees, Rock Smash rocks and Strength
-  boulders stand in the way until you can use that HM, and then the shortcuts they open are taken. Where the
-  only way goes through one you can't use yet, the route is still drawn, with a sign on the spot (Cut, Rock
-  Smash or Strength) and the HM named when it's set. Arriving clears it with a notification, and so does flying anywhere.
+- **The GPS** (FireRed, LeafGreen, Ruby, Sapphire, Emerald, Gold, Silver and Crystal): Set Waypoint draws a
+  glowing line along the shortest walk to that town, landmark or spot, through caves, forests, gatehouses,
+  tunnels, Mt. Chimney's cable car, the Magnet Train and the S.S. Aqua, a light running along it; a cave or
+  tunnel is a dotted line between its doors. Water counts once you have Surf ("No suitable route found.
+  Requires Surf" until then); somewhere only Fly reaches (or a boat, on FireRed, LeafGreen, Ruby, Sapphire and
+  Emerald) says "No Route Found". It keeps to the story's way: Cut trees, Rock Smash rocks and Strength
+  boulders (and on Gold, Silver and Crystal whirlpools and waterfalls) stand in the way until you can use that
+  HM, and then the shortcuts they open are taken. Where the only way goes through one you can't use yet, the
+  route is still drawn, with a sign on the spot and the HM named when it's set. On Gold, Silver and Crystal
+  the story's roadblocks are signed the same way until they're out of the way: Sudowoodo, the Snorlax by
+  Diglett's Cave, Team Rocket holding Mahogany Town's east road, Victory Road Gate's guards and its Badge
+  check, the Cycling Road's Bicycle, the Magnet Train's Pass and the S.S. Ticket. Arriving clears it with a
+  notification, and so does flying anywhere.
 - **Overworld GPS** (Settings > Map, off unless you turn it on): a small glass arrow by the player on the
   field, pointing to the next exit, ladder, hole or door on the way to the waypoint, with a mark over it
   once it's in sight.

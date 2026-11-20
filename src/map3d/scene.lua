@@ -14,12 +14,14 @@
 --   touch    drag turns and tilts, two fingers (or the wheel) zoom, a tap on the land moves the cursor
 --            there and opens its menu, a tap picks a place (again: its menu) or a marker, the card's Fly
 --            button, the region's chip, the "you" chip back to the player, the compass north up
---   the GPS  (env.gps, Ruby / Sapphire / Emerald / FireRed / LeafGreen: src/gps/route.lua) a waypoint's
---            line along the walk there, glowing; markers (env.marks: src/marks.lua) on every game
+--   the GPS  (env.gps, FireRed / LeafGreen / Ruby / Sapphire / Emerald and Gold / Silver / Crystal:
+--            src/gps/route.lua) a waypoint's line along the walk there, glowing, the obstacles on it signed
+--            (env.gps.hms(): each { bit, word }); markers (env.marks: src/marks.lua) on every game
 --
 --   Scene(ctx, env, opts) -> win (src/apps.lua's window contract)
 --     env.map3d = { model, render, clock() -> hour, minute, fly(ctx, region, place) -> ok, reason }
---     env.gps = { ready(), work(budget), set(spec) -> status, clear(), dest(), line(region), spotAt(region, x, z) }
+--     env.gps = { ready(), work(budget), set(spec) -> status, clear(), dest(), line(region), spotAt(region, x, z),
+--                 needs(), hms() }
 --     env.marks = src/marks.lua's Mk
 --     opts = { mode = "app" | "fly" | "town", pick(region, place) (Fly mode), classic() (the Town Map's
 --              START), footer (units kept clear at the foot: the Town Map's hints) }
@@ -62,9 +64,10 @@ local HINTS = {
 local ROW_WORD = { fly = "map.fly", waypoint = "map.menu.waypoint", clear = "map.menu.clearWaypoint",
                    mark = "map.menu.mark", unmark = "map.menu.unmark", zoom = "map.hint.zoom" }
 local MARK_KINDS = { "flag", "star", "berry", "ball" }
--- the HMs a route can need that the player can't use yet (src/gps/graph.lua's masks) and their words
-local HM_WORDS = { { 1, "map.hm.cut" }, { 2, "map.hm.smash" }, { 4, "map.hm.strength" } }
-local HM_WORD = { [1] = "map.hm.cut", [2] = "map.hm.smash", [4] = "map.hm.strength" }
+-- the obstacles a route can need that the player can't pass yet (src/gps/graph.lua's masks) and their words:
+-- the GPS's own list (env.gps.hms), else Gen 3's three HMs
+local HM_WORDS = { { bit = 1, word = "map.hm.cut" }, { bit = 2, word = "map.hm.smash" },
+                   { bit = 4, word = "map.hm.strength" } }
 local MARK_WORD = { flag = "map.mark.flag", star = "map.mark.star", berry = "map.mark.berry", ball = "map.mark.ball" }
 local NO_T = setmetatable({ list = function(l) return l end, f = string.format }, { __call = function(_, k) return k end })
 
@@ -544,6 +547,14 @@ return function(ctx, env, opts)
              wx = wx, wz = wz, place = onPlace and p.id or nil, sec = p and p.kind == "town" and p.id or nil }
   end
   local STATUS_WORD = { surf = "map.route.surf", none = "map.route.none", here = "map.route.here" }
+  local function hmList()
+    local l = env.gps and env.gps.hms and env.gps.hms()
+    return type(l) == "table" and l or HM_WORDS
+  end
+  local function hmWord(bit)
+    for _, h in ipairs(hmList()) do if h.bit == bit then return h.word end end
+    return "map.hm.cut"
+  end
   local function setWaypoint(m)
     local spec = specOf(m)
     if not spec then
@@ -562,9 +573,12 @@ return function(ctx, env, opts)
       -- (the only way goes through an HM's obstacle the player can't move yet: set, and said which)
       local need = env.gps.needs and env.gps.needs() or 0
       if need ~= 0 then
-        local names = {}
-        for _, h in ipairs(HM_WORDS) do
-          if math.floor(need / h[1]) % 2 == 1 then names[#names + 1] = T(h[2]) end
+        local names, seen = {}, {}
+        for _, h in ipairs(hmList()) do
+          if math.floor(need / h.bit) % 2 == 1 and not seen[h.word] then
+            seen[h.word] = true
+            names[#names + 1] = T(h.word)
+          end
         end
         st.toast = { text = T.f("map.route.setHm", table.concat(names, ", ")), bad = false, t = env.now and env.now() or 0 }
         return
@@ -1239,7 +1253,7 @@ return function(ctx, env, opts)
       local gx, gy, depth = Rd.project(x, h, z)
       if gx then
         local s = max(2.6, min(5.5, 70 / depth))
-        local word = T(HM_WORD[L.hk[k]] or "map.hm.cut")
+        local word = T(hmWord(L.hk[k]))
         local fs = 3.8
         local tw = K.width(word, fs) + 6
         local ux, uy = U(gx), V(gy) - s * 2.2

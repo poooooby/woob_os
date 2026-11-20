@@ -59,12 +59,13 @@ end
 local MOD = "mods/woob_os/src/"
 local makeGraph, makeRoute = dofile(MOD .. "gps/graph.lua"), dofile(MOD .. "gps/route.lua")
 local makeArrow, makeMarks = dofile(MOD .. "gps/arrow.lua"), dofile(MOD .. "marks.lua")
+local makeReader = dofile(MOD .. "gps/read3.lua")
 
 -- (the disk: kept in memory)
 local disk = {}
 local cache = { read = function(_, k) return disk[k] end, write = function(_, k, v) disk[k] = v; return true end }
 local function graph()
-  return makeGraph(engine, { maps = function() return maps end, game = function() return game end, cache = cache,
+  return makeGraph(engine, { reader = makeReader, maps = function() return maps end, game = function() return game end, cache = cache,
                              gameId = function() return GAME end, version = "test", log = print })
 end
 
@@ -84,7 +85,7 @@ do
 end
 -- (the background build: a few milliseconds a step)
 do
-  local bg = makeGraph(engine, { maps = function() return maps end, game = function() return game end,
+  local bg = makeGraph(engine, { reader = makeReader, maps = function() return maps end, game = function() return game end,
                                  gameId = function() return GAME end, version = "test" })
   bg.prepare()
   local steps = 0

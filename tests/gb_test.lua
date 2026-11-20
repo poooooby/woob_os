@@ -655,12 +655,132 @@ if M3 then
           "the player where they stand (" .. tostring(rid) .. ")")
   Mdl.live(region, save)
   T.check(Mdl.flyCheck() == nil, "no Fly from it")
-  -- (the map's markers here too; the GPS is Ruby / Sapphire / Emerald / FireRed / LeafGreen's: no waypoint)
+  -- (the map's markers here too; the GPS on Gold / Silver / Crystal, not Red / Blue / Yellow)
   local Mk = X._test.marks
   T.check(Mk ~= nil and Mk.add(first, home.x, home.z, "ball", home.id) ~= nil, "a marker on the map")
   T.eq(Mk and Mk.onPlace(first, home.id) and Mk.onPlace(first, home.id).kind, "ball", "kept for its town")
   if Mk then for i = #Mk.list(), 1, -1 do Mk.remove(Mk.list()[i]) end end
-  T.eq(X._test.env.gps, nil, "no GPS here: the menu has no waypoint")
+  if GEN == 1 then
+    T.eq(X._test.env.gps, nil, "no GPS on Red / Blue / Yellow: the menu has no waypoint")
+  else
+    -- ------- the GPS on Gold / Silver / Crystal: the walk graph from every map, routes the story's way
+    local Gps = X._test.gps
+    T.check(Gps ~= nil and X._test.env.gps ~= nil, "the GPS on Gold / Silver / Crystal")
+    if Gps then
+      local Gw, Rt = Gps.graph, Gps.route
+      local disk = {}
+      Gw.cache = { read = function(_, k) return disk[k] end, write = function(_, k, v) disk[k] = v; return true end }
+      local t0 = os.clock()
+      T.check(Gw.buildNow(), "its walk graph builds")
+      local nn, ne = Gw.count()
+      T.check(nn > 500 and ne > nn, ("its points and ways (%d, %d; %.2f s)"):format(nn, ne, os.clock() - t0))
+      T.check(disk["gps/" .. GAME .. ".txt"] ~= nil, "kept on disk")
+      -- (the player as the World has them; the story's flags; their badges and party)
+      local flags = {}
+      local events0 = world.events
+      world.map, world.player, world.playerState = { id = "NEW_BARK_TOWN" }, { cellX = 6, cellY = 4 }, "normal"
+      world.events = { get = function(_, id) return flags[id] == true end,
+                       objectVisible = function(_, f) return f == nil or f == 0xFFFF or not flags[f] end }
+      save.player = save.player or {}
+      save.player.badges = {}
+      local party0 = save.party
+      local mon = { species = "PIDGEY", moves = {} }
+      save.party = { mon }
+      local function teach(...)
+        mon.moves = { ... }
+        Rt.refresh()
+      end
+      local function land(id, x, y)
+        local rec = Gw.tiles(id)
+        if not rec then return x, y end
+        for r = 0, 12 do
+          for oy = -r, r do
+            for ox = -r, r do
+              local tx, ty = x + ox, y + oy
+              if tx >= 0 and ty >= 0 and tx < rec.w and ty < rec.h and rec.cls[ty * rec.w + tx] == Gw.LAND
+                and not rec.obst[ty * rec.w + tx] then
+                return tx, ty
+              end
+            end
+          end
+        end
+        return x, y
+      end
+      local function at(id)
+        local def = data.gen2Maps[id]
+        world.map.id = id
+        world.player.cellX, world.player.cellY = land(id, def.width, def.height)
+        Rt.refresh()
+      end
+      local function to(id)
+        local def = data.gen2Maps[id]
+        local sec
+        for _, pl in ipairs(region.places) do if pl.sym == id then sec = pl.id end end
+        return Rt.set({ map = id, x = def.width, y = def.height, name = id, sec = sec, region = first })
+      end
+      local function through(id)
+        for _, m in ipairs(Rt.chain() or {}) do if m == id then return true end end
+        return false
+      end
+      local function chainText() return table.concat(Rt.chain() or {}, " > ") end
+      local G = Gw.reader.G
+      at("NEW_BARK_TOWN")
+      T.eq(to("CHERRYGROVE_CITY"), "ok", "New Bark Town to Cherrygrove City: a way")
+      T.check(through("ROUTE_29") and Rt.needs == 0, "by Route 29, nothing in the way (" .. chainText() .. ")")
+      local L = Rt.line(region)
+      T.check(L ~= nil and L.n > 2, "its line on the map (" .. tostring(L and L.n) .. " corners)")
+      -- (arriving: anywhere in the town)
+      Rt.step("CHERRYGROVE_CITY", 2, 2)
+      T.eq(Rt.dest(), nil, "arrived: in the town, the waypoint cleared")
+      -- (Azalea to Goldenrod: Ilex Forest's Cut tree, signed until the player can Cut)
+      at("AZALEA_TOWN")
+      T.eq(to("GOLDENROD_CITY"), "ok", "Azalea Town to Goldenrod City: a way")
+      T.check(through("ILEX_FOREST") and Gw.band(Rt.needs, G.CUT.bit) ~= 0,
+        "through Ilex Forest, its Cut tree in the way (" .. chainText() .. ")")
+      L = Rt.line(region)
+      local signed = false
+      for k = 1, L and L.hn or 0 do if L.hk[k] == G.CUT.bit then signed = true end end
+      T.check(signed, "the line signs it")
+      save.player.badges.HIVE = true
+      teach("CUT")
+      Rt.step("AZALEA_TOWN", world.player.cellX, world.player.cellY)
+      T.eq(Rt.needs, 0, "with the Hive Badge and Cut: nothing in the way")
+      teach()
+      -- (Violet to Ecruteak: Sudowoodo, until it's dealt with)
+      at("VIOLET_CITY")
+      T.eq(to("ECRUTEAK_CITY"), "ok", "Violet City to Ecruteak City: a way")
+      T.check(G.SUDOWOODO.flag ~= nil and Gw.band(Rt.needs, G.SUDOWOODO.bit) ~= 0,
+        "Sudowoodo in the way (" .. chainText() .. ")")
+      flags[G.SUDOWOODO.flag] = true
+      Rt.refresh()
+      Rt.step("VIOLET_CITY", world.player.cellX, world.player.cellY)
+      T.eq(Gw.band(Rt.needs, G.SUDOWOODO.bit), 0, "Sudowoodo gone: the way's open")
+      -- (Cherrygrove to Cianwood: over the sea, only with Surf)
+      at("CHERRYGROVE_CITY")
+      T.eq(to("CIANWOOD_CITY"), "surf", "Cherrygrove City to Cianwood City without Surf: Requires Surf")
+      save.player.badges.FOG = true
+      teach("SURF")
+      T.eq(to("CIANWOOD_CITY"), "ok", "with the Fog Badge and Surf: a way (" .. chainText() .. ")")
+      teach()
+      -- (Olivine to Vermilion: the S.S. Aqua, its ticket)
+      at("OLIVINE_CITY")
+      T.eq(to("VERMILION_CITY"), "ok", "Olivine City to Vermilion City: a way")
+      T.check(Gw.band(Rt.needs, G.SHIP.bit) ~= 0 and through("OLIVINE_PORT") and through("VERMILION_PORT"),
+        "by the S.S. Aqua, its ticket needed (" .. chainText() .. ")")
+      save.inventory = save.inventory or {}
+      save.inventory.S_S_TICKET = 1
+      Rt.refresh()
+      Rt.step("OLIVINE_CITY", world.player.cellX, world.player.cellY)
+      T.eq(Gw.band(Rt.needs, G.SHIP.bit), 0, "with the S.S. Ticket: the ship's the way")
+      save.inventory.S_S_TICKET = nil
+      -- (Fly clears it: World:flyTo, wrapped)
+      local World = require("src.world.gen2.World")
+      T.check(rawget(World, "__woobOsGps") ~= nil, "World:flyTo wrapped (clears the waypoint)")
+      Rt.clear()
+      world.events, save.party, save.player.badges = events0, party0, {}
+      world.map, world.player = nil, nil
+    end
+  end
   if GEN == 2 then
     local k = Mdl.region("kanto")
     T.check(k and #k.world.maps >= 25, "Gold / Silver / Crystal's Kanto, a world of its own")

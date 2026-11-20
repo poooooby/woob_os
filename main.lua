@@ -111,6 +111,7 @@ return function(mod)
   -- the map's GPS (a waypoint's walk, the field's arrow) and its markers
   local makeGpsGraph, makeGpsRoute = loadSibling(mod, "src/gps/graph.lua"), loadSibling(mod, "src/gps/route.lua")
   local makeGpsArrow, makeMarks = loadSibling(mod, "src/gps/arrow.lua"), loadSibling(mod, "src/marks.lua")
+  local makeGpsReader = loadSibling(mod, "src/gps/read3.lua")
   local makePhone, phoneWindow = loadSibling(mod, "src/phone.lua"), loadSibling(mod, "src/apps/phone.lua")
   local makeCondition, conditionWindow = loadSibling(mod, "src/condition.lua"), loadSibling(mod, "src/apps/condition.lua")
   local makeRibbons, ribbonsWindow = loadSibling(mod, "src/ribbons.lua"), loadSibling(mod, "src/apps/ribbons.lua")
@@ -885,14 +886,14 @@ return function(mod)
   -- the waypoint's route, the field's arrow (Settings: fieldGps, off unless turned on)
   if makeMarks then env.marks = makeMarks({ save = mod.save }) end
   local Gps
-  if env.map3d and makeGpsGraph and makeGpsRoute then
+  if env.map3d and makeGpsGraph and makeGpsRoute and makeGpsReader then
     local Version = engine("src.core.Version")
     local function mapDefs()
       local g = mod.game
       return g and g.data and g.data.maps or nil
     end
     local graph = makeGpsGraph(engine, {
-      maps = mapDefs, game = function() return mod.game end, cache = mod.cache, gameId = gameId, version = version,
+      reader = makeGpsReader, maps = mapDefs, game = function() return mod.game end, cache = mod.cache, gameId = gameId, version = version,
       engine = Version and Version.engine, log = warn })
     local Player = engine("src.core.game3.player")
     local route = makeGpsRoute(engine, {
@@ -932,7 +933,7 @@ return function(mod)
         graph.step(budget)
       end,
       set = route.set, clear = route.clear, dest = route.dest, line = route.line, spotAt = route.spotAt,
-      needs = function() return route.needs end,
+      needs = function() return route.needs end, hms = function() return route.HMS end,
     }
   end
   -- the PokéNav's apps: the Phone (its contacts, the game's calls, recents and favourites in the

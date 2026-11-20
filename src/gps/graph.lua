@@ -1,95 +1,80 @@
--- The GPS's walk graph (Ruby / Sapphire / Emerald, FireRed / LeafGreen): every map a player can walk
--- through, read from the game's own maps (their tiles' collision, behaviours and elevations, their
--- warps and connections), made into points ("nodes") joined by how many steps lie between them.
+-- The GPS's walk graph (FireRed / LeafGreen / Ruby / Sapphire / Emerald; Gold / Silver / Crystal): every map
+-- a player can walk through, read from the game's own maps by a reader of each generation's (src/gps/
+-- read3.lua, read2.lua: the tiles' collision, the warps and connections), made into points ("nodes") joined
+-- by how many steps lie between them.
 --   arrival  where a player stands after coming in: on a warp's tile, or at a connection's landing
 --   exit     where a player leaves: a warp's tile that fires (a door, a ladder, a hole, stairs) or the
 --            middle of a run of tiles along a connected edge (a run at most RUN tiles long)
 -- Each arrival is joined to each exit of its map it can walk to (on foot, and with Surf; each without the
--- field moves' obstacles and through them, with the HMs that path needed), each exit to the arrival it
--- leads to (one step). Houses with one way in and out are left out (no one walks through them). Ledges
--- are one way; one-way walls and elevations (bridges) are kept as the game moves a player
--- (src/core/game3/collision.lua). Cut trees, Rock Smash rocks and Strength boulders (objects in these
--- games, not tiles) are walls unless the walk may use that HM. Boats and Emerald's cracked floors are
--- scripts, not warps: not in it.
+-- obstacles and through them, with the obstacles that path took), each exit to the arrival it leads to (one
+-- step). Houses with one way in and out are left out (no one walks through them). Ledges are one way; one-way
+-- walls and elevations (bridges) are kept as the game moves a player. An obstacle is a bit of a mask: an HM's
+-- (a Cut tree, a Rock Smash rock, a Strength boulder; Gen 2's whirlpools and waterfalls too) or, on Gen 2, a
+-- gate of the story's (Sudowoodo, the Snorlax, a guard, a ticket): a wall unless the walk may pass it.
 --
---   Gw = graph(engine, deps)  deps: maps() -> the game's map definitions ; game() -> the game (warps'
---                             destinations) ; cache (mod.cache) ; gameId() ; version ; engine (its
---                             version) ; log(fmt, ...)
+--   Gw = graph(engine, deps)  deps: reader(engine, deps, Gw) -> the generation's reader ; cache (mod.cache) ;
+--                             gameId() ; version ; engine (its version) ; log(fmt, ...) ; and the reader's own
 --   Gw.prepare() ; Gw.step(budget) -> true while there's more ; Gw.ready() ; Gw.progress() -> 0..1
---   Gw.tiles(mapId) -> rec { id, def, w, h, cls, elev, ledge, wall, warp } (kept for the last few)
+--   Gw.tiles(mapId) -> rec { id, def, w, h, cls, elev, ledge, wall, warp, obst [, block, hop, ice, upOnly] }
 --   Gw.walk(rec, x, y, surfing, allowSurf, reach(i, d, hm) -> stop?, maxD, parents, hms) -> the tiles' steps
---       (hms: the HMs it may use, Gw.HM_CUT 1 + Gw.HM_SMASH 2 + Gw.HM_STRENGTH 4; hm: those its way there used)
---   Gw.pathTo(rec, i) -> the tile indices from the walk's start to i (after a walk with parents)
+--       (hms: the obstacles it may pass, a mask of Gw.HMS's bits; hm: those its way there took)
+--   Gw.pathTo(i) -> the tile indices from the walk's start to i (after a walk with parents)
+--   Gw.HMS -> { { bit, key, word [, flag, item] }, ... } (the reader's) ; Gw.HM_ALL ; Gw.covers(have, need)
 --   Gw.mi[mapId] ; Gw.ids[mi] ; nodes NM / NX / NY / NK (1 warp exit, 2 edge exit, 3 arrival) ;
 --   edges EA -> EB, EL (on foot, -1 none) / ES (with Surf), EHL / EHS (through obstacles) and EML / EMS (the
---   HMs that took) ; Gw.into[node] = { edge, ... } ;
+--   obstacles that took) ; Gw.into[node] = { edge, ... } ;
 --   Gw.exits[mi] = { node, ... } ; Gw.arrivals[mi] = { node, ... } ; Gw.node(mi, x, y, k) -> node | nil
 --   Gw.arrivalAt(mapId, x, y) -> node | nil
+--
+-- The reader (R = reader(engine, deps, Gw)):
+--   R.HMS ; R.ready() -> its engine modules are there ; R.maps() -> the map definitions by id ;
+--   R.included(id, def) ; R.build(id, def) -> rec | nil ; R.conns(def) -> { { dir (1 up 2 down 3 left 4 right),
+--   map, ... }, ... } ; R.landing(conn, x, y) -> lx, ly, cls | nil ; R.destOf(warp) -> mapId, x, y | nil ;
+--   R.links(ids) -> { { a = mapId, b = mapId, cost, gate (a bit, 0: none) }, ... } ; R.fingerprint(all) ;
+--   R.forget() (anything it keeps)
 
-local floor, max, min = math.floor, math.max, math.min
+local floor = math.floor
 
-local FORMAT = 2
+local FORMAT = 3
 local RUN = 12            -- a connected edge's run of tiles: one exit each this many
-local OBSTACLE = 2        -- the steps a cut tree, a boulder or a rock costs with its HM (a little: round it if as near)
-local HM_CUT, HM_SMASH, HM_STRENGTH = 1, 2, 4
-local HM_ALL = 7
--- (two HM masks together: a | b, for 0..7)
-local OR = {}
-for a = 0, 7 do
-  for b = 0, 7 do
-    local r = 0
-    for _, bit in ipairs({ 1, 2, 4 }) do
-      if math.floor(a / bit) % 2 == 1 or math.floor(b / bit) % 2 == 1 then r = r + bit end
-    end
-    OR[a * 8 + b] = r
-  end
-end
+local OBSTACLE = 2        -- the steps an obstacle costs once it can be passed (a little: round it if as near)
 local KEEP_TILES = 6      -- maps' tiles kept at once
--- maps never walked through: under the sea, unused, the link rooms, secret bases
-local SKIP = { "UNDERWATER", "PROTOTYPE", "SECRET_BASE", "UNION_ROOM", "TRADE_CENTER", "RECORD_CORNER",
-               "BATTLE_COLOSSEUM", "INSIDE_OF_TRUCK" }
 -- the four ways: up, down, left, right
 local DX, DY = { 0, 0, -1, 1 }, { -1, 1, 0, 0 }
 local DIR_NAME = { "up", "down", "left", "right" }
-local CONN_DIR = { north = 1, south = 2, west = 3, east = 4 }
 -- one-way walls: a tile's behaviour blocks leaving it, or coming into it (north 1, south 2, west 4, east 8)
 local LEAVE, ENTER = { 1, 2, 4, 8 }, { 2, 1, 8, 4 }
 local HOP = { 1, 2, 4, 8 }   -- a ledge's facings (up, down, left, right)
--- the rides a script makes, not a warp (both ways; the maps' names end so): Mt. Chimney's cable car
-local LINKS = { { "ROUTE112_CABLE_CAR_STATION", "MT_CHIMNEY_CABLE_CAR_STATION", 12 } }
-local function linked(id)
-  for _, l in ipairs(LINKS) do
-    if id:sub(-#l[1]) == l[1] or id:sub(-#l[2]) == l[2] then return true end
-  end
-  return false
-end
 -- tiles' classes
 local WALL, LAND, WATER, LEDGE, WARP = 0, 1, 2, 3, 4
 local SURF = 16              -- a walk's state: tile * 17 + the elevation it's at (0..15), or 16 surfing
 
--- a ledge's collision (0xA0-0xA7, its low three bits) -> the ways it's hopped (up 1, down 2, left 4, right 8)
-local LEDGE_HOPS = { [0] = 8, 4, 1, 2, 2 + 8, 2 + 4, 1 + 8, 1 + 4 }
+-- (masks: LuaJIT's bit library, the sandbox's own copy; a plain fallback where there's none)
+local bitlib = rawget(_G, "bit")
+local bor, band
+if bitlib and bitlib.bor then
+  bor, band = bitlib.bor, bitlib.band
+else
+  local function op(a, b, both)
+    local r, p = 0, 1
+    while a > 0 or b > 0 do
+      local x, y = a % 2, b % 2
+      if (both and x == 1 and y == 1) or (not both and (x == 1 or y == 1)) then r = r + p end
+      a, b, p = (a - x) / 2, (b - y) / 2, p * 2
+    end
+    return r
+  end
+  bor = function(a, b) return op(a, b, false) end
+  band = function(a, b) return op(a, b, true) end
+end
 
 local function has(m, b) return m ~= nil and m ~= 0 and floor(m / b) % 2 == 1 end
 
 return function(engine, deps)
   deps = deps or {}
   local Gw = { RUN = RUN, WALL = WALL, LAND = LAND, WATER = WATER, LEDGE = LEDGE, WARP = WARP, DX = DX, DY = DY,
-               HM_CUT = HM_CUT, HM_SMASH = HM_SMASH, HM_STRENGTH = HM_STRENGTH, HM_ALL = HM_ALL }
-  function Gw.covers(have, need) return OR[(have or 0) * 8 + (need or 0)] == (have or 0) end
+               DIR_NAME = DIR_NAME, LEAVE = LEAVE, ENTER = ENTER, bor = bor, band = band }
   local function log(...) if deps.log then deps.log(...) end end
-  local function maps() return deps.maps and deps.maps() or nil end
-
-  local Collision, Conn, P, IS, Catalog
-  local function mods()
-    Collision = Collision or engine("src.core.game3.collision")
-    Conn = Conn or engine("src.core.game3.connections")
-    -- (the collision bytes' meaning: the engine's own, the module every generation may read)
-    P = P or engine("src.core.CollPermissions")
-    IS = IS or engine("src.core.game3.scripting.interaction_scripts")
-    Catalog = Catalog or engine("src.import.gba.map_catalog")
-    return Collision and Conn and P
-  end
 
   -- (the build: a slice of the frame at a time; only ever inside its own coroutine)
   local state = { ready = false, job = nil, progress = 0, failed = false }
@@ -99,140 +84,33 @@ return function(engine, deps)
     local co = state.job
     if co and coroutine.running() == co and clock() - slice.start > slice.budget then coroutine.yield() end
   end
+  Gw.breathe = breathe
 
-  -- ------- a map's layout: the engine's when it's loaded it; else read here, not kept (the engine keeps
-  -- every layout it loads: the build would have kept them all, some 30 MB)
+  local R = deps.reader and deps.reader(engine, deps, Gw) or nil
+  Gw.reader = R
+  Gw.HMS = R and R.HMS or {}
+  local all = 0
+  for _, h in ipairs(Gw.HMS) do all = bor(all, h.bit) end
+  Gw.HM_ALL = all
+  -- (the HMs Gen 3 names: kept for the tests and the scene's words)
+  for _, h in ipairs(Gw.HMS) do
+    if h.key == "CUT" then Gw.HM_CUT = h.bit elseif h.key == "ROCK_SMASH" then Gw.HM_SMASH = h.bit
+    elseif h.key == "STRENGTH" then Gw.HM_STRENGTH = h.bit end
+  end
+  function Gw.covers(have, need) return bor(have or 0, need or 0) == (have or 0) end
+  local function maps() return R and R.maps() or nil end
 
-  local manifest
-  local private, privateOrder = {}, {}
-  local function readLayout(id, def)
-    local Ds, Ex = engine("src.core.game3.dataset"), engine("src.import.gba.extract_island1")
-    local NP, LN = engine("src.import.gba.native_pack"), engine("src.core.game3.layout_native")
-    if not (Ds and Ex and NP and LN and Ds.cache) then return nil end
-    local cache = Ds.cache()
-    local root = Ex.NATIVE_ROOT or ((Ex.CACHE_ROOT or "") .. "/native")
-    if manifest == nil then
-      manifest = false
-      local okR, src = pcall(cache.read, cache, root .. "/manifest.lua")
-      local chunk = okR and type(src) == "string" and load(src, "@manifest", "t", {})
-      local okC, got = false, nil
-      if chunk then okC, got = pcall(chunk) end
-      if okC and type(got) == "table" then manifest = got.layouts or {} end
-    end
-    local info = manifest and manifest[id]
-    local okB, blob = pcall(cache.read, cache, root .. "/" .. ((info and info.file) or ("layouts/" .. id .. ".mid")))
-    if not (okB and type(blob) == "string" and #blob >= 16 and blob:sub(1, 4) == NP.MAGIC_MID) then return nil end
-    local okD, decoded = pcall(NP.decodeMidLayout, blob)
-    if not (okD and decoded) then return nil end
-    local okL, L = pcall(LN.fromDecoded, decoded, id, (info and info.pair) or def.pair, blob)
-    return okL and L or nil
-  end
-  -- -> the layout, and the map as collision.lua's functions read it (a stand-in round a layout of our own)
-  local function layoutOf(id, def)
-    local L = rawget(def, "midLayout")
-    if L then return L, def end
-    if rawget(def, "modLayout") then
-      L = def.midLayout
-      return L, def
-    end
-    local got = private[id]
-    if not got then
-      local own = readLayout(id, def)
-      if not own then
-        L = def.midLayout
-        return L, def
-      end
-      got = { own, { midLayout = own, pair = def.pair or own.pair, width = def.width, height = def.height } }
-      private[id] = got
-      privateOrder[#privateOrder + 1] = id
-      while #privateOrder > KEEP_TILES do private[table.remove(privateOrder, 1)] = nil end
-    end
-    return got[1], got[2]
-  end
-  Gw.layoutOf = layoutOf
-
-  -- ------- a map's tiles
-
-  local function classify(def, L, behs, x, y)
-    local coll = L:collAt(x, y)
-    local b = behs and behs[L:midAt(x, y)]
-    local c, ledge = WALL, 0
-    if P.isLedge(coll) then
-      c = LEDGE
-      ledge = LEDGE_HOPS[coll % 8] or 0
-    elseif P.isWalkable(coll) then
-      c = LAND
-    elseif Collision.isWaterOn(def, x, y, coll) and not Collision.isWaterfall(b) then
-      c = WATER
-    end
-    local wall = 0
-    if b then
-      wall = (Collision.isNorthBlocked(b) and 1 or 0) + (Collision.isSouthBlocked(b) and 2 or 0)
-        + (Collision.isWestBlocked(b) and 4 or 0) + (Collision.isEastBlocked(b) and 8 or 0)
-    end
-    return c, L:elevAt(x, y) or 0, ledge, wall, coll, b
-  end
-  -- (a warp's tile fires when the game would make it: collision.lua's installWarps)
-  local function fires(coll, b)
-    if coll and coll >= 0x60 and coll <= 0x7F then return true end
-    if b == nil then return coll == nil or coll == 7 or coll == 0xff end
-    return Collision.isWarpMetatileBehavior(b) == true
-  end
-  Gw.fires = function(coll, b) mods(); return fires(coll, b) end
+  -- ------- a map's tiles (the reader's; the last few kept)
 
   local kept, keptOrder = {}, {}
-  local function build(id, def)
-    if not def then return nil end
-    local L, view = layoutOf(id, def)
-    if not (L and L.width and L.height) then return nil end
-    local w, h = L.width, L.height
-    local behs = IS and IS.behaviors and IS.behaviors[def.pair or L.pair]
-    local rec = { id = id, def = def, w = w, h = h, cls = {}, elev = {}, ledge = {}, wall = {}, warp = {}, obst = {} }
-    local cls, elev, ledge, wall = rec.cls, rec.elev, rec.ledge, rec.wall
-    for y = 0, h - 1 do
-      for x = 0, w - 1 do
-        local i = y * w + x
-        local c, e, lg, wl = classify(view, L, behs, x, y)
-        cls[i], elev[i] = c, e
-        if lg ~= 0 then ledge[i] = lg end
-        if wl ~= 0 then wall[i] = wl end
-      end
-      if y % 4 == 3 then breathe() end
-    end
-    -- (the field moves' obstacles: objects, not tiles)
-    local FM = engine("src.core.game3.field_moves")
-    local gfx = FM and FM.GFX_IDS
-    local okG, cut, rock, boulder = pcall(function() return gfx.CUT_TREE, gfx.ROCK_SMASH_ROCK, gfx.PUSHABLE_BOULDER end)
-    if okG then
-      for _, o in ipairs(def.objects or {}) do
-        local g = o.gfx or o.graphicsId
-        local x, y = tonumber(o.x), tonumber(o.y)
-        if g ~= nil and (g == cut or g == rock or g == boulder) and x and y and x >= 0 and y >= 0 and x < w and y < h then
-          rec.obst[y * w + x] = g == cut and HM_CUT or (g == rock and HM_SMASH or HM_STRENGTH)
-        end
-      end
-    end
-    for wi, wp in ipairs(def.warps or {}) do
-      local x, y = tonumber(wp.x), tonumber(wp.y)
-      if x and y and x >= 0 and y >= 0 and x < w and y < h then
-        local coll = L:collAt(x, y)
-        local b = behs and behs[L:midAt(x, y)]
-        if fires(coll, b) then
-          cls[y * w + x] = WARP
-          rec.warp[y * w + x] = wi
-        end
-      end
-    end
-    return rec
-  end
   function Gw.tiles(id)
     local r = kept[id]
     if r then return r end
-    if not mods() then return nil end
-    local all = maps()
-    local def = all and all[id]
+    if not (R and R.ready()) then return nil end
+    local defs = maps()
+    local def = defs and defs[id]
     if not def then return nil end
-    local ok, made = pcall(build, id, def)
+    local ok, made = pcall(R.build, id, def)
     if not (ok and made) then
       if not ok then log("the GPS couldn't read %s: %s", tostring(id), tostring(made)) end
       return nil
@@ -247,11 +125,31 @@ return function(engine, deps)
   function Gw.forgetTiles()
     for k in pairs(kept) do kept[k] = nil end
     for i = #keptOrder, 1, -1 do keptOrder[i] = nil end
-    for k in pairs(private) do private[k] = nil end
-    for i = #privateOrder, 1, -1 do privateOrder[i] = nil end
+    if R and R.forget then R.forget() end
   end
+  Gw.destOf = function(wp) return R and R.ready() and R.destOf(wp) or nil end
 
   -- ------- a walk over one map: breadth first, from a tile, as the player moves
+
+  -- (Gen 2's ice: on from a tile the way it was entered until something stops it; the tile it stops on)
+  local function slide(rec, j, dir)
+    local w, h, cls, ice, block = rec.w, rec.h, rec.cls, rec.ice, rec.block
+    local extra = 0
+    while ice[j] and extra < 64 do
+      if block and has(block[j], LEAVE[dir]) then break end
+      local x = j % w
+      local y = (j - x) / w
+      local nx, ny = x + DX[dir], y + DY[dir]
+      if nx < 0 or ny < 0 or nx >= w or ny >= h then break end
+      local k = ny * w + nx
+      local c = cls[k]
+      if c ~= LAND and c ~= WARP then break end
+      if rec.obst[k] then break end
+      j, extra = k, extra + 1
+      if c == WARP then break end
+    end
+    return j, extra
+  end
 
   -- (one step: the tile it lands on, the elevation after, its cost -- or nil)
   local function move(rec, i, e, dir, allowSurf)
@@ -259,40 +157,59 @@ return function(engine, deps)
     local x = i % w
     local y = (i - x) / w
     local nx, ny = x + DX[dir], y + DY[dir]
-    if nx < 0 or ny < 0 or nx >= w or ny >= rec.h then return nil end
-    local wall = rec.wall
-    if has(wall[i], LEAVE[dir]) then return nil end
-    local j = ny * w + nx
-    if has(wall[j], ENTER[dir]) then return nil end
-    local c = rec.cls[j]
     local surf = e == SURF
-    if c == WARP then return j, e, 1 end
-    if c == WATER then
-      if surf or allowSurf then return j, SURF, 1 end
-      return nil
+    local hop = rec.hop
+    local block = rec.block
+    local j
+    local ok = nx >= 0 and ny >= 0 and nx < w and ny < rec.h
+    if ok and has(rec.wall[i], LEAVE[dir]) then ok = false end
+    if ok and block and has(block[i], LEAVE[dir]) then ok = false end
+    if ok then
+      j = ny * w + nx
+      if has(rec.wall[j], ENTER[dir]) then ok = false end
     end
-    local elev = rec.elev
-    if c == LAND then
-      local te = elev[j]
-      if surf then
-        -- (getting off: onto land at its own height, or the game's usual 3)
-        if te ~= 0 and te ~= 15 and te ~= 3 and te ~= 1 then return nil end
-        return j, (te == 0 or te == 15) and 3 or te, 1
+    if ok then
+      local c = rec.cls[j]
+      if c == WARP then return j, e, 1 end
+      if c == WATER then
+        if surf or allowSurf then return j, SURF, 1 end
+        ok = false
       end
-      if e ~= 0 and te ~= 0 and te ~= 15 and te ~= e then return nil end
-      if te == 15 or elev[i] == 15 then return j, e, 1 end
-      return j, te, 1
+      local elev = rec.elev
+      if ok and c == LAND then
+        local te = elev[j] or 0
+        if surf then
+          -- (getting off: onto land at its own height, or the game's usual 3)
+          if te ~= 0 and te ~= 15 and te ~= 3 and te ~= 1 then return nil end
+          local k, extra = j, 0
+          if rec.ice and rec.ice[j] then k, extra = slide(rec, j, dir) end
+          return k, (te == 0 or te == 15) and 3 or te, 1 + extra
+        end
+        if e ~= 0 and te ~= 0 and te ~= 15 and te ~= e then return nil end
+        local k, extra = j, 0
+        if rec.ice and rec.ice[j] then k, extra = slide(rec, j, dir) end
+        if te == 15 or (elev[i] or 0) == 15 then return k, e, 1 + extra end
+        return k, te, 1 + extra
+      end
+      if ok and c == LEDGE and not surf and has(rec.ledge[j], HOP[dir]) then
+        local lx, ly = nx + DX[dir], ny + DY[dir]
+        if lx < 0 or ly < 0 or lx >= w or ly >= rec.h then return nil end
+        local k = ly * w + lx
+        local ck = rec.cls[k]
+        if ck == LAND then
+          local te = elev[k] or 0
+          return k, te == 15 and e or te, 2
+        end
+        if ck == WARP then return k, e, 2 end
+      end
     end
-    if c == LEDGE and not surf and has(rec.ledge[j], HOP[dir]) then
-      local lx, ly = nx + DX[dir], ny + DY[dir]
+    -- (Gen 2's ledges: a step refused off a ledge's own tile, the way it hops, is a jump two tiles on)
+    if hop and not surf and has(hop[i], HOP[dir]) then
+      local lx, ly = x + DX[dir] * 2, y + DY[dir] * 2
       if lx < 0 or ly < 0 or lx >= w or ly >= rec.h then return nil end
       local k = ly * w + lx
       local ck = rec.cls[k]
-      if ck == LAND then
-        local te = elev[k]
-        return k, te == 15 and e or te, 2
-      end
-      if ck == WARP then return k, e, 2 end
+      if ck == LAND or ck == WARP then return k, e, 2 end
     end
     return nil
   end
@@ -300,8 +217,8 @@ return function(engine, deps)
 
   -- (the walk's tables, used again each time; a queue of buckets, one per number of steps: the steps
   -- aren't all one -- a ledge's hop is two, an obstacle more)
-  -- (a state's steps, parent and HMs are this walk's while its stamp is this walk's number: nothing cleared,
-  -- no table grown again walk after walk)
+  -- (a state's steps, parent and obstacles are this walk's while its stamp is this walk's number: nothing
+  -- cleared, no table grown again walk after walk)
   local B, D, PAR, MK, DG, TG = {}, {}, {}, {}, {}, {}
   local gen = 0
   local function reset() gen = gen + 1 end
@@ -312,6 +229,13 @@ return function(engine, deps)
     local e = rec.elev[i] or 0
     return e == 15 and 0 or e
   end
+  -- (an obstacle on tile j stepped onto going `dir`: its bit, or nil -- a waterfall only stops a climb)
+  local function obstacle(rec, j, dir)
+    local need = rec.obst[j]
+    if need and dir ~= 1 and rec.upOnly and rec.upOnly[j] then return nil end
+    return need
+  end
+  Gw.obstacle = obstacle
   -- reach(i, d) for each tile the first time it's reached, nearest first (true: stop); the start at 0
   function Gw.walk(rec, x, y, surfing, allowSurf, reach, maxD, parents, hms)
     reset()
@@ -326,7 +250,7 @@ return function(engine, deps)
     local pending = 1
     B[0] = B[0] or {}
     B[0][1] = s0
-    local cls, obst = rec.cls, rec.obst
+    local cls = rec.cls
     local d, top = 0, 0
     local stop = false
     while pending > 0 and not stop do
@@ -352,14 +276,14 @@ return function(engine, deps)
             if not stop and not (cls[i] == WARP and d > 0) then
               for dir = 1, 4 do
                 local j, ne, cost = move(rec, i, e, dir, allowSurf)
-                local need = j and obst[j]
-                -- (a field move's obstacle: a wall without its HM)
-                if need and OR[hms * 8 + need] ~= hms then j = nil end
+                local need = j and obstacle(rec, j, dir)
+                -- (an obstacle: a wall unless the walk may pass it)
+                if need and bor(hms, need) ~= hms then j = nil end
                 if j then
                   local mk = MK[s]
                   if need then
                     cost = cost + OBSTACLE
-                    mk = OR[mk * 8 + need]
+                    mk = bor(mk, need)
                   end
                   local ns, nd = j * 17 + ne, d + cost
                   local seen = DG[ns] == g
@@ -459,47 +383,10 @@ return function(engine, deps)
     nNodes, nEdges = 0, 0
   end
 
-  local function skipped(id)
-    for _, s in ipairs(SKIP) do if id:find(s, 1, true) then return true end end
-    return false
-  end
-  -- (a map worth walking through: joined to others by connections, or by warps to two places or more)
-  local function included(id, def)
-    if type(id) ~= "string" or type(def) ~= "table" or skipped(id) then return false end
-    if linked(id) then return true end
-    local okC, conns = pcall(Conn.each, def)
-    if okC and type(conns) == "table" and #conns > 0 then return true end
-    local first
-    for _, w in ipairs(def.warps or {}) do
-      local k = tostring(w.destMap) .. ":" .. tostring(w.destWarp) .. ":" .. tostring(w.mapNum)
-      if first == nil then first = k elseif k ~= first then return true end
-    end
-    return false
-  end
-
-  -- (where a warp leads: the map and the tile, or nil for one that goes back where the player came from)
-  local function destOf(wp)
-    if tonumber(wp.mapNum) == 0x7F then return nil end
-    local dm = wp.destMap or wp.map
-    if type(dm) == "string" and dm:find("DYNAMIC", 1, true) then return nil end
-    local ok, m, x, y = pcall(Collision.resolveWarpDestination, deps.game and deps.game() or nil, wp)
-    if ok and type(m) == "string" then return m, tonumber(x) or 0, tonumber(y) or 0 end
-    return nil
-  end
-  Gw.destOf = function(wp) mods(); return destOf(wp) end
-
   -- the stamp: what the graph was made from (kept on disk while it's the same)
-  local function fingerprint(all)
-    local n, warps, conns = 0, 0, 0
-    for id, def in pairs(all) do
-      if type(id) == "string" and type(def) == "table" then
-        n = n + 1
-        warps = warps + #(def.warps or {})
-        conns = conns + #(def.connections or {})
-      end
-    end
-    return ("%d|%s|%s|%s|%d:%d:%d"):format(FORMAT, tostring(deps.version or "?"), tostring(deps.engine or "?"),
-      tostring(deps.gameId and deps.gameId() or "?"), n, warps, conns)
+  local function fingerprint(defs)
+    return ("%d|%s|%s|%s|%s"):format(FORMAT, tostring(deps.version or "?"), tostring(deps.engine or "?"),
+      tostring(deps.gameId and deps.gameId() or "?"), R.fingerprint(defs))
   end
   local function path()
     local g = tostring(deps.gameId and deps.gameId() or "game"):gsub("[^%w_%-]", "_")
@@ -508,11 +395,12 @@ return function(engine, deps)
 
   -- ------- kept on disk: a line per map, node and edge
 
+  -- (Gw.cache: the tests' own disk in place of mod.cache)
   local function write(stamp)
-    local cache = deps.cache
+    local cache = Gw.cache or deps.cache
     if not (cache and cache.write) then return end
     local out = { "GPS " .. stamp }
-    for mi, id in ipairs(Gw.ids) do out[#out + 1] = "M " .. id end
+    for _, id in ipairs(Gw.ids) do out[#out + 1] = "M " .. id end
     for n = 1, nNodes do out[#out + 1] = ("N %d %d %d %d"):format(NM[n], NX[n], NY[n], NK[n]) end
     for e = 1, nEdges do
       out[#out + 1] = ("E %d %d %d %d %d %d %d %d"):format(EA[e], EB[e], EL[e], ES[e], EHL[e], EHS[e], EML[e], EMS[e])
@@ -520,8 +408,8 @@ return function(engine, deps)
     local ok, err = pcall(cache.write, cache, path(), table.concat(out, "\n"))
     if not ok then log("the GPS couldn't keep its graph: %s", tostring(err)) end
   end
-  local function read(stamp, breathe)
-    local cache = deps.cache
+  local function read(stamp)
+    local cache = Gw.cache or deps.cache
     if not (cache and cache.read) then return false end
     local ok, text = pcall(cache.read, cache, path())
     if not (ok and type(text) == "string") then return false end
@@ -564,41 +452,31 @@ return function(engine, deps)
 
   -- ------- building it (in a coroutine: a few milliseconds a frame)
 
-
   -- a connected edge's tiles in runs (land and water apart), each run's middle an exit
-  local function edgeRuns(mi, rec, conn, all)
-    local dir = CONN_DIR[conn.dir]
-    if not dir then return end
-    local destDef = all[conn.map]
+  local function edgeRuns(mi, rec, conn)
+    local dir = conn.dir
     local dmi = Gw.mi[conn.map]
-    if not (destDef and dmi) then return end
-    local L, dest = layoutOf(conn.map, destDef)
-    if not L then return end
-    local behs = IS and IS.behaviors and IS.behaviors[destDef.pair or L.pair]
+    if not (dir and dmi) then return end
     local w, h = rec.w, rec.h
     local along = (dir == 1 or dir == 2) and w or h
     local function at(t)
       if dir == 1 then return t, 0 elseif dir == 2 then return t, h - 1
       elseif dir == 3 then return 0, t else return w - 1, t end
     end
-    local function landing(x, y)
-      local okL, lx, ly = pcall(Collision.connectionLanding, dest, conn, DIR_NAME[dir], x, y)
-      if not (okL and lx) then return nil end
-      local c = classify(dest, L, behs, lx, ly)
-      return lx, ly, c
-    end
+    local block = rec.block
+    local function open(i) return not has(rec.wall[i], LEAVE[dir]) and not (block and has(block[i], LEAVE[dir])) end
     local t = 0
     while t < along do
       local x, y = at(t)
       local i = y * w + x
       local c = rec.cls[i]
-      local run = (c == LAND or c == WATER) and not has(rec.wall[i], LEAVE[dir]) and c or nil
+      local run = (c == LAND or c == WATER) and open(i) and c or nil
       if run then
         local t1 = t
         while t1 + 1 < along and t1 - t + 1 < RUN do
           local x2, y2 = at(t1 + 1)
           local j = y2 * w + x2
-          if rec.cls[j] ~= run or has(rec.wall[j], LEAVE[dir]) then break end
+          if rec.cls[j] ~= run or not open(j) then break end
           t1 = t1 + 1
         end
         -- (the run's middle, or the nearest tile of it that lands somewhere it can stand)
@@ -609,8 +487,8 @@ return function(engine, deps)
             local tt = mid + sgn * k
             if not found and tt >= t and tt <= t1 then
               local mx, my = at(tt)
-              local lx, ly, lc = landing(mx, my)
-              if lx and (lc == run or (run == LAND and lc == WARP)) then
+              local okL, lx, ly, lc = pcall(R.landing, conn, mx, my)
+              if okL and lx and (lc == run or (run == LAND and lc == WARP)) then
                 addEdge(newNode(mi, mx, my, 2), newNode(dmi, lx, ly, 3), 1, 1)
                 found = true
               end
@@ -627,17 +505,17 @@ return function(engine, deps)
 
   local function buildAll()
     state.progress = 0
-    if not mods() then
-      log("the GPS can't read the maps: the engine's collision modules aren't there")
+    if not (R and R.ready()) then
+      log("the GPS can't read the maps: the engine's modules aren't there")
       return false
     end
-    local all = maps()
-    if type(all) ~= "table" then
+    local defs = maps()
+    if type(defs) ~= "table" then
       log("the GPS can't read the maps: no maps")
       return false
     end
-    local stamp = fingerprint(all)
-    if read(stamp, breathe) then
+    local stamp = fingerprint(defs)
+    if read(stamp) then
       finish()
       state.progress = 1
       return true
@@ -645,8 +523,8 @@ return function(engine, deps)
     clear()
     local ids = {}
     local seen = 0
-    for id, def in pairs(all) do
-      if included(id, def) then ids[#ids + 1] = id end
+    for id, def in pairs(defs) do
+      if type(id) == "string" and type(def) == "table" and R.included(id, def) then ids[#ids + 1] = id end
       seen = seen + 1
       if seen % 32 == 0 then breathe() end
     end
@@ -668,9 +546,9 @@ return function(engine, deps)
             end
           end
         end
-        local okC, conns = pcall(Conn.each, rec.def)
+        local okC, conns = pcall(R.conns, rec.def)
         if okC and type(conns) == "table" then
-          for _, c in ipairs(conns) do edgeRuns(mi, rec, c, all) end
+          for _, c in ipairs(conns) do edgeRuns(mi, rec, c) end
         end
       end
       state.progress = 0.3 * mi / n
@@ -678,26 +556,32 @@ return function(engine, deps)
     end
     -- (a warp's exit to where it leads)
     for _, p in ipairs(pending) do
-      local m, x, y = destOf(p[2])
+      local m, x, y = R.destOf(p[2])
       local dmi = m and Gw.mi[m]
       if dmi then addEdge(p[1], newNode(dmi, x, y, 3), 1, 1) end
     end
-    -- (the scripted rides: each arrival at one end to each at the other)
-    for _, l in ipairs(LINKS) do
-      local a, b
-      for mi, id in ipairs(ids) do
-        if id:sub(-#l[1]) == l[1] then a = mi elseif id:sub(-#l[2]) == l[2] then b = mi end
-      end
+    -- (the rides a script makes, not a warp: each arrival at one end to each at the other; a gated one only
+    -- through its gate)
+    local okL, links = pcall(R.links, ids)
+    for _, l in ipairs(okL and type(links) == "table" and links or {}) do
+      local a, b = Gw.mi[l.a], Gw.mi[l.b]
       if a and b then
+        local g = l.gate or 0
         for _, x in ipairs(Gw.arrivals[a] or {}) do
           for _, y in ipairs(Gw.arrivals[b] or {}) do
-            addEdge(x, y, l[3], l[3])
-            addEdge(y, x, l[3], l[3])
+            if g == 0 then
+              addEdge(x, y, l.cost, l.cost)
+              addEdge(y, x, l.cost, l.cost)
+            else
+              addEdge(x, y, -1, -1, l.cost, l.cost, g, g)
+              addEdge(y, x, -1, -1, l.cost, l.cost, g, g)
+            end
           end
         end
       end
     end
     -- (each arrival to each exit of its map it can walk to: on foot, and with Surf)
+    local all = Gw.HM_ALL
     local len, hm = { {}, {}, {}, {} }, { {}, {}, {}, {} }
     for mi, id in ipairs(ids) do
       local rec = Gw.tiles(id)
@@ -715,7 +599,7 @@ return function(engine, deps)
             for k in pairs(hm[p]) do hm[p][k] = nil end
           end
           local i0 = NY[a] * rec.w + NX[a]
-          -- (on foot, with Surf; each without the HMs' obstacles, then through them)
+          -- (on foot, with Surf; each without the obstacles, then through them)
           for pass = 1, 4 do
             local into, used = len[pass], hm[pass]
             Gw.walk(rec, NX[a], NY[a], false, pass % 2 == 0, function(i, d, mk)
@@ -727,7 +611,7 @@ return function(engine, deps)
                   if into[x] == nil or dd < into[x] then into[x], used[x] = dd, mk end
                 end
               end
-            end, nil, nil, pass > 2 and HM_ALL or 0)
+            end, nil, nil, pass > 2 and all or 0)
           end
           for x, hs in pairs(len[4]) do
             addEdge(a, x, len[1][x] or -1, len[2][x] or -1, len[3][x] or -1, hs, hm[3][x] or 0, hm[4][x] or 0)

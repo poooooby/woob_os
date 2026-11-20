@@ -51,6 +51,9 @@ return function(mod, loadSibling)
   local ShopThemes = loadSibling(mod, "src/shop_themes.lua")
   local makeTowns = loadSibling(mod, "src/map3d/towns.lua")
   local makeMarks = loadSibling(mod, "src/marks.lua")
+  -- Gold / Silver / Crystal's GPS: the walk graph over every map, the waypoint's route, the field's arrow
+  local makeGpsGraph, makeGpsRoute = loadSibling(mod, "src/gps/graph.lua"), loadSibling(mod, "src/gps/route.lua")
+  local makeGpsArrow, makeGpsReader = loadSibling(mod, "src/gps/arrow.lua"), loadSibling(mod, "src/gps/read2.lua")
   -- the Pokémon Center: the nurse's counter full screen
   local makePokecenter, pokecenterWindow = loadSibling(mod, "src/gb/pokecenter.lua"), loadSibling(mod, "src/apps/pokecenter.lua")
   local pokecenterView, makeNurseArt = loadSibling(mod, "src/apps/pokecenter_view.lua"), loadSibling(mod, "src/nurse_art.lua")
@@ -260,7 +263,8 @@ return function(mod, loadSibling)
 
   -- ------- the play-tied apps
   local Nt
-  local NOTIFY_APP = { gts = "gts", bank = "bank", challenge = "challenges", errand = "errands", swarm = "news" }
+  local NOTIFY_APP = { gts = "gts", bank = "bank", challenge = "challenges", errand = "errands", swarm = "news",
+                       gps = "map" }
   local Desktop0, Watch0 = nil, nil
   local function looking(id)
     local w = Desktop0 and Desktop0.isOpen() and Desktop0.state()
@@ -305,6 +309,133 @@ return function(mod, loadSibling)
       invert = function()
         return option("mapInvertX", false) == true, option("mapInvertY", false) == true
       end,
+    }
+  end
+  -- the GPS (Gold / Silver / Crystal): the walk graph built once in the background (kept on disk), the
+  -- waypoint's route, the field's arrow (Settings: fieldGps, off unless turned on)
+  local Gps
+  if gen == 2 and env.map3d and makeGpsGraph and makeGpsRoute and makeGpsReader then
+    local Version = engine("src.core.Version")
+    local function gameData()
+      local g = Host.game()
+      return g and g.data or nil
+    end
+    local function world()
+      local g = Host.game()
+      local w = g and g.world
+      return type(w) == "table" and w or nil
+    end
+    local graph = makeGpsGraph(engine, {
+      reader = makeGpsReader,
+      maps = function() local d = gameData(); return d and d.gen2Maps or nil end,
+      tilesets = function() local d = gameData(); return d and d.gen2Tilesets or nil end,
+      -- (the blocks Cut, Whirlpool and the scripts changed: their first values, as the World kept them)
+      edits = function(id)
+        local w = world()
+        return w and type(w.blockEdits) == "table" and w.blockEdits[id] or nil
+      end,
+      cache = mod.cache, gameId = gameId, version = version, engine = Version and Version.engine, log = warn })
+    local JOHTO = { "ZEPHYR", "HIVE", "PLAIN", "FOG", "STORM", "MINERAL", "GLACIER", "RISING" }
+    local eventIds
+    local function eventFlag(name)
+      local d = gameData()
+      if eventIds == nil then
+        local FI = engine("src.core.gen2.FlagIds")
+        local ok, ids = pcall(FI and FI.events or error, d and d.gen2Constants)
+        eventIds = ok and type(ids) == "table" and ids or false
+      end
+      return eventIds and eventIds[name] or nil
+    end
+    local function hasItem(s, id)
+      local inv = s and s.inventory
+      return type(inv) == "table" and (tonumber(inv[id]) or 0) > 0
+    end
+    local route = makeGpsRoute(engine, {
+      graph = graph, save = mod.save, session = session, log = warn,
+      -- (where the player stands: the World's own map and square, and whether they're surfing)
+      where = function()
+        local w = world()
+        local g = Host.game()
+        if not (w and w.map and w.player) then return nil end
+        local FM = engine("src.world.gen2.FieldMoves")
+        local okS, surfing = pcall(FM and FM.isSurfing or error, w.playerState)
+        return w.map.id, tonumber(w.player.cellX) or 0, tonumber(w.player.cellY) or 0, okS and surfing == true,
+          g and g.save
+      end,
+      -- (a town's maps: those of its landmark, as the 3D map's places are made)
+      inSection = function(mapId, sec)
+        local d = gameData()
+        local def = d and d.gen2Maps and d.gen2Maps[mapId]
+        return def ~= nil and ("lm" .. tostring(def.landmark or mapId)) == sec
+      end,
+      -- (what the player can use or pass: an HM's badge and a Pokemon that knows it; a gate's flag, item, Badges)
+      can = function(s, key, h)
+        local FM = engine("src.world.gen2.FieldMoves")
+        if not (FM and s) then return false end
+        local w = world()
+        local ev = w and w.events
+        if key == "FLAG" then
+          if not (ev and h and h.flag) then return false end
+          return ev:objectVisible(h.flag) == false
+        elseif key == "ITEM" then
+          if not (h and hasItem(s, h.item)) then return false end
+          if h.event then
+            local id = eventFlag(h.event)
+            return ev ~= nil and id ~= nil and ev:get(id) == true
+          end
+          return true
+        elseif key == "BADGES" then
+          local n = 0
+          for _, b in ipairs(JOHTO) do
+            local ok, yes = pcall(FM.hasBadge, s, b)
+            if ok and yes then n = n + 1 end
+          end
+          return n >= ((h and h.count) or 8)
+        end
+        local badge = FM.BADGE and FM.BADGE[key]
+        if badge then
+          local okB, yes = pcall(FM.hasBadge, s, badge)
+          if not (okB and yes) then return false end
+        end
+        local okU, mon = pcall(FM.partyMoveUser, s.party, key)
+        return okU and mon ~= nil and mon ~= false
+      end,
+      notify = function(kind, data) if Nt then Nt.push(kind, data) end end,
+    })
+    -- (the arrow: the field's camera and where the World's picture went on the window this frame)
+    local arrow = makeGpsArrow and makeGpsArrow({
+      K = Kit, route = route,
+      on = function() return Settings ~= nil and Settings.get("fieldGps", false) == true end,
+      player = function(vp)
+        local w = world()
+        if not (w and w.map and w.player and w.camera and type(vp) == "table") then return nil end
+        local Tilt, Pipes = engine("src.render.Tilt"), engine("src.render.Pipelines")
+        local okT, tilted = pcall(Tilt and Tilt.active or error)
+        if okT and tilted then return nil end
+        local okP, pipe = pcall(Pipes and Pipes.worldPipeline or error)
+        if okP and pipe then return nil end
+        local Pf = engine("src.render.Playfield")
+        if not Pf then return nil end
+        local okR, x, y, pw, ph = pcall(Pf.rect, tonumber(vp.width) or 0, tonumber(vp.height) or 0)
+        if not okR then return nil end
+        local G2 = engine("src.core.Game2")
+        local okF, bx, by = pcall(G2 and G2.faithfulBox or error, pw, ph)
+        if okF and bx then x, y = x + bx, y + by end
+        local okZ, sc = pcall(w.zoomScale, w)
+        if not (okZ and tonumber(sc)) then return nil end
+        local p = w.player
+        return tonumber(p.px), tonumber(p.py), w.map.id, tonumber(w.camera.x), tonumber(w.camera.y), x, y, sc, sc
+      end,
+    }) or nil
+    Gps = { graph = graph, route = route, arrow = arrow, at = nil }
+    env.gps = {
+      ready = graph.ready,
+      work = function(budget)
+        graph.prepare()
+        graph.step(budget)
+      end,
+      set = route.set, clear = route.clear, dest = route.dest, line = route.line, spotAt = route.spotAt,
+      needs = function() return route.needs end, hms = function() return route.HMS end,
     }
   end
   -- (the shared models' Gen 3 engine: nothing here, the port answers instead)
@@ -720,6 +851,15 @@ return function(mod, loadSibling)
     if mapPrep.game ~= g then mapPrep.game, mapPrep.at, mapPrep.want, mapPrep.built = g, nil, nil, {} end
     local now = love and love.timer and love.timer.getTime() or 0
     if not (Sh and Sh.free(game)) then return end
+    -- (the GPS's walk graph: once the map's region is ready, a few milliseconds a frame; read back from the
+    -- disk after the first time)
+    if Gps and not mapPrep.want and not Gps.graph.ready() then
+      Gps.at = Gps.at or now + 6
+      if now >= Gps.at then
+        Gps.graph.prepare()
+        Gps.graph.step(0.003)
+      end
+    end
     if not mapPrep.want then
       if now < mapPrep.nextLook then return end
       mapPrep.nextLook = now + 1
@@ -740,6 +880,7 @@ return function(mod, loadSibling)
 
   Sh = makeShell(mod, { require = require, log = mod.log, desktop = Desktop, apps = Apps, watch = Watch,
                         notify = Nt, tick = tick, session = session, townmap = TownMap, host = Host, frame = frame,
+                        fieldDraw = Gps and Gps.arrow and function(G, vp, free, t) Gps.arrow.draw(G, vp, free, t) end or nil,
                         map3d = env.map3d, padOn = function() return env.padOption() end,
                         watchRow = function() return not Settings or Settings.get("watchRow", true) ~= false end,
                         watchLabel = function() return T and T("watch.start") or "WATCH" end })
@@ -781,12 +922,43 @@ return function(mod, loadSibling)
     end
   end)
   mod.events:on("map.entered", function() Sh.forget() end)
+  -- the GPS: each step and each map (there yet? the arrow's next warp); a loaded save's own waypoint; Fly
+  -- (the game's or ours: both through World:flyTo, wrapped once per process) clears the waypoint
+  if Gps then
+    mod.events:on("world.stepped", function(ev)
+      if type(ev) == "table" and Gps.route.dest() then
+        pcall(Gps.route.step, ev.mapId, tonumber(ev.x) or 0, tonumber(ev.y) or 0)
+      end
+    end)
+    mod.events:on("map.entered", function(ev)
+      Gps.route.refresh()
+      local g = Host.game()
+      local p = g and g.world and g.world.player
+      if type(ev) == "table" and Gps.route.dest() and p then
+        pcall(Gps.route.step, ev.mapId, tonumber(p.cellX) or 0, tonumber(p.cellY) or 0)
+      end
+    end)
+    local World = engine("src.world.gen2.World")
+    if World and World.flyTo then
+      local w = rawget(World, "__woobOsGps")
+      if not w then
+        w = { orig = World.flyTo }
+        World.__woobOsGps = w
+        World.flyTo = function(...)
+          if w.impl then pcall(w.impl) end
+          return w.orig(...)
+        end
+      end
+      w.impl = function() Gps.route.clear() end
+    end
+  end
   -- (a sprite set chosen or turned off in another mod: the clerk made again)
   mod.events:on("mod.options_changed", function() clerkSpr = nil end)
   mod.events:on("checkpoint.restored", function() if env.marks then pcall(env.marks.load) end end)
   mod.events:on("save.loaded", function(ev)
     Sh.forget()
     if env.marks then pcall(env.marks.load) end
+    if Gps then pcall(Gps.route.load) end
     if Play then Play.resetBadges() end
     local s = ev and ev.save or session()
     if env.auction then pcall(env.auction.settle, s) end
@@ -814,7 +986,7 @@ return function(mod, loadSibling)
     icons = Apps.icons,
   }
   mod.exports._test = { post = notify, desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, env = env, i18n = T, gd = Gd, art = Art,
-                        marks = env.marks,
+                        marks = env.marks, gps = Gps,
                         bx = env.bx, inv = env.inv, mb = env.mb, hall = env.hall, oak = env.oak, port = Port, play = Play,
                         mart = env.mart, bank = env.bank, auction = env.auction, slots = env.slots, gts = env.gts,
                         journal = env.journal, swarm = env.swarm, challenges = env.challenges, errands = env.errands,

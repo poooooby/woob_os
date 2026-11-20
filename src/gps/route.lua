@@ -1,20 +1,24 @@
--- The GPS's route (Ruby / Sapphire / Emerald, FireRed / LeafGreen): a waypoint set on the 3D map, the
+-- The GPS's route (FireRed / LeafGreen / Ruby / Sapphire / Emerald; Gold / Silver / Crystal): a waypoint set on the 3D map, the
 -- shortest walk to it over src/gps/graph.lua's points (from the waypoint back: each point's steps to
 -- it), the next warp or edge the field's arrow points at, and the line the map draws. The waypoint is
 -- the save's own (mod.save "gps"): it goes back with the save.
 --
--- The way is the story's: Surf only once the player can use it (else "surf"), and Cut trees, Rock Smash
--- rocks and Strength boulders stand in the way unless the player can use that HM (a shortcut it opens is
--- taken). Where the only way goes through one the player can't move yet, the route goes through it all
--- the same and the line marks the spot (Rt.needs: those HMs).
+-- The way is the story's: Surf only once the player can use it (else "surf"), and the obstacles (Gw.HMS:
+-- Cut trees, Rock Smash rocks, Strength boulders; on Gen 2 whirlpools, waterfalls and the story's gates)
+-- stand in the way until the player can pass them (a shortcut one opens is taken). Where the only way goes
+-- through one the player can't pass yet, the route goes through it all the same and the line marks the spot
+-- (Rt.needs: those bits).
 --
---   Rt = route(engine, deps)  deps: graph (Gw) ; save (mod.save) ; session() ; can(s, "SURF" | "CUT" |
---                              "ROCK_SMASH" | "STRENGTH") -> the badge and a Pokémon that knows it ;
---                              surfing() -> the player on the water now ; mapDef(id) ; notify(kind, data) ;
---                              log(fmt, ...)
+--   Rt = route(engine, deps)  deps: graph (Gw) ; save (mod.save) ; session() ; can(s, key, entry) -> the
+--                              player can use "SURF", or pass that Gw.HMS entry (an HM: the badge and a
+--                              Pokémon that knows it) ; surfing() -> the player on the water now ; where() ->
+--                              mapId, x, y, surfing, s (else the session's) ; inSection(mapId, sec) -> that
+--                              map is in the waypoint's town (else mapDef(id)'s regionMapSectionId) ;
+--                              notify(kind, data) ; log(fmt, ...)
 --   Rt.set(spec) -> "ok" | "surf" | "none" | "here" | "busy"   spec = { map, x, y, name, sec (a town's
 --       section: anywhere in it is there), region, wx, wz (where the map draws it) }; only "ok" keeps it
---   Rt.needs -> the HMs the way needs the player can't use yet (Gw.HM_CUT 1, HM_SMASH 2, HM_STRENGTH 4)
+--   Rt.needs -> the obstacles the way needs the player can't pass yet (a mask of Gw.HMS's bits) ;
+--   Rt.HMS -> Gw.HMS (each { bit, key, word })
 --   Rt.clear() ; Rt.dest() -> the spec | nil ; Rt.load(s) (the save's, on its loading)
 --   Rt.step(mapId, x, y) (each step and each map: arrived? the arrow's next warp)
 --   Rt.target -> { on, map, x, y, dx, dy (the way out over an edge), dest (the waypoint itself) }
@@ -27,12 +31,12 @@ local floor, max, min, abs, huge = math.floor, math.max, math.min, math.abs, mat
 
 local NEAR = 8          -- a waypoint off the path (a roof, the sea): the nearest tile it can stand on this near
 local ARRIVE = 2        -- this many steps from it (not a town): there
-local HM_KEYS = { { "CUT", 1 }, { "ROCK_SMASH", 2 }, { "STRENGTH", 4 } }
 
 return function(engine, deps)
   deps = deps or {}
   local Gw = deps.graph
-  local Rt = { target = { on = false, map = nil, x = 0, y = 0, dx = 0, dy = 0, dest = false }, needs = 0 }
+  local bor, band = Gw.bor, Gw.band
+  local Rt = { target = { on = false, map = nil, x = 0, y = 0, dx = 0, dy = 0, dest = false }, needs = 0, HMS = Gw.HMS }
   local function log(...) if deps.log then deps.log(...) end end
   local function session() return deps.session and deps.session() or nil end
 
@@ -118,7 +122,7 @@ return function(engine, deps)
   end
 
   local function solve(surf, hms)
-    local key = (surf and 8 or 0) + hms
+    local key = hms * 2 + (surf and 1 or 0)
     local sol = sols[key]
     if sol then return sol end
     sol = { dist = {}, succ = {}, mk = {}, surf = surf, hms = hms }
@@ -232,14 +236,15 @@ return function(engine, deps)
   end
 
   local function where()
+    if deps.where then return deps.where() end
     local s = session()
     if not (s and type(s.map) == "string") then return nil end
     local surfing = deps.surfing and deps.surfing() or false
     return s.map, tonumber(s.x) or 0, tonumber(s.y) or 0, surfing, s
   end
-  local function can(s, key)
+  local function can(s, key, h)
     if not deps.can then return false end
-    local ok, yes = pcall(deps.can, s, key)
+    local ok, yes = pcall(deps.can, s, key, h)
     return ok and yes == true
   end
   -- (what the player can use now: Surf, and the HMs' mask; asked of the game again a few seconds on, or at
@@ -251,8 +256,8 @@ return function(engine, deps)
     local t = clock()
     if ab.at and t - ab.at < ABILITY_FOR and t >= ab.at then return ab.surf, ab.hms end
     local hms = 0
-    for _, h in ipairs(HM_KEYS) do
-      if can(s, h[1]) then hms = hms + h[2] end
+    for _, h in ipairs(Gw.HMS) do
+      if can(s, h.key, h) then hms = bor(hms, h.bit) end
     end
     ab.at, ab.surf, ab.hms = t, can(s, "SURF"), hms
     return ab.surf, ab.hms
@@ -310,20 +315,13 @@ return function(engine, deps)
     local guard = 0
     while node and node > 0 and guard < 600 do
       guard = guard + 1
-      local m = sol.mk[node] or 0
-      for _, h in ipairs(HM_KEYS) do
-        if floor(m / h[2]) % 2 == 1 and floor(need / h[2]) % 2 == 0 then need = need + h[2] end
-      end
+      need = bor(need, sol.mk[node] or 0)
       local nxt = sol.succ[node]
       if not nxt or nxt == 0 then break end
       node = nxt
     end
     -- (those the player can use: not needed)
-    local missing = 0
-    for _, h in ipairs(HM_KEYS) do
-      if floor(need / h[2]) % 2 == 1 and floor(mode.have / h[2]) % 2 == 0 then missing = missing + h[2] end
-    end
-    return missing
+    return band(need, Gw.HM_ALL - band(mode.have, Gw.HM_ALL))
   end
 
   -- (a waypoint's own tile, or the nearest one near it a player can stand on)
@@ -361,7 +359,10 @@ return function(engine, deps)
 
   local function arrived(mapId, x, y)
     if not dest then return false end
-    if dest.sec ~= nil and deps.mapDef then
+    if dest.sec ~= nil and deps.inSection then
+      local okS, yes = pcall(deps.inSection, mapId, dest.sec)
+      if okS and yes then return true end
+    elseif dest.sec ~= nil and deps.mapDef then
       local def = deps.mapDef(mapId)
       if def and tonumber(def.regionMapSectionId) == tonumber(dest.sec) then return true end
     end
@@ -483,7 +484,9 @@ return function(engine, deps)
       for k = 1, n do
         local i = tiles[k]
         local o = rec.obst[i]
-        if o and floor(mode.have / o) % 2 == 0 then needAt(mapId, i, rec.w, o) end
+        -- (a waterfall only when the way climbs it)
+        if o and rec.upOnly and rec.upOnly[i] and not (k > 1 and tiles[k - 1] == i + rec.w) then o = nil end
+        if o and band(mode.have, o) == 0 then needAt(mapId, i, rec.w, o) end
         if onMap then
           local keepIt = k == 1 or k == n
           if not keepIt then
@@ -508,6 +511,17 @@ return function(engine, deps)
       local nxt = succ[node]
       if nxt == nil then break end
       if Gw.NK[node] == 3 then
+        -- (a ride through a gate the player can't pass yet: its sign where it leaves)
+        local gm = sol.mk[node] or 0
+        if gm ~= 0 and nxt ~= 0 and Gw.NM[nxt] ~= Gw.NM[node] then
+          local am = Gw.ids[Gw.NM[node]]
+          local rec = Gw.tiles(am)
+          for _, h in ipairs(Gw.HMS) do
+            if rec and band(gm, h.bit) ~= 0 and band(mode.have, h.bit) == 0 then
+              needAt(am, Gw.NY[node] * rec.w + Gw.NX[node], rec.w, h.bit)
+            end
+          end
+        end
         if nxt == 0 or Gw.NM[nxt] == Gw.NM[node] then
           local am = Gw.ids[Gw.NM[node]]
           local rec = Gw.tiles(am)

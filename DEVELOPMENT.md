@@ -1072,26 +1072,56 @@ over each pixel. Not kept on disk (made with each load).
 
 ## The GPS
 
-Ruby / Sapphire / Emerald / FireRed / LeafGreen (`env.gps`, main.lua; the Game Boy games have none: no
-waypoint row).
+FireRed / LeafGreen / Ruby / Sapphire / Emerald (`env.gps`, main.lua) and Gold / Silver / Crystal (src/gb/main.lua;
+Red / Blue / Yellow have none: no waypoint row).
 
-- **The walk graph** (`src/gps/graph.lua` Gw), from `mod.game.data.maps`: every map but those never walked
-  through (`SKIP`) and houses with one way in and out (one warp destination, no connection). A map's tiles
-  (`Gw.tiles`, the last `KEEP_TILES` kept): `src.core.CollPermissions` (the engine's own; `src.world.gen2.*`
-  is refused a Gen 3 mod) for land and ledges (their hops in `LEDGE_HOPS`), `Collision.isWaterOn` minus
-  waterfalls for water, the behaviours' one-way walls, elevations; a warp's tile fires as `collision.lua`'s
-  `installWarps` decides; Cut trees, Rock Smash rocks and Strength boulders (`def.objects`,
-  `FieldMoves.GFX_IDS`) are `rec.obst` kinds (`HM_CUT` 1, `HM_SMASH` 2, `HM_STRENGTH` 4): walls unless the
-  walk's `hms` has that HM, `OBSTACLE` steps more when it does, the HMs a way used kept per state (`MK`,
-  `reach(i, d, hm)`). The walk (`Gw.walk`) is the player's: a state per tile and elevation (17: 0..15, 16
-  surfing), a bucket queue (a ledge's hop is 2), a firing warp ends it. Points: an arrival
+- **The walk graph** (`src/gps/graph.lua` Gw) over a reader per generation (`deps.reader`; its interface in
+  graph.lua's header): `src/gps/read3.lua` (Gen 3) and `src/gps/read2.lua` (Gen 2; below). Every map but
+  those never walked through (the reader's `SKIP`) and houses with one way in and out (one warp destination,
+  no connection). A map's tiles (`Gw.tiles` -> the reader's `build`, the last `KEEP_TILES` kept), Gen 3's:
+  `src.core.CollPermissions` (the engine's own; `src.world.gen2.*` is refused a Gen 3 mod) for land and
+  ledges (their hops in `LEDGE_HOPS`), `Collision.isWaterOn` minus waterfalls for water, the behaviours'
+  one-way walls, elevations; a warp's tile fires as `collision.lua`'s `installWarps` decides; Cut trees, Rock
+  Smash rocks and Strength boulders (`def.objects`, `FieldMoves.GFX_IDS`) are `rec.obst` bits (the reader's
+  `HMS`: `{ bit, key, word }`; Gen 3 `CUT` 1, `ROCK_SMASH` 2, `STRENGTH` 4): walls unless the walk's `hms`
+  has that bit, `OBSTACLE` steps more when it does, the bits a way used kept per state (`MK`,
+  `reach(i, d, hm)`; masks with LuaJIT's `bit`, the sandbox's copy). The walk (`Gw.walk`) is the player's: a
+  state per tile and elevation (17: 0..15, 16 surfing), a bucket queue (a ledge's hop is 2), a firing warp
+  ends it. Points: an arrival
   on every warp's tile and each connection's landing, an exit on each firing warp and each run (`RUN` 12) of
   an edge's tiles; ways: each arrival to each exit of its map it walks to (on foot `EL`, with Surf `ES`, -1
-  none; through the HMs' obstacles `EHL` / `EHS`, the HMs that took `EML` / `EMS`: FORMAT 2), an exit to where it leads (warps through `Collision.resolveWarpDestination`; dynamic ones left
-  out), `LINKS` (Mt. Chimney's cable car, a script). Built in the background (main.lua `frame`, once the 3D
+  none; through the obstacles `EHL` / `EHS`, the bits that took `EML` / `EMS`: FORMAT 3), an exit to where it
+  leads (the reader's `destOf`; Gen 3 through `Collision.resolveWarpDestination`, dynamic ones left out), the
+  reader's `links` (rides a script makes: Mt. Chimney's cable car; Gen 2's S.S. Aqua, gated: a link's `gate`
+  bit makes its ways `EHL` / `EHS` only). Built in the background (main.lua `frame`, once the 3D
   map's region is ready, 3 ms a frame; 0.4-0.8 s in all), kept on disk as `mod.cache` `gps/<game>.txt`
-  (lines M / N / E, stamped by `fingerprint`: FORMAT, versions, the maps' count, warps, connections). Not
-  edges: boats and ferries, Emerald's cracked floors (`setholewarp`), Dive.
+  (lines M / N / E, stamped by `fingerprint`: FORMAT, versions, the reader's own counts). Not edges on Gen
+  3: boats and ferries, Emerald's cracked floors (`setholewarp`), Dive.
+- **Gen 2's reader** (`src/gps/read2.lua`; the engine's `src.world.gen2.Permissions` / `FieldMoves` / `Map`
+  and `src.core.CollPermissions`, all open to a Gen 2 mod): every map and tileset are already tables
+  (`gen2Maps`, `gen2Tilesets`), read straight, nothing loaded. A 16 px square's collision from its block
+  (the block's FIRST value: the World edits `def.blocks` in place for Cut, Whirlpool and scripts and keeps
+  the old ones in `world.blockEdits`, `deps.edits`); land / water by `CollPermissions`; ledges are hopped
+  from their OWN square two squares on when the step is refused (`rec.hop`, `Permissions.ledgeFacings`;
+  graph.lua's `move`), one-way walls (`rec.block`: `Permissions.stepPermitted`'s refusals, worked out only
+  near a side wall), ice slides on (`rec.ice`, `slide`), a warp fires where a warp event sits on a warp
+  collision (doors, stairs, caves, ladders, pits, carpets). Obstacles: Cut trees (a tile here: land once
+  `FieldMoves.CUT_BLOCKS` swaps its block), rocks and boulders (objects, movement 0x18 / 0x19), whirlpools,
+  waterfalls (`rec.upOnly`: an obstacle only climbing; down, the water carries the player); the story's
+  gates, found in the cart's own maps by `scan` (flags differ by cart): Sudowoodo (movement 0x17), the big
+  Snorlax (its 2x2), Mahogany's man on the square its scene stops a player at, Victory Road Gate's black
+  belts (two) and its Badge check's squares, the Cycling Road gates' squares (a Bicycle), the warps between
+  the Magnet Train's stations (the Pass and `EVENT_RESTORED_POWER_TO_KANTO`); the S.S. Aqua is a gated link
+  (Olivine's and Vermilion's ports; the ship's rooms skipped). Each gate is its own bit (`R.G`, kept as they
+  are: the graph on disk holds them); src/gb/main.lua's `can(s, key, h)` answers them: `FLAG` (the World's
+  `events:objectVisible(flag)` false), `ITEM` (`save.inventory`, an event too for the train), `BADGES` (eight
+  Johto Badges), an HM (`FieldMoves.BADGE` + `partyMoveUser`; Rock Smash has no Badge). Coord events and NPCs
+  not listed stand nowhere (as on Gen 3). The arrow: the World's camera (`world.camera`, final for the frame),
+  `world:zoomScale()`, the playfield's origin (`Playfield.rect` + `Game2.faithfulBox`); none while Tilt or a
+  world pipeline draws the field. `World.flyTo` wrapped once per process (`World.__woobOsGps`). Crystal: 2,540
+  points, 7,757 ways, 0.6 s to build; a step under 0.1 ms; the arrow no garbage past the field's own 0.2 KB.
+  Tests: `tests/gb_test.lua` (Gold / Crystal: Route 29, Ilex Forest's Cut tree signed, Sudowoodo, Surf to
+  Cianwood, the S.S. Aqua and its ticket). Driver: scratchpad `gps2_driver.lua` (crystal, `run_drv.sh`).
 - **The route** (`src/gps/route.lua` Rt): `Rt.set(spec)` (the scene's `specOf`: a town or landmark's middle,
   or the spot; `Rt.spotAt` finds its map and tile from `region.world.maps`; `settle` the nearest tile to
   stand on within `NEAR`) runs a Dijkstra back from the waypoint (seeds: each arrival of its map's walk to
