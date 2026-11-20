@@ -242,14 +242,22 @@ return function(engine, deps)
     local ok, yes = pcall(deps.can, s, key)
     return ok and yes == true
   end
-  -- (what the player can use now: Surf, and the HMs' mask)
+  -- (what the player can use now: Surf, and the HMs' mask; asked of the game again a few seconds on, or at
+  -- once after Rt.refresh -- a new map: the game's own checks make garbage, and a step comes four times a second)
+  local ab = { at = nil, surf = false, hms = 0 }
+  local ABILITY_FOR = 3
+  local function clock() return love and love.timer and love.timer.getTime() or os.clock() end
   local function abilities(s)
+    local t = clock()
+    if ab.at and t - ab.at < ABILITY_FOR and t >= ab.at then return ab.surf, ab.hms end
     local hms = 0
     for _, h in ipairs(HM_KEYS) do
       if can(s, h[1]) then hms = hms + h[2] end
     end
-    return can(s, "SURF"), hms
+    ab.at, ab.surf, ab.hms = t, can(s, "SURF"), hms
+    return ab.surf, ab.hms
   end
+  function Rt.refresh() ab.at = nil end
   -- (the mode a way is found in: the player's own; else through the HMs they can't use yet, marked)
   local function pick(m, px, py, surfing, s)
     local surf, have = abilities(s)
@@ -369,6 +377,7 @@ return function(engine, deps)
     dest = { map = spec.map, x = x, y = y, name = spec.name, sec = spec.sec, region = spec.region,
              wx = spec.wx, wz = spec.wz, place = spec.place }
     forget()
+    ab.at = nil
     local m, px, py, surfing, s = where()
     local function back(status)
       dest, Rt.needs = old, oldNeeds

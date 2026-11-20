@@ -91,6 +91,66 @@ return function(engine, deps)
     return Collision and Conn and P
   end
 
+  -- (the build: a slice of the frame at a time; only ever inside its own coroutine)
+  local state = { ready = false, job = nil, progress = 0, failed = false }
+  local slice = { start = 0, budget = 0.004 }
+  local function clock() return love and love.timer and love.timer.getTime() or os.clock() end
+  local function breathe()
+    local co = state.job
+    if co and coroutine.running() == co and clock() - slice.start > slice.budget then coroutine.yield() end
+  end
+
+  -- ------- a map's layout: the engine's when it's loaded it; else read here, not kept (the engine keeps
+  -- every layout it loads: the build would have kept them all, some 30 MB)
+
+  local manifest
+  local private, privateOrder = {}, {}
+  local function readLayout(id, def)
+    local Ds, Ex = engine("src.core.game3.dataset"), engine("src.import.gba.extract_island1")
+    local NP, LN = engine("src.import.gba.native_pack"), engine("src.core.game3.layout_native")
+    if not (Ds and Ex and NP and LN and Ds.cache) then return nil end
+    local cache = Ds.cache()
+    local root = Ex.NATIVE_ROOT or ((Ex.CACHE_ROOT or "") .. "/native")
+    if manifest == nil then
+      manifest = false
+      local okR, src = pcall(cache.read, cache, root .. "/manifest.lua")
+      local chunk = okR and type(src) == "string" and load(src, "@manifest", "t", {})
+      local okC, got = false, nil
+      if chunk then okC, got = pcall(chunk) end
+      if okC and type(got) == "table" then manifest = got.layouts or {} end
+    end
+    local info = manifest and manifest[id]
+    local okB, blob = pcall(cache.read, cache, root .. "/" .. ((info and info.file) or ("layouts/" .. id .. ".mid")))
+    if not (okB and type(blob) == "string" and #blob >= 16 and blob:sub(1, 4) == NP.MAGIC_MID) then return nil end
+    local okD, decoded = pcall(NP.decodeMidLayout, blob)
+    if not (okD and decoded) then return nil end
+    local okL, L = pcall(LN.fromDecoded, decoded, id, (info and info.pair) or def.pair, blob)
+    return okL and L or nil
+  end
+  -- -> the layout, and the map as collision.lua's functions read it (a stand-in round a layout of our own)
+  local function layoutOf(id, def)
+    local L = rawget(def, "midLayout")
+    if L then return L, def end
+    if rawget(def, "modLayout") then
+      L = def.midLayout
+      return L, def
+    end
+    local got = private[id]
+    if not got then
+      local own = readLayout(id, def)
+      if not own then
+        L = def.midLayout
+        return L, def
+      end
+      got = { own, { midLayout = own, pair = def.pair or own.pair, width = def.width, height = def.height } }
+      private[id] = got
+      privateOrder[#privateOrder + 1] = id
+      while #privateOrder > KEEP_TILES do private[table.remove(privateOrder, 1)] = nil end
+    end
+    return got[1], got[2]
+  end
+  Gw.layoutOf = layoutOf
+
   -- ------- a map's tiles
 
   local function classify(def, L, behs, x, y)
@@ -122,7 +182,8 @@ return function(engine, deps)
 
   local kept, keptOrder = {}, {}
   local function build(id, def)
-    local L = def and def.midLayout
+    if not def then return nil end
+    local L, view = layoutOf(id, def)
     if not (L and L.width and L.height) then return nil end
     local w, h = L.width, L.height
     local behs = IS and IS.behaviors and IS.behaviors[def.pair or L.pair]
@@ -131,11 +192,12 @@ return function(engine, deps)
     for y = 0, h - 1 do
       for x = 0, w - 1 do
         local i = y * w + x
-        local c, e, lg, wl = classify(def, L, behs, x, y)
+        local c, e, lg, wl = classify(view, L, behs, x, y)
         cls[i], elev[i] = c, e
         if lg ~= 0 then ledge[i] = lg end
         if wl ~= 0 then wall[i] = wl end
       end
+      if y % 4 == 3 then breathe() end
     end
     -- (the field moves' obstacles: objects, not tiles)
     local FM = engine("src.core.game3.field_moves")
@@ -185,6 +247,8 @@ return function(engine, deps)
   function Gw.forgetTiles()
     for k in pairs(kept) do kept[k] = nil end
     for i = #keptOrder, 1, -1 do keptOrder[i] = nil end
+    for k in pairs(private) do private[k] = nil end
+    for i = #privateOrder, 1, -1 do privateOrder[i] = nil end
   end
 
   -- ------- a walk over one map: breadth first, from a tile, as the player moves
@@ -236,18 +300,11 @@ return function(engine, deps)
 
   -- (the walk's tables, used again each time; a queue of buckets, one per number of steps: the steps
   -- aren't all one -- a ledge's hop is two, an obstacle more)
-  local B, D, PAR, TD, touched, tTouched, MK = {}, {}, {}, {}, {}, {}, {}
-  local nT, nTT = 0, 0
-  local function reset()
-    for k = 1, nT do
-      local s = touched[k]
-      D[s], PAR[s], MK[s], touched[k] = nil, nil, nil, nil
-    end
-    for k = 1, nTT do
-      TD[tTouched[k]], tTouched[k] = nil, nil
-    end
-    nT, nTT = 0, 0
-  end
+  -- (a state's steps, parent and HMs are this walk's while its stamp is this walk's number: nothing cleared,
+  -- no table grown again walk after walk)
+  local B, D, PAR, MK, DG, TG = {}, {}, {}, {}, {}, {}
+  local gen = 0
+  local function reset() gen = gen + 1 end
   local lastParents = false
   -- (the state a player starts in on a tile)
   function Gw.startState(rec, i, surfing)
@@ -260,14 +317,12 @@ return function(engine, deps)
     reset()
     hms = hms or 0
     lastParents = parents and true or false
-    if x < 0 or y < 0 or x >= rec.w or y >= rec.h then return TD end
+    if x < 0 or y < 0 or x >= rec.w or y >= rec.h then return end
     local i0 = y * rec.w + x
     local s0 = i0 * 17 + Gw.startState(rec, i0, surfing)
-    if s0 % 17 == SURF and not (surfing or allowSurf) then return TD end
-    D[s0] = 0
-    MK[s0] = 0
-    nT = 1
-    touched[1] = s0
+    if s0 % 17 == SURF and not (surfing or allowSurf) then return end
+    local g = gen
+    D[s0], MK[s0], PAR[s0], DG[s0] = 0, 0, false, g
     local pending = 1
     B[0] = B[0] or {}
     B[0][1] = s0
@@ -284,13 +339,13 @@ return function(engine, deps)
           b[k] = nil
           k = k + 1
           pending = pending - 1
+          -- (the build's long walks: a breath now and then; only ever inside the build's own coroutine)
+          if pending % 256 == 0 then breathe() end
           if not stop and D[s] == d then
             local e = s % 17
             local i = (s - e) / 17
-            if TD[i] == nil then
-              TD[i] = d
-              nTT = nTT + 1
-              tTouched[nTT] = i
+            if TG[i] ~= g then
+              TG[i] = g
               if reach and reach(i, d, MK[s]) then stop = true end
             end
             -- (a warp that fires: the walk ends on it, unless it started there)
@@ -307,15 +362,11 @@ return function(engine, deps)
                     mk = OR[mk * 8 + need]
                   end
                   local ns, nd = j * 17 + ne, d + cost
-                  local old = D[ns]
-                  if old == nil or nd < old then
-                    if old == nil then
-                      nT = nT + 1
-                      touched[nT] = ns
-                    end
-                    D[ns] = nd
+                  local seen = DG[ns] == g
+                  if not seen or nd < D[ns] then
+                    D[ns], DG[ns] = nd, g
                     MK[ns] = mk
-                    if parents then PAR[ns] = s end
+                    PAR[ns] = parents and s or false
                     local nb = B[nd]
                     if not nb then
                       nb = {}
@@ -338,7 +389,6 @@ return function(engine, deps)
       local b = B[dd]
       if b then for k = #b, 1, -1 do b[k] = nil end end
     end
-    return TD
   end
   -- the tiles from the last walk's start to tile i (that walk kept its parents), as a list of indices
   function Gw.pathTo(i, out)
@@ -349,12 +399,11 @@ return function(engine, deps)
     local best, bd
     for e = 0, 16 do
       local s = i * 17 + e
-      local d = D[s]
-      if d and (not bd or d < bd) then best, bd = s, d end
+      if DG[s] == gen and (not bd or D[s] < bd) then best, bd = s, D[s] end
     end
     local n = 0
     local s = best
-    while s do
+    while s and n < 100000 do
       n = n + 1
       out[n] = (s - s % 17) / 17
       s = PAR[s]
@@ -374,8 +423,6 @@ return function(engine, deps)
   Gw.mi, Gw.ids, Gw.into, Gw.exits, Gw.arrivals = {}, {}, {}, {}, {}
   local nodeIx = {}
   local nNodes, nEdges = 0, 0
-  local state = { ready = false, job = nil, progress = 0, failed = false }
-
   local function key(mi, x, y, k) return ((mi * 1024 + y) * 1024 + x) * 4 + k end
   local function newNode(mi, x, y, k)
     local kk = key(mi, x, y, k)
@@ -517,22 +564,17 @@ return function(engine, deps)
 
   -- ------- building it (in a coroutine: a few milliseconds a frame)
 
-  local slice = { start = 0, budget = 0.004 }
-  local function clock() return love and love.timer and love.timer.getTime() or os.clock() end
-  local function breathe()
-    if coroutine.running() and clock() - slice.start > slice.budget then coroutine.yield() end
-  end
 
   -- a connected edge's tiles in runs (land and water apart), each run's middle an exit
   local function edgeRuns(mi, rec, conn, all)
     local dir = CONN_DIR[conn.dir]
     if not dir then return end
-    local dest = all[conn.map]
+    local destDef = all[conn.map]
     local dmi = Gw.mi[conn.map]
-    if not (dest and dmi) then return end
-    local L = dest.midLayout
+    if not (destDef and dmi) then return end
+    local L, dest = layoutOf(conn.map, destDef)
     if not L then return end
-    local behs = IS and IS.behaviors and IS.behaviors[dest.pair or L.pair]
+    local behs = IS and IS.behaviors and IS.behaviors[destDef.pair or L.pair]
     local w, h = rec.w, rec.h
     local along = (dir == 1 or dir == 2) and w or h
     local function at(t)

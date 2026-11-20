@@ -1580,6 +1580,7 @@ return function(mod)
       end
     end)
     mod.events:on("map.entered", function(ev)
+      Gps.route.refresh()
       if type(ev) == "table" and Gps.route.dest() and Player then
         pcall(Gps.route.step, ev.mapId, tonumber(Player.cellX) or 0, tonumber(Player.cellY) or 0)
       end

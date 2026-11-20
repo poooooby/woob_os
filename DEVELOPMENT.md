@@ -1110,6 +1110,17 @@ waypoint row).
   never the glow: straight across, it read as a walk through a forest); kept by a key of the player's tile.
   `Rt.chain()` the maps on the way. `Field.flyTo` is wrapped once per process (`Field.__woobOsGps`): any Fly
   clears it.
+- **What it costs** (scratchpad `gpsperf_driver.lua`, Emerald, 2026-11-19): the first build ever 1.3 s of
+  frames in 3 ms slices (the longest about 6 ms: a big map's layout decoded by the engine in one go), 3 MB kept;
+  read back from the disk after that, 2 slices. Layouts the engine hasn't loaded are read by the graph itself
+  (`layoutOf` / `readLayout`, a stand-in map for collision.lua's functions, the last `KEEP_TILES` kept): the
+  engine keeps every layout it loads, and reading them through `def.midLayout` kept some 30 MB. The walk's
+  tables are stamped per walk (`gen`, `DG`, `TG`), never cleared; `breathe` only yields inside the build's own
+  coroutine (the walk breathes every 256 tiles, a map's tiles every 4 rows). A step's update: under 1 ms (2 ms
+  at most), a few KB while the walk's tables grow, about 0.35 KB once they have; the abilities (`deps.can`,
+  whose engine checks make garbage) asked again every `ABILITY_FOR` seconds and on `map.entered`
+  (`Rt.refresh`). The arrow: about 0.005 ms a frame. The whole game walking: 21 KB and 3.85 ms a frame with the
+  GPS on or off (no difference past the noise). The map: a long line about 0.8 ms more a frame, 20 markers 0.3 ms.
 - **The line on the map** (`scene.lua` `drawRoute`, `drawDest`): fetched once a second (`refreshLive`),
   heights once per line, three passes and a light running along it, round joins; the waypoint a beam and
   rings in the line's colour.
