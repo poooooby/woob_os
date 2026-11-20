@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-20
+
 ### Added
 - **A menu for any spot on the 3D map:** A (or a tap on the land, or a second tap on a place) opens it, with
   Fly (a visited town, when you can Fly), Set Waypoint and Place Marker. START zooms in its place; on the
