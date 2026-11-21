@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-21
+
 ### Added
 - **Catch chance:** in a wild battle, the Bag's Poké Balls show each Ball's chance to catch the Pokémon in
   front of you, worked out the game's own way (its HP, its status, the Ball's own rules). None is shown in a
