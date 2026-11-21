@@ -12,6 +12,10 @@
 --   "external" | "stacked" | nil ; Gp.bridge (a test swaps it)
 --   Gp.viewport(nxt, ctx) (render.viewport) ; Gp.frame() (render.hud) ; Gp.window(nxt, game, ctx)
 --   (render.window) ; Gp.pointer(ev) -> true when it took it ; Gp.wheel(dy) -> true
+--   The battle's menus (the option `gearMenus`, src/menus.lua through Sh.openFull's `gear`): Gp.battleReady()
+--   (the Gear's showing a screen of its own: a separate display, or its combined layout seen) ;
+--   Gp.openBattle(ctx, opts) ; Gp.closeBattle() ; Gp.isBattle() ; Gp.input(input) (the game's buttons, which a
+--   battle hands its menus). Laid out on the Gear's own shape (160 x 144, 10:9), its text larger.
 
 local floor, abs = math.floor, math.abs
 
@@ -25,6 +29,13 @@ return function(deps)
   local EXT_PAGE = { height = 192, minWidth = 220, maxWidth = 400, portraitWidth = 160, portraitHeight = 260,
                      portraitAspect = 0.9 }
   local WINDOW_PAGE = host.PAGE
+  -- (the battle's menus: the Gear's own screen's shape, 10:9, in a page as small as its own 160 x 144 so
+  -- everything on it is drawn bigger; a separate display gets the Gear's shape too, so its bars don't jump
+  -- when the Gear and this take turns)
+  local BATTLE_PAGE = { height = 144, minWidth = 160, maxWidth = 160, portraitWidth = 160, portraitHeight = 144,
+                        portraitAspect = 0.5 }
+  local BAT_W, BAT_H, BAT_TEXT = 720, 648, 1.35
+  local battle = false
 
   local seen = nil                 -- the Gear's own layout, as fractions of the window, while it was up
   local ext = nil                  -- the bridge, while it has a display
@@ -68,6 +79,7 @@ return function(deps)
     return true
   end
   function Gp.close()
+    battle = false
     host.close()
     reset()
     if canvas and canvas.release then canvas:release() end
@@ -79,6 +91,28 @@ return function(deps)
     if not (b and b.available) then return nil end
     local ok, up = pcall(b.available)
     return ok and up and b or nil
+  end
+
+  -- ------- the battle's menus
+  -- (only while the Gear shows a screen of its own: a separate display, or its layout in the window seen
+  -- just before. Its own full-screen mode has neither, and the menus stay on the game's screen)
+  function Gp.battleReady() return seen ~= nil or display() ~= nil end
+  function Gp.isBattle() return battle and host.isOpen() end
+  function Gp.openBattle(ctx, opts)
+    reset()
+    battle = true
+    if not host.open(ctx, opts) then
+      battle = false
+      return false
+    end
+    return true
+  end
+  function Gp.closeBattle()
+    if not battle then return end
+    Gp.close()
+  end
+  function Gp.input(input)
+    if host.isOpen() and host.input then host.input(input) end
   end
 
   -- the game's rectangle, and the panel in the largest side left over
@@ -166,7 +200,7 @@ return function(deps)
       local t = clock()
       if t - pushedAt < EXT_EVERY and t >= pushedAt then return end
       pushedAt = t
-      w, h = EXT_W, EXT_H
+      if battle then w, h = BAT_W, BAT_H else w, h = EXT_W, EXT_H end
     end
     if w < 1 or h < 1 then return end
     -- (a separate display reads rows of exact pixels, and Android is always high-DPI, where a plain
@@ -184,10 +218,18 @@ return function(deps)
       G.clear(0, 0, 0, 1)
     end
     VP.width, VP.height = w, h
-    host.PAGE = exact and EXT_PAGE or WINDOW_PAGE
-    if deps.kit then deps.kit.exactFonts(exact) end
+    host.PAGE = battle and BATTLE_PAGE or (exact and EXT_PAGE or WINDOW_PAGE)
+    local kit = deps.kit
+    local ts0 = kit and kit.textScale and kit.textScale()
+    if kit then
+      kit.exactFonts(exact)
+      if battle and ts0 then kit.setTextScale(math.min(1.6, ts0 * BAT_TEXT)) end
+    end
     local ok, err = pcall(host.draw, G, VP)
-    if deps.kit then deps.kit.exactFonts(false) end
+    if kit then
+      kit.exactFonts(false)
+      if ts0 then kit.setTextScale(ts0) end
+    end
     if c then G.setCanvas(target) end
     G.pop()
     if not ok then log("the Gear's screen failed to draw: %s", tostring(err)) end

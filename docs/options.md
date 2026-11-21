@@ -20,6 +20,7 @@ Whichever place you changed last is the one that counts.
 | Real Shops | On / Off | On | Off: every shop counter opens the game's own shop menu. |
 | Pokémon Center | On / Off | On | Off: the nurse's counter is the game's own. |
 | Modern Menus | On / Off | On | Off: the Bag, the Pokémon menu and the summary are the game's own. |
+| Kanto Gear Battle Menus | On / Off | Off | With Kanto Gear showing its own screen (a second display, or beside the game), a battle's Bag, Pokémon menu and summary open there, larger, and the battle stays on the game's screen. Shown while Modern Menus is on. |
 | Overworld GPS | On / Off | Off | With a waypoint set, an arrow by your trainer on the field points the way (FireRed, LeafGreen, Ruby, Sapphire, Emerald, Gold, Silver, Crystal). |
 | Map: Invert X | On / Off | Off | The 3D map's camera turns the other way. |
 | Map: Invert Y | On / Off | Off | The 3D map's camera tilts the other way. |

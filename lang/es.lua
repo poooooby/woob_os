@@ -327,6 +327,7 @@ return {
     ["bag.empty"] = "No hay nada.",
     ["bag.tossHow"] = "¿Cuántos tirar?",
     ["bag.registered"] = "Registrado",
+    ["bag.catch"] = "Probabilidad de captura",
     ["bag.power"] = "Potencia",
     ["bag.accuracy"] = "Precisión",
     ["bag.hint.move"] = "Ordenar",

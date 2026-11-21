@@ -49,6 +49,11 @@ return function(env, T, A, Pc)
       rows = ok and got or {}
       for _, r in ipairs(rows) do
         r.qtyText = r.showQty and ("×" .. tostring(r.qty)) or nil
+        -- (in a wild battle, each Ball's chance to catch what's in front of you: worked out once here)
+        if B.c.battle and Bg.catchChance then
+          local okC, pc = pcall(Bg.catchChance, B.c, r.id)
+          if okC and pc then r.chance, r.chanceText = pc, Bg.chanceText(pc) end
+        end
       end
       B.rows[p] = rows
     end

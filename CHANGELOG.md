@@ -5,6 +5,15 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **Catch chance:** in a wild battle, the Bag's Poké Balls show each Ball's chance to catch the Pokémon in
+  front of you, worked out the game's own way (its HP, its status, the Ball's own rules). None is shown in a
+  trainer battle, in the Safari Zone, during the catching lessons, or when another mod decides catches.
+- **Kanto Gear Battle Menus** (an option, off unless you turn it on): with Kanto Gear showing its own screen (a
+  second display, or beside the game), a battle's Bag, Pokémon menu and summary open there, laid out for its
+  shape with larger text, and the battle stays on the game's screen. Kanto Gear steps aside while one is up
+  and comes back when it closes.
+
 ## [0.20.0] - 2026-11-20
 
 ### Added

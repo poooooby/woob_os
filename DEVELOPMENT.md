@@ -1534,6 +1534,35 @@ our own, in phases (the plan: the Summary, then the Party, then the Bag); the mo
   a wild battle's POKéMON → SUMMARY via `BattleBridge.startWild`, `Ui.askForget`; A through the battle's
   opening words; the first input after opening is the host's wait for the opening A to be let go).
 
+### A battle's menus on the Kanto Gear's screen (the option `gearMenus`), and the catch chance
+
+- **Taking the Gear's screen.** Kanto Gear offers other mods no drawing; its one lever is a registered spec's
+  `shown()`: while any spec says so it stands down everywhere (no drawing, no push, no input, its HP boxes back
+  on the game's screen). `src/kanto_gear.lua` registers `woob_battle` (`available()` false: never in its store)
+  whose `shown()` is `Sh.gearOpen("battle")`.
+- **Where.** `src/menus.lua` passes `gear = true` to `Sh.openFull` for a battle's Bag (and the Pyramid's),
+  party (battle_switch / battle_faint) and summary while the option's on (`deps.gear`: the option and
+  `Gear.bound()`; `Mn.gear` the tests' stand-in). `openOnGear` (shell.lua) opens the window on
+  `src/gear_panel.lua`'s host in battle mode (`Gp.openBattle` / `closeBattle` / `isBattle`) only when the Gear
+  shows a screen of its own (`Gp.battleReady()`: a separate display, or its combined layout `seen`); else the
+  usual full-screen host. No stack layer: the battle asks its menus itself and hands them its buttons
+  (`Sh.feedHost` -> `Gp.input`); `Sh.menuHost()` is where `Mn.closeOurs` finds it. A Gear app open there
+  (locked in a battle) is closed under it and made again after (`gearApp`, `Gp.reopen`).
+- **The look.** Page `BATTLE_PAGE` 160 x 144 units (the Gear's own 10:9), a 720 x 648 picture on a separate
+  display (the Gear's shape: its bars don't jump when the two take turns), text x1.35 (`K.setTextScale` round
+  the Gear's draw, capped at 1.6). At 160 wide the party, Bag and summary take their narrow layouts; the Bag's
+  `B.compact` (set by the window from `ctx.gear`) draws the pockets as their pictures, the pocket's name as
+  the title, rows 15 tall, its menu's rows 14.
+- **The catch chance** (`Bg.catchChance(c, id)`, `Bg.chanceText`): the engine's `Catching.catchOdds` (`a`,
+  0..255) through the shake check `b = floor(1048560 / sqrt(sqrt(16711680 / a)))`, four rolls of 0..65535:
+  `(b / 65536)^4`. nil in a trainer battle, two foes, the Safari Zone, a ghost, the tutorials (Old Man,
+  Pokédude, Wally), with a `catch.rate` hook wrapped (`src.mods.Runtime.wantsHook`). Worked out per Ball when a
+  pocket's rows are made (`src/apps/bag.lua` `rowsOf`), drawn as a chip on the row and a line on the card.
+- **Tests / driver.** `tests/menus_test.lua` (the chance against the formula and 20,000 rolls; the Gear's Bag:
+  no layer, `woob_battle` shown, input, the battle's answers unchanged, no screen of its own -> full screen,
+  the field's Bag never there, the battle's party, garbage). Driver scratchpad `gearmenus_driver.lua`
+  (FireRed; a stand-in display keeps the pushed frames as PNGs).
+
 ### The look: type pictures, the Bag's, the chips, the sell card
 
 - `src/apps/type_art.lua` (`env.typeArt`, both mains): a vector picture for each type (the game's ids, 9 the

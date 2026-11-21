@@ -103,32 +103,59 @@ return function(K, env, T, A, partyView)
     end
   end
 
+  -- a Ball's chance to catch (a wild battle): a capsule, red for a long shot, amber, then green
+  local CHANCE_LOW, CHANCE_MID, CHANCE_HIGH = { 255, 69, 58 }, { 255, 149, 0 }, { 52, 199, 89 }
+  local function chanceColour(p) return p < 25 and CHANCE_LOW or (p < 60 and CHANCE_MID or CHANCE_HIGH) end
+  -- (right-aligned at rx; its width back)
+  local function chanceChip(r, rx, cy, size, a)
+    local s = r.chanceText
+    local th = K.lineH(size) * 1.2
+    local cw = K.width(s, size) + K.lineH(size) * 1.2
+    local ch = th + K.lineH(size) * 0.3
+    local b = K.R(rx - cw, cy - ch / 2, cw, ch)
+    K.col(chanceColour(r.chance), 0.92 * (a or 1))
+    K.box("fill", b, ch / 2)
+    K.bold(s, b[1], b[2] + (ch - th) / 2, size, C.white, "center", cw, a)
+    return cw
+  end
+  V.chanceChip = chanceChip
+
   -- the pockets' tabs: a capsule, a white thumb sliding to the one shown
+  -- (on the Kanto Gear's small screen, B.compact: each pocket's picture in place of its name, taller)
+  local TAB_PIC = 13
   local function tabs(B, x, y, w, dt)
     local n = #B.pockets
     if n < 1 then return end
+    local th = B.compact and TAB_PIC or TAB_H
     mv.tab = mv.tab and approach(mv.tab, B.pi, dt, 16) or B.pi
-    local tb = K.R(x, y, w, TAB_H)
-    local rad = TAB_H / 2
+    local tb = K.R(x, y, w, th)
+    local rad = th / 2
     K.col(C.white, 0.32)
     K.box("fill", tb, rad)
     K.ring(tb, rad, C.white, 0.7, 0.3)
     local sw = (w - 1) / n
     local tx = x + 0.5 + (mv.tab - 1) * sw
     K.col(C.black, 0.1)
-    K.box("fill", K.R(tx, y + 0.9, sw, TAB_H - 1), rad - 0.5)
+    K.box("fill", K.R(tx, y + 0.9, sw, th - 1), rad - 0.5)
     K.col(C.white)
-    K.box("fill", K.R(tx, y + 0.5, sw, TAB_H - 1), rad - 0.5)
+    K.box("fill", K.R(tx, y + 0.5, sw, th - 1), rad - 0.5)
     for i = 1, n do
       local p = B.pockets[i]
-      local label = T(POCKET_KEY[p] or "pocket.ITEMS")
-      local sb = K.R(x + 0.5 + (i - 1) * sw, y + 0.5, sw, TAB_H - 1)
-      local fs = K.fit(label, 4.2, sw - 2)
-      local ty = sb[2] + (sb[4] - fs * 1.2) / 2
-      if abs(mv.tab - i) < 0.5 then K.bold(label, sb[1], ty, fs, K.UI.label, "center", sb[3])
-      else K.text(label, sb[1], ty, fs, K.UI.secondary, "center", sb[3]) end
+      local sb = K.R(x + 0.5 + (i - 1) * sw, y + 0.5, sw, th - 1)
+      local on = abs(mv.tab - i) < 0.5
+      if B.compact and env.typeArt then
+        local pc = POCKET_C[p] or POCKET_C.ITEMS
+        env.typeArt.pocket(p, sb[1] + sb[3] / 2, sb[2] + sb[4] / 2, sb[4] * 0.78, 0, on and pc[1] or K.UI.secondary, on and 1 or 0.7)
+      else
+        local label = T(POCKET_KEY[p] or "pocket.ITEMS")
+        local fs = K.fit(label, 4.2, sw - 2)
+        local ty = sb[2] + (sb[4] - fs * 1.2) / 2
+        if on then K.bold(label, sb[1], ty, fs, K.UI.label, "center", sb[3])
+        else K.text(label, sb[1], ty, fs, K.UI.secondary, "center", sb[3]) end
+      end
       K.addHit(sb, "win", A.POCKET + i)
     end
+    return th
   end
 
   -- the chosen item's card
@@ -183,6 +210,17 @@ return function(K, env, T, A, partyView)
       K.text(s, px, ty + 0.4, 3.4, C.white, "center", pw)
       ty = ty + 6.5
     end
+    if row.chanceText then
+      -- (a Ball in a wild battle: its chance to catch)
+      local s = T("bag.catch")
+      local sw = K.width(s, 3.8)
+      local chipW = K.width(row.chanceText, 4.4) + K.lineH(4.4) * 1.2
+      local chH = K.lineH(4.4) * 1.5
+      local px = narrow and tx or (tx + (tw - sw - 2 - chipW) / 2)
+      K.text(s, px, ty + (chH - K.lineH(3.8) * 1.2) / 2, 3.8, C.soft)
+      chanceChip(row, px + sw + 2 + chipW, ty + chH / 2, 4.4)
+      ty = ty + chH + 1.5
+    end
     local m = row.tm
     if m then
       -- (a TM's move: its type, then power / accuracy / PP)
@@ -217,7 +255,7 @@ return function(K, env, T, A, partyView)
   local function list(B, rows, x, y, w, h, clock, dt)
     local b = K.R(x, y, w, h)
     K.glass(b, 6, 0.5)
-    local rh = RH + (K.textScale() - 1) * 3
+    local rh = B.compact and 15 or (RH + (K.textScale() - 1) * 3)
     local n = #rows
     local inner = K.R(x + 1, y + 1.5, w - 2, h - 3)
     B.vis, B.h = h - 3, n * rh
@@ -255,10 +293,16 @@ return function(K, env, T, A, partyView)
           K.box("fill", K.R(rx, ry, w - 4, rh), 3)
         end
         local ink = moved and C.white or C.ink
-        itemArt(r, B.pockets[B.pi], rx + 1.5, ry + 0.8, rh - 1.6, 1)
+        local isz = min(rh - 1.6, 11)
+        itemArt(r, B.pockets[B.pi], rx + 1.5 + (rh - 1.6 - isz) / 2, ry + (rh - isz) / 2, isz, 1)
         local qw = r.qtyText and K.width(r.qtyText, 4.2) + 2 or 0
+        -- (a Ball's catch chance, left of how many)
+        local cwid = 0
+        if r.chanceText then
+          cwid = chanceChip(r, x + w - 5 - qw - 1.5, ry + rh / 2, 3.6, e) + 2.5
+        end
         local nx = rx + rh + 2
-        local fs = K.fit(r.name, 4.6, w - (nx - x) - qw - 6)
+        local fs = K.fit(r.name, 4.6, w - (nx - x) - qw - cwid - 6)
         K.text(r.name, nx, ry + (rh - fs * 1.2) / 2, fs, ink, nil, nil, e)
         if r.qtyText then K.text(r.qtyText, rx, ry + (rh - 4.2 * 1.2) / 2, 4.2, ink, "right", w - 7, e) end
         if r.registered then
@@ -281,7 +325,7 @@ return function(K, env, T, A, partyView)
     K.dim(body, 0.14)
     K.addHit(body, "win", A.SCRIM)
     local rows = mm.rows
-    local rh, size = 8 + (K.textScale() - 1) * 3, 4.6
+    local rh, size = B.compact and 14 or (8 + (K.textScale() - 1) * 3), 4.6
     local mw = 38
     for k = 1, #rows do mw = max(mw, K.width(rows[k].text, size) + 12) end
     local mh = #rows * rh + 3
@@ -455,12 +499,13 @@ return function(K, env, T, A, partyView)
       K.text(label, bb[1], bb[2] + (8 - 4.2 * 1.2) / 2, 4.2, C.accent, "center", bw)
       K.addHit(bb, "win", A.CANCEL)
     end
-    local title = B.title or ""
+    -- (the Kanto Gear's screen: the pocket's name as the title, its tabs pictures)
+    local title = B.compact and T(POCKET_KEY[pocket] or "pocket.ITEMS") or (B.title or "")
     local fs = K.fit(title, 6, w - bw - 2 * M - 6)
     K.bold(title, x + M + 1, y + 1 + (TOP_H - fs * 1.2) / 2, fs, C.ink)
     local top = y + TOP_H + 2
-    tabs(B, x + M, top, w - 2 * M, dt)
-    top = top + TAB_H + GAP + 1
+    local th = tabs(B, x + M, top, w - 2 * M, dt) or TAB_H
+    top = top + th + GAP + 1
     local ah = y + h - M - top
     local rows = B.rows[pocket] or {}
     local row = rows[B.cur]
@@ -468,7 +513,7 @@ return function(K, env, T, A, partyView)
     K.rise(e, 6)
     local listX, rh
     if w < NARROW then
-      local dh = min(40, ah * 0.36)
+      local dh = B.compact and min(30, ah * 0.3) or min(40, ah * 0.36)
       detail(B, row, x + M, top, w - 2 * M, dh, clock, true)
       listX = x + M
       rh = list(B, rows, x + M, top + dh + GAP, w - 2 * M, ah - dh - GAP, clock, dt)

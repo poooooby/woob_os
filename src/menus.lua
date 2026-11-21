@@ -41,7 +41,8 @@
 -- (src/apps/menus.lua): the party menu isn't opened through the game for it.
 --
 --   Mn = menus(engine, deps)   deps: Sh ; on() -> the option ; feed(input) (the host's input, once a frame) ;
---                              log(fmt, ...) ; partyUi(session) -> the game's party skin (Ruby / Sapphire's)
+--                              log(fmt, ...) ; partyUi(session) -> the game's party skin (Ruby / Sapphire's) ;
+--                              gear() -> the option `gearMenus` (a battle's menus on the Kanto Gear's screen)
 --   Mn.wrap() (at game.ready) ; Mn.isOpen() ; Mn.openSummary(party, index, opts) -> true when ours opened ;
 --   Mn.openParty(party, overlay, opts) -> the same ; Mn.openBag(bag, opts) -> the same ;
 --   Mn.kind() -> "summary" | "party" | "bag" | nil
@@ -86,6 +87,14 @@ return function(engine, deps)
     local v = Mn.on
     if v == nil then v = deps.on and deps.on() end
     return v
+  end
+
+  -- (the option `gearMenus`: a battle's menus on the Kanto Gear's screen, when it shows one -- Sh.openFull's
+  -- `gear` tries it, and opens them full screen as ever when it can't; Mn.gear stands in for it in the tests)
+  local function gearOn()
+    local v = Mn.gear
+    if v == nil then v = deps.gear and deps.gear() end
+    return v == true
   end
 
   -- (a move to learn, as the game's summary reads it: an id, or a move's name)
@@ -155,7 +164,7 @@ return function(engine, deps)
     local s = opts.session or opts.playerState
     cur = c
     local ok, opened = pcall(Sh.openFull, "menus", s, function() summaryClosed(c) end, nil,
-      { menu = menu, chrome = false })
+      { menu = menu, chrome = false, gear = Mn.inBattle() and gearOn() })
     if not (ok and opened) then
       cur = nil
       if not ok then log("the summary couldn't open: %s", tostring(opened)) end
@@ -363,7 +372,7 @@ return function(engine, deps)
       PM._order, PM._battle, PM._flyReturn = order, battle, nil
     end
     local ok, opened = pcall(Sh.openFull, "menus", s, function() partyClosed(c) end, nil,
-      { menu = m, chrome = false })
+      { menu = m, chrome = false, gear = battle and gearOn() })
     if not (ok and opened) then
       cur = nil
       if PM then PM.open = false end
@@ -500,7 +509,8 @@ return function(engine, deps)
     if BM then
       BM.open, BM._bag, BM._session, BM._battle, BM._location = true, bag, s, m.battle, opts.location
     end
-    local ok, opened = pcall(Sh.openFull, "menus", s, function() bagClosed(c) end, nil, { menu = m, chrome = false })
+    local ok, opened = pcall(Sh.openFull, "menus", s, function() bagClosed(c) end, nil,
+      { menu = m, chrome = false, gear = m.battle and gearOn() })
     if not (ok and opened) then
       cur = nil
       if BM then BM.open = false end
@@ -626,7 +636,8 @@ return function(engine, deps)
     cur = c
     local PB = engine("src.ui.game3.rse.pyramid_bag")
     if PB then PB.open = true end
-    local ok, opened = pcall(Sh.openFull, "menus", s, function() pyramidClosed(c) end, nil, { menu = m, chrome = false })
+    local ok, opened = pcall(Sh.openFull, "menus", s, function() pyramidClosed(c) end, nil,
+      { menu = m, chrome = false, gear = m.battle and gearOn() })
     if not (ok and opened) then
       cur = nil
       if PB then PB.open = false end
@@ -949,7 +960,7 @@ return function(engine, deps)
     elseif c.kind == "bag" or c.kind == "pyramid" then c.menu.result = c.menu.result or {}
     else c.menu.result = c.menu.result or { picked = false, index = c.menu.index } end
     local Sh = deps.Sh
-    local h = Sh and Sh.host and Sh.host()
+    local h = Sh and (Sh.menuHost or Sh.host) and (Sh.menuHost or Sh.host)()
     local Tm = h
     if Tm and Tm.isOpen and Tm.isOpen() and Tm.state then
       local r = Tm.state()

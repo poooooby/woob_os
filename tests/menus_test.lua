@@ -745,6 +745,168 @@ B = battleBag()
 BM.close()
 T.check(not Tm.isOpen() and used[1] == "close", "BagMenu.close(): ours closes as B")
 
+-- ------- a Ball's catch chance in a wild battle: the game's odds through its four shake checks
+do
+  local Bt, Pk, Rt = require("src.core.game3.battle"), require("src.core.game3.pokemon"), require("src.mods.Runtime")
+  local Cg = require("src.core.game3.battle.catching")
+  local Bg = X._test.env.bagRules
+  local st0 = Bt._st
+  local function foe(nat, hp, maxHp, status)
+    local sp = Pk.speciesFromNational(nat)
+    return { species = sp, status = status, mon = { species = sp, level = 10, hp = hp, maxHp = maxHp } }
+  end
+  -- (the shake check as the cart runs it: b = 1048560 / sqrt(sqrt(16711680 / a)), four rolls of 0..65535 under it)
+  local function want(a)
+    if a >= 255 then return 100 end
+    local b = math.floor(1048560 / math.sqrt(math.sqrt(16711680 / a)))
+    return (b / 65536) ^ 4 * 100
+  end
+  local c = { battle = true, session = s }
+  Bt._st = { wild = true, enemy = foe(16, 30, 30) }
+  local pa = Cg.catchOdds(POKE_BALL, Bt._st.enemy, Bt._st, s)
+  local p1 = Bg.catchChance(c, POKE_BALL)
+  T.check(p1 and math.abs(p1 - want(pa)) < 1e-9, ("a Pidgey at full HP, a Poké Ball: %.1f%%"):format(p1 or -1))
+  local ultra = Bg.catchChance(c, 2)
+  T.check(ultra and ultra > p1, "an Ultra Ball better")
+  T.eq(Bg.catchChance(c, 1), 100, "the Master Ball: 100%")
+  Bt._st.enemy = foe(143, 1, 300, "SLP")
+  local low = Bg.catchChance(c, POKE_BALL)
+  local la = Cg.catchOdds(POKE_BALL, Bt._st.enemy, Bt._st, s)
+  T.check(low and math.abs(low - want(la)) < 1e-9 and low < p1, ("a sleeping Snorlax at 1 HP: %.1f%%"):format(low or -1))
+  -- (by roll: the shake checks run as the cart does, with dice)
+  local caught, n = 0, 20000
+  local b = math.floor(1048560 / math.sqrt(math.sqrt(16711680 / pa)))
+  for _ = 1, n do
+    local ok = true
+    for _ = 1, 4 do if math.random(0, 65535) >= b then ok = false break end end
+    if ok then caught = caught + 1 end
+  end
+  T.check(math.abs(caught / n * 100 - p1) < 1.5, ("and by %d rolls: %.1f%% against %.1f%%"):format(n, caught / n * 100, p1))
+  Bt._st = { wild = false, enemy = foe(16, 30, 30) }
+  T.eq(Bg.catchChance(c, POKE_BALL), nil, "a trainer's Pokémon: none")
+  Bt._st = { wild = true, oldManTutorial = true, enemy = foe(16, 30, 30) }
+  T.eq(Bg.catchChance(c, POKE_BALL), nil, "the Old Man's lesson: none")
+  Bt._st = { wild = true, enemy = foe(16, 30, 30) }
+  T.eq(Bg.catchChance(c, 13), nil, "not a Ball: none")
+  local wants0 = Rt.wantsHook
+  Rt.wantsHook = function(name) return name == "catch.rate" end
+  T.eq(Bg.catchChance(c, POKE_BALL), nil, "another mod deciding the catch: none")
+  Rt.wantsHook = wants0
+  T.eq(Bg.chanceText(0.4), "<1%", "under 1%")
+  T.eq(Bg.chanceText(37.4), "37%", "a whole percent")
+  -- (on the Bag's rows: worked out when the pocket's shown)
+  B = battleBag()
+  local got = nil
+  for _ = 1, 6 do
+    for _, r in ipairs(B.rows[B.pockets[B.pi]] or {}) do
+      if tonumber(I.toNumericId(r.id) or r.id) == POKE_BALL then got = r end
+    end
+    if got then break end
+    bframe(1, "right", true)
+  end
+  T.check(got and got.chanceText == Bg.chanceText(p1), "the Ball's row says it (" .. tostring(got and got.chanceText) .. ")")
+  T.check(pcall(bframe, 5, nil, true), "and draws")
+  bframe(1, "b", true)
+
+  -- ------- the option gearMenus: a battle's Bag on the Kanto Gear's screen, the battle left on the game's
+  local Gp = X._test.gearPanel
+  local bridge0 = Gp.bridge
+  local DISPLAY = { available = function() return true end, pollTouch = function() return nil end,
+                    push = function() end }
+  Gp.bridge = function() return DISPLAY end
+  Mn.gear = true
+  local function gframe(n, press)
+    for i = 1, n or 1 do
+      clock = clock + 1 / 60
+      Screens.handleInput("bag", BM, i == 1 and press and input({ press }) or NONE, s)
+      Gp.viewport(function(c2) return { x = 0, y = 0, width = c2.width, height = c2.height } end, VP)
+      Gp.frame()
+      Sh.frame(nil, VP)
+    end
+  end
+  local function gbag()
+    local st = Gp.isBattle() and Gp.hostState()
+    return st and st.win.state.bag or nil
+  end
+  used = {}
+  BM.show(s.bag, { session = s, battle = true,
+                   onBattleUse = function(id, slot) used[#used + 1] = "use:" .. tostring(id) .. ":" .. tostring(slot) end,
+                   onClose = function() used[#used + 1] = "close" end })
+  T.check(Gp.isBattle() and not Tm.isOpen() and not Stack.has(Sh.MAP_ID), "on the Gear's screen: no layer, the battle seen")
+  T.check(Sh.gearOpen("battle") and not Sh.gearOpen("slots"), "the Gear stands down for it (woob_battle shown)")
+  B = gbag()
+  T.check(B and B.c.battle, "the battle's Bag there")
+  gframe(2)
+  T.check(B.compact == true and Gp.mode() == "external", "laid out for the Gear's screen, on the second display")
+  local gotG = false
+  for _ = 1, 6 do
+    for k, r in ipairs(B.rows[B.pockets[B.pi]] or {}) do
+      if tonumber(I.toNumericId(r.id) or r.id) == POKE_BALL then
+        while B.cur ~= k do gframe(1, B.cur < k and "down" or "up") end
+        gotG = true
+      end
+    end
+    if gotG then break end
+    gframe(1, "right")
+  end
+  T.check(gotG, "the battle's buttons reach it: the Poké Balls")
+  gframe(1, "a")
+  T.check(B.menu and B.menu.rows[1].act == "USE", "A: USE")
+  gframe(1, "a")
+  T.check(not Gp.isOpen() and table.concat(used, " ") == "use:4:nil", "USE: the battle told, as ever (" .. table.concat(used, " ") .. ")")
+  T.check(not Sh.gearOpen("battle"), "closed: the Gear back")
+  used = {}
+  BM.show(s.bag, { session = s, battle = true,
+                   onBattleUse = function(id, slot) used[#used + 1] = "use:" .. tostring(id) .. ":" .. tostring(slot) end,
+                   onClose = function() used[#used + 1] = "close" end })
+  gframe(2)
+  -- (its draw: the Gear's host alone, as the Bag's own check measures the game's)
+
+  local gkb = math.huge
+  for _ = 1, 2 do
+    collectgarbage("collect")
+    collectgarbage("stop")
+    local k0 = collectgarbage("count")
+    for _ = 1, 60 do
+      clock = clock + 1 / 60
+      Gp.frame()
+    end
+    gkb = math.min(gkb, (collectgarbage("count") - k0) / 60)
+    collectgarbage("restart")
+  end
+  T.check(gkb < 0.5, ("the Gear's Bag: next to no garbage (%.3f KB a frame)"):format(gkb))
+  K.setTextScale(1.3)
+  T.check(pcall(gframe, 10), "the Gear's Bag at 130% text")
+  K.setTextScale(1)
+  gframe(1, "b")
+  T.check(not Gp.isOpen() and table.concat(used, " ") == "close use:nil:nil", "B: as ever (" .. table.concat(used, " ") .. ")")
+  BM.show(s.bag, { session = s, battle = true, onBattleUse = function() end, onClose = function() end })
+  BM.close()
+  T.check(not Gp.isOpen() and not BM.isOpen(), "BagMenu.close() (the battle's end): closed there too")
+  -- (no screen of the Gear's own: the game's screen, as ever)
+  Gp.bridge = function() return nil end
+  BM.show(s.bag, { session = s, battle = true, onBattleUse = function() end, onClose = function() end })
+  T.check(Tm.isOpen() and not Gp.isOpen(), "the Gear with no screen of its own: full screen as ever")
+  BM.close()
+  -- (the field's Bag never goes there)
+  Gp.bridge = function() return DISPLAY end
+  BM.show(s.bag, { session = s, onClose = function() end })
+  T.check(Tm.isOpen() and not Gp.isOpen(), "the field's Bag: on the game's screen")
+  BM.close()
+  if Tm.isOpen() then bframe(1, "b") end
+  -- (the party in a battle: there too)
+  local PM = require("src.ui.game3.party_menu")
+  PM.show(s.party, nil, { session = s, mode = "battle_switch", battle = true, validate = function() return true end,
+                          onSelect = function() end, onClose = function() end })
+  T.check(Gp.isBattle(), "a battle's party menu: on the Gear's screen")
+  T.check(pcall(gframe, 5), "and draws")
+  PM.close()
+  T.check(not Gp.isOpen(), "closed with the battle")
+  Mn.gear = nil
+  Gp.bridge = bridge0
+  Bt._st = st0
+end
+
 -- ------- the party's GIVE: our Bag over the party, the item given at once
 s.party[2].item, s.party[2].heldItem = 0, 0
 Bag.add(s.bag, ORAN, 1)

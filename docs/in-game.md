@@ -32,6 +32,14 @@ On FireRed, LeafGreen, Ruby, Sapphire and Emerald, the Bag opens in glass from t
 battle. Each pocket is a page (FireRed and LeafGreen's TM Case and Berry Pouch too), with the chosen
 item's picture and description beside the list, and a TM's move with its type, power, accuracy and PP.
 
+In a wild battle, each Poké Ball shows its chance to catch the Pokémon in front of you, worked out the
+game's own way: its HP and status, and each Ball's own rules (a Net Ball on a Water or Bug type, a Timer Ball
+as the turns go by, and so on).
+
+With Kanto Gear showing its own screen, turn on **Kanto Gear Battle Menus** and a battle's Bag, Pokémon menu
+and summary open there instead, laid out for its shape with larger text, while the battle stays on the game's
+screen.
+
 Use, give, toss (choosing how many), register and reorder items there. An item used on a Pokémon opens
 the Pokémon menu over the Bag, in battle too. Planting a Berry, the Berry Blender, putting items in the
 PC and selling at a shop choose from it as well. Emerald's Battle Pyramid has its bag there, and Teachy

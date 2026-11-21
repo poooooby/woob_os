@@ -132,13 +132,15 @@ and they wait for it while it's off.
 
 If you'd rather keep the game's own version of something, you can switch it back piece by piece: the
 desktop itself, WoobPad, the Pokédex, the Pokégear, the shops, the Pokémon Center and the modern menus.
-The options also hold the theme (Light, Dark or OLED), the text size, a 24-hour clock and Overworld GPS.
+The options also hold the theme (Light, Dark or OLED), the text size, a 24-hour clock, Overworld GPS, and,
+with Kanto Gear, a battle's menus on its screen.
 Find them under OPTIONS > WOOBOS in the game, or MODS > WoobOS. [Every option](docs/options.md)
 
 ## 🔗 Works With
 
 - **Other mods** can add their own apps to the desktop.
-- **Kanto Gear:** Slots, R-Bay and the GTS are apps in its Silph Store, on the Gear's own screen.
+- **Kanto Gear:** Slots, R-Bay and the GTS are apps in its Silph Store, on the Gear's own screen, and a
+  battle's Bag and Pokémon menu can open there too (the Kanto Gear Battle Menus option).
 - **WoobleDex:** every box of its Bigger PC, its Pokémon in R-Bay and the Pokédex, a page for each of its
   forms, and Dynamax Level and G-Max Factor in Boxes.
 - **Galar Rising:** Dynamax Level and G-Max Factor in a Pokémon's summary.

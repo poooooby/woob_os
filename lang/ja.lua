@@ -328,6 +328,7 @@ return {
     ["bag.empty"] = "なにも ない",
     ["bag.tossHow"] = "いくつ すてる？",
     ["bag.registered"] = "とうろくずみ",
+    ["bag.catch"] = "つかまえる かくりつ",
     ["bag.power"] = "いりょく",
     ["bag.accuracy"] = "めいちゅう",
     ["bag.hint.move"] = "ならびかえ",

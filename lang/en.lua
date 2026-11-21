@@ -339,6 +339,7 @@ return {
     ["bag.empty"] = "Nothing here.",
     ["bag.tossHow"] = "Toss how many?",
     ["bag.registered"] = "Registered",
+    ["bag.catch"] = "Catch chance",
     ["bag.power"] = "Power",
     ["bag.accuracy"] = "Accuracy",
     ["bag.hint.move"] = "Reorder",

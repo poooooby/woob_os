@@ -724,7 +724,7 @@ st.ctx.done()
   Gear.find = function(id) return id == "kanto_gear" and { exports = { modules = hook } } or nil end
   Gear.bind()
   Gear.bind()
-  T.eq(#registered, 3, "three tiles, once however often the game's ready")
+  T.eq(#registered, 4, "three tiles and the battle menus' stand-down, once however often the game's ready")
   local ACCENT = { blue = true, amber = true, red = true, green = true, slate = true }
   local byApp = {}
   for _, spec in ipairs(registered) do
@@ -732,9 +732,14 @@ st.ctx.done()
     T.check(spec.id:match("^[a-z0-9_]+$") ~= nil, spec.id .. ": a valid id")
     T.check(#spec.label <= 20 and #spec.description >= 1 and #spec.description <= 3 and ACCENT[spec.accent] ~= nil,
       spec.id .. ": within the hook's limits")
-    T.check(spec.available({ generation = 3 }) and not spec.available({ generation = 1 }), spec.id .. ": Gen 3 only")
-    for code, words in pairs(spec.translations) do
-      T.check(words[spec.description[1]] ~= nil and words[spec.description[2]] ~= nil, spec.id .. ": " .. code)
+    if spec.id == "woob_battle" then
+      T.check(not spec.available({ generation = 3 }) and not spec.open() and not spec.shown(),
+        "woob_battle: never offered, never opened, shown only with a battle's menu up")
+    else
+      T.check(spec.available({ generation = 3 }) and not spec.available({ generation = 1 }), spec.id .. ": Gen 3 only")
+      for code, words in pairs(spec.translations) do
+        T.check(words[spec.description[1]] ~= nil and words[spec.description[2]] ~= nil, spec.id .. ": " .. code)
+      end
     end
     T.check(pcall(spec.icon, 0, 0, false) and pcall(spec.icon, 0, 0, true), spec.id .. ": its icon draws, and greyed")
   end

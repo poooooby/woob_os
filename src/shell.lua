@@ -166,8 +166,10 @@ return function(mod, deps)
     return false
   end
   local anyAt = -1
-  local function feed(input)
-    if not Tm then return end
+  local Gp = deps.gearPanel
+  local function feed(input, to)
+    to = to or Tm
+    if not to then return end
     if presses(input) then
       if fedAt == frameN then return end
       fedAt = frameN
@@ -175,10 +177,14 @@ return function(mod, deps)
       return
     end
     anyAt = frameN
-    Tm.input(input)
+    to.input(input)
   end
   function MapLayer.handleInput(input) feed(input) end
-  function Sh.feedHost(input) if Tm and Tm.isOpen() then feed(input) end end
+  -- (a battle's menu on the Kanto Gear's screen takes the buttons the battle hands its menus)
+  function Sh.feedHost(input)
+    if Gp and Gp.isBattle and Gp.isBattle() then feed(input, Gp)
+    elseif Tm and Tm.isOpen() then feed(input) end
+  end
   function MapLayer.update() end
 
   -- (the desktop is full screen: the field isn't drawn under it; the pad's field stays, dimmed)
@@ -227,6 +233,14 @@ return function(mod, deps)
   end
   Sh.host = host
   function Sh.hostOpen() return host() ~= nil end
+  -- (where a modern menu is: the full-screen host, or the Kanto Gear's screen in a battle)
+  function Sh.menuHost()
+    if Gp and Gp.isBattle and Gp.isBattle() then
+      local st = Gp.hostState()
+      return { isOpen = Gp.isOpen, state = function() return st end }
+    end
+    return host()
+  end
 
   local function familyOf(game)
     if H then return H.family end
@@ -505,7 +519,13 @@ return function(mod, deps)
   -- own screen instead: ctx.classic() closes ours and calls it), shop (a real shop counter's model,
   -- src/shop.lua: the Mart in shop mode, ctx.shop), nurse (the Pokémon Center's model, ctx.nurse),
   -- chrome (false: no toolbar, the window the whole screen), noHints }
+  local openOnGear
   function Sh.openFull(appId, s, onClose, state, o)
+    if o and o.gear and openOnGear then
+      local okG, opened = pcall(openOnGear, appId, s, onClose, o)
+      if okG and opened then return true end
+      if not okG and log then log:warn("the Kanto Gear's screen couldn't take the menu: %s", tostring(opened)) end
+    end
     if not Tm or Tm.isOpen() or D.isOpen() or (Wt and Wt.isOpen()) then return false end
     local app = A.byId(appId)
     if not (app and app.window) then return false end
@@ -567,11 +587,52 @@ return function(mod, deps)
 
   -- ------- the Kanto Gear apps: their own host on the Gear's screen (src/gear_panel.lua), no layer on
   -- the game's stack; the PC's and WoobPad's windows are the other hosts', and don't change
-  local Gp = deps.gearPanel
   local closeGear = nil
+  local gearApp = nil   -- (the Gear app open: its ctx and options, to bring back after a battle's menu)
   function Sh.gearOpen(appId)
     if not (Gp and Gp.isOpen()) then return false end
+    -- ("battle": a battle's menu there, which the Gear stands down for)
+    if appId == "battle" then return Gp.isBattle() end
+    if Gp.isBattle() then return false end
     return appId == nil or Gp.app() == appId
+  end
+
+  -- a battle's menu (the modern Bag, Pokémon menu, summary) on the Kanto Gear's screen, the battle left on
+  -- the game's: no layer on the stack (the battle asks its menus itself, and hands them its buttons:
+  -- Sh.feedHost), the Gear standing down while it's up. A Gear app open there (locked in a battle) waits
+  -- under it and comes back after
+  function openOnGear(appId, s, onClose, o)
+    if not (Gp and Gp.openBattle and Gp.battleReady()) then return false end
+    if Tm and Tm.isOpen() or D.isOpen() or (Wt and Wt.isOpen()) then return false end
+    local parked = nil
+    if Gp.isOpen() then
+      if Gp.isBattle() or not gearApp then return false end
+      parked = gearApp
+    end
+    local app = A.byId(appId)
+    if not (app and app.window) then return false end
+    local ctx = { session = s, mode = "gear", family = familyOf(gameId()), rows = {}, app = appId,
+                  menu = o.menu, gear = true }
+    function ctx.row() return nil end
+    local closed = false
+    local function close()
+      if closed then return end
+      closed = true
+      Gp.closeBattle()
+      if parked and gearApp == parked then Gp.reopen(parked.ctx, parked.so) end
+      if onClose then onClose() end
+    end
+    ctx.finish, ctx.done, ctx.logoff = close, close, close
+    function ctx.over() end
+    function ctx.original() end
+    function ctx.sheet() end
+    local so = { maker = app.window, app = appId, chrome = false, cancel = close, noHints = true }
+    if parked then Gp.close() end
+    if not Gp.openBattle(ctx, so) then
+      if parked then Gp.reopen(parked.ctx, parked.so) end
+      return false
+    end
+    return true
   end
   function Sh.closeGear() if closeGear then closeGear() end end
   function Sh.showing(id)
@@ -593,8 +654,8 @@ return function(mod, deps)
     local function close()
       if closed then return end
       closed = true
-      closeGear = nil
-      Gp.close()
+      closeGear, gearApp = nil, nil
+      if not Gp.isBattle() then Gp.close() end
     end
     ctx.finish, ctx.done, ctx.logoff = close, close, close
     -- one of the game's screens (a traded Pokémon evolving) up on the game's own screen, this one
@@ -618,7 +679,7 @@ return function(mod, deps)
     so = { maker = app.window, app = appId, chrome = true, backKey = "gear.back", cancel = close, noHints = true,
            locked = function() return over or not Sh.free(curGame) end }
     if not Gp.open(ctx, so) then return false end
-    closeGear = close
+    closeGear, gearApp = close, { ctx = ctx, so = so }
     return true
   end
 

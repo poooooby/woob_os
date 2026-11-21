@@ -82,6 +82,15 @@ return {
     description = "The Bag, the Pokémon menu and a Pokémon's summary open in WoobOS's glass, from the START menu and in battle, and when it's time to forget a move (FireRed, LeafGreen, Ruby, Sapphire, Emerald). Off: the game's own.",
   },
   {
+    key = "gearMenus",
+    label = "Kanto Gear Battle Menus",
+    type = "toggle",
+    default = false,
+    -- (only with Modern Menus on: they're its menus)
+    visible_if = { key = "modernMenus", equals = true },
+    description = "With Kanto Gear showing its own screen (a second display, or beside the game), a battle's Bag, Pokémon menu and summary open there, larger, and the battle stays on the game's screen.",
+  },
+  {
     key = "fieldGps",
     label = "Overworld GPS",
     type = "toggle",

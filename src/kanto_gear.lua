@@ -7,6 +7,10 @@
 --                            screen ; shown(appId) ; color(appId) -> { r, g, b } ; glyph(G, kind, cx, cy,
 --                            size, a, tile) ; log(fmt, ...)
 --   Gear.bind()      (game.ready: at most once, and only if Kanto Gear's there)
+--   Gear.bound()     true once Kanto Gear took the specs
+--   One more spec never offered (available() false): "woob_battle", shown() while a battle's menu is on the
+--   Gear's screen (the option gearMenus, src/gear_panel.lua's battle mode). The Gear stands down while any
+--   spec is shown: it draws, pushes and takes input nowhere, and hands its HP boxes back to the game's screen.
 --   Gear.specs       what was handed over ; Gear.results[id] = true | the reason it was refused
 --   Gear.find        where the hook is looked up (a test swaps it)
 
@@ -68,6 +72,22 @@ return function(deps)
     }
   end
 
+  -- (the battle's menus: no tile, no listing -- only the Gear standing down while one is up)
+  local BATTLE = {
+    id = "woob_battle", label = "WOOBOS MENUS", category = "GAMES", accent = "slate",
+    description = { "THE BATTLE'S BAG AND POKEMON MENU." },
+    icon = function(x, y)
+      local G = love.graphics
+      G.setColor(GREY[1] / 255, GREY[2] / 255, GREY[3] / 255, 1)
+      G.rectangle("fill", x, y, 24, 24, 5, 5)
+      G.setColor(1, 1, 1, 1)
+    end,
+    available = function() return false end,
+    shown = function() return deps.shown("battle") == true end,
+    open = function() return false end,
+  }
+  function Gear.bound() return bound end
+
   function Gear.bind()
     if bound then return end
     local handle = Gear.find and Gear.find("kanto_gear")
@@ -86,6 +106,10 @@ return function(deps)
         if deps.log then deps.log("Kanto Gear refused %s: %s", it.id, reason) end
       end
     end
+    Gear.specs[#Gear.specs + 1] = BATTLE
+    local ok, accepted, why = pcall(modules.register, BATTLE)
+    Gear.results[BATTLE.id] = (ok and accepted) and true or tostring(ok and why or accepted)
+    if not (ok and accepted) and deps.log then deps.log("Kanto Gear refused %s: %s", BATTLE.id, tostring(ok and why or accepted)) end
   end
 
   return Gear

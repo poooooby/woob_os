@@ -352,6 +352,51 @@ return function(engine, deps)
     return view, order, double
   end
 
+  -- ------- a Ball's chance to catch the wild Pokémon in front of you
+  -- The game's own odds (Catching.catchOdds: the Ball, HP, status, the Net / Dive / Nest / Repeat / Timer
+  -- Balls' rules, other mods' Balls) through the game's four shake checks, each passed when a roll of
+  -- 0..65535 lands under b = floor(1048560 / sqrt(sqrt(16711680 / a))): (b / 65536)^4. nil where no Ball
+  -- would be thrown at it (a trainer, two foes, the Safari Zone, a ghost, the tutorials) or another mod
+  -- decides the catch (a catch.rate hook: its number would be a guess).
+  function Bg.catchChance(c, id)
+    if not (c and c.battle and not c.pyramid) then return nil end
+    local Cg = engine("src.core.game3.battle.catching")
+    if not (Cg and Cg.catchOdds and call(Cg.isBall, id)) then return nil end
+    local Rt = engine("src.mods.Runtime")
+    if Rt and Rt.wantsHook and call(Rt.wantsHook, "catch.rate") then return nil end
+    local Bt = engine("src.core.game3.battle")
+    local st = Bt and Bt._st
+    if type(st) ~= "table" or not st.wild or st.safari or st.ghostBattle or st.oldManTutorial or st.pokedude
+        or st.link then
+      return nil
+    end
+    if st.kinds and st.kinds.tutorial then return nil end
+    local foe = st.enemy
+    if st.double and type(st.battlers) == "table" then
+      local alive, last = 0, nil
+      for _, k in ipairs({ 1, 3 }) do
+        local b = st.battlers[k]
+        if b and b.mon and (tonumber(b.mon.hp) or 0) > 0 then alive, last = alive + 1, b end
+      end
+      if alive ~= 1 then return nil end
+      foe = last
+    end
+    if not (foe and foe.mon) then return nil end
+    local a = tonumber(call(Cg.catchOdds, id, foe, st, c.session))
+    if not a then return nil end
+    if a >= 255 then return 100 end
+    local b = math.floor(1048560 / math.sqrt(math.sqrt(16711680 / math.max(1, a))))
+    local p = math.min(1, b / 65536)
+    return p * p * p * p * 100
+  end
+  -- (shown as a whole percent; under 1% as "<1%")
+  function Bg.chanceText(p)
+    if not p then return nil end
+    if p >= 99.95 then return "100%" end
+    if p < 1 then return "<1%" end
+    return string.format("%d%%", math.floor(p + 0.5))
+  end
+
   -- (what an item given from the party's GIVE is taken from: the Bag, as the game's party menu says it)
   function Bg.giveSource(bag)
     local IUm = IU()
