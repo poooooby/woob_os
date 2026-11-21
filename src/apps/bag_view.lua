@@ -115,7 +115,8 @@ return function(K, env, T, A, partyView)
     local b = K.R(rx - cw, cy - ch / 2, cw, ch)
     K.col(chanceColour(r.chance), 0.92 * (a or 1))
     K.box("fill", b, ch / 2)
-    K.bold(s, b[1], b[2] + (ch - th) / 2, size, C.white, "center", cw, a)
+    -- (placed by its 1x size: the kit's text lifts a bigger one round the same middle)
+    K.bold(s, b[1], b[2] + (ch - size * 1.2) / 2, size, C.white, "center", cw, a)
     return cw
   end
   V.chanceChip = chanceChip
@@ -217,7 +218,7 @@ return function(K, env, T, A, partyView)
       local chipW = K.width(row.chanceText, 4.4) + K.lineH(4.4) * 1.2
       local chH = K.lineH(4.4) * 1.5
       local px = narrow and tx or (tx + (tw - sw - 2 - chipW) / 2)
-      K.text(s, px, ty + (chH - K.lineH(3.8) * 1.2) / 2, 3.8, C.soft)
+      K.text(s, px, ty + (chH - 3.8 * 1.2) / 2, 3.8, C.soft)
       chanceChip(row, px + sw + 2 + chipW, ty + chH / 2, 4.4)
       ty = ty + chH + 1.5
     end
@@ -248,6 +249,22 @@ return function(K, env, T, A, partyView)
       if k * lh > room then break end
       K.text(lines[k], tx, ty + (k - 1) * lh, 4, C.ink, narrow and nil or "center", narrow and nil or tw, 0.85)
     end
+  end
+
+  -- (the Kanto Gear's strip: as tall as the chosen item's card needs -- its name, the catch chance, a TM's
+  -- move, every line of its words -- as detail() lays them out narrow)
+  local function stripNeed(B, row, w)
+    if not row then return 24 end
+    local is = 20
+    local tw = w - is - 12
+    local need = 3 + lineH(5.6)
+    if row.registered then need = need + 6.5 end
+    if row.chanceText then need = need + K.lineH(4.4) * 1.5 + 1.5 end
+    local m = row.tm
+    if m then need = need + 7 + lineH(3.2) + lineH(4.4) + 1 end
+    local desc = m and m.desc ~= "" and m.desc or row.desc
+    need = need + #wrap("descN", desc, tw, 4) * lineH(4) + 4.5
+    return max(is + 6, need)
   end
 
   -- the pocket's list
@@ -513,7 +530,8 @@ return function(K, env, T, A, partyView)
     K.rise(e, 6)
     local listX, rh
     if w < NARROW then
-      local dh = B.compact and min(30, ah * 0.3) or min(40, ah * 0.36)
+      -- (the Gear's: grown to fit the item's card, two rows of the list kept below it)
+      local dh = B.compact and min(stripNeed(B, row, w - 2 * M), ah - 2 * 15 - GAP - 3) or min(40, ah * 0.36)
       detail(B, row, x + M, top, w - 2 * M, dh, clock, true)
       listX = x + M
       rh = list(B, rows, x + M, top + dh + GAP, w - 2 * M, ah - dh - GAP, clock, dt)
