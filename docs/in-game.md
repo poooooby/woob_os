@@ -7,12 +7,16 @@ back to the game's own in the [options](options.md).
 
 ## 🏪 Shops
 
+<img src="screenshots/market-stall.png" width="480" alt="Slateport's market stall">
+
 Talking to a shop clerk fades straight into the Mart, full screen, with that shop's own goods: Poké
 Marts, every department store floor, herb shops, the pharmacy, souvenir and decoration shops, the
 Underground's bargain stall and Slateport's market stalls by the sea, each dressed for its place and what
 it sells.
 
 ## 🏥 The Pokémon Center
+
+<img src="screenshots/pokecenter.png" width="480" alt="The nurse at her counter">
 
 Talk to the nurse and she greets you in a close-up behind her counter, in a room drawn after Emerald's
 own Pokémon Center, its window showing the sky for the time of day: sun by day, a warm sunset in the
@@ -34,6 +38,8 @@ PC and selling at a shop choose from it as well. Emerald's Battle Pyramid has it
 TV's lessons and the Old Man's catching lesson play on it.
 
 ## 📋 The Pokémon menu and summary
+
+<img src="screenshots/party.png" width="480" alt="The Pokémon menu">
 
 On FireRed, LeafGreen, Ruby, Sapphire and Emerald, the Pokémon menu is six glass cards over lights in the
 chosen Pokémon's colours: the lead's picture, and every Pokémon's level, HP, status and held item. Each

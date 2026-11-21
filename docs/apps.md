@@ -28,6 +28,8 @@ Everything on the WoobOS desktop, and on WoobPad. Some apps are only on some gam
 
 ## Out and about
 
+<img src="screenshots/radio.png" width="480" alt="The Radio">
+
 - 📞 **Phone:** Match Call (Emerald), Trainer's Eyes (Ruby and Sapphire) or the Pokégear's phone book
   (Gold, Silver and Crystal). Calls are the game's own.
 - 📻 **Radio** (Gold, Silver and Crystal): the Pokégear's radio, with each station's artwork, a live
