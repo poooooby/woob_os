@@ -144,7 +144,8 @@ Find them under OPTIONS > WOOBOS in the game, or MODS > WoobOS. [Every option](d
   battle's Bag and Pokémon menu can open there too (the Kanto Gear Battle Menus option).
 - **WoobleDex:** every box of its Bigger PC, its Pokémon in R-Bay and the Pokédex, a page for each of its
   forms, and Dynamax Level and G-Max Factor in Boxes.
-- **Galar Rising:** Dynamax Level and G-Max Factor in a Pokémon's summary.
+- **Galar Rising:** Dynamax Level and G-Max Factor in a Pokémon's summary, and the G-Max Factor's mark under
+  its picture in the Pokémon menu.
 - **WoobleSpawns:** the Pokédex shows where its wild Pokémon live, and how likely you are to meet them.
 - **WoobleSpritePack:** its animated sprites in the Pokédex, and its icons and pictures on the Game Boy
   games.
@@ -162,6 +163,8 @@ Made by Wooble. The touch-screen look grew out of WoobleDex's vending machines.
 Original sprites by Wooble: the News anchor, and Mom, Scott and Mr. Stone in the Phone.
 
 The Pokémon Center's nurse: [InnerMobius](https://www.deviantart.com/innermobius).
+
+The G-Max Factor's mark: Lucidious89's [Dynamax plugin](https://lucidious89-tutorials.gitbook.io/deluxe-battle-kit-tutorial/deluxe-battle-kit-for-v21.1/add-on-tutorials/dynamax).
 
 ---
 

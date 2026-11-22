@@ -174,7 +174,6 @@ return {
     ["boxes.held"] = "Item",
     ["boxes.noItem"] = "None",
     ["boxes.dynamax"] = "Dynamax Lv.",
-    ["boxes.gmax"] = "G-Max",
     ["reason.box.last_usable"] = "Keep a Pokémon that can battle.",
     ["reason.box.mail"] = "Take the mail off first (Mail app).",
     ["reason.box.party_full"] = "Your party is full.",

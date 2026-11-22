@@ -14,7 +14,7 @@
 -- ui.close() (the menu closes, the game's onClose) ; ui.leave(fn) (closed, then fn: a field move) ;
 -- ui.refresh() (the cards made again).
 --
---   Pt = party(engine, deps)          deps: T, log
+--   Pt = party(engine, deps)          deps: T, log, gmax(mon) -> true when it has the G-Max Factor
 --   Pt.card(mon, T) -> a card's words and numbers (made in actions only) ; Pt.pages(text) -> plain pages
 --   Pt.actions(c, i) -> { { act, text, fm, onSelect } ... } for the i-th's menu (c: the open menu's model,
 --       below) ; Pt.itemActions(kind) ; Pt.battleActions(c, i)
@@ -148,6 +148,8 @@ return function(engine, deps)
     c.maxHp = max(1, tonumber(mon and (mon.maxHp or mon.maxhp)) or 1)
     if not egg then
       c.shiny = p and call(p.isShiny, mon) == true or false
+      -- (Galar Rising's G-Max Factor: its mark under the picture)
+      c.gmax = deps.gmax and call(deps.gmax, mon) == true or false
       local SD = engine("src.core.game3.summary_data")
       local g = SD and call(SD.gender, mon)
       c.gender = (g == "M" or g == "F") and g or nil

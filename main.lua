@@ -714,6 +714,26 @@ return function(mod)
     return anchorArt[key] or nil
   end
   env.nurse = makeNurseArt and makeNurseArt(mod) or nil
+  -- the G-Max Factor's mark (assets/gmax.png, from Lucidious89's Dynamax plugin), loaded the first time it's
+  -- drawn: centred on cx, its foot at `foot`, `h` units tall -> its width in units (0 with no picture)
+  local gmaxArt = nil
+  env.gmaxMark = function(cx, foot, h)
+    if gmaxArt == nil then
+      gmaxArt = false
+      local ok, img = pcall(mod.assets.image, mod.assets, "assets/gmax.png")
+      if ok and img then
+        pcall(img.setFilter, img, "linear", "nearest")
+        gmaxArt = img
+      end
+    end
+    if not gmaxArt then return 0 end
+    local iw, ih = gmaxArt:getDimensions()
+    local k = h * Kit.sc / ih
+    local G = Kit.graphics()
+    G.setColor(1, 1, 1, Kit.getFade())
+    G.draw(gmaxArt, math.floor(Kit.X(cx) - iw * k / 2 + 0.5), math.floor(Kit.Y(foot) - ih * k + 0.5), 0, k, k)
+    return iw * h / ih
+  end
   -- (the Pokédex's Size tab: the trainer it measures against, and a picture's drawn pixels)
   env.sizeArt = makeSizeArt and makeSizeArt(mod, Kit) or nil
   -- (the Size tab's heights: WoobleDex's measured ones (exports.artHeights, its data/art_heights.lua: each
@@ -1490,7 +1510,12 @@ return function(mod)
   local Menus = nil
   if makeMenus and menusWindow and boxesSummary and summaryCtl then
     if makeParty and partyCtl then
-      env.party = makeParty(engine, { T = T, log = function(fmt, ...) mod.log:warn(fmt, ...) end })
+      env.party = makeParty(engine, { T = T, log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+        -- (the G-Max Factor, as the summary shows it: WoobleDex's, while Galar Rising is on)
+        gmax = function(mon)
+          local Dx = env.bx and env.bx.galar and env.bx.galar() and env.bx.dynamax and env.bx.dynamax()
+          return type(Dx) == "table" and type(Dx.canGigantamax) == "function" and Dx.canGigantamax(mon) == true
+        end })
       env.partyCtl = partyCtl
       if makeBagRules and bagCtl and env.inv then
         env.bagRules = makeBagRules(engine, { T = T, inv = env.inv, moveRecord = env.bx and env.bx.moveRecord,

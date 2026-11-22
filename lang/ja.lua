@@ -163,7 +163,6 @@ return {
     ["boxes.held"] = "もちもの",
     ["boxes.noItem"] = "なし",
     ["boxes.dynamax"] = "ダイマックスレベル",
-    ["boxes.gmax"] = "キョダイマックス",
     ["reason.box.last_usable"] = "たたかえる ポケモンを のこしてください。",
     ["reason.box.mail"] = "さきに メールを はずしてください（メール）。",
     ["reason.box.party_full"] = "てもちが いっぱいです。",

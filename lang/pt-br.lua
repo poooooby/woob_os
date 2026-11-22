@@ -162,7 +162,6 @@ return {
     ["boxes.held"] = "Item",
     ["boxes.noItem"] = "Nenhum",
     ["boxes.dynamax"] = "Nível Dynamax",
-    ["boxes.gmax"] = "Gigamax",
     ["reason.box.last_usable"] = "Mantenha um Pokémon que possa batalhar.",
     ["reason.box.mail"] = "Tire a carta antes (app Cartas).",
     ["reason.box.party_full"] = "Sua equipe está cheia.",

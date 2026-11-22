@@ -12,6 +12,8 @@ local floor, max, min, sin, abs = math.floor, math.max, math.min, math.sin, math
 
 local M, GAP, TOP_H = 3, 2, 12
 local NARROW = 190
+-- the G-Max Factor's mark (env.gmaxMark): its height under the lead's picture, at a row's icon
+local GMAX_BIG, GMAX_ROW = 6, 5
 local C = {
   ink = { 28, 28, 30 }, soft = { 112, 112, 120 }, white = { 255, 255, 255 }, black = { 0, 0, 0 },
   accent = { 10, 132, 255 }, green = { 52, 199, 89 }, red = { 255, 59, 48 }, hpGood = { 52, 199, 89 },
@@ -327,6 +329,11 @@ return function(K, env, T, A, sumView)
     if card.ally then chip(card.ally, cx0, y + 3, 7.4, 4.4, C.slate2, nil) end
     if card.item then heldMark(card, x + w - 11, y + 3, 8) end
     local ty = pcy + ps / 2 + 2 + (K.textScale() - 1) * 2
+    -- (the G-Max Factor's mark under the picture, the name below it)
+    if card.gmax and env.gmaxMark then
+      env.gmaxMark(pcx, pcy + ps / 2 + 1 + GMAX_BIG, GMAX_BIG)
+      ty = ty + GMAX_BIG - 1
+    end
     local fs = K.fit(card.name, 6, w - 14)
     local nw = K.width(card.name, fs)
     local nx = x + (w - nw) / 2 - (card.gender and 2.5 or 0)
@@ -377,8 +384,15 @@ return function(K, env, T, A, sumView)
     local is = min(h + 2, 24)
     local hop = sel and abs(sin(clock * 6)) * 1.6 or 0
     local frame = floor(clock * (sel and 6 or 2.5)) % 2
-    if env.monIconOf then env.monIconOf(card.mon, x + 1, y + (h - is) / 2 - hop, is, frame, 1) end
+    -- (with the G-Max Factor, the icon a little smaller with its mark under it, centred together; the icon's
+    -- last unit is empty)
+    local mh = card.gmax and env.gmaxMark and min(GMAX_ROW, h * 0.32) or 0
+    local ix = x + 1 + is / 2
+    local isz = mh > 0 and max(14, min(is, h + 1 - mh)) or is
+    local iy = mh > 0 and max(y - 1, y + (h - isz - mh + 1) / 2) or y + (h - is) / 2
+    if env.monIconOf then env.monIconOf(card.mon, ix - isz / 2, iy - hop, isz, frame, 1) end
     K.rescissor()
+    if mh > 0 then env.gmaxMark(ix, min(y + h - 0.3, iy + isz - 1 + mh), mh) end
     if card.item then heldMark(card, x + is - 6, y + h - 7.5, 6.5) end
     local tx = x + is + 2
     local right = max(40, min(w * 0.42, 70))

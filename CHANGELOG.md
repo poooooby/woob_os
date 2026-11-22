@@ -5,6 +5,10 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Changed
+- **The G-Max Factor is a mark,** the Gigantamax cloud in place of the "G-Max" label, in Boxes and a Pokémon's
+  summary; with Galar Rising, under its picture in the Pokémon menu too, a battle's switch included.
+
 ## [0.22.0] - 2026-11-22
 
 ### Added

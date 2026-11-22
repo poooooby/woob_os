@@ -57,8 +57,8 @@ local C = {
   red = { 255, 69, 58 }, blue = { 10, 132, 255 }, green = { 52, 199, 89 },
   hpGood = { 52, 199, 89 }, hpMid = { 255, 204, 0 }, hpLow = { 255, 59, 48 }, hpBack = { 118, 118, 128, 0.2 },
   male = { 10, 132, 255 }, female = { 255, 55, 95 }, shiny = { 255, 190, 30 }, picBack = { 242, 242, 247 },
-  -- Dynamax (WoobleDex's): the level's segments, the empty ones, the G-Max badge
-  dmax = { 255, 140, 24 }, dmaxEmpty = { 118, 118, 128, 0.28 }, gmax = { 214, 28, 64 },
+  -- Dynamax (WoobleDex's): the level's segments, the empty ones
+  dmax = { 255, 140, 24 }, dmaxEmpty = { 118, 118, 128, 0.28 },
   white = { 255, 255, 255 }, black = { 0, 0, 0 }, track = { 118, 118, 128, 0.16 },
   slate = { 120, 132, 178 }, slate2 = { 150, 120, 190 },
 }
@@ -515,17 +515,6 @@ return function(K, env, T, Bx, st, A)
     end
     return ty + lineStep()
   end
-  -- the G-Max badge (the Gigantamax Factor), over the picture's foot
-  local function gmaxBadge(cx, by)
-    local word = T("boxes.gmax")
-    local bw = K.width(word, 3.4) + 5
-    local b = K.R(cx - bw / 2, by - 5.5, bw, 5.5)
-    K.col(K.WHITE)
-    K.box("fill", K.R(b[1] - 0.6, b[2] - 0.6, b[3] + 1.2, b[4] + 1.2), 3.4)
-    K.col(C.gmax)
-    K.box("fill", b, 2.8)
-    K.text(word, b[1], b[2] + 1, 3.4, K.WHITE, "center", bw)
-  end
 
   local function drawPreview(mon, x, y, w, h, horizontal, clock)
     local G = K.graphics()
@@ -558,7 +547,8 @@ return function(K, env, T, Bx, st, A)
       G.setColor(1, 1, 1, fa * K.getFade())
       G.draw(pic.image, K.X(pcx) - (pic.w or box) / 2 * k, K.Y(py + ps) - (pic.h or box) * k, 0, k, k)
     end
-    if info.gmax then gmaxBadge(px + ps / 2, py + ps - 0.5) end
+    -- (the G-Max Factor's mark over the picture's foot)
+    if info.gmax and env.gmaxMark then env.gmaxMark(px + ps / 2, py + ps + 0.5, 7) end
     local tx, ty, tw
     if horizontal then tx, ty, tw = px + ps + 4, y + 3, w - ps - 10
     else tx, ty, tw = x + 3, py + ps + 1, w - 6 end

@@ -163,7 +163,6 @@ return {
     ["boxes.held"] = "Item",
     ["boxes.noItem"] = "Keins",
     ["boxes.dynamax"] = "Dynamax-Level",
-    ["boxes.gmax"] = "Gigadynamax",
     ["reason.box.last_usable"] = "Behalte ein kampffähiges Pokémon.",
     ["reason.box.mail"] = "Nimm zuerst den Brief ab (Post-App).",
     ["reason.box.party_full"] = "Dein Team ist voll.",

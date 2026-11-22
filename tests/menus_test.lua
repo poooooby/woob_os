@@ -407,6 +407,29 @@ K.setTextScale(1)
 pframe(1, "b")
 T.check(not Tm.isOpen() and not PM.isOpen() and closes == 1, "B: closed, onClose once")
 
+-- ------- the G-Max Factor (WoobleDex's, while Galar Rising is on): its mark under the picture, wide and narrow
+do
+  local env, gm = X._test.env, s.party[2]
+  local galar0, dyn0, mark0 = env.bx.galar, env.bx.dynamax, env.gmaxMark
+  env.bx.galar = function() return true end
+  env.bx.dynamax = function() return { canGigantamax = function(mon) return mon == gm end } end
+  local drew = 0
+  env.gmaxMark = function(...) drew = drew + 1 return mark0(...) end
+  local Pg = open({ session = s, onClose = function() end })
+  T.check(Pg and not Pg.cards[1].gmax and Pg.cards[2].gmax == true, "the G-Max Factor: on its own card alone")
+  pframe(2)
+  T.check(drew > 0 and not Tm.state().winFailed, "its mark drawn under its icon")
+  VP.width, VP.height = 320, 480
+  drew = 0
+  pframe(2)
+  T.check(drew > 0 and Pg.narrow == true, "narrow: its mark drawn too")
+  VP.width, VP.height = 480, 320
+  pframe(1, "b")
+  T.check(not Tm.isOpen(), "closed")
+  env.bx.galar, env.bx.dynamax, env.gmaxMark = galar0, dyn0, mark0
+  T.check(not env.party.card(gm).gmax, "without Galar Rising: no mark")
+end
+
 -- ------- a battle's switch: the battle hands it input; the game's validate; onClose, then onSelect
 local order, why = {}, nil
 local function battleOpts(mode)

@@ -29,9 +29,11 @@ local C = {
   slate2 = { 150, 120, 190 }, hpGood = { 52, 199, 89 }, hpMid = { 255, 204, 0 }, hpLow = { 255, 59, 48 },
   exp = { 64, 156, 255 }, heart = { 255, 92, 140 }, gold = { 232, 170, 28 }, up = { 230, 64, 64 },
   down = { 64, 120, 230 }, phys = { 236, 104, 60 }, spec = { 90, 120, 230 }, statusC = { 150, 150, 160 },
-  dmax = { 255, 140, 24 }, gmax = { 214, 28, 64 }, swap = { 52, 199, 89 }, ppMid = { 230, 160, 0 },
+  dmax = { 255, 140, 24 }, swap = { 52, 199, 89 }, ppMid = { 230, 160, 0 },
   ppLow = { 240, 110, 30 }, ppOut = { 230, 50, 50 }, mark = { 90, 90, 100 },
 }
+-- the G-Max Factor's mark (env.gmaxMark): its height in units, its width for each unit of height (34 x 24)
+local GMAX_H, GMAX_W = 5.6, 34 / 24
 local SHADE_TOP, SHADE_FOOT = { 255, 255, 255, 0.28 }, { 0, 0, 0, 0.16 }
 -- the types' colours (the game's ids; 18 WoobleDex's Fairy)
 local TYPE = {
@@ -366,13 +368,11 @@ return function(K, env, T, st, A, TABS)
       K.text(word("sum.dmax"), x + 4, yy, 3.4, C.soft)
       local sx = x + 4 + K.width(word("sum.dmax"), 3.4) + 3
       local ex = x + w - 4
-      if R.gmax then
-        local gw = K.width(word("boxes.gmax"), 3) + 4
+      -- (the G-Max Factor: its mark at the row's end)
+      if R.gmax and env.gmaxMark then
+        local gw = GMAX_H * GMAX_W
         ex = ex - gw
-        local gb = K.R(ex, yy - 0.5, gw, 4.6)
-        K.col(C.gmax)
-        K.box("fill", gb, 2.3)
-        K.text(word("boxes.gmax"), gb[1], yy + 0.2, 3, C.white, "center", gw)
+        env.gmaxMark(ex + gw / 2, yy + 4.6, GMAX_H)
         ex = ex - 2
       end
       local seg = (ex - sx) / 10
