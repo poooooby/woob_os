@@ -5,6 +5,12 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.21.2] - 2026-11-22
+
+### Fixed
+- **The 3D map on a phone or tablet with no controller:** the game's on-screen buttons stay up over it (the Town
+  Map, the Fly map, and the Map app on the PC and WoobPad), so START, SELECT, L and R can be pressed there.
+
 ## [0.21.1] - 2026-11-22
 
 ### Added
