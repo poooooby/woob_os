@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-22
+
 ### Added
 - **A switch for each modern menu,** under Modern Menus in the options and shown only while it's on: Pokédex,
   Bag, Pokémon Menu, Summary and Battle Menus (the Bag, Pokémon menu and summary in a battle). Kanto Gear
