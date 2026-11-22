@@ -40,7 +40,9 @@ With Kanto Gear showing its own screen, turn on **Kanto Gear Battle Menus** and 
 and summary open there instead, laid out for its shape with larger text, while the battle stays on the game's
 screen.
 
-Use, give, toss (choosing how many), register and reorder items there. An item used on a Pokémon opens
+Use, give, toss (choosing how many), register and reorder items there. START (or the Sort button by Close)
+sorts a pocket by name or by type, the game's own order that keeps the medicine, the Balls and the hold
+items together; FireRed and LeafGreen's TM Case and Berry Pouch keep the game's order. An item used on a Pokémon opens
 the Pokémon menu over the Bag, in battle too. Planting a Berry, the Berry Blender, putting items in the
 PC and selling at a shop choose from it as well. Emerald's Battle Pyramid has its bag there, and Teachy
 TV's lessons and the Old Man's catching lesson play on it.

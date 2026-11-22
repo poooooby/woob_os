@@ -698,6 +698,48 @@ if #list0 > 1 and require("src.core.game3.items_data").BAG_MODEL then
 end
 local bkb = garbageOf(60)
 T.check(bkb < 0.5, ("the Bag: next to no garbage (%.3f KB a frame)"):format(bkb))
+-- (sorting a pocket: START, or the Sort button by Close; by name, by type)
+for _, id in ipairs({ 85, 22, 14 }) do Bag.add(s.bag, id, 1) end   -- (an Escape Rope, a Super Potion, an Antidote)
+B.rows = {}
+T.check(toRow(B, 85), "the Items pocket")
+local spk = B.pockets[B.pi]
+T.check(B.rows[spk].sortable == true, "it sorts")
+bframe(1, "start")
+T.check(B.view == "menu" and B.menu.sort and B.menu.rows[1].act == "SORT_NAME" and B.menu.rows[2].act == "SORT_TYPE",
+        "START: Sort by Name / by Type")
+menuPick(B, "SORT_NAME")
+local function inOrder(key)
+  local rows, ok = B.rows[spk] or {}, true
+  for k = 2, #rows do
+    local a, b = rows[k - 1], rows[k]
+    if key == "name" then ok = ok and tostring(a.name):lower() <= tostring(b.name):lower()
+    else ok = ok and tonumber(I.toNumericId(a.id) or a.id) <= tonumber(I.toNumericId(b.id) or b.id) end
+  end
+  return ok and #rows >= 4
+end
+T.check(inOrder("name") and B.view == "list", "by name: A to Z")
+T.check(B.cur == 1 and B.toast ~= nil, "the list from its top, and a word for it")
+bframe(5)
+Tm.state().win.tap(820)   -- (the Sort button's hit: src/apps/menus.lua A.SORT)
+T.check(B.view == "menu" and B.menu.sort, "the Sort button: the same")
+menuPick(B, "SORT_TYPE")
+T.check(inOrder("type"), "by type: the game's own order")
+bframe(1, "start")
+menuPick(B, "CANCEL")
+T.check(B.view == "list" and inOrder("type"), "Cancel: as it was")
+bframe(130)
+T.check(B.toast == nil, "the word gone after a moment")
+do
+  local Bg = X._test.env.bagRules
+  T.check(Bg.canSort({ session = s, bag = s.bag }, spk) and not Bg.canSort({ session = s, bag = s.bag, battle = true }, spk)
+          and not Bg.canSort({ session = s, bag = s.bag, location = "party" }, spk)
+          and not Bg.canSort({ session = s, bag = s.bag, pyramid = true }, "PYRAMID"),
+          "not in a battle, choosing what to give, or the Pyramid's Bag")
+  local m = I.BAG_MODEL
+  if m and m.sortHmsFirst and m.sortHmsFirst.TM_CASE then
+    T.check(not Bg.canSort({ session = s, bag = s.bag }, "TM_CASE"), "nor a pocket the game keeps in order (the TM Case)")
+  end
+end
 K.setTextScale(1.3)
 T.check(pcall(bframe, 20), "the Bag's text at 130%")
 VP.width, VP.height = 320, 480

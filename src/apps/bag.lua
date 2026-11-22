@@ -20,6 +20,11 @@ local HINTS = {
   -- (one page only -- the Pyramid's, a berry tree's: no L R)
   list1 = { { "^ v", "hint.move" }, { "A", "hint.choose" }, { "B", "hint.close" } },
   listMove1 = { { "^ v", "hint.move" }, { "A", "hint.choose" }, { "SELECT", "bag.hint.move" }, { "B", "hint.close" } },
+  -- (Sort's room: the arrows' hint left out, six don't fit the bar)
+  listSort = { { "L R", "hint.pocket" }, { "A", "hint.choose" }, { "SELECT", "bag.hint.move" }, { "START", "items.sort" },
+               { "B", "hint.close" } },
+  listSort1 = { { "^ v", "hint.move" }, { "A", "hint.choose" }, { "SELECT", "bag.hint.move" }, { "START", "items.sort" },
+                { "B", "hint.close" } },
   pickOne1 = { { "^ v", "hint.move" }, { "A", "hint.choose" }, { "B", "hint.cancel" } },
   menu = { { "^ v", "hint.move" }, { "A", "hint.ok" }, { "B", "hint.back" } },
   qty = { { "^ v", "hint.one" }, { "< >", "hint.ten" }, { "A", "hint.ok" }, { "B", "hint.cancel" } },
@@ -55,6 +60,9 @@ return function(env, T, A, Pc)
           if okC and pc then r.chance, r.chanceText = pc, Bg.chanceText(pc) end
         end
       end
+      -- (START sorts it: worked out once here too)
+      local okS, can = pcall(Bg.canSort, B.c, p)
+      rows.sortable = #rows > 1 and okS and can or false
       B.rows[p] = rows
     end
     return rows
@@ -268,9 +276,41 @@ return function(env, T, A, Pc)
     se("SE_SELECT")
   end
 
+  -- START (or the Sort button): by name or by type, the list back at its top as the PC's Items does
+  local SORTS = { { "SORT_NAME", "items.sortName" }, { "SORT_TYPE", "items.sortType" }, { "CANCEL", "party.act.cancel" } }
+  local function canSort(B) return rowsOf(B).sortable == true end
+  Bc.canSort = canSort
+  local function openSort(B)
+    if not canSort(B) then return false end
+    local rows = {}
+    for k, e in ipairs(SORTS) do rows[k] = { act = e[1], text = T(e[2]) } end
+    B.menu = { rows = rows, sel = 1, at = now(), i = B.cur, sort = true }
+    B.view = "menu"
+    se("SE_SELECT")
+    return true
+  end
+  local function sortPocket(B, how)
+    local p = B.pockets[B.pi]
+    local ok, done, why = pcall(Bg.sort, B.c, p, how)
+    if not (ok and done) then
+      se("SE_FAILURE")
+      return uiOf(B).say(T("reason.item." .. tostring(ok and why or "gone")))
+    end
+    B.rows[p] = nil
+    B.cur, B.top, B.scrolled = 1, 0, false
+    B.dir, B.pageAt = 0, now()
+    clamp(B)
+    remember(B)
+    B.toast = { text = T(how == "name" and "items.sortedName" or "items.sortedType"), at = now() }
+  end
+
   local function runRow(B, r)
     local row = Bc.row(B)
     B.menu, B.view = nil, "list"
+    if r.act == "SORT_NAME" or r.act == "SORT_TYPE" then
+      se("SE_SELECT")
+      return sortPocket(B, r.act == "SORT_NAME" and "name" or "type")
+    end
     if not row or r.act == "CANCEL" then return se("SE_SELECT") end
     se("SE_SELECT")
     if r.act == "TOSS" then
@@ -387,6 +427,7 @@ return function(env, T, A, Pc)
     elseif nv.down then setCur(B, B.cur + 1)
     elseif pressed("a") then openMenu(B)
     elseif pressed("select") then startMove(B)
+    elseif pressed("start") then openSort(B)
     elseif pressed("b") then cancel(B) end
     return result(B)
   end
@@ -421,6 +462,8 @@ return function(env, T, A, Pc)
     end
     if arg == A.CANCEL then
       cancel(B)
+    elseif arg == A.SORT then
+      openSort(B)
     elseif arg > A.POCKET and arg <= A.POCKET + #B.pockets then
       toPocket(B, arg - A.POCKET)
     elseif arg > A.ROW and arg <= A.ROW + #rowsOf(B) then
@@ -510,6 +553,7 @@ return function(env, T, A, Pc)
     else
       local one = #B.pockets < 2
       if B.c.location then h = one and HINTS.pickOne1 or HINTS.pickOne
+      elseif canSort(B) then h = one and HINTS.listSort1 or HINTS.listSort
       elseif Bg.canMove(B.c, B.pockets[B.pi]) and #rowsOf(B) > 1 then h = one and HINTS.listMove1 or HINTS.listMove
       else h = one and HINTS.list1 or HINTS.list end
     end

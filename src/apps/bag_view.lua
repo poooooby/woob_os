@@ -348,6 +348,11 @@ return function(K, env, T, A, partyView)
     local mh = #rows * rh + 3
     local mx = max(body[1] + M, lx - mw - 2)
     local my = max(body[2] + TOP_H, min(rowY - mh / 2 + 4, body[2] + body[4] - mh - M))
+    if mm.sort then
+      -- (START's: from the Sort button, else the top's right)
+      mx = max(body[1] + M, (mv.sortR or (body[1] + body[3] - M)) - mw)
+      my = (mv.sortB or (body[2] + TOP_H)) + 1.5
+    end
     local e = outBack((clock - mv.menuAt) / 0.22)
     local fa = outCubic((clock - mv.menuAt) / 0.12)
     G.push()
@@ -516,6 +521,23 @@ return function(K, env, T, A, partyView)
       K.text(label, bb[1], bb[2] + (8 - 4.2 * 1.2) / 2, 4.2, C.accent, "center", bw)
       K.addHit(bb, "win", A.CANCEL)
     end
+    -- (Sort, beside it: a pocket START sorts; never on the Kanto Gear's screen, a battle's; kept while its
+    -- menu drops from it)
+    mv.sortR = nil
+    local sortRows = B.rows[pocket]
+    local sorting = B.view == "menu" and B.menu and B.menu.sort
+    if not B.compact and not B.prompt and sortRows and sortRows.sortable and (B.view == "list" or sorting) then
+      local label = T("items.sort")
+      local sw2 = K.width(label, 4.2) + 8
+      local sb = K.R(x + w - M - bw - 2 - sw2, y + 2.5, sw2, 8)
+      K.col(C.white, sorting and 0.85 or 0.55)
+      K.box("fill", sb, 4)
+      K.ring(sb, 4, C.white, 0.8, 0.3)
+      K.text(label, sb[1], sb[2] + (8 - 4.2 * 1.2) / 2, 4.2, C.accent, "center", sw2)
+      K.addHit(sb, "win", A.SORT)
+      mv.sortR, mv.sortB = sb[1] + sb[3], sb[2] + sb[4]
+      bw = bw + sw2 + 2
+    end
     -- (the Kanto Gear's screen: the pocket's name as the title, its tabs pictures)
     local title = B.compact and T(POCKET_KEY[pocket] or "pocket.ITEMS") or (B.title or "")
     local fs = K.fit(title, 6, w - bw - 2 * M - 6)
@@ -550,6 +572,25 @@ return function(K, env, T, A, partyView)
     if B.view == "qty" and B.qty then drawQty(B, clock, body, row) end
     if B.prompt and B.prompt.sell then drawSell(B, clock, body)
     elseif B.prompt and partyView then partyView.drawPrompt(B, clock, body) end
+    -- (what a sort did: a capsule at the foot, a moment)
+    local tt = B.toast
+    if tt then
+      local age = clock - tt.at
+      if age > 1.8 or age < 0 then
+        B.toast = nil
+      else
+        local a = min(1, age / 0.15, (1.8 - age) / 0.3)
+        local ts = 4.4
+        local tw = K.width(tt.text, ts) + 12
+        local th = K.lineH(ts) * 1.2 + 4
+        local tb = K.R(x + (w - tw) / 2, y + h - M - th - 2 + (1 - outCubic(min(1, age / 0.25))) * 4, tw, th)
+        local f0 = K.getFade()
+        K.setFade(f0 * a)
+        K.glass(tb, th / 2, 0.92)
+        K.text(tt.text, tb[1], tb[2] + (th - ts * 1.2) / 2, ts, C.ink, "center", tw)
+        K.setFade(f0)
+      end
+    end
     K.scissor(body)
   end
 

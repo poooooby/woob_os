@@ -1694,7 +1694,10 @@ cards' held item is a small mark (`heldMark`, blue for mail). `itemIcon` returns
   "battleUse": `BattleItems.canUseOn` / `use`, the HP bar, the words, then the battle's answer; a stat
   booster's 7-frame delay; a Ball refused with the party and boxes full; else `onBattleUse(id)`), GIVE
   (`canGive`, no party, to the party), SET (`registeredItem`; Ruby / Sapphire numeric / 0), CHECK TAG
-  (the game's berry tag screen), TOSS, moving within a pocket (`Bg.canMove` as `can_move_items`).
+  (the game's berry tag screen), TOSS, moving within a pocket (`Bg.canMove` as `can_move_items`), sorting one
+  (START or the Sort button by Close, `A.SORT`: `Bg.sort` -> `Inv.sortPocket` by name / by item number, as the PC's
+  Items; `Bg.canSort`: out of battle, nothing being chosen, never the Pyramid's or a pocket the game keeps in
+  order; `rows.sortable` worked out with the rows; a "Sorted by ..." capsule, `B.toast`).
   `Bg.battleParty` is `PartyView.live` in `PartyMenu.battleOrder`.
 - **The window** (`src/apps/menus.lua`): pages over pages. `kind = "bag"`: the Bag (`src/apps/bag.lua` Bc:
   views list / menu / qty / move, prompts the party's (`Pc.promptInput` / `promptTap`, drawn by the party

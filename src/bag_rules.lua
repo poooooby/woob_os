@@ -15,7 +15,7 @@
 --   Bg = bagRules(engine, deps)       deps: T, inv (src/inventory.lua's), log
 --   Bg.pockets(c) -> { "ITEMS", ... } ; Bg.rows(c, pocket) -> rows (Inv's, with tm = a move's record,
 --   registered) ; Bg.actions(c, pocket, row) -> { { act, text } ... } ; Bg.act(c, act, row, ui) ;
---   Bg.canMove(c, pocket) ; Bg.move(c, pocket, from, to) ; Bg.toss(c, row, qty, ui) ;
+--   Bg.canMove(c, pocket) ; Bg.move(c, pocket, from, to) ; Bg.canSort(c, pocket) ; Bg.sort(c, pocket, "name" | "type") ; Bg.toss(c, row, qty, ui) ;
 --   Bg.battleParty(c) -> party (shown order), order, double ; Bg.giveSource(bag) ; Bg.battleUse(c, party, order, i, ui) (an item on the
 --   i-th shown in battle)
 --   c = { session, bag, battle, location ("party": choosing what to give), onBattleUse }
@@ -236,6 +236,18 @@ return function(engine, deps)
     local slot = table.remove(slots, from)
     table.insert(slots, math.min(#slots + 1, to), slot)
     return true
+  end
+
+  -- ------- sorting a pocket (START): by name, or by type (the game's own numbering keeps like with like:
+  -- the medicine together, the Balls, the hold items); never a pocket the game keeps in its own order
+  -- (FireRed / LeafGreen's TM Case and Berry Pouch), a battle's Bag, the Pyramid's, or a Bag to choose from
+  function Bg.canSort(c, pocket)
+    if c.pyramid or c.battle or pocket == "PYRAMID" or not Inv.sortPocket then return false end
+    return Bg.canMove(c, pocket)
+  end
+  function Bg.sort(c, pocket, how)
+    if not Bg.canSort(c, pocket) then return false, "fixed" end
+    return Inv.sortPocket(c.session, pocket, how)
   end
 
   -- ------- TOSS (how many already chosen)
