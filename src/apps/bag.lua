@@ -62,7 +62,7 @@ return function(env, T, A, Pc)
       end
       -- (START sorts it: worked out once here too)
       local okS, can = pcall(Bg.canSort, B.c, p)
-      rows.sortable = #rows > 1 and okS and can or false
+      rows.sortable = #rows > 1 and okS and can and not (B.m.pd or B.m.demo or B.m.tmDemo) or false
       B.rows[p] = rows
     end
     return rows
@@ -244,6 +244,7 @@ return function(env, T, A, Pc)
     B.qty = { n = 1, max = min(cap, tonumber(row.qty) or 1), at = now(), kind = kind }
     B.view = "qty"
   end
+  local startMove   -- (below: Reorder in an item's menu starts it too)
   local function openMenu(B)
     local row = Bc.row(B)
     if not row then return end
@@ -271,6 +272,12 @@ return function(env, T, A, Pc)
     local ok, rows = pcall(Bg.actions, B.c, B.pockets[B.pi], row)
     rows = ok and rows or {}
     if #rows == 0 then return end
+    -- (Reorder, as SELECT: the only way to it by touch; before Cancel)
+    if not (B.pd or B.m.demo or B.m.tmDemo) and #rowsOf(B) > 1 and Bg.canMove(B.c, B.pockets[B.pi]) then
+      local last = rows[#rows]
+      local at = (last and last.act == "CANCEL") and #rows or #rows + 1
+      table.insert(rows, at, { act = "MOVE", text = T("bag.hint.move") })
+    end
     B.menu = { rows = rows, sel = 1, at = now(), i = B.cur }
     B.view = "menu"
     se("SE_SELECT")
@@ -311,6 +318,7 @@ return function(env, T, A, Pc)
       se("SE_SELECT")
       return sortPocket(B, r.act == "SORT_NAME" and "name" or "type")
     end
+    if r.act == "MOVE" then return startMove(B) end
     if not row or r.act == "CANCEL" then return se("SE_SELECT") end
     se("SE_SELECT")
     if r.act == "TOSS" then
@@ -339,7 +347,7 @@ return function(env, T, A, Pc)
     run(B, f, B.c, Bc.row(B), q.n, uiOf(B))
   end
 
-  local function startMove(B)
+  function startMove(B)
     local row = Bc.row(B)
     if not row or B.c.location == "party" or not Bg.canMove(B.c, B.pockets[B.pi]) then return false end
     se("SE_SELECT")
@@ -378,6 +386,8 @@ return function(env, T, A, Pc)
     return nil
   end
 
+  -- (a tap on the lesson's Skip: as its B)
+  local PRESS_B = { wasPressed = function(_, k) return k == "b" end, isDown = function() return false end }
   -- the Pokédude's Bag (Teachy TV's battles, the Old Man's): its own presses only; B stops it (unless it can't be)
   local function pdInput(B, input)
     if input:wasPressed("b") and not B.pd.plan.noInterrupt then
@@ -434,6 +444,11 @@ return function(env, T, A, Pc)
 
   function Bc.tap(B, arg)
     if B.done then return "close" end
+    -- (a lesson plays itself: its Skip (the Close button) stops it, as B; nothing else)
+    if B.pd and not B.pdFeeding then
+      if arg == A.CANCEL then return pdInput(B, PRESS_B) end
+      return result(B)
+    end
     if B.wait then return nil end
     if B.prompt then
       Pc.promptTap(B, arg)
@@ -457,6 +472,8 @@ return function(env, T, A, Pc)
       if k >= 1 and k <= #rowsOf(B) then
         B.cur = k
         endMove(B, true)
+      elseif arg == A.CANCEL then
+        endMove(B, false)
       end
       return result(B)
     end

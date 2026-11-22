@@ -622,6 +622,15 @@ return function(env, T, A, Ctl)
       promptTap(P, arg)
       return Pc.result(P)
     end
+    -- (a lesson plays itself: its Skip (the Close button) stops it, as B; nothing else)
+    if P.pd and not P.pdFeeding then
+      if arg == A.CANCEL then
+        se("SE_SELECT")
+        P.m.result = { pdCancel = true }
+        P.done = true
+      end
+      return Pc.result(P)
+    end
     if P.view == "summary" and P.sum then
       if Ctl.tap(P.sum, arg) == "close" then summaryClosed(P) end
       return Pc.result(P)

@@ -433,7 +433,8 @@ return function(K, env, T, A, sumView)
     local picking = P.view == "switch" or P.view == "softboiled" or base == "use" or base == "give"
       or base == "battleUse" or base == "choose" or base == "choose_multi" or base == "move_tutor"
     if not forced then
-      local label = T(picking and "hint.cancel" or (P.c.battle and "hint.back" or "hint.close"))
+      -- (a lesson's: Skip, as its B)
+      local label = T(P.pd and "hint.skip" or (picking and "hint.cancel" or (P.c.battle and "hint.back" or "hint.close")))
       bw = K.width(label, 4.2) + 8
       local bb = K.R(x + w - bw, y + 1.5, bw, 8)
       K.col(C.white, 0.55)

@@ -25,7 +25,7 @@
 local floor, max, min, ceil = math.floor, math.max, math.min, math.ceil
 
 local A = { CELL = 10000, MODE = 900, TAB = 800, KIND = 700, SPRITE = 600, BACK = 590, FORM = 400, KEY = 300,
-            SEARCH = 299, KB_SCRIM = 298, KB_GO = 297 }
+            SEARCH = 299, KB_SCRIM = 298, KB_GO = 297, CLASSIC = 296 }
 -- the search's keyboard: each key's row, its left edge and width in tenths of the row (iOS's: the digits,
 -- three rows of letters, the last with Delete, then space and Go)
 local KB_ROWS = {
@@ -418,6 +418,10 @@ return function(ctx, env, makeView)
     return true
   end
 
+  -- (the START menu's: the game's own Pokédex at the toolbar's right, by touch as by START)
+  function W.toolbar()
+    if ctx.classic then return T("wall.classic"), A.CLASSIC end
+  end
   function W.tap(arg)
     if type(arg) ~= "number" then return end
     if st.kb then
@@ -427,6 +431,7 @@ return function(ctx, env, makeView)
       return
     end
     if arg == A.SEARCH then return openSearch() end
+    if arg == A.CLASSIC and ctx.classic then return ctx.classic() end
     if arg > A.CELL then
       local i = arg - A.CELL
       if i == st.sel and hasPage() then return openPage() end

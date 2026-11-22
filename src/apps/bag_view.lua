@@ -510,9 +510,11 @@ return function(K, env, T, A, partyView)
     -- (the top: what it's for, and away)
     local loc = B.c.location
     local bw = 0
-    -- (the Berry Blender waits for a Berry: no way out)
-    if loc ~= "blender" then
-      local label = T(loc == "party" and "hint.back" or ((loc == "berry_tree") and "hint.cancel" or "hint.close"))
+    -- (the Berry Blender waits for a Berry: no way out; a lesson's: Skip, as its B -- none for the Old Man's)
+    local lesson = B.pd ~= nil or B.m.demo or B.m.tmDemo
+    if loc ~= "blender" and not (B.pd and B.pd.plan.noInterrupt) then
+      local label = T(lesson and "hint.skip" or (loc == "party" and "hint.back"
+        or ((loc == "berry_tree") and "hint.cancel" or "hint.close")))
       bw = K.width(label, 4.2) + 8
       local bb = K.R(x + w - M - bw, y + 2.5, bw, 8)
       K.col(C.white, 0.55)

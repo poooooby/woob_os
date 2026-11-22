@@ -1,5 +1,5 @@
 -- Mod Manager option schema for woob_os.
--- Labels are limited to 14 characters.
+-- Labels are limited to 14 characters. A row under another (shown only while it's on: visible_if) starts "- ".
 
 return {
   {
@@ -47,13 +47,6 @@ return {
     description = "Light, Dark, or OLED (true black): the look of every WoobOS screen. The Pokémon Center keeps its own; the market stalls keep their scene for the time of day. Also in Settings > Display.",
   },
   {
-    key = "pokedex",
-    label = "Pokédex",
-    type = "toggle",
-    default = true,
-    description = "WoobOS's modern Pokédex, from the START menu and as an app on the PC and WoobPad. Off: the game's own Pokédex, and no app.",
-  },
-  {
     key = "pokegear",
     label = "Pokégear",
     type = "toggle",
@@ -79,11 +72,51 @@ return {
     label = "Modern Menus",
     type = "toggle",
     default = true,
-    description = "The Bag, the Pokémon menu and a Pokémon's summary open in WoobOS's glass, from the START menu and in battle, and when it's time to forget a move (FireRed, LeafGreen, Ruby, Sapphire, Emerald). Off: the game's own.",
+    description = "WoobOS's glass for the game's menus: the Pokédex (every game), and on FireRed, LeafGreen, Ruby, Sapphire and Emerald the Bag, the Pokémon menu and a Pokémon's summary, from the START menu and in battle. Each has its own switch below. Off: the game's own, every one.",
+  },
+  {
+    key = "pokedex",
+    label = "- Pokédex",
+    type = "toggle",
+    default = true,
+    visible_if = { key = "modernMenus", equals = true },
+    description = "WoobOS's modern Pokédex, from the START menu and as an app on the PC and WoobPad. Off: the game's own Pokédex, and no app.",
+  },
+  {
+    key = "menuBag",
+    label = "- Bag",
+    type = "toggle",
+    default = true,
+    visible_if = { key = "modernMenus", equals = true },
+    description = "The Bag in glass: from the START menu, planting a Berry, the Berry Blender, the PC's items, selling at a shop, the Battle Pyramid's bag. Off: the game's own Bag.",
+  },
+  {
+    key = "menuParty",
+    label = "- Pokémon Menu",
+    type = "toggle",
+    default = true,
+    visible_if = { key = "modernMenus", equals = true },
+    description = "The Pokémon menu in glass: from the START menu, giving and using items, choosing a team, the Move Tutor. Off: the game's own.",
+  },
+  {
+    key = "menuSummary",
+    label = "- Summary",
+    type = "toggle",
+    default = true,
+    visible_if = { key = "modernMenus", equals = true },
+    description = "A Pokémon's summary in glass, and choosing a move to forget. Off: the game's own.",
+  },
+  {
+    key = "menuBattle",
+    label = "- Battle Menus",
+    type = "toggle",
+    default = true,
+    visible_if = { key = "modernMenus", equals = true },
+    description = "In a battle, the Bag, the Pokémon menu and the summary in glass (each as its own switch says). Off: the game's own in every battle.",
   },
   {
     key = "gearMenus",
-    label = "Kanto Gear Battle Menus",
+    label = "- Kanto Gear Battle Menus",
     type = "toggle",
     default = false,
     -- (only with Modern Menus on: they're its menus)

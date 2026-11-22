@@ -417,11 +417,13 @@ do
     local FVP = { width = 480, height = 320, gameX = 0, gameY = 0, gameWidth = 480, gameHeight = 320, scale = 2 }
     TC.enabled = true
     Sh.frame({ phase = "field" }, FVP)
-    T.check(TC.enabled == false and not Sh.showsMap(Wt), "WoobPad's home: the touch pad put away")
+    T.check(TC.enabled == false and not Sh.needsButtons(Wt), "WoobPad's home: the touch pad put away")
     Wt.openApp("map")
     draw(2)
     Sh.frame({ phase = "field" }, FVP)
-    T.check(Sh.showsMap(Wt) and TC.enabled ~= false, "its Map: the touch pad left out")
+    T.check(not Sh.needsButtons(Wt) and TC.enabled == false, "its Map, made for touch (close, 3D, pinch, drag): put away too")
+    T.check(Sh.needsButtons({ state = function() return { winApp = { id = "pcgames" } } end }),
+            "PC Games (another mod's game, on real buttons): the touch pad left out")
   end
   Wt.openApp("settings")
   draw(2)

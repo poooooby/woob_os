@@ -225,16 +225,73 @@ return function(mod, deps)
     if Stack and Stack.has and Stack.has(id) then pcall(Stack.pop, id) end
     pad(false)
   end
-  -- (the 3D map showing: full screen -- the Town Map, Fly, the Pokégear's map -- or the Map app on the PC or
-  -- WoobPad)
-  local function showsMap(h)
+  -- (a screen of ours that needs the game's buttons, the touch pad left out for a phone with no controller:
+  -- the full-screen 3D map -- the Town Map, Fly, the Pokégear's map; B is its only way out -- and PC Games,
+  -- another mod's game played on real buttons. Everything else of ours is made for touch: the PC's and
+  -- WoobPad's Map app has its close button, the 3D button, pinch and drag)
+  local function needsButtons(h)
     if not h then return false end
     local r = h.state and h.state()
     if not r then return false end
     if h == Tm then return r.ctx ~= nil and r.ctx.app == "map" end
-    return r.winApp ~= nil and r.winApp.id == "map"
+    return r.winApp ~= nil and r.winApp.id == "pcgames"
   end
-  Sh.showsMap = showsMap
+  Sh.needsButtons = needsButtons
+
+  -- (where a screen of ours goes while the touch pad's out, as the game's own picture does: in portrait, from
+  -- the top of the safe area to just above the highest of the pad's buttons (L / R, else the D-pad, A / B,
+  -- START / SELECT); in landscape the whole screen, the buttons along its sides as over a battle; under a skin,
+  -- the skin's own cutout. nil: the whole screen, as ever)
+  local DECK = { "dpad", "a", "b", "l", "r", "start", "select" }
+  local AREA = { 0, 0, 1, 1 }
+  local TOUCH_GAP = 8
+  local function touchArea(vp)
+    local TC = engine("src.core.TouchControls")
+    if not (TC and TC.visible and TC.layout) then return nil end
+    local okV, vis = pcall(TC.visible, TC)
+    if not (okV and vis) then return nil end
+    local ww, wh = tonumber(vp.width), tonumber(vp.height)
+    if not (ww and wh and ww > 0 and wh > 0) then return nil end
+    local Skin = engine("src.core.TouchSkin")
+    if Skin and Skin.active then
+      local PF = engine("src.render.Playfield")
+      local okC, x, y, w, h2 = false, nil, nil, nil, nil
+      if PF and PF.cutout then okC, x, y, w, h2 = pcall(PF.cutout, ww, wh) end
+      if not (okC and x and y and w and h2 and w > 0 and h2 > 0) then return nil end
+      AREA[1], AREA[2], AREA[3], AREA[4] = x, y, w, h2
+      return AREA
+    end
+    if ww >= wh then return nil end
+    local okL, L = pcall(TC.layout, TC)
+    if not (okL and type(L) == "table") then return nil end
+    local top = wh
+    for i = 1, #DECK do
+      local z = L[DECK[i]]
+      if z and z.cy then top = math.min(top, z.cy - (z.h or z.w or 0) / 2) end
+    end
+    local SA = engine("src.core.SafeArea")
+    local sx, sy, sw = 0, 0, ww
+    if SA and SA.windowRect then
+      local okS, x, y, w = pcall(SA.windowRect)
+      if okS and tonumber(x) and tonumber(y) and tonumber(w) then sx, sy, sw = x, y, w end
+    end
+    local h2 = top - TOUCH_GAP - sy
+    if h2 < wh * 0.3 then return nil end
+    AREA[1], AREA[2], AREA[3], AREA[4] = sx, sy, sw, h2
+    return AREA
+  end
+  Sh.touchArea = touchArea
+  -- (the viewport handed on with that area: kept, refilled each frame)
+  local VPA = {}
+  local function withArea(vp, area)
+    for k in pairs(VPA) do VPA[k] = nil end
+    for k, v in pairs(vp) do VPA[k] = v end
+    VPA.area = area
+    return VPA
+  end
+  -- (a game screen over ours this frame -- the evolution, the mail reader, Check Tag, a Teachy TV lesson:
+  -- the touch pad out for it, and taps not ours)
+  local gameAbove = false
 
   -- the one open (the desktop, WoobPad or the full-screen host), and its layer's id
   local function host()
@@ -928,11 +985,17 @@ return function(mod, deps)
     if h and h == Tm and Nt then pcall(Nt.step, t, false) end
     -- (a game screen opened over a modern menu -- the bag to give from, the mail reader, an evolution:
     -- ours waits under it, not drawn, until it's gone)
+    gameAbove = false
     if h and h == Tm and Stack and Stack.top then
       local r = Tm.state and Tm.state()
       local top = r and r.ctx and r.ctx.menu and Stack.top()
-      -- (a layer that draws what's under it -- Teachy TV's lessons over our Bag -- leaves ours drawn)
-      if top and top.id ~= id and not top.drawUnder then return end
+      if top and top.id ~= id then
+        -- (it waits on A / B: the touch pad out for it, the help still off)
+        gameAbove = true
+        pad(true, true)
+        -- (a layer that draws what's under it -- Teachy TV's lessons over our Bag -- leaves ours drawn)
+        if not top.drawUnder then return end
+      end
     end
     -- (over the field, nothing of ours open: the GPS's arrow, the WoobPad option or not)
     if not h and deps.fieldDraw and G and type(viewport) == "table" then
@@ -955,8 +1018,10 @@ return function(mod, deps)
     G.setBlendMode("alpha")
     local ok, err
     if h then
-      pad(true, showsMap(h))
-      ok, err = pcall(h.draw, G, viewport)
+      local keep = gameAbove or needsButtons(h)
+      pad(true, keep)
+      local area = keep and touchArea(viewport) or nil
+      ok, err = pcall(h.draw, G, area and withArea(viewport, area) or viewport)
     else
       ok, err = pcall(Nt.drawField, G, viewport, Sh.free(game), t)
     end
@@ -968,6 +1033,8 @@ return function(mod, deps)
   function Sh.pointer(ev)
     if Gp and Gp.pointer(ev) then return true end
     local h = host()
+    -- (a game screen over ours: its taps aren't for the one waiting under it)
+    if h and gameAbove then return false end
     if h then return h.pointer(ev) end
     -- (a banner's tap opens WoobPad on its app: not with the WoobPad option off, the tap the game's)
     if Nt and type(ev) == "table" and ev.phase == "pressed" and not (deps.padOn and not deps.padOn()) then

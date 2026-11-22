@@ -697,6 +697,10 @@ if Sw and Nw then
   T.eq(nst.i, i0 % #nst.cast.stories + 1, "A again: the next story")
   W.input(input({}), nav("left"))
   T.eq(nst.i, i0, "Left: the one before")
+  W.tap(2001)
+  local i1 = nst.i
+  W.tap(2002)
+  T.check(i1 ~= i0 and nst.i == (i1 - 2) % #nst.cast.stories + 1, "by touch: the card's left edge, the one before")
   T.check(W.input(input({ "b" }), NONE) == false, "B closes")
   local kb
   for _ = 1, 2 do kb = garbageOf(60, function() drawWin(W, false) end) end

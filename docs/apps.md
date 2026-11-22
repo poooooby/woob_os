@@ -42,9 +42,10 @@ Everything on the WoobOS desktop, and on WoobPad. Some apps are only on some gam
 
 - 🌐 **GTS:** Wonder Trade, other Trainers' offers, and a deposit of your own. Traded Pokémon act like
   real trades: they can evolve on arrival and may not obey without enough Badges.
-- 🛒 **Mart:** buy and sell from the PC, with more stock for each Badge.
+- 🛒 **Mart:** buy and sell from the PC, with more stock for each Badge. Hold - or + to count faster, or
+  tap the number for as many as you can buy (or all you have, selling).
 - 🚀 **R-Bay:** Team Rocket's Pokémon auctions. They run on your device's clock, even while the game is
-  off.
+  off. Hold - or + to raise your maximum faster, or tap the amount for the most you can bid.
 - 🎰 **Slots:** a five-reel slot machine played with your money, with prizes for its tickets. Four
   limited prizes change every day: a sought-after Pokémon, a held item, a 10th Anniversary Pokémon, and a
   special: an event ticket (Eon, Mystic, Aurora or the Old Sea Map) that sails from the harbor like the
@@ -68,7 +69,8 @@ Everything on the WoobOS desktop, and on WoobPad. Some apps are only on some gam
 
 - 📟 **Oak's PC** and 🏆 **Hall of Fame**, as the game has them.
 - 🛋️ **Decorate** at your bedroom PC.
-- 🕹️ **PC Games:** with the PC Games mod installed, its games get an icon too.
+- 🕹️ **PC Games:** with the PC Games mod installed, its games get an icon too. On a phone with no controller,
+  the game's on-screen buttons stay up to play them.
 
 ## Settings
 

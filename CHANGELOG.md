@@ -5,6 +5,32 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **A switch for each modern menu,** under Modern Menus in the options and shown only while it's on: Pokédex,
+  Bag, Pokémon Menu, Summary and Battle Menus (the Bag, Pokémon menu and summary in a battle). Kanto Gear
+  Battle Menus sits with them. Modern Menus off turns every one off, the Pokédex too.
+- **By touch, what only a button reached:**
+  - The Bag: Reorder in an item's menu (as SELECT), then tap where it goes; Skip, where Close is, stops a
+    Teachy TV or Pokédude lesson (as B).
+  - The Pokémon menu: Skip stops the Pokédude's lesson.
+  - The Pokédex from the START menu: Classic at the top right opens the game's own (as START).
+  - The Mart and R-Bay: hold - or + to count faster, by tens after a moment (as Up / Down); tap the number for
+    as many as you can buy or all you have to sell, or the most you can bid (as SELECT).
+  - The GTS: Cancel on the Pokémon you want (and a tap outside it), the way back to the species from the
+    levels, and a Back while choosing your Pokémon.
+  - The News: the card's left edge goes back a story (as Left).
+
+### Fixed
+- **Playing by touch alone** (a phone or tablet with no controller):
+  - The game's on-screen buttons come back for one of the game's own screens opened over the Bag or the
+    Pokémon menu: an evolution, the mail reader, Check Tag, an item's own screen (the Town Map item, the Fame
+    Checker, the Pokéblock Case), Teachy TV's TM Case lesson. They wait on A and B, and could leave you stuck.
+  - The on-screen buttons stay up to play PC Games.
+  - Held upright, the Town Map, the Fly map and PC Games stop just above the on-screen buttons, as the game
+    does; sideways they fill the screen, the buttons along its sides as in a battle.
+  - The PC's and WoobPad's Map app puts the buttons away again: it's all touch (its close button, the 3D button,
+    pinch and drag).
+
 ## [0.21.2] - 2026-11-22
 
 ### Fixed

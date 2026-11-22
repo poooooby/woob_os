@@ -87,7 +87,8 @@ return function(mod, loadSibling)
   local Sh
   -- (the Pokédex in the START menu's place: the mod's option, then Settings > Gameplay)
   local function dexOn()
-    return option("pokedex", true) ~= false and (not Settings or Settings.get("pokedexApp", true) ~= false)
+    return option("modernMenus", true) ~= false and option("pokedex", true) ~= false
+      and (not Settings or Settings.get("pokedexApp", true) ~= false)
   end
   local env
   local Host = makeHost(mod, { gen = gen, require = require, log = mod.log, dexOn = dexOn,
@@ -530,7 +531,8 @@ return function(mod, loadSibling)
     end
   end
   -- the Pokédex (src/gb/dex.lua): the window is Gen 3's; the picture a breathing still with a hop when chosen
-  env.dexOption = function() return option("pokedex", true) ~= false end
+  -- (the Pokédex: one of Modern Menus' categories, so off with it)
+  env.dexOption = function() return option("modernMenus", true) ~= false and option("pokedex", true) ~= false end
   -- (the WoobPad option: off, no START row, and the game's own Pokégear from START)
   env.padOption = function() return option("woobpad", true) ~= false end
   if Gd and makeDex then

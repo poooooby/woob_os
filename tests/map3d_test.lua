@@ -734,7 +734,23 @@ do
   local en0 = TC.enabled
   TC.enabled = true
   Sh.frame({ phase = "field" }, { width = 480, height = 320, gameX = 0, gameY = 0, gameWidth = 480, gameHeight = 320, scale = 2 })
-  T.check(Sh.showsMap(Tm) and TC.enabled ~= false, "the touch pad left out over the 3D map")
+  T.check(Sh.needsButtons(Tm) and TC.enabled ~= false, "the touch pad left out over the 3D map")
+  -- (and the map stops just above its buttons in portrait, as the game's picture does over a battle; in
+  -- landscape the whole screen, the buttons along its sides)
+  local vis0, lay0 = TC.visible, TC.layout
+  TC.visible = function() return true end
+  TC.layout = function() return { dpad = { cy = 740, w = 150 }, a = { cy = 690, w = 70 }, b = { cy = 750, w = 70 },
+                                   l = { cy = 560, w = 90, h = 45 }, r = { cy = 560, w = 90, h = 45 },
+                                   start = { cy = 760, w = 40 }, select = { cy = 760, w = 40 } } end
+  local PVP = { width = 400, height = 800, gameX = 0, gameY = 60, gameWidth = 400, gameHeight = 266, scale = 1.66 }
+  local a = Sh.touchArea(PVP)
+  T.check(a and math.abs((a[2] + a[4]) - (560 - 22.5 - 8)) < 1e-6, "portrait: down to just above L / R")
+  T.check(pcall(Sh.frame, { phase = "field" }, PVP), "drawn there")
+  local K2 = X._test.kit
+  local _, ph = K2.frame(G, { width = 400, height = 800, area = { a[1], a[2], a[3], a[4] } }, Tm.PAGE, 0)
+  T.check(K2.oy + ph * K2.sc <= 560 - 22.5 - 8 + 1e-6, "the map's page laid out in it")
+  T.eq(Sh.touchArea({ width = 800, height = 400 }), nil, "landscape: the whole screen")
+  TC.visible, TC.layout = vis0, lay0
   TC.enabled = en0
 end
 Tm.input(input({}, {}))

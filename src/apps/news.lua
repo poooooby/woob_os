@@ -14,7 +14,7 @@
 local floor, max, min, sin, abs, pi = math.floor, math.max, math.min, math.sin, math.abs, math.pi
 
 local M = 3
-local CARD = 2001
+local CARD, CARD_BACK = 2001, 2002   -- (the card: the next story; its left edge: the one before)
 local CPS = 52
 local SIZE, LINE = 4.1, 5.4
 local MARK_W, MARK_SIZE = 9, 3.1     -- a beat's turn, in a pill before its first line
@@ -139,7 +139,10 @@ return function(ctx, env)
     elseif nav.down then scrollBy(1) end
     return true
   end
-  function W.tap(arg) if arg == CARD then advance() end end
+  function W.tap(arg)
+    if arg == CARD then advance()
+    elseif arg == CARD_BACK then go(-1) end
+  end
   -- (a line's step: LINE, as much taller as the text size makes the words; st.lineH, the last draw's)
   function W.scroll(dy) scrollBy(-dy / (st.lineH or LINE)) end
   function W.hints() return T.list(HINTS.main) end
@@ -295,6 +298,7 @@ return function(ctx, env)
     local slide = (1 - k) * 14
     local b = K.R(x + slide, y, w, h)
     K.addHit(K.R(x, y, w, h), "win", CARD)
+    if #cast.stories > 1 then K.addHit(K.R(x, y, min(9, w * 0.12), h), "win", CARD_BACK) end
     local f0 = K.getFade()
     K.setFade(f0 * k)
     K.glass(b, 5, 0.62)
@@ -433,6 +437,8 @@ return function(ctx, env)
       K.box("fill", K.R(b[1] + w - 2.2, y0 + (sh - bh) * (st.top / max(1, nl - st.cap)), 1, bh), 0.5)
     end
     if total >= L.n then K.chevron(cx + w - 6, b[2] + h - 5, 2, tagC, 1, K.pulse()) end
+    -- (its left edge goes back a story)
+    if #cast.stories > 1 then K.chevron(b[1] + 2.2, b[2] + h / 2, 1.6, SHADE, -1, 0.3) end
     K.setFade(f0)
     K.scissor(st.clip)
   end

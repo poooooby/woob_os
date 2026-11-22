@@ -245,11 +245,25 @@ once. Each drop saves.
   can't Dynamax) and `info.gmax`. The preview draws a ten-segment gauge row and a G-Max badge over
   the picture's foot. Nothing is written to the Pokémon.
 - **Help:** FireRed/LeafGreen's Help opens on L/R and stops the game's update. The shell sets
-  `help_system.enabled = false` while the desktop is up, the same way as the touch pad. The touch pad is left
-  out while the 3D map shows (`Sh.showsMap`: the full-screen host's `ctx.app == "map"`, or the PC's / WoobPad's
-  `winApp.id == "map"`; `pad(true, keepTouch)`): the engine shows it only on Android / iOS while no controller's in
-  use and its buttons take their touches before `input.pointer`, so a phone with no controller keeps START /
-  SELECT / L / R there (the help stays off).
+  `help_system.enabled = false` while the desktop is up, the same way as the touch pad.
+- **The touch pad** (the engine's TouchControls: shown only on Android / iOS while no controller's in use; its
+  buttons take their touches before `input.pointer`): put away for our screens, which are made for touch, and
+  left out (`pad(true, keepTouch)`, the help still off) only where a button is needed: `Sh.needsButtons` (the
+  full-screen 3D map, `ctx.app == "map"`, whose only way out is B; PC Games, `winApp.id == "pcgames"`, another
+  mod's game on real buttons) and a game screen over a modern menu (`gameAbove` in `Sh.frame`: the evolution,
+  the mail reader, Check Tag, an item's own screen, Teachy TV's lesson over our Bag -- they wait on A / B;
+  `Sh.pointer` leaves their taps alone). While it's out over a screen of ours, the page is laid out in
+  `Sh.touchArea` (the kit's `vp.area`): in portrait down to 8 px above the highest of its buttons, as the game's
+  picture sits above them; in landscape the whole screen (the buttons along the sides, as over a battle);
+  under a skin, its cutout (`Playfield.cutout`). The PC's / WoobPad's Map app is touch-first (its close button,
+  the 3D button, pinch, drag): put away there.
+- **Touch ways to button-only actions:** `K.newHold` / `K.holdZone` / `K.holdPointer` / `K.holdStep` (a held
+  - / + repeats, by tens after eight; the window's pointer also forwards drags to its scroll, since a window
+  with a pointer gets its drags there); the Mart's / R-Bay's number tapped = SELECT (`STEP_ALL` / `STEP_MAX`);
+  the Bag's MOVE row and Skip (`A.CANCEL` during `B.pd`; taps otherwise ignored in a lesson, the Old Man's has
+  no Skip); the party's Skip; the GTS sheet's Cancel / dim (`NO`), its card (`CARD`) and the picker's
+  `PICK_BACK`; the News's `CARD_BACK`; the full-screen toolbar's right action (`win.toolbar() -> label, arg`;
+  the Pokédex's Classic).
 - **The look:** `src/apps/boxes_view.lua` draws in the Pokédex's glass (`K.backdrop` lit by the
   previewed Pokémon's types, `K.glass` panes). Its motion lives in the view's `mv` (`V.motion`): the
   cursor's highlight glides (`mv.gx/gy`, `mv.px/py`), cells rise in on open and when the box turns
@@ -1489,6 +1503,14 @@ The mod option `realShops`; with it off, or anything failing, the game's own scr
   the vitamin stall (the Energy Guru) opens ours; the TM stall's vendor isn't there in a new game.
 
 ## The modern menus
+
+The options: `modernMenus`, then one per category, each `visible_if` modernMenus (`pokedex`, `menuBag`,
+`menuParty`, `menuSummary`, `menuBattle`, then `gearMenus`). src/menus.lua's gates ask `on(kind, battle)`
+(`Mn.allowed`): main.lua's `deps.on` is Modern Menus, then the category's key (`MENU_OPTION`), then
+`menuBattle` for one in a battle (the summary's battle from `Mn.inBattle()`, the party's from its mode, the
+Bag's / the Pyramid's from `opts.battle` / its location). The Pokédex's `env.dexOption` (and src/gb/main.lua's
+`dexOn`) needs `modernMenus` too, on every game. A page opened inside an open modern menu (the Bag's USE on
+the party, the party's GIVE from the Bag) stays ours whatever its own switch says.
 
 The game's own Summary, Party menu and Bag replaced on FireRed / LeafGreen / Ruby / Sapphire / Emerald by
 our own, in phases (the plan: the Summary, then the Party, then the Bag); the mod option `modernMenus`.

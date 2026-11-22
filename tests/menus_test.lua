@@ -220,6 +220,53 @@ if not RS then
   SM.close()
   T.check(box and not SM.isOpen(), "and it closes as the game's")
 end
+-- (each category's own switch under Modern Menus, Battle Menus for one in a battle, the Pokédex too; Modern
+-- Menus off: every one)
+do
+  local L = run.loader
+  L.modOptions = L.modOptions or {}
+  local keep = L.modOptions.woob_os
+  local o = {}
+  L.modOptions.woob_os = o
+  T.check(Mn.allowed("bag", false) and Mn.allowed("party", true) and Mn.allowed("summary", false)
+          and X._test.env.dexOption(), "all on by default")
+  o.menuSummary = false
+  T.check(not Mn.allowed("summary", false) and Mn.allowed("bag", false) and Mn.allowed("party", false),
+          "Summary off: the summary alone")
+  T.eq(Mn.openSummary(s.party, 1, { session = s }), false, "and it isn't ours")
+  o.menuSummary = nil
+  o.menuBag = false
+  T.check(not Mn.allowed("bag", false) and not Mn.allowed("bag", true) and Mn.allowed("party", true), "Bag off: the Bag, in battle too")
+  o.menuBag = nil
+  o.menuParty = false
+  T.check(not Mn.allowed("party", false) and Mn.allowed("bag", false), "Pokémon Menu off: the party alone")
+  o.menuParty = nil
+  o.menuBattle = false
+  T.check(Mn.allowed("bag", false) and not Mn.allowed("bag", true) and not Mn.allowed("party", true)
+          and not Mn.allowed("summary", true) and Mn.allowed("summary", false), "Battle Menus off: the game's in a battle only")
+  o.menuBattle = nil
+  o.pokedex = false
+  T.check(not X._test.env.dexOption() and Mn.allowed("bag", false), "Pokédex off: the Pokédex alone")
+  o.pokedex = nil
+  o.modernMenus = false
+  T.check(not Mn.allowed("bag", false) and not Mn.allowed("party", false) and not Mn.allowed("summary", false)
+          and not X._test.env.dexOption(), "Modern Menus off: every one, the Pokédex too")
+  L.modOptions.woob_os = keep
+  -- (the options page: each one shown only with Modern Menus on)
+  local rows = dofile("mods/woob_os/options.lua")
+  local under = {}
+  for _, r in ipairs(rows) do
+    if r.visible_if and r.visible_if.key == "modernMenus" and r.visible_if.equals == true then under[#under + 1] = r.key end
+  end
+  T.eq(table.concat(under, " "), "pokedex menuBag menuParty menuSummary menuBattle gearMenus",
+       "under Modern Menus: " .. table.concat(under, " "))
+  for _, r in ipairs(rows) do
+    local n = #r.label:gsub("[\128-\191]", "")
+    T.check(n <= 14 or r.key == "gearMenus", "label fits: " .. r.label)
+    -- (a row under another starts "- ", the rest don't)
+    T.check((r.visible_if ~= nil) == (r.label:sub(1, 2) == "- "), "a sub-option marked as one: " .. r.label)
+  end
+end
 Mn.on = false
 T.check(Mn.openSummary(s.party, 1, { session = s }) == false, "the option off: not ours")
 if not RS then
@@ -729,6 +776,53 @@ menuPick(B, "CANCEL")
 T.check(B.view == "list" and inOrder("type"), "Cancel: as it was")
 bframe(130)
 T.check(B.toast == nil, "the word gone after a moment")
+-- (Reorder by touch: in an item's menu, as SELECT; Close while moving leaves it as it was; a row tapped
+-- puts it there)
+do
+  while B.cur ~= 1 do bframe(1, "up") end
+  local first = B.rows[spk][1].id
+  bframe(1, "a")
+  local acts = {}
+  for k, r in ipairs(B.menu and B.menu.rows or {}) do acts[k] = r.act end
+  T.check(acts[#acts - 1] == "MOVE" and acts[#acts] == "CANCEL", "an item's menu: Reorder, before Cancel (" .. table.concat(acts, " ") .. ")")
+  menuPick(B, "MOVE")
+  T.eq(B.view, "move", "Reorder: moving it")
+  Tm.state().win.tap(741)
+  T.check(B.view == "list" and B.rows[spk][1].id == first, "Close while moving: as it was")
+  bframe(1, "a")
+  menuPick(B, "MOVE")
+  Tm.state().win.tap(1000 + 2)
+  bframe(1)
+  T.check(B.view == "list" and B.rows[spk][2].id == first, "a row tapped: put there")
+end
+-- (a game screen over a modern menu -- the evolution, the mail reader, Check Tag -- waits on A / B: the touch
+-- pad out for it on a phone with no controller, and taps not for ours under it)
+do
+  local TC = require("src.core.TouchControls")
+  local en0 = TC.enabled
+  TC.enabled = true
+  Sh.frame(nil, VP)
+  T.check(TC.enabled == false, "our Bag (made for touch): the touch pad put away")
+  local GAME = { isMenu = true, handleInput = function() end, update = function() end, draw = function() end }
+  Stack.push("test_game_screen", GAME, { hideBelow = true })
+  Sh.frame(nil, VP)
+  T.check(TC.enabled ~= false, "a game screen over it: the touch pad out")
+  T.eq(Sh.pointer({ phase = "pressed", x = 10, y = 10, id = 1 }), false, "its taps not for our Bag under it")
+  Sh.pointer({ phase = "released", x = 10, y = 10, id = 1 })
+  Stack.pop("test_game_screen")
+  Sh.frame(nil, VP)
+  T.check(TC.enabled == false and Tm.isOpen(), "gone: put away again, our Bag back")
+  -- (a lesson drawn over ours -- Teachy TV's -- the same: its words wait on A)
+  local LESSON = { isMenu = true, drawUnder = true, handleInput = function() end, update = function() end,
+                   draw = function() end }
+  Stack.push("test_lesson", LESSON, { hideBelow = false })
+  Sh.frame(nil, VP)
+  T.check(TC.enabled ~= false, "a lesson drawn over it: the touch pad out")
+  Stack.pop("test_lesson")
+  Sh.frame(nil, VP)
+  T.check(TC.enabled == false, "and put away after")
+  TC.enabled = en0
+end
 do
   local Bg = X._test.env.bagRules
   T.check(Bg.canSort({ session = s, bag = s.bag }, spk) and not Bg.canSort({ session = s, bag = s.bag, battle = true }, spk)
@@ -1090,6 +1184,13 @@ do
   T.check(bag() and bag().pd and BM.isPokedude(), "the Old Man's Bag: ours, playing its plan")
   bframe(1, "b", true)
   T.check(Tm.isOpen(), "B can't stop the Old Man's")
+  do
+    local skip = false
+    for _, h in ipairs(X._test.kit.hits) do if h.kind == "win" and h.arg == 741 then skip = true end end
+    T.check(not skip, "nor a tap: no Skip on it")
+    Tm.state().win.tap(1001)
+    T.check(Tm.isOpen() and bag().view == "list", "a tap on a row mid-lesson: nothing")
+  end
   for _ = 1, 500 do if not Tm.isOpen() then break end bframe(1, nil, true) end
   T.check(not Tm.isOpen() and got == "item:" .. POKE_BALL, "its plan done: the Poké Ball (" .. tostring(got) .. ")")
   got = nil
@@ -1098,11 +1199,20 @@ do
   bframe(1, nil, true)
   bframe(1, "b", true)
   T.check(not Tm.isOpen() and got == "cancel", "Teachy TV's catching lesson: B stops it, onCancel")
+  got = nil
+  BM.showPokedude(s.bag, { session = s, plan = "catching", onItem = function(id) got = "item" end,
+                           onCancel = function() got = "cancel" end })
+  bframe(1, nil, true)
+  Tm.state().win.tap(741)
+  bframe(1, nil, true)
+  T.check(not Tm.isOpen() and got == "cancel", "by touch: its Skip (the Close button), as B")
   -- (the party: a switch, then an item on one)
   local sel
   PM.showPokedude(s.party, { plan = "switch", session = s, activeSlot = 1, validate = function() return nil end,
                              onSelect = function(slot) sel = slot end, onCancel = function() sel = "cancel" end })
   T.check(party() and party().pd and PM.isPokedude(), "the Pokédude's switch: ours")
+  Tm.state().win.tap(1000 + 2)
+  T.check(Tm.isOpen() and party().pd and sel == nil, "a tap on a Pokémon mid-lesson: nothing")
   for _ = 1, 400 do if not Tm.isOpen() then break end pframe(1, nil, true) end
   T.check(not Tm.isOpen() and sel == 2, "its plan: the second sent in (" .. tostring(sel) .. ")")
   sel = nil
@@ -1114,6 +1224,13 @@ do
   T.check(usedOn == 1 and party() and party().prompt, "the item on the one chosen: the game's words")
   pframe(1, "a", true)
   T.check(not Tm.isOpen() and sel == 1, "then its onSelect (" .. tostring(sel) .. ")")
+  sel = nil
+  PM.showPokedude(s.party, { plan = "switch", session = s, activeSlot = 1, validate = function() return nil end,
+                             onSelect = function(slot) sel = slot end, onCancel = function() sel = "cancel" end })
+  pframe(1, nil, true)
+  Tm.state().win.tap(741)
+  pframe(1, nil, true)
+  T.check(not Tm.isOpen() and sel ~= 2, "by touch: the party lesson's Skip stops it (" .. tostring(sel) .. ")")
 end
 
 -- ------- Teachy TV's lessons (FireRed / LeafGreen): its Bag lesson and its TM Case lesson on ours

@@ -575,6 +575,16 @@ Dm.show(s.dex, { session = s })
 Tm.input(input({}, {}))
 press("start")
 T.check(not Tm.isOpen() and classicOpened, "START: the game's own Pokédex")
+-- (by touch: the Classic button by the search, as START)
+classicOpened = false
+Dm.show(s.dex, { session = s })
+Tm.input(input({}, {}))
+for _ = 1, 2 do pcall(Tm.draw, G, VP) end
+local classicHit = false
+for _, h in ipairs(X._test.kit.hits) do if h.kind == "win" and h.arg == 296 then classicHit = true end end
+T.check(classicHit, "the Classic button drawn")
+Tm.state().win.tap(296)
+T.check(not Tm.isOpen() and classicOpened, "tapped: the game's own Pokédex")
 -- (the setting off: the game's own, straight away)
 classicOpened = false
 Settings.set("pokedexApp", false)

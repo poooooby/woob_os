@@ -265,6 +265,17 @@ return function(deps)
       K.text(back, 8, TOOL / 2 - 2.8, 4.8, UI.accent)
       local bw = K.width(back, 4.8) + 14
       K.addHit(K.R(0, 0, bw, TOOL), "back")
+      -- (the window's own action at the toolbar's right, when it has one: win.toolbar() -> its words, its
+      -- tap's arg -- the Pokédex's Classic)
+      if w.toolbar then
+        local okA, label, arg = pcall(w.toolbar)
+        if okA and label and arg then
+          local lw = K.width(label, 4.8)
+          K.text(label, pw - 5 - lw, TOOL / 2 - 2.8, 4.8, UI.accent)
+          K.addHit(K.R(pw - lw - 10, 0, lw + 10, TOOL), "win", arg)
+          bw = max(bw, lw + 10)
+        end
+      end
       local title = w.title or ""
       if K.textScale() == 1 then
         K.bold(title, 0, TOOL / 2 - 2.9, 5, UI.label, "center", pw)

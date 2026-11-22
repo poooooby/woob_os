@@ -82,12 +82,14 @@ return function(engine, deps)
     end
   end
   Mn.aliases = aliases
-  -- (the option; Mn.on stands in for it in the tests)
-  local function on()
+  -- (the options: Modern Menus, then its category's -- "bag" / "party" / "summary" -- and Battle Menus for one
+  -- in a battle; Mn.on stands in for them all in the tests)
+  local function on(kind, battle)
     local v = Mn.on
-    if v == nil then v = deps.on and deps.on() end
+    if v == nil then v = deps.on and deps.on(kind, battle) end
     return v
   end
+  Mn.allowed = on
 
   -- (the option `gearMenus`: a battle's menus on the Kanto Gear's screen, when it shows one -- Sh.openFull's
   -- `gear` tries it, and opens them full screen as ever when it can't; Mn.gear stands in for it in the tests)
@@ -147,7 +149,7 @@ return function(engine, deps)
 
   function Mn.openSummary(party, index, opts)
     opts = opts or {}
-    if cur or not on() then return false end
+    if cur or not on("summary", Mn.inBattle()) then return false end
     if not summaryOurs(opts) then return false end
     local Sh = deps.Sh
     if not (Sh and Sh.openFull) then return false end
@@ -334,7 +336,9 @@ return function(engine, deps)
       end
       return false
     end
-    if not on() or not (opts._pokedude or partyOurs(opts)) then return false end
+    local mode0 = opts.mode or "list"
+    if not on("party", opts.battle == true or mode0 == "battle_switch" or mode0 == "battle_faint") then return false end
+    if not (opts._pokedude or partyOurs(opts)) then return false end
     local Sh = deps.Sh
     if not (Sh and Sh.openFull) then return false end
     local s = opts.session
@@ -463,7 +467,7 @@ return function(engine, deps)
       -- (the game asking for its bag again while ours is up -- Teachy TV's way back: ours is there)
       return cur.kind == "bag" and opts.location == nil and not opts.battle and not extra
     end
-    if not on() or not (extra or bagOurs(opts)) then return false end
+    if not on("bag", opts.battle == true) or not (extra or bagOurs(opts)) then return false end
     local Sh = deps.Sh
     if not (Sh and Sh.openFull) then return false end
     local s = opts.session
@@ -618,8 +622,8 @@ return function(engine, deps)
 
   function Mn.openPyramid(opts)
     opts = opts or {}
-    if cur or not on() then return false end
     local loc = opts.location or "field"
+    if cur or not on("bag", loc == "battle") then return false end
     if loc ~= "field" and loc ~= "battle" and loc ~= "choose_toss" then return false end
     if loc == "battle" and not opts.onUse then return false end
     local Sh = deps.Sh

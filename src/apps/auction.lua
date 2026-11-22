@@ -22,7 +22,7 @@ local ROW_H, HEAD_H, M = 13, 10, 3
 -- hit args: Browse rows 1.., My Bids rows MINE + i, the rest below
 local MINE = 3000
 local SEG_BROWSE, SEG_MINE = 2001, 2002
-local STEP_MINUS, STEP_PLUS, STEP_GO = 2010, 2011, 2012
+local STEP_MINUS, STEP_PLUS, STEP_GO, STEP_MAX = 2010, 2011, 2012, 2013
 local HOT = 2020
 local RECAP_BACK = 2030
 local PARTICLES = 60
@@ -320,6 +320,23 @@ return function(ctx, env)
       se("SE_SELECT")
     end
   end
+  -- (by touch: - / + held repeat it, tens after a moment; the amount tapped is the most you can bid, as SELECT)
+  local hold = K.newHold()
+  local function stepping(d)
+    if st.recap then hold.d = nil return false end
+    if st.focus ~= "step" then begin() end
+    -- (a hold that can't bid stops: one refusal, not one a repeat)
+    if st.focus ~= "step" then hold.d = nil return false end
+    if d then stepBy(d) end
+    return true
+  end
+  local function stepMax()
+    local L = current()
+    if not L then return end
+    st.amount = max(Au.minBid(L), affordable(L))
+    se("SE_SELECT")
+  end
+
   local function place()
     local L = current()
     if not L then return end
@@ -349,9 +366,7 @@ return function(ctx, env)
       elseif nav.up then stepBy(10)
       elseif nav.down then stepBy(-10)
       elseif pressed("select") then
-        local L = current()
-        if L then st.amount = max(Au.minBid(L), affordable(L)) end
-        se("SE_SELECT")
+        stepMax()
       elseif pressed("a") then place()
       elseif pressed("b") then
         st.focus = "list"
@@ -417,8 +432,11 @@ return function(ctx, env)
     if arg == RECAP_BACK then return closeRecap() end
     if st.recap then return end
     if arg == STEP_MINUS or arg == STEP_PLUS then
-      if st.focus ~= "step" then begin() end
-      if st.focus == "step" then stepBy(arg == STEP_PLUS and 1 or -1) end
+      stepping(arg == STEP_PLUS and 1 or -1)
+      return
+    end
+    if arg == STEP_MAX then
+      if stepping() then stepMax() end
       return
     end
     if arg == STEP_GO then
@@ -455,6 +473,7 @@ return function(ctx, env)
     end
   end
 
+  function W.pointer(phase, x, y, id) return K.holdPointer(hold, phase, x, y, id, W.scroll) end
   function W.scroll(dy)
     if st.recap then return end
     st.free = true
@@ -950,8 +969,12 @@ return function(ctx, env)
     K.box("fill", K.R(sb[1] + 11, sb[2] + 2.2, 0.3, 5.6))
     K.text("-", sb[1], sb[2] + 1.4, 6, C.text, "center", 11)
     K.text("+", sb[1] + 11, sb[2] + 1.6, 6, C.text, "center", 11)
-    K.addHit(K.R(sb[1], sb[2], 11, 10), "win", STEP_MINUS)
-    K.addHit(K.R(sb[1] + 11, sb[2], 11, 10), "win", STEP_PLUS)
+    local mb, pb = K.R(sb[1], sb[2], 11, 10), K.R(sb[1] + 11, sb[2], 11, 10)
+    K.addHit(mb, "win", STEP_MINUS)
+    K.addHit(pb, "win", STEP_PLUS)
+    K.holdZone(hold, mb, -1)
+    K.holdZone(hold, pb, 1)
+    K.addHit(K.R(sb[1] + 23, sb[2], x + w - 4 - (sb[1] + 23), 10), "win", STEP_MAX)
     if stepping then K.focusRing(sb, 3.2) end
     K.text(T("auction.max"), sb[1] + 25, sb[2] + 0.4, 3.4, C.soft)
     money(amount, sb[1] + 25, sb[2] + 4.2 + gx * 2, 5, (stepping or L.mine) and C.goldTop or C.faint)
@@ -1248,6 +1271,8 @@ return function(ctx, env)
 
   function W.draw(body, clock, portrait)
     local x, y, w, h = body[1], body[2], body[3], body[4]
+    K.holdStep(hold, stepping)
+    K.holdBegin(hold)
     local t = clockNow()
     seTick(now())
     -- (what changed since the last frame starts its motion)

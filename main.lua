@@ -146,6 +146,8 @@ return function(mod)
     if ok and v ~= nil then return v end
     return default
   end
+  -- (each modern menu's own option, under Modern Menus)
+  local MENU_OPTION = { bag = "menuBag", party = "menuParty", summary = "menuSummary" }
   local version = "0.1.0"
   pcall(function()
     local m = mod.manifest
@@ -957,7 +959,8 @@ return function(mod)
     if wd and wd.registerOwned then pcall(wd.registerOwned, s) end
   end
   -- (the mod's option: off, the game's own Pokédex everywhere and no app; read when asked, never per frame)
-  env.dexOption = function() return option("pokedex", true) ~= false end
+  -- (the Pokédex: one of Modern Menus' categories, so off with it)
+  env.dexOption = function() return option("modernMenus", true) ~= false and option("pokedex", true) ~= false end
   -- (the WoobPad option: off, no START row, and the game's own PokéNav)
   env.padOption = function() return option("woobpad", true) ~= false end
   -- (WoobleSpawns, modern_spawns: the wild Pokémon it places, for the Where tab; its species by id, a
@@ -1499,7 +1502,15 @@ return function(mod)
                     color = { 10, 132, 255 }, order = 99, pad = false, available = function() return false end,
                     window = function(ctx, e) return menusWindow(ctx, e, boxesSummary, partyView, bagView) end })
     Menus = makeMenus(engine, {
-      Sh = Sh, on = function() return option("modernMenus", true) ~= false end,
+      -- (Modern Menus, then the category's own -- Bag / Pokémon Menu / Summary -- and Battle Menus for one in a
+      -- battle: each shown in the options only while Modern Menus is on)
+      Sh = Sh, on = function(kind, battle)
+        if option("modernMenus", true) == false then return false end
+        local key = MENU_OPTION[kind]
+        if key and option(key, true) == false then return false end
+        if battle and option("menuBattle", true) == false then return false end
+        return true
+      end,
       feed = function(input) Sh.feedHost(input) end,
       -- (a battle's menus on the Kanto Gear's screen: the option, with Kanto Gear there to stand down)
       gear = function() return option("gearMenus", false) == true and Gear ~= nil and Gear.bound() end,

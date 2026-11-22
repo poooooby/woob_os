@@ -27,7 +27,7 @@ local ROW_H, TAB_H, M = 10, 9, 3
 local AW, BAND = 7, 34                 -- the awning's depth, the shopfront's
 -- hit args: rows 1.., the rest below
 local SEG_BUY, SEG_SELL = 2001, 2002
-local STEP_MINUS, STEP_PLUS, STEP_GO, CLERK, BUBBLE = 2010, 2011, 2012, 2013, 2014
+local STEP_MINUS, STEP_PLUS, STEP_GO, CLERK, BUBBLE, STEP_ALL = 2010, 2011, 2012, 2013, 2014, 2015
 local TAB_AT = 2100
 local FLASH = 0.6
 local CPS, SIZE, LINE = 44, 4, 5.1
@@ -266,6 +266,16 @@ return function(ctx, env)
     se("SE_SELECT")
   end
 
+  -- (by touch: - / + held repeat it, tens after a moment; the number tapped is all of them, as SELECT)
+  local hold = K.newHold()
+  local function stepping(d)
+    local r = row()
+    if not r or locked(r) or (st.mode == "sell" and not r.price) then hold.d = nil return false end
+    st.focus = "step"
+    if d then stepBy(d) end
+    return true
+  end
+
   -- buy or sell st.qty of the chosen item
   local function act()
     local r = row()
@@ -368,10 +378,12 @@ return function(ctx, env)
     end
     if arg > TAB_AT and arg <= TAB_AT + 20 then return setTab(arg - TAB_AT) end
     if arg == STEP_MINUS or arg == STEP_PLUS then
-      local r = row()
-      if not r or locked(r) or (st.mode == "sell" and not r.price) then return end
-      st.focus = "step"
-      return stepBy(arg == STEP_PLUS and 1 or -1)
+      stepping(arg == STEP_PLUS and 1 or -1)
+      return
+    end
+    if arg == STEP_ALL then
+      if stepping() then stepAll() end
+      return
     end
     if arg == STEP_GO then return act() end
     if st.rows[arg] then
@@ -383,6 +395,7 @@ return function(ctx, env)
     end
   end
 
+  function W.pointer(phase, x, y, id) return K.holdPointer(hold, phase, x, y, id, W.scroll) end
   function W.scroll(dy)
     st.free, st.idleAt = true, now()
     st.top = max(0, min(max(0, #st.rows - st.visible), st.top - dy / ROW_H))
@@ -898,8 +911,12 @@ return function(ctx, env)
       K.box("fill", K.R(cx - 1.6, sb[2] + 4.65, 3.2, 0.7), 0.35)
       if side == 1 then K.box("fill", K.R(cx - 0.35, sb[2] + 3.4, 0.7, 3.2), 0.35) end
     end
-    K.addHit(K.R(sb[1], sb[2], 16, 10), "win", STEP_MINUS)
-    K.addHit(K.R(sb[1] + 16, sb[2], 16, 10), "win", STEP_PLUS)
+    local mb, pb = K.R(sb[1], sb[2], 10.5, 10), K.R(sb[1] + 21.5, sb[2], 10.5, 10)
+    K.addHit(mb, "win", STEP_MINUS)
+    K.addHit(K.R(sb[1] + 10.5, sb[2], 11, 10), "win", STEP_ALL)
+    K.addHit(pb, "win", STEP_PLUS)
+    K.holdZone(hold, mb, -1)
+    K.holdZone(hold, pb, 1)
     if st.qty ~= st.lastQty then st.lastQty, st.bumpAt = st.qty, now() end
     local bump = max(0, 1 - (now() - (st.bumpAt or -10)) / 0.22)
     local qs = 4.6 * (1 + 0.18 * bump)
@@ -1055,6 +1072,8 @@ return function(ctx, env)
 
   function W.draw(body, clock, portrait)
     local x, y, w, h = body[1], body[2], body[3], body[4]
+    K.holdStep(hold, stepping)
+    K.holdBegin(hold)
     mv.dt = mv.lastT and max(0, min(0.1, clock - mv.lastT)) or 0
     mv.lastT = clock
     st.clip = body

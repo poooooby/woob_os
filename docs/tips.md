@@ -9,6 +9,10 @@
   can't go in a box (take the letter off in Mail first), and Eggs can't be released.
 - **WoobPad** isn't in the START menu in a link room or the Safari Zone. Decorate stays at the PC.
 - **Notifications** wait until you're free to move, and aren't kept after you close the game.
+- **Playing by touch:** hold - or + in the Mart and R-Bay to count faster, and tap the number for the most
+  you can. On a phone with no controller, the game's buttons stay up wherever a button is needed: the Town
+  Map and Fly map, PC Games, and the game's own screens (an evolution, a letter) over the Bag or the
+  Pokémon menu.
 
 ## Your save
 

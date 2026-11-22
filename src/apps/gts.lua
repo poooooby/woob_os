@@ -27,6 +27,7 @@ local PARTICLES = 60
 -- hit args
 local TAB = 2000          -- + 1..3
 local BOX_PREV, BOX_NEXT, GO, YES, NO, SHEET_ROW = 2010, 2011, 2012, 2013, 2014, 3000
+local PICK_BACK, CARD = 2015, 2016   -- (the picker's Back; a sheet's card, taking its own taps)
 local ROW = 4000          -- + i (the picker's or the listings' rows)
 local LEVEL = 5000        -- + i
 
@@ -577,6 +578,12 @@ return function(ctx, env)
       end
       return
     end
+    if arg == PICK_BACK and st.picking then
+      st.picking = nil
+      if st.tab ~= "wonder" then st.cursor = 1 end
+      se("SE_SELECT")
+      return
+    end
     if arg > TAB and arg <= TAB + #TABS then return setTab(TABS[arg - TAB]) end
     if arg == BOX_PREV then return setBox(-1) end
     if arg == BOX_NEXT then return setBox(1) end
@@ -975,6 +982,11 @@ return function(ctx, env)
     local purpose = st.picking and st.picking.purpose or "wonder"
     local r = st.rows[st.cursor]
     local headH
+    -- (choosing which Pokémon, by touch: the way back, as B)
+    if st.picking then
+      K.chevron(x + 4.5, y + 5, 3.2, C.accent, -1)
+      K.addHit(K.R(x, y, 12, 10), "win", PICK_BACK)
+    end
     if h < 74 then
       -- (a short card, a small window's: the title alone above the Pokémon and its button)
       local title = purpose == "wonder" and T("gts.wonder")
@@ -1300,8 +1312,20 @@ return function(ctx, env)
     local sw, sh = min(w - 16, 130), min(h - 12, 92)
     local sx, sy = x + (w - sw) / 2, y + (h - sh) / 2
     K.sheet(K.R(sx, sy, sw, sh), 6)
-    if st.sheet == "species" then
-      K.bold(T("gts.pickSpecies"), sx, sy + 3, 4.8, C.ink, "center", sw)
+    -- (the card takes its own taps; the dim round it is the way back; and its corner, for touch: Cancel /
+    -- the chevron back to the species)
+    K.addHit(K.R(sx, sy, sw, sh), "win", CARD)
+    local species = st.sheet == "species"
+    local back = species and T("button.cancel") or nil
+    local bkw = back and min(K.width(back, 3.6) + 4, sw * 0.3) or 9
+    if back then
+      K.text(back, sx + 2.5, sy + 3.4, K.fit(back, 3.6, bkw - 2), C.accent)
+    else
+      K.chevron(sx + 5, sy + 5.4, 3.2, C.accent, -1)
+    end
+    K.addHit(K.R(sx, sy, bkw + 3, 10), "win", NO)
+    if species then
+      K.bold(T("gts.pickSpecies"), sx + bkw, sy + 3, K.fit(T("gts.pickSpecies"), 4.8, sw - 2 * bkw - 4), C.ink, "center", sw - 2 * bkw)
       local top = sy + 10
       local vis = floor((sh - 12) / ROW_H)
       if st.scursor > st.stop + vis then st.stop = st.scursor - vis end
@@ -1359,6 +1383,7 @@ return function(ctx, env)
     local sw, sh = min(w - 20, 120), 34
     local sx, sy = x + (w - sw) / 2, y + (h - sh) / 2
     K.sheet(K.R(sx, sy, sw, sh), 6)
+    K.addHit(K.R(sx, sy, sw, sh), "win", CARD)
     K.text(c.text, sx + 4, sy + 4, 4.4, C.ink, "center", sw - 8)
     local bw = (sw - 12) / 2
     local yb, nb = K.R(sx + 4, sy + sh - 13, bw, 10), K.R(sx + 8 + bw, sy + sh - 13, bw, 10)
@@ -1372,6 +1397,7 @@ return function(ctx, env)
     if not (st.sheet or st.confirm) then return end
     local e = K.outCubic((clock - mv.sheetAt) / 0.22)
     K.dim(bodyNow, 0.24 * e)
+    K.addHit(bodyNow, "win", NO)
     local f0 = K.getFade()
     K.rise(e, 6)
     if st.sheet then drawSheetCard(x, y, w, h, clock, dt) end

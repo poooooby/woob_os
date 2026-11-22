@@ -748,7 +748,11 @@ return function(deps)
     local ww = tonumber(vp.width) or (tonumber(vp.gameX) or 0) * 2 + (tonumber(vp.gameWidth) or 240)
     local wh = tonumber(vp.height) or (tonumber(vp.gameY) or 0) * 2 + (tonumber(vp.gameHeight) or 160)
     local ax, ay, aw, ah = 0, 0, ww, wh
-    if deps.safeArea and not vp.noSafeArea then
+    local area = vp.area
+    if area then
+      -- (an area handed in, window pixels: the part of the screen the touch buttons leave -- src/shell.lua)
+      ax, ay, aw, ah = area[1], area[2], area[3], area[4]
+    elseif deps.safeArea and not vp.noSafeArea then
       local ok, sx, sy, sw, sh = pcall(deps.safeArea)
       if ok and tonumber(sx) and tonumber(sy) and tonumber(sw) and tonumber(sh) then
         -- (inside the window the hud was handed)
@@ -771,6 +775,54 @@ return function(deps)
     K.t = clock or 0
     return pw, ph, portrait
   end
+  -- a stepper's - / + held down repeats (touch has no Up / Down for tens): `h = K.newHold()` once; while
+  -- drawing, `K.holdBegin(h)` then `K.holdZone(h, rect, d)` per button; the window's pointer hands its
+  -- presses to `K.holdPointer(h, phase, x, y, id, scroll)` (a window with a pointer gets its drags there, not
+  -- as scrolls: `scroll(dy)` keeps its list scrolling); `K.holdStep(h, fn)` once a frame calls fn(d) after
+  -- 0.4 s, every 0.09 s, fn(10 * d) after eight. A release after repeats is used (no tap after it).
+  local HOLD_WAIT, HOLD_EVERY, HOLD_TENS = 0.4, 0.09, 8
+  function K.newHold() return { n = 0, zx = {}, zy = {}, zw = {}, zh = {}, zd = {}, d = nil, id = nil, reps = 0 } end
+  function K.holdBegin(h) h.n = 0 end
+  function K.holdZone(h, r, d)
+    local i = h.n + 1
+    h.n = i
+    h.zx[i], h.zy[i], h.zw[i], h.zh[i], h.zd[i] = r[1], r[2], r[3], r[4], d
+  end
+  function K.holdPointer(h, phase, x, y, id, scroll)
+    if phase == "pressed" then
+      h.d, h.id, h.reps, h.y0, h.ly, h.drag = nil, id, 0, y, y, false
+      for i = h.n, 1, -1 do
+        if x >= h.zx[i] and x < h.zx[i] + h.zw[i] and y >= h.zy[i] and y < h.zy[i] + h.zh[i] then
+          h.d, h.next = h.zd[i], (K.t or 0) + HOLD_WAIT
+          break
+        end
+      end
+      return false
+    elseif phase == "moved" then
+      if h.id ~= id then return false end
+      if not h.drag and math.abs(y - (h.y0 or y)) > 4 then
+        h.drag = true
+        h.d = nil
+      end
+      if h.drag and scroll and h.ly then scroll(y - h.ly) end
+      h.ly = y
+      return false
+    elseif phase == "released" or phase == "cancelled" then
+      if h.id ~= id then return false end
+      local used = h.d ~= nil and h.reps > 0
+      h.d, h.id, h.drag = nil, nil, false
+      return used
+    end
+    return false
+  end
+  function K.holdStep(h, fn)
+    local d = h.d
+    if not d or (K.t or 0) < h.next then return end
+    h.reps = h.reps + 1
+    fn(h.reps > HOLD_TENS and d * 10 or d)
+    h.next = (K.t or 0) + HOLD_EVERY
+  end
+
   -- start a frame at a scale of our own: units from x, y (window pixels), `scale` pixels each (the
   -- field's banner, in the game's own pixels)
   function K.place(g, x, y, scale, clock)

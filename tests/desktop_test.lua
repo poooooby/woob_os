@@ -61,6 +61,13 @@ local Stack = require("src.ui.game3.stack")
 T.check(rawget(PcMenu, "__woobOs") ~= nil, "the PC menu is wrapped")
 
 local VP = { width = 480, height = 320 }
+-- (a drawn hit's middle, in the window's units: where a finger goes)
+local function hitAt(arg)
+  local Kt = X._test.kit
+  for _, h in ipairs(Kt.hits) do
+    if h.kind == "win" and h.arg == arg then return (h[1] + h[3] / 2 - Kt.ox) / Kt.sc, (h[2] + h[4] / 2 - Kt.oy) / Kt.sc end
+  end
+end
 local function draw(n, step)
   for _ = 1, n or 1 do
     clock = clock + (step or 1 / 60)
@@ -804,6 +811,41 @@ do
   -- (the clerk, tapped)
   MartW.tap(2013)
   T.check(ms2.say.key:match("^mart%.say%.poke%d$") ~= nil and ms2.mood == "hop", "tapping the clerk")
+  -- (by touch: the number tapped for as many as the money buys, as SELECT; - / + held repeating, by tens
+  -- after a moment, as Up / Down; a drag still scrolling the list)
+  do
+    local keepM = s.money
+    s.money = 100000
+    ms2.mode, ms2.cursor, ms2.focus, ms2.qty, ms2.badges = "buy", 1, "list", 1, 8
+    MartW.refresh()
+    draw(2)
+    MartW.tap(2015)
+    T.check(ms2.focus == "step" and ms2.qty > 10, "touch: the number tapped, as many as the money buys (" .. ms2.qty .. ")")
+    ms2.qty = 1
+    draw(2)
+    local px, py = hitAt(2011)
+    T.check(px ~= nil and MartW.pointer("pressed", px, py, 1) == false, "+ pressed")
+    draw(20)
+    T.eq(ms2.qty, 1, "not yet")
+    draw(30)
+    local mid = ms2.qty
+    draw(60)
+    T.check(mid > 1 and ms2.qty >= math.min(99, mid + 10), ("held: repeating (%d), then by tens (%d)"):format(mid, ms2.qty))
+    T.eq(MartW.pointer("released", px, py, 1), true, "its release no tap as well")
+    local q = ms2.qty
+    draw(30)
+    T.eq(ms2.qty, q, "let go: it stops")
+    press("b")
+    ms2.top = 0
+    local lx, ly = hitAt(1)
+    if lx then
+      MartW.pointer("pressed", lx, ly, 2)
+      MartW.pointer("moved", lx, ly - 30, 2)
+      MartW.pointer("released", lx, ly - 30, 2)
+      T.check(ms2.top > 0, "a drag still scrolls the list")
+    end
+    s.money = keepM
+  end
   -- (Japanese has no spaces between its words: the bubble's lines still fit)
   local I = X._test.i18n
   I.set("ja")
@@ -1117,6 +1159,24 @@ do
   press("down")
   draw(2)
   T.check(rs.cursor == 2 and rs.top <= 1, "a press brings the chosen row back into view")
+  -- (by touch: the amount tapped for the most you can bid, as SELECT; - / + held repeating, as Up / Down)
+  local keepM = s.money
+  s.money = 9000000
+  draw(2)
+  RWin.tap(2010)
+  local least = rs.amount
+  T.check(rs.focus == "step", "touch: - starts a bid")
+  RWin.tap(2013)
+  T.check(rs.amount > least, "the amount tapped: the most you can bid")
+  rs.amount = least
+  draw(2)
+  local px, py = hitAt(2011)
+  RWin.pointer("pressed", px, py, 1)
+  draw(90)
+  T.check(rs.amount > least, "+ held: raising it")
+  T.eq(RWin.pointer("released", px, py, 1), true, "its release no tap as well")
+  press("b")
+  s.money = keepM
 end
 press("r")
 T.eq(rs.tab, "mine", "R: My Bids")
@@ -2066,6 +2126,25 @@ for _, shape in ipairs({ { 480, 320 }, { 320, 480 }, { 900, 320 } }) do
   T.check(not D.state().winFailed, "GTS draws " .. shape[1] .. "x" .. shape[2])
 end
 VP.width, VP.height = 480, 320
+-- (by touch: a request's sheet closes from its corner or the dim round it, even with nothing to pick; the
+-- picker's Back)
+do
+  gw.sheet, gw.request, gw.species = "species", { name = "X" }, {}
+  draw(2)
+  local n = 0
+  for _, h in ipairs(X._test.kit.hits) do if h.kind == "win" and h.arg == 2014 then n = n + 1 end end
+  T.check(n >= 2, "the sheet's Cancel and the dim round it")
+  GW.tap(2016)
+  T.eq(gw.sheet, "species", "a tap on the card itself: still there")
+  GW.tap(2014)
+  T.check(gw.sheet == nil and gw.request == nil, "Cancel: closed")
+  gw.picking = { purpose = "deposit" }
+  draw(2)
+  T.check(hitAt(2015) ~= nil, "choosing a Pokémon: a Back")
+  GW.tap(2015)
+  T.eq(gw.picking, nil, "Back: done choosing")
+  draw(2)
+end
 press("b")
 T.check(D.window() == nil, "B closes the GTS")
 draw(30)
