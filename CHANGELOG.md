@@ -5,6 +5,13 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.21.1] - 2026-11-22
+
+### Added
+- **Sorting the Bag:** START, or the Sort button by Close, sorts a pocket by name or by type (the game's own
+  order, the medicine together, then the field items, the hold items). FireRed and LeafGreen's TM Case and
+  Berry Pouch keep the game's order, as they do on the PC's Items.
+
 ## [0.21.0] - 2026-11-21
 
 ### Added
