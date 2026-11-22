@@ -105,13 +105,14 @@ return function(mod, deps)
   end
 
   -- the on-screen touch pad: put away while the desktop is up, back as it was after (and the help
-  -- with it)
+  -- with it); `keepTouch`: the 3D map's up, the pad left out for a phone with no controller (the engine
+  -- shows it only on Android / iOS while no controller's in use, and its buttons take their touches first)
   local padPrev, padHidden = nil, false
-  local function pad(hide)
+  local function pad(hide, keepTouch)
     help(hide)
     local TC = engine("src.core.TouchControls")
     if not TC then return end
-    if hide then
+    if hide and not keepTouch then
       if not padHidden then
         padPrev, padHidden = TC.enabled, true
       end
@@ -224,6 +225,17 @@ return function(mod, deps)
     if Stack and Stack.has and Stack.has(id) then pcall(Stack.pop, id) end
     pad(false)
   end
+  -- (the 3D map showing: full screen -- the Town Map, Fly, the Pokégear's map -- or the Map app on the PC or
+  -- WoobPad)
+  local function showsMap(h)
+    if not h then return false end
+    local r = h.state and h.state()
+    if not r then return false end
+    if h == Tm then return r.ctx ~= nil and r.ctx.app == "map" end
+    return r.winApp ~= nil and r.winApp.id == "map"
+  end
+  Sh.showsMap = showsMap
+
   -- the one open (the desktop, WoobPad or the full-screen host), and its layer's id
   local function host()
     if D.isOpen() then return D, Sh.LAYER_ID end
@@ -943,7 +955,7 @@ return function(mod, deps)
     G.setBlendMode("alpha")
     local ok, err
     if h then
-      pad(true)
+      pad(true, showsMap(h))
       ok, err = pcall(h.draw, G, viewport)
     else
       ok, err = pcall(Nt.drawField, G, viewport, Sh.free(game), t)

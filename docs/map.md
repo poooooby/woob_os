@@ -24,6 +24,9 @@ Press **A** on any spot (or tap the land) for its menu:
 **START** zooms in and out. On the START menu's Town Map, START opens the game's classic map instead,
 and the spot's menu has Zoom.
 
+On a phone or tablet with no controller, the game's on-screen buttons stay up over the map, so START,
+SELECT, L and R are a tap away. Drag to turn and tilt the view, and pinch to zoom.
+
 ## 🚩 Markers
 
 Place up to 20 markers anywhere, one per town or landmark. They stand upright and face you whichever way

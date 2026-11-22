@@ -728,6 +728,15 @@ RM.__woobOs.orig = function(o) origCalls, opened = origCalls + 1, o end
 local itemOpts = { session = s }
 RM.show(itemOpts)
 T.check(Tm.isOpen() and Tm.state().win.state and #Tm.state().win.state.nav > 0, "the Town Map item opens the 3D map")
+do
+  -- (a phone with no controller: the engine's touch pad left out over the 3D map, as over the field)
+  local TC = require("src.core.TouchControls")
+  local en0 = TC.enabled
+  TC.enabled = true
+  Sh.frame({ phase = "field" }, { width = 480, height = 320, gameX = 0, gameY = 0, gameWidth = 480, gameHeight = 320, scale = 2 })
+  T.check(Sh.showsMap(Tm) and TC.enabled ~= false, "the touch pad left out over the 3D map")
+  TC.enabled = en0
+end
 Tm.input(input({}, {}))
 press("start")
 T.check(not Tm.isOpen() and origCalls == 1 and opened == itemOpts, "START: the game's own map, as it would have opened")

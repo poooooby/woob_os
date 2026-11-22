@@ -410,6 +410,19 @@ do
   T.eq(drew, "hills", "the chosen wallpaper")
   Settings.set("wallpaper", "classic")
   Wall.draw = realDraw
+  -- (a phone with no controller: the engine's touch pad put away over the pad, left out over its Map -- the
+  -- engine shows it only on Android / iOS while no controller's in use)
+  do
+    local TC = require("src.core.TouchControls")
+    local FVP = { width = 480, height = 320, gameX = 0, gameY = 0, gameWidth = 480, gameHeight = 320, scale = 2 }
+    TC.enabled = true
+    Sh.frame({ phase = "field" }, FVP)
+    T.check(TC.enabled == false and not Sh.showsMap(Wt), "WoobPad's home: the touch pad put away")
+    Wt.openApp("map")
+    draw(2)
+    Sh.frame({ phase = "field" }, FVP)
+    T.check(Sh.showsMap(Wt) and TC.enabled ~= false, "its Map: the touch pad left out")
+  end
   Wt.openApp("settings")
   draw(2)
   local SW = Wt.window()
@@ -418,6 +431,8 @@ do
   for i, sec in ipairs(SW.SECTIONS) do if sec.id == "notify" then si = i end end
   for i, t in ipairs(si and SW.SECTIONS[si].toggles or {}) do if t.key == "soonMinutes" then ti = i end end
   T.check(si ~= nil and ti ~= nil, "Settings > Notifications, R-Bay's ending-soon alert in it")
+  Sh.frame({ phase = "field" }, { width = 480, height = 320, gameX = 0, gameY = 0, gameWidth = 480, gameHeight = 320, scale = 2 })
+  T.check(require("src.core.TouchControls").enabled == false, "another app: put away again")
   ss.section, ss.focus, ss.toggleCursor = si, "detail", ti
   Wt.input(input({}, {}))
   press("a")

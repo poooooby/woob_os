@@ -245,7 +245,11 @@ once. Each drop saves.
   can't Dynamax) and `info.gmax`. The preview draws a ten-segment gauge row and a G-Max badge over
   the picture's foot. Nothing is written to the Pokémon.
 - **Help:** FireRed/LeafGreen's Help opens on L/R and stops the game's update. The shell sets
-  `help_system.enabled = false` while the desktop is up, the same way as the touch pad.
+  `help_system.enabled = false` while the desktop is up, the same way as the touch pad. The touch pad is left
+  out while the 3D map shows (`Sh.showsMap`: the full-screen host's `ctx.app == "map"`, or the PC's / WoobPad's
+  `winApp.id == "map"`; `pad(true, keepTouch)`): the engine shows it only on Android / iOS while no controller's in
+  use and its buttons take their touches before `input.pointer`, so a phone with no controller keeps START /
+  SELECT / L / R there (the help stays off).
 - **The look:** `src/apps/boxes_view.lua` draws in the Pokédex's glass (`K.backdrop` lit by the
   previewed Pokémon's types, `K.glass` panes). Its motion lives in the view's `mv` (`V.motion`): the
   cursor's highlight glides (`mv.gx/gy`, `mv.px/py`), cells rise in on open and when the box turns
