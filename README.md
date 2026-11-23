@@ -140,6 +140,16 @@ The options also hold the theme (Light, Dark or OLED), the text size, a 24-hour 
 with Kanto Gear, a battle's menus on its screen.
 Find them under OPTIONS > WOOBOS in the game, or MODS > WoobOS. [Every option](docs/options.md)
 
+OPTIONS and MODS are in glass on every game. Each mod's settings get a page of their own, and the
+installed mods are sorted by kind, each with its switch.
+
+<table>
+  <tr>
+    <td align="center" width="50%"><img src="docs/screenshots/options.png" alt="WoobOS's page in OPTIONS"><br><sub>OPTIONS: WoobOS's page</sub></td>
+    <td align="center" width="50%"><img src="docs/screenshots/mods.png" alt="MODS, the installed mods by kind"><br><sub>MODS</sub></td>
+  </tr>
+</table>
+
 ## 🔗 Works With
 
 - **Other mods** can add their own apps to the desktop.
