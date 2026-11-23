@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.26.1] - 2026-11-23
+
 ### Changed
 - **Kanto Gear Battle Menus is on to begin with:** with Kanto Gear showing its own screen, a battle's Bag,
   Pokémon menu and summary open there without looking for the switch.
