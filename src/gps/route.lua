@@ -273,6 +273,24 @@ return function(engine, deps)
       return sol
     end
     if have ~= Gw.HM_ALL then
+      -- (out of reach as the player is: the way needing the fewest things they don't have yet -- one more
+      -- first, the shortest of those (Route 111's north without Rock Smash: by Fiery Path, Rock Smash alone, not
+      -- across the desert, which needs the Go-Goggles too) -- then any)
+      local oneMore, oneTotal = nil, huge
+      for _, h in ipairs(Gw.HMS) do
+        if band(have, h.bit) == 0 then
+          local hb = bor(have, h.bit)
+          if bestFrom(m, px, py, surfing, solve(surf, hb)) and best.total < oneTotal then
+            oneMore, oneTotal = hb, best.total
+          end
+        end
+      end
+      if oneMore then
+        sol = solve(surf, oneMore)
+        bestFrom(m, px, py, surfing, sol)
+        mode.surf, mode.hms = surf, oneMore
+        return sol
+      end
       sol = solve(surf, Gw.HM_ALL)
       if bestFrom(m, px, py, surfing, sol) then
         mode.surf, mode.hms = surf, Gw.HM_ALL

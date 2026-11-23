@@ -107,6 +107,15 @@ return {
     description = "A Pokémon's summary in glass, and choosing a move to forget. Off: the game's own.",
   },
   {
+    key = "menuOptions",
+    label = "- Options",
+    type = "toggle",
+    default = true,
+    visible_if = { key = "modernMenus", equals = true },
+    description = "OPTIONS in glass: whole names, switches and arrows, each mod's options as a tree under the "
+      .. "option that shows them, with their descriptions; another mod's rows tagged. Off: the game's own.",
+  },
+  {
     key = "menuEvolution",
     label = "- Evolution",
     type = "toggle",

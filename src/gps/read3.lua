@@ -2,7 +2,9 @@
 -- map's tiles from its layout (collision, behaviours, elevations; a layout the engine hasn't loaded read here
 -- and not kept: the engine keeps every layout it loads, some 30 MB for all of them), its warps as
 -- src/core/game3/collision.lua fires them, its connections, and Mt. Chimney's cable car. Cut trees, Rock
--- Smash rocks and Strength boulders are objects in these games, not tiles: the obstacles.
+-- Smash rocks and Strength boulders are objects in these games, not tiles: the obstacles. So is Route 111's
+-- desert on Ruby / Sapphire / Emerald: the sandstorm turns the player back at its edges' coordinate events
+-- (their scripts check for the Go-Goggles) until the Go-Goggles are in the Bag.
 --
 --   R = read3(engine, deps, Gw)   deps: maps() -> the game's map definitions ; game() -> the game (warps'
 --                                 destinations)
@@ -24,7 +26,8 @@ local function linked(id)
 end
 -- a ledge's collision (0xA0-0xA7, its low three bits) -> the ways it's hopped (up 1, down 2, left 4, right 8)
 local LEDGE_HOPS = { [0] = 8, 4, 1, 2, 2 + 8, 2 + 4, 1 + 8, 1 + 4 }
-local HM_CUT, HM_SMASH, HM_STRENGTH = 1, 2, 4
+local HM_CUT, HM_SMASH, HM_STRENGTH, GOGGLES = 1, 2, 4, 8
+local GOGGLES_ITEM = 279  -- (ITEM_GO_GOGGLES on Ruby / Sapphire / Emerald, when the constants don't say)
 
 return function(engine, deps, Gw)
   local WALL, LAND, WATER, LEDGE, WARP = Gw.WALL, Gw.LAND, Gw.WATER, Gw.LEDGE, Gw.WARP
@@ -32,8 +35,34 @@ return function(engine, deps, Gw)
   local R = {
     HMS = { { bit = HM_CUT, key = "CUT", word = "map.hm.cut" },
             { bit = HM_SMASH, key = "ROCK_SMASH", word = "map.hm.smash" },
-            { bit = HM_STRENGTH, key = "STRENGTH", word = "map.hm.strength" } },
+            { bit = HM_STRENGTH, key = "STRENGTH", word = "map.hm.strength" },
+            { bit = GOGGLES, key = "GO_GOGGLES", word = "map.hm.goggles", item = GOGGLES_ITEM } },
   }
+  -- (the Go-Goggles' item number, from the game's constants)
+  local goggles = nil
+  local function gogglesItem()
+    if goggles == nil then
+      goggles = GOGGLES_ITEM
+      local Constants, GV = engine("src.core.game3.constants"), engine("src.core.GameVersion")
+      local ok, id = pcall(function() return Constants.of(GV.current).items.byName.ITEM_GO_GOGGLES end)
+      if ok and tonumber(id) then goggles = tonumber(id) end
+      R.HMS[4].item = goggles
+    end
+    return goggles
+  end
+  -- (a coordinate event's script checks for the Go-Goggles, through its jumps: the desert's edge)
+  local function checksGoggles(scripts, key, depth, seen)
+    if depth > 4 or type(key) ~= "string" or seen[key] then return false end
+    seen[key] = true
+    for _, cmd in ipairs(scripts[key] or {}) do
+      if cmd.op == "checkitem" and tonumber(cmd[1]) == gogglesItem() then return true end
+      if (cmd.op == "goto" or cmd.op == "call" or cmd.op == "goto_if" or cmd.op == "call_if") and cmd.target
+          and checksGoggles(scripts, cmd.target, depth + 1, seen) then
+        return true
+      end
+    end
+    return false
+  end
   local Collision, Conn, P, IS
   function R.ready()
     Collision = Collision or engine("src.core.game3.collision")
@@ -159,6 +188,17 @@ return function(engine, deps, Gw)
         end
       end
     end
+    -- (the desert's edges: stepping there without the Go-Goggles, the sandstorm turns the player back)
+    local Space = def.coordEvents and engine("src.core.game3.scripting.space")
+    local scripts = Space and Space.bundle and Space.bundle.scripts
+    if type(scripts) == "table" then
+      for _, c in ipairs(def.coordEvents) do
+        local x, y = tonumber(c.x), tonumber(c.y)
+        if x and y and x >= 0 and y >= 0 and x < w and y < h and checksGoggles(scripts, c.scriptKey, 0, {}) then
+          rec.obst[y * w + x] = GOGGLES
+        end
+      end
+    end
     for wi, wp in ipairs(def.warps or {}) do
       local x, y = tonumber(wp.x), tonumber(wp.y)
       if x and y and x >= 0 and y >= 0 and x < w and y < h then
@@ -247,7 +287,8 @@ return function(engine, deps, Gw)
         conns = conns + #(def.connections or {})
       end
     end
-    return ("g3|%d:%d:%d"):format(n, warps, conns)
+    -- (g3b: the desert's Go-Goggles among the obstacles)
+    return ("g3b|%d:%d:%d"):format(n, warps, conns)
   end
 
   return R

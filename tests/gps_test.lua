@@ -11,7 +11,7 @@ local T = require("tests.modkit")
 local GAME = arg[1] or "emerald"
 local RSE = not (GAME == "firered" or GAME == "leafgreen")
 local P = RSE and "EM_" or "FR_"
-if GAME == "ruby" or GAME == "sapphire" then P = "RS_" end
+if GAME == "ruby" then P = "RU_" elseif GAME == "sapphire" then P = "SA_" end
 
 local clock = 0
 love = { timer = { getTime = function() return clock end } }
@@ -149,6 +149,21 @@ if RSE and P == "EM_" then
   T.eq(Rt.needs, 0, "nothing needed")
   L = Rt.line({ id = "t2", unit = 16, world = { byId = byId, maps = list } })
   T.check(L and L.hn == 0, "and no mark")
+  -- (Route 111's desert: its edges turn the player back without the Go-Goggles)
+  local rec = Gw.tiles("EM_ROUTE111")
+  local edges = 0
+  for _, o in pairs(rec and rec.obst or {}) do if o == 8 then edges = edges + 1 end end
+  T.eq(edges, 10, "the desert's edges: ten cells needing the Go-Goggles")
+  local r1 = go("EM_ROUTE111", 20, 100, "EM_FALLARBOR_TOWN", 10, 10)
+  T.eq(r1, "ok", "Route 111 to Fallarbor, without the Go-Goggles: a route")
+  T.check(Rt.needs % 16 < 8 and through("EM_FIERY_PATH"), "around the desert, by Fiery Path (needs "
+    .. tostring(Rt.needs) .. ", by " .. table.concat(Rt.chain() or {}, ", ") .. ")")
+  T.eq(go("EM_ROUTE111", 20, 100, "EM_FALLARBOR_TOWN", 10, 10, false, nil, { GO_GOGGLES = true }), "ok", "with them")
+  T.check(not through("EM_FIERY_PATH") and Rt.needs % 16 < 8, "straight across the desert (by "
+    .. table.concat(Rt.chain() or {}, ", ") .. ")")
+  -- (Mirage Tower, in the desert: no other way in, so drawn through the edge and marked)
+  T.eq(go("EM_ROUTE111", 20, 100, "EM_MIRAGE_TOWER_1F", 5, 5), "ok", "Mirage Tower without them: a route")
+  T.check(Rt.needs % 16 >= 8, "that says the Go-Goggles are needed (" .. tostring(Rt.needs) .. ")")
 elseif not RSE then
   T.eq(go("FR_PALLET_TOWN", 10, 10, "FR_VIRIDIAN_CITY", 20, 20), "ok", "Pallet to Viridian")
   T.check(through("FR_ROUTE_1"), "by Route 1")
@@ -162,6 +177,13 @@ elseif not RSE then
   T.eq(go("FR_PALLET_TOWN", 10, 10, "FR_CINNABAR_ISLAND", 10, 10), "surf", "Cinnabar without Surf: needs Surf")
   T.eq(go("FR_PALLET_TOWN", 10, 10, "FR_CINNABAR_ISLAND", 10, 10, true), "ok", "with Surf: by Route 21")
   T.eq(go("FR_PALLET_TOWN", 10, 10, "FR_ONE_ISLAND", 10, 10, true), "none", "the Sevii Islands: no route (the boat)")
+end
+-- (Ruby / Sapphire / Emerald: Route 111's desert edges found from their scripts, the same ten on each)
+if RSE then
+  local rec = Gw.tiles(P .. "ROUTE111")
+  local edges = 0
+  for _, o in pairs(rec and rec.obst or {}) do if o == 8 then edges = edges + 1 end end
+  T.eq(edges, 10, "Route 111's desert: ten edge cells needing the Go-Goggles")
 end
 
 -- (already there; a waypoint on a roof: the nearest tile to stand on)

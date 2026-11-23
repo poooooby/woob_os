@@ -44,8 +44,10 @@ tunnel shows as a dotted line between its doors.
 
 **It keeps to the story's way.** Cut trees, Rock Smash rocks and Strength boulders (and, on Gold, Silver
 and Crystal, whirlpools and waterfalls) stand in the way until you can use that HM; then the shortcuts
-they open are taken. If the only way goes through one you can't use yet, the line is still drawn, with a
-sign on the spot naming the HM.
+they open are taken. On Ruby, Sapphire and Emerald, Route 111's desert waits for the Go-Goggles the same
+way, and the route goes around it by Fiery Path. If the only way goes through something you can't get past
+yet, the line is still drawn, with a sign on the spot naming what it needs, and it takes the way that needs
+the fewest of them.
 
 **On Gold, Silver and Crystal, the story's roadblocks** are signed the same way until they're out of the
 way: Sudowoodo, the sleeping Snorlax by Diglett's Cave, Team Rocket holding Mahogany Town's east road,

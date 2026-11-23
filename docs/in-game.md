@@ -93,6 +93,17 @@ changes the letters.
 The Pokédex from the START menu is WoobOS's own, the same as the [Pokédex app](apps.md). START, or Classic
 at the top right, opens the game's own.
 
+## ⚙️ OPTIONS
+
+On FireRed, LeafGreen, Ruby, Sapphire and Emerald, OPTIONS from the START menu opens in glass, with every
+option the game's own screen has: the same pages (Speed, Video, Audio...), each option's whole name, a switch
+for one that's on or off, and its value between arrows for one with choices. The rows other mods add sit below
+a line marked "Added by mods", each with a Mod tag.
+
+Each mod's own options page opens there too, from its row or from MODS: options that only show once another
+is on sit indented under it, with a line to it, and the chosen option's description is in a card along the
+bottom.
+
 ## 📱 WoobPad in the START menu
 
 WoobPad sits in the START menu on every game. On Ruby, Sapphire and Emerald it takes the PokéNav's place,

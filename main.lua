@@ -55,6 +55,8 @@ return function(mod)
   if optionsRow then
     local ok, err = pcall(optionsRow, mod, require)
     if not ok then mod.log:warn("the options' WOOBOS row couldn't be added: %s", tostring(err)) end
+    -- (kept: its api, which the modern OPTIONS screen tells to open our page in itself)
+    optionsRow = ok and type(err) == "table" and err or nil
   end
   -- (Red / Blue / Yellow, Gold / Silver / Crystal: the Game Boy games' own wiring, src/gb/main.lua -- the
   -- same kit, desktop and windows over their own models and host)
@@ -87,7 +89,8 @@ return function(mod)
   local SC = { make = loadSibling(mod, "src/scenes.lua"), evolve = loadSibling(mod, "src/evolve.lua"),
                caught = loadSibling(mod, "src/caught.lua"), keyboard = loadSibling(mod, "src/keyboard.lua"),
                evolutionWindow = loadSibling(mod, "src/apps/evolution.lua"),
-               caughtWindow = loadSibling(mod, "src/apps/caught.lua"), fx = loadSibling(mod, "src/apps/scene_fx.lua") }
+               caughtWindow = loadSibling(mod, "src/apps/caught.lua"), fx = loadSibling(mod, "src/apps/scene_fx.lua"),
+               optScreen = loadSibling(mod, "src/options_screen.lua"), optWindow = loadSibling(mod, "src/apps/options.lua") }
   local Arrange = loadSibling(mod, "src/arrange.lua")
   local makeMart, martWindow = loadSibling(mod, "src/mart.lua"), loadSibling(mod, "src/apps/mart.lua")
   -- the real shops: every shop counter opens the Mart full screen (src/realshop.lua; src/shop.lua the
@@ -931,8 +934,14 @@ return function(mod)
     local route = makeGpsRoute(engine, {
       graph = graph, save = mod.save, session = session, log = warn,
       surfing = function() return Player ~= nil and Player.surfing == true end,
-      -- (a field move the player can use: its badge, and a Pokémon in the party that knows it)
-      can = function(s, key)
+      -- (a field move the player can use: its badge, and a Pokémon in the party that knows it; an item's way --
+      -- the desert's Go-Goggles -- while it's in the Bag)
+      can = function(s, key, h)
+        if type(h) == "table" and h.item then
+          local Bag = engine("src.core.game3.bag")
+          local okH, has = pcall(Bag.has, s and s.bag, h.item, 1)
+          return okH and has == true
+        end
         local FM, Space = engine("src.core.game3.field_moves"), engine("src.core.game3.scripting.space")
         if not (FM and s) then return false end
         local okB, badge = pcall(FM.hasBadge, { store = Space and Space.store, session = s }, key)
@@ -1615,7 +1624,33 @@ return function(mod)
       return nxt(mon, cctx)
     end)
   end
+  -- the OPTIONS screen, modern (src/options_screen.lua): the game's OPTIONS and each mod's own options page
+  if SC.optScreen and SC.optWindow then
+    Apps.register({ id = "options", labelKey = "opt.title", label = "Options", glyph = "pokeball",
+                    color = { 142, 142, 147 }, order = 99, pad = false, available = function() return false end,
+                    window = function(ctx, e) return SC.optWindow(ctx, e) end })
+    SC.options = SC.optScreen(engine, { Sh = Sh, log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+      family = function()
+        local g = Sh.gameId and Sh.gameId() or ""
+        if g == "ruby" or g == "sapphire" then return "rs" end
+        return (g == "firered" or g == "leafgreen") and "frlg" or "rse"
+      end,
+      on = function()
+        return option("modernMenus", true) ~= false and option("menuOptions", true) ~= false
+      end })
+    env.optionsScreen = SC.options
+    if type(optionsRow) == "table" then
+      optionsRow.inWindow = function(id)
+        local f = SC.options.inWindow
+        return SC.options.isOpen() and type(f) == "function" and f(id) == true
+      end
+    end
+  end
   mod.events:on("game.ready", function()
+    if SC.options then
+      local okO, errO = pcall(SC.options.wrap)
+      if not okO then mod.log:warn("the game keeps its own OPTIONS: %s", tostring(errO)) end
+    end
     if SC.scenes then
       local okS, errS = pcall(SC.scenes.wrap)
       if not okS then mod.log:warn("the game keeps its own evolution and catch screens: %s", tostring(errS)) end
@@ -1742,7 +1777,7 @@ return function(mod)
   mod.exports._test = { post = notify, desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
                         mart = env.mart, auction = env.auction, slots = env.slots, pcgames = env.pcgames, gts = env.gts,
                         bank = env.bank, journal = env.journal, challenges = env.challenges, errands = env.errands,
-                        swarm = env.swarm, news = env.news, story = env.story, pokecenter = env.pokecenter, menus = env.menus, scenes = SC.scenes, sceneHost = SC.host,
+                        swarm = env.swarm, news = env.news, story = env.story, pokecenter = env.pokecenter, menus = env.menus, scenes = SC.scenes, sceneHost = SC.host, optionsScreen = SC.options,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange,
                         watch = Watch, pad = Watch, notify = Nt, tick = tick, map3d = env.map3d, townmap = TownMap,
                         phone = env.phone, condition = env.condition, ribbons = env.ribbons, hall = env.hall, oak = env.oak, decorate = env.decorate, pokenav = Pokenav, onCall = onCall, gear = Gear, gearPanel = GearPanel,

@@ -5,6 +5,17 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **OPTIONS in glass** (FireRed, LeafGreen, Ruby, Sapphire, Emerald): every option and page the game's screen has,
+  with whole names, switches and arrows; the rows other mods add set apart under "Added by mods", each tagged; each
+  mod's own options page there too (from its row or from MODS), its options as a tree under the one that shows
+  them, the chosen one's description along the bottom. A switch under Modern Menus: Options.
+
+### Fixed
+- **The GPS and Route 111's desert** (Ruby, Sapphire, Emerald): the desert waits for the Go-Goggles, as the
+  sandstorm does; until then the route goes around by Fiery Path, or marks the spot with a Go-Goggles sign.
+  When a place can't be reached yet, the route takes the way that needs the fewest things you don't have.
+
 ## [0.23.0] - 2026-11-22
 
 ### Added

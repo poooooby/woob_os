@@ -5,13 +5,15 @@
 -- games the shared one pushed by src.ui.Screens ("ManagerState", entered as it's pushed). Either way
 -- ManagerState:openOptions(the mod's entry), its way back emptied (goBack then leaves the manager).
 --
---   install(mod, require) -- once, at load; `require` finds an engine module (looked up when chosen only)
+--   api = install(mod, require) -- once, at load; `require` finds an engine module (looked up when chosen only)
+--   api.inWindow = fn(modId) -> true when the modern OPTIONS screen opened the page itself (set by main.lua)
 
 local LABEL, VALUE = "WOOBOS", "OPTIONS"
 
 return function(mod, req)
   if not (mod and mod.hooks and mod.hooks.wrap) then return end
   local modId = mod.id or "woob_os"
+  local api = {}
 
   local function find(name)
     local ok, m = pcall(req, name)
@@ -19,6 +21,8 @@ return function(mod, req)
   end
 
   local function open(game)
+    -- (the modern OPTIONS screen up: our page in it, not through the mod manager)
+    if api.inWindow and api.inWindow(modId) then return end
     local m
     local MM = (mod.generation == nil or mod.generation == 3) and find("src.ui.game3.mod_manager") or nil
     if MM and MM.show then
@@ -68,4 +72,5 @@ return function(mod, req)
     out[#out + 1] = { id = modId, label = LABEL, value = value, activate = activate }
     return out
   end)
+  return api
 end

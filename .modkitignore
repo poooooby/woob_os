@@ -12,6 +12,7 @@ tests/pokedex_test.lua
 tests/pokecenter_test.lua
 tests/menus_test.lua
 tests/scenes_test.lua
+tests/optscreen_test.lua
 tests/world_test.lua
 tests/world3d_test.lua
 tests/gps_test.lua

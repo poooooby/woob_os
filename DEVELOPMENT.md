@@ -1105,7 +1105,9 @@ Red / Blue / Yellow have none: no waypoint row).
   ledges (their hops in `LEDGE_HOPS`), `Collision.isWaterOn` minus waterfalls for water, the behaviours'
   one-way walls, elevations; a warp's tile fires as `collision.lua`'s `installWarps` decides; Cut trees, Rock
   Smash rocks and Strength boulders (`def.objects`, `FieldMoves.GFX_IDS`) are `rec.obst` bits (the reader's
-  `HMS`: `{ bit, key, word }`; Gen 3 `CUT` 1, `ROCK_SMASH` 2, `STRENGTH` 4): walls unless the walk's `hms`
+  `HMS`: `{ bit, key, word }`; Gen 3 `CUT` 1, `ROCK_SMASH` 2, `STRENGTH` 4, `GO_GOGGLES` 8 -- Route 111's desert
+  edges: coordinate events whose scripts `checkitem` the Go-Goggles, through their jumps; main.lua's `can` answers
+  an entry with `item` from the Bag): walls unless the walk's `hms`
   has that bit, `OBSTACLE` steps more when it does, the bits a way used kept per state (`MK`,
   `reach(i, d, hm)`; masks with LuaJIT's `bit`, the sandbox's copy). The walk (`Gw.walk`) is the player's: a
   state per tile and elevation (17: 0..15, 16 surfing), a bucket queue (a ledge's hop is 2), a firing warp
@@ -1559,6 +1561,27 @@ our own, in phases (the plan: the Summary, then the Party, then the Bag); the mo
   there only that ours declines). In-game: the scratchpad's `menus_driver.lua` (the party menu's SUMMARY,
   a wild battle's POKéMON → SUMMARY via `BattleBridge.startWild`, `Ui.askForget`; A through the battle's
   opening words; the first input after opening is the host's wait for the opening A to be let go).
+
+### The OPTIONS screen (`menuOptions`)
+
+- **The model** (`src/options_screen.lua` Os, `env.optionsScreen`): wraps `src.ui.game3.option_menu.show` (FireRed /
+  LeafGreen), `rse.option_menu.show` (Emerald) and `rs.option_menu.show` (Ruby / Sapphire) -- an in-game OPTIONS only
+  (`opts.session`; the title screen's stays the game's) -- with `Sh.openFull("options", ..., { menu, noHints })`. Rows as
+  each game builds them: `option_rows` `build` + `group` (FireRed), `withCart` with our stand-ins for the cart's rows
+  (Emerald: `rse.option_menu.CART`'s ROM words; Ruby / Sapphire: the native `rse/menus` manifest's `option.rows`, kept at
+  once, not on the way out), the event tickets' row left out on Ruby / Sapphire. Another mod's row: the rows built once
+  more with `Runtime.wantsHook` answering false for `ui.options.rows`; an id not in that set is a mod's, named from
+  `ManagerState`'s `byId` (a row named for its mod: its spelling, tagged "Mod"). Words in a sentence's case
+  (`Os.sentence`, `KEEP` for HP / FPS / GB...).
+- **A mod's page** (`Os.modPage`): `ManagerState:schemaFor` / `optionValue` / `setOption` (which saves and emits
+  `mod.options_changed`); `visible_if` chains are the tree (`depth`; a label's "- " dropped under a parent); `rebuild`
+  after every change. `ManagerState.openOptions` wrapped (`__woobOsOptions`): ours on the scene host over the manager;
+  our WOOBOS row (`src/options_row.lua`'s `api.inWindow`) opens ours inside the OPTIONS window.
+- **The window** (`src/apps/options.lua`): a page stack; values cached (`refresh`: on show, after a change, twice a
+  second -- the engine's `value()` builds strings); the shader picker lent a layer (`woob_shaderfx`) since the game's
+  OPTIONS draws it; text options on `env.keyboard`; the "Added by mods" divider above `firstMod`. Test:
+  `tests/optscreen_test.lua` (every Gen 3 game); drivers in the scratchpad: `opt_driver.lua` (toggles Modern Menus off
+  and on, which writes it explicitly: restore options.lua after), `optrs_driver.lua`, `optdiv_driver.lua`.
 
 ### The staged scenes: an evolution, a catch's page, a nickname (`menuEvolution`, `menuCatch`)
 
