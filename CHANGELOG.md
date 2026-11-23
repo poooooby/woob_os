@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-11-23
+
 ### Added
 - **Red, Blue, Yellow, Gold, Silver and Crystal:** choosing a move to forget is the modern summary (a level up, a
   TM, an evolution, the Move Tutor, in battle too); Crystal's Move Tutor and every Pokémon a script asks for (the
