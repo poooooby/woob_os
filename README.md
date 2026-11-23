@@ -141,7 +141,7 @@ with Kanto Gear, a battle's menus on its screen.
 Find them under OPTIONS > WOOBOS in the game, or MODS > WoobOS. [Every option](docs/options.md)
 
 OPTIONS and MODS are in glass on every game. Each mod's settings get a page of their own, and the
-installed mods are sorted by kind, each with its switch.
+installed mods are sorted by kind, each marked On or Off.
 
 <table>
   <tr>

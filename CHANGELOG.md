@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-11-23
+
 ### Changed
 - **MODS:** each mod shows an On or Off chip by its name (a green dot or a grey one) and an arrow to its
   page, where its switch is, instead of a switch in the list. The line under a name only appears when it says
