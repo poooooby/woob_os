@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-11-22
+
 ### Added
 - **Map Objectives on Red, Blue, Yellow, Gold, Silver and Crystal:** the 3D map's window of a place's story moments,
   Gym Leaders and Elite Four, key items, people and shops, ticked once done, read from each cart's own maps and
