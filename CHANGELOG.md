@@ -5,7 +5,7 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
-## [0.22.1] - 2026-11-22
+## [0.23.0] - 2026-11-22
 
 ### Added
 - **Evolution, full screen** (FireRed, LeafGreen, Ruby, Sapphire, Emerald): the game's own steps and timing --
