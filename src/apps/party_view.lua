@@ -397,7 +397,7 @@ return function(K, env, T, A, sumView)
     local tx = x + is + 2
     local right = max(40, min(w * 0.42, 70))
     local nameW = w - (tx - x) - right - 4
-    local ns = K.fit(card.name, 5, nameW - 4)
+    local ns = K.fit(card.name, P.compact and 4 or 5, nameW - 4)
     local ny = y + h / 2 - lineH(ns) * 0.95
     K.bold(card.name, tx, ny, ns, ink)
     local nx = tx + K.width(card.name, ns) + 1
@@ -472,7 +472,7 @@ return function(K, env, T, A, sumView)
       K.addHit(cb, "win", A.CONFIRM)
       bw = bw + cw + 3
     end
-    local fs = K.fit(title, 6, w - bw - 6)
+    local fs = K.fit(title, P.compact and 4.4 or 6, w - bw - 6)
     K.bold(title, x + 1, y + (TOP_H - fs * 1.2) / 2, fs, C.ink)
   end
 

@@ -11,6 +11,9 @@ All notable changes to this mod are documented here, in
   mod's own options page there too (from its row or from MODS), its options as a tree under the one that shows
   them, the chosen one's description along the bottom. A switch under Modern Menus: Options.
 
+### Changed
+- **The Pokémon menu on Kanto Gear's screen** in a battle: a smaller title and names, in proportion to the rest.
+
 ### Fixed
 - **The GPS and Route 111's desert** (Ruby, Sapphire, Emerald): the desert waits for the Go-Goggles, as the
   sandstorm does; until then the route goes around by Fiery Path, or marks the spot with a Go-Goggles sign.

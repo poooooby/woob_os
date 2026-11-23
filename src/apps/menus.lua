@@ -161,8 +161,9 @@ return function(ctx, env, makeSummary, makeParty, makeBag)
     S.top = max(0, min(max(0, S.h - S.vis), S.top - dy))
   end
   function W.draw(body, clock, portrait)
-    -- (on the Kanto Gear's screen, a battle's: the Bag's compact look)
+    -- (on the Kanto Gear's screen, a battle's: the Bag's compact look, the party's smaller title and names)
     if st.bag then st.bag.compact = ctx.gear == true end
+    if st.party then st.party.compact = ctx.gear == true end
     if st.page == "party" then
       if not st.closed then step(Pc.tick(st.party, clock)) end
       if st.page == "party" and partyView and st.party then partyView.draw(body, clock, portrait, st.party) return end
