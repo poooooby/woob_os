@@ -491,15 +491,15 @@ do
   for _, p in ipairs(st.nav) do
     local clear = true
     for _, q in ipairs(st.nav) do
-      if q ~= p and (q.x - p.x - 0.75) ^ 2 + (q.z - p.z) ^ 2 < 0.8 ^ 2 then clear = false end
+      if q ~= p and (q.x - p.x - 0.95) ^ 2 + (q.z - p.z) ^ 2 < 1.0 ^ 2 then clear = false end
     end
     if clear and not far then far = p end
   end
   if far then
-    st.cx, st.cz, st.snapTo, st.moving = far.x + 0.75, far.z, nil, true
+    st.cx, st.cz, st.snapTo, st.moving = far.x + 0.95, far.z, nil, true
     W.input(input(), NONE)
     draw(60)
-    T.check(math.abs(st.cx - far.x - 0.75) < 0.01, "three quarters of a unit off a town: the cursor stays put")
+    T.check(math.abs(st.cx - far.x - 0.95) < 0.01, "just past the grab (0.95 of a unit off a town): the cursor stays put")
   end
   W.focus(firstTown)
   draw(10)

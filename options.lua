@@ -151,6 +151,15 @@ return {
     description = "With Kanto Gear showing its own screen (a second display, or beside the game), a battle's Bag, Pokémon menu and summary open there, larger, and the battle stays on the game's screen.",
   },
   {
+    key = "mapObjectives",
+    label = "Map Objectives",
+    type = "choice",
+    default = "on",
+    choices = { { "Enabled", "on" }, { "Spoilers", "spoilers" }, { "Off", "off" } },
+    description = "The 3D map's card of a place's objectives: its story, Gyms, key items, people and shops, each "
+      .. "ticked once done. Enabled keeps story moments still ahead as ???; Spoilers names them.",
+  },
+  {
     key = "fieldGps",
     label = "Overworld GPS",
     type = "toggle",

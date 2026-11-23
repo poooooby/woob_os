@@ -6,6 +6,11 @@ All notable changes to this mod are documented here, in
 ## [Unreleased]
 
 ### Added
+- **Map Objectives on the 3D map** (FireRed, LeafGreen, Ruby, Sapphire, Emerald): a small window for the place
+  under the cursor with its story moments, its Gym Leader and the Elite Four, the key items handed out there, its
+  notable people (Move Tutors, Relearner, Deleter, Name Rater, Day Care, trades) and its shops, each ticked once
+  done; read from the game's own maps and scripts. The option Map Objectives: Enabled (story ahead as ???),
+  Spoilers, Off.
 - **Type matchups when switching in a battle**: beside each Pokémon's types, a sword chip (the best its own
   damaging moves do to the foe) and a shield chip (the most the foe's types do to it), as 4x, 2x, 1x, 0.5x, 0.25x
   or 0x, green when good for you, red when bad, blue at 1x and grey at 0x; the worse of two foes in a double battle; by the type chart.
@@ -15,6 +20,7 @@ All notable changes to this mod are documented here, in
   them, the chosen one's description along the bottom. A switch under Modern Menus: Options.
 
 ### Changed
+- **The 3D map's cursor** settles onto a nearby town or landmark from a little further off, and a little quicker.
 - **The Pokémon menu on Kanto Gear's screen** in a battle: a smaller title and names, in proportion to the rest.
 
 ### Fixed

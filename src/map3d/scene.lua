@@ -42,9 +42,9 @@ local PITCH_MIN, PITCH_MAX = 0.42, 1.38
 local ZOOMS = 4
 local CLOSE_DIST, CLOSE_PITCH = 2.4, 0.62
 local MIN_DIST = 1.4                 -- the wheel and two fingers stop here (the tiles' art close)
-local SNAP = 0.6        -- let go this near a town or a landmark (units): the cursor glides onto it
+local SNAP = 0.85       -- let go this near a town or a landmark (units): the cursor glides onto it
 local LOAD_SLICE = 0.012   -- seconds a frame given to building a region while its bar shows
-local GLIDE = 5         -- how fast it glides (per second): a gentle pull
+local GLIDE = 8         -- how fast it glides (per second): a gentle pull
 local CATCH = 0.8       -- the cursor's speed over a town or a landmark (a little slower: it catches there)
 local MENU_W, MENU_ROW = 66, 10   -- the spot's menu (units)
 local M = 3
@@ -1537,6 +1537,7 @@ return function(ctx, env, opts)
   end
   local function drawCard(body, compact)
     local p = place()
+    st.cardW = nil
     if not p then return end
     local x, y, w, h = body[1], body[2], body[3], body[4] - (opts.footer or 0)
     local cw = (w > 190 and not compact) and min(190, w * 0.6) or w - M * 2
@@ -1545,6 +1546,7 @@ return function(ctx, env, opts)
     -- (how far up the middle of the view above the card is, as a share of half the view)
     st.cardLift = ((opts.footer or 0) + M + ch) / max(1, body[4])
     local b = K.R(x + M, y + h - M - ch, cw, ch)
+    st.cardX, st.cardY, st.cardW = b[1], b[2], b[3]
     glass(b, 6)
     local tx = b[1] + 5
     local flyable = mode == "fly" or (mode == "app" and st.flyMon ~= nil)
@@ -1606,6 +1608,35 @@ return function(ctx, env, opts)
       end
       K.addHit(fb, "win", A_FLY)
     end
+  end
+
+  -- the place's objectives (env.objectives, the mod option Map Objectives): its story, gyms, key items, people and
+  -- shops on a card beside its own, or above it when there's no room beside (asked again on another place, and
+  -- every two seconds: a box ticked meanwhile)
+  local function drawObjectives(body, clock)
+    local O = env.objectives
+    local p = place()
+    if not (O and p and st.cardW) then return end
+    local mode = O.mode()
+    if mode == "off" then return end
+    if st.objOf ~= p or st.objMode ~= mode or clock - (st.objAt or -10) > 2 then
+      st.objOf, st.objMode, st.objAt = p, mode, clock
+      local ok, list = pcall(O.at, p.id, session(), mode == "spoilers")
+      st.objList = ok and list or nil
+    end
+    local list = st.objList
+    if not list then return end
+    local x, y, w, h = body[1], body[2], body[3], body[4] - (opts.footer or 0)
+    -- (a small window at the top right, under the map's buttons: down to the place's card, or to the foot when
+    -- there's room beside it)
+    local top = y + 18
+    local ow = min(86, w * 0.4)
+    local ox = x + w - M - ow
+    local bottom = (ox > st.cardX + st.cardW + M) and (y + h - M) or (st.cardY - 3)
+    local oh = O.view.height(list, ow, bottom - top)
+    if oh < 22 then return end
+    local oy = top
+    O.view.draw(list, ox, oy, ow, oh, clock, glass)
   end
 
   -- the loading screen: the sky over the sea, a glass card in the middle, its bar filling (eased, so it
@@ -1812,6 +1843,7 @@ return function(ctx, env, opts)
     drawProblem(body, clock)
     st.cardLift = 0
     drawCard(body, compact)
+    drawObjectives(body, clock)
     drawMenu(body)
     -- (a waypoint set while the routes were still being worked out: on with them, then set)
     if st.finding and env.gps then

@@ -1668,6 +1668,22 @@ our own, in phases (the plan: the Summary, then the Party, then the Bag); the mo
   In Battle; the team's badge a larger disc. The bubble (`drawPrompt`) wraps clear of the arrow (9 units) and
   drops to a smaller size when a page would take more than 45% of the screen.
 
+### The map's objectives (`mapObjectives`)
+
+`src/map3d/objectives.lua` (Ob) reads each map's own scripts once per game (objects', signs', steps' and map scripts,
+their `goto` / `call` jumps and the scripts a `trainerbattle` goes on to; never the shared `Common_` / `Std_` /
+`EventScript_` ones): key items from `additem` or the obtain / find / received std routines (0, 1, 9) with the item
+in VAR_0x8000 (Key Items pocket or an HM, named with its move by `Pokemon.moveFromTmItem`; the event tickets left out),
+done by the first `setflag` after it, else the Bag; LEADER / ELITE FOUR trainers (a rematch's team once), a Gym's
+done by the map's `FLAG_BADGE0n_GET` wherever it's set; `pokemart` floors and shops named from the map's id; people
+by the special they call (`ChooseMonForMoveTutor`, the Relearner's, the Deleter's, `NameRaterWasNicknameChanged`, the
+Day Care's, `CreateInGameTradePokemon`, the Lottery) or a house's map name (`NAME_RATER`); the story's beats placed
+by `BEAT_AT` (src/story.lua's ids, the first map of each list that exists), done from `Sy.reached`. Flag names from
+the constants' `byName` (their `byId` lacks the system flags). By section (`regionMapSectionId`, the 3D map's place
+ids). `src/map3d/objectives_view.lua` draws the card in the scene's `glass`; the scene's `drawObjectives` puts it at
+the top right, `min(86, 40%)` wide, down to the place's card, and asks `Ob.at` again on another place or every 2 s.
+Tests: tests/gps_test.lua's last block (all five games). Driver: scratchpad `objmap_driver.lua`.
+
 ### The switch screen's matchups
 
 `Pt.matchup(c, mon)` (src/party.lua) -> atk, def, for the party's `battle_switch` / `battle_faint` cards

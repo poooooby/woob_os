@@ -90,7 +90,9 @@ return function(mod)
                caught = loadSibling(mod, "src/caught.lua"), keyboard = loadSibling(mod, "src/keyboard.lua"),
                evolutionWindow = loadSibling(mod, "src/apps/evolution.lua"),
                caughtWindow = loadSibling(mod, "src/apps/caught.lua"), fx = loadSibling(mod, "src/apps/scene_fx.lua"),
-               optScreen = loadSibling(mod, "src/options_screen.lua"), optWindow = loadSibling(mod, "src/apps/options.lua") }
+               optScreen = loadSibling(mod, "src/options_screen.lua"), optWindow = loadSibling(mod, "src/apps/options.lua"),
+               objectives = loadSibling(mod, "src/map3d/objectives.lua"),
+               objectivesView = loadSibling(mod, "src/map3d/objectives_view.lua") }
   local Arrange = loadSibling(mod, "src/arrange.lua")
   local makeMart, martWindow = loadSibling(mod, "src/mart.lua"), loadSibling(mod, "src/apps/mart.lua")
   -- the real shops: every shop counter opens the Mart full screen (src/realshop.lua; src/shop.lua the
@@ -874,6 +876,40 @@ return function(mod)
       data = love and love.data, log = warn }) or nil
     local Model = makeMapModel(engine, { pixels = pixels, gameId = gameId, maps = mapDefs, world = World, log = warn,
                                          mapCache = MapCache })
+    -- (the places' objectives, the mod option Map Objectives: the story's beats, gyms, key items, people, shops)
+    if SC.objectives and SC.objectivesView then
+      local Ob = SC.objectives(engine, {
+        maps = mapDefs, gameId = gameId, T = T, log = warn,
+        family = function()
+          local g = gameId()
+          return (g == "firered" or g == "leafgreen") and "frlg" or "rse"
+        end,
+        flag = function(name, s)
+          local R = engine("src.core.game3.rse.init")
+          local ok, on = pcall(R and R.flag or error, name, s or session())
+          return ok and on == true
+        end,
+        hasItem = function(s, id)
+          local Bag = engine("src.core.game3.bag")
+          local bag = (s or session() or {}).bag
+          local ok, has = pcall(Bag and Bag.has or error, bag, id, 1)
+          return ok and has == true
+        end,
+        reached = function(s)
+          local set = {}
+          local ok, list = pcall(env.story and env.story.reached or error, s or session())
+          for _, r in ipairs(ok and type(list) == "table" and list or {}) do set[r.id] = true end
+          return set
+        end,
+      })
+      env.objectives = {
+        at = Ob.at, reset = Ob.reset, view = SC.objectivesView(Kit, T),
+        mode = function()
+          local m = option("mapObjectives", "on")
+          return (m == "spoilers" or m == "off") and m or "on"
+        end,
+      }
+    end
     local Towns = makeTowns and makeTowns() or nil
     env.map3d = {
       model = Model,
@@ -1777,7 +1813,7 @@ return function(mod)
   mod.exports._test = { post = notify, desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
                         mart = env.mart, auction = env.auction, slots = env.slots, pcgames = env.pcgames, gts = env.gts,
                         bank = env.bank, journal = env.journal, challenges = env.challenges, errands = env.errands,
-                        swarm = env.swarm, news = env.news, story = env.story, pokecenter = env.pokecenter, menus = env.menus, scenes = SC.scenes, sceneHost = SC.host, optionsScreen = SC.options,
+                        swarm = env.swarm, news = env.news, story = env.story, pokecenter = env.pokecenter, menus = env.menus, scenes = SC.scenes, sceneHost = SC.host, optionsScreen = SC.options, objectives = env.objectives,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange,
                         watch = Watch, pad = Watch, notify = Nt, tick = tick, map3d = env.map3d, townmap = TownMap,
                         phone = env.phone, condition = env.condition, ribbons = env.ribbons, hall = env.hall, oak = env.oak, decorate = env.decorate, pokenav = Pokenav, onCall = onCall, gear = Gear, gearPanel = GearPanel,

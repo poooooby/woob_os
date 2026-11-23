@@ -29,6 +29,16 @@ Fly map, with the map just above them when you hold the phone upright, so B, STA
 away. Drag to turn and tilt the view, and pinch to zoom. The Map app on the PC and WoobPad is all touch:
 its close button, the 3D button, pinch and drag.
 
+## ✅ Objectives
+
+On FireRed, LeafGreen, Ruby, Sapphire and Emerald, a small window at the top right lists what the place under
+the cursor holds: its story moments, its Gym Leader (and the Elite Four at the League), the key items handed out
+there, its notable people (Move Tutors, the Move Relearner and Deleter, the Name Rater, the Day Care, in-game
+trades) and its shops. Each story moment, Gym and key item has a box, ticked once you've done it or have it.
+
+The Map Objectives option sets it: Enabled shows story moments still ahead of you as ???, Spoilers names them,
+and Off hides the window.
+
 ## 🚩 Markers
 
 Place up to 20 markers anywhere, one per town or landmark. They stand upright and face you whichever way

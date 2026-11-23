@@ -294,4 +294,65 @@ do
   T.eq(#Mk2.list(), 19, "kept in the save, read back")
 end
 
+-- ------- the map's objectives (src/map3d/objectives.lua), from the same maps and scripts
+do
+  local Words = setmetatable({ f = function(k, ...) return k .. ":" .. table.concat({ ... }, ",") end },
+                             { __call = function(_, k) return k end })
+  local flags, items, beats = {}, {}, {}
+  local Ob = dofile(MOD .. "map3d/objectives.lua")(engine, {
+    maps = function() return maps end, gameId = function() return GAME end, T = Words, log = print,
+    family = function() return RSE and "rse" or "frlg" end,
+    flag = function(name) return flags[name] == true end,
+    hasItem = function(_, id) return items[id] == true end,
+    reached = function() return beats end,
+  })
+  local secOf = {}
+  for id, def in pairs(maps) do secOf[id] = tonumber(def.regionMapSectionId) end
+  local function list(mapId, spoilers) return Ob.at(secOf[mapId], {}, spoilers) or {} end
+  local function find(l, kind, pat)
+    for _, e in ipairs(l) do if e.kind == kind and tostring(e.label):find(pat, 1, true) then return e end end
+  end
+  local function count(l, kind, pat)
+    local n = 0
+    for _, e in ipairs(l) do if e.kind == kind and tostring(e.label):find(pat, 1, true) then n = n + 1 end end
+    return n
+  end
+  if RSE then
+    local mv = list(P .. "MAUVILLE_CITY")
+    T.check(find(mv, "gym", "Wattson") and find(mv, "key", "Mach Bike") and find(mv, "key", "Acro Bike")
+            and find(mv, "key", "Basement Key"), "Mauville: Wattson's Gym, both bikes, the Basement Key")
+    T.check(find(mv, "shop", "map.obj.shop.mart") ~= nil, "and its Poké Mart")
+    T.check(not find(list(P .. "OLDALE_TOWN"), "key", "Ticket"), "the event tickets left out (every Center's)")
+    local ly = list(P .. "LILYCOVE_CITY")
+    T.check(count(ly, "shop", "map.obj.shop.floor") >= 4 and find(ly, "people", "deleter"),
+            "Lilycove: the department store's floors, the Move Deleter")
+    local eg = list(P .. "EVER_GRANDE_CITY")
+    T.eq(count(eg, "gym", "map.obj.elite"), 4, "Ever Grande: the Elite Four, once each")
+    T.check(find(list(P .. "ROUTE117"), "people", "daycare") ~= nil, "Route 117: the Day Care")
+    -- (the boxes: a Badge's flag, an item in the Bag)
+    local g = find(mv, "gym", "Wattson")
+    T.check(g and g.done == false, "Wattson's box empty")
+    flags.FLAG_BADGE03_GET = true
+    T.check(find(list(P .. "MAUVILLE_CITY"), "gym", "Wattson").done == true, "ticked with the Badge")
+    local b = find(mv, "key", "Mach Bike")
+    T.check(b and b.done == false, "the Mach Bike unticked")
+    -- (a story moment ahead: ??? until reached, named with spoilers)
+    local cv = find(list(P .. "MT_CHIMNEY"), "story", "map.obj.story.chimney")
+    T.check(cv and cv.hidden == true and cv.done == false, "Mt. Chimney's story moment ahead: hidden")
+    T.check(find(list(P .. "MT_CHIMNEY", true), "story", "chimney").hidden == false, "with spoilers: named")
+    beats.chimney = true
+    local cd = find(list(P .. "MT_CHIMNEY"), "story", "chimney")
+    T.check(cd.done == true and cd.hidden == false, "reached: ticked and named")
+  else
+    local ce = list("FR_CERULEAN_CITY")
+    T.check(find(ce, "gym", "Misty") and find(ce, "key", "Bicycle") and find(ce, "story", "burglar"),
+            "Cerulean: Misty's Gym, the Bicycle, the burglar")
+    local la = list("FR_LAVENDER_TOWN")
+    T.check(find(la, "key", "Flute") and find(la, "people", "nameRater"), "Lavender: the Poké Flute, the Name Rater")
+    T.check(not find(list("FR_CELADON_CITY"), "people", "nameRater"), "Celadon's Eevee isn't a Name Rater")
+    T.eq(count(list("FR_POKEMON_LEAGUE_LORELEIS_ROOM"), "gym", "map.obj.elite"), 4, "the Elite Four, once each")
+    T.check(find(list("FR_SSANNE_CAPTAINS_OFFICE"), "key", "HM01") ~= nil, "the S.S. Anne: HM01")
+  end
+end
+
 T.finish("woob_os gps (" .. GAME .. ")")
