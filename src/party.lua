@@ -328,6 +328,61 @@ return function(engine, deps)
   -- a partner's Pokémon in a battle fought beside one (Emerald's Steven, the Battle Tower's partner: the battle's
   -- playerHalf, the partner's after the player's own) -> the partner's name ("" without one); nil for the player's
   -- own. (A link's multi battle never gets here: that party menu is the game's.)
+  -- a Pokémon's matchup with the foes, for a battle's switch: how hard its own damaging moves hit them (the best, by
+  -- the type chart; Hidden Power by its own type) and how hard the foes' types hit it (the worst); in a double
+  -- battle, the worse case of the two foes. Types only: no abilities, weather or held items. -> atk, def | nil
+  function Pt.matchup(c, mon)
+    local p = P()
+    if not (p and mon) or call(p.isEgg, mon) == true then return nil end
+    local Battle, State = engine("src.core.game3.battle"), engine("src.core.game3.battle.state")
+    local Types = engine("src.core.game3.battle.types")
+    local st = Battle and Battle._st
+    if not (st and State and Types and Types.effectiveness) then return nil end
+    local foes = {}
+    for id = 1, 3, 2 do
+      if call(State.isAlive, st, id) then foes[#foes + 1] = State.battler(st, id) end
+    end
+    if #foes == 0 then return nil end
+    -- (its types: the battler's when it's the one out -- Color Change, Conversion -- else its species')
+    local t1, t2
+    for id = 0, 2, 2 do
+      local b = State.battler(st, id)
+      if b and b.mon == mon then t1, t2 = tonumber(b.type1), tonumber(b.type2) end
+    end
+    if not t1 then
+      local ts = call(p.types, call(p.speciesOf, mon))
+      if type(ts) == "table" then t1, t2 = tonumber(ts[1]), tonumber(ts[2]) end
+    end
+    if not t1 then return nil end
+    local def = 0
+    for _, f in ipairs(foes) do
+      for _, ft in ipairs({ f.type1, f.type2 ~= f.type1 and f.type2 or nil }) do
+        if ft then
+          local k = tonumber(call(Types.effectiveness, ft, t1, t2)) or 1
+          if k > def then def = k end
+        end
+      end
+    end
+    local atk = nil
+    local Effects, Damage = engine("src.core.game3.battle.effect_ids"), engine("src.core.game3.battle.damage")
+    for slot = 1, 4 do
+      local id = tonumber(call(p.moveIdAt, mon, slot))
+      local m = id and id ~= 0 and call(p.battleMove, id)
+      if type(m) == "table" and (tonumber(m.power) or 0) > 0 then
+        local mt = tonumber(m.type) or 0
+        if Effects and Damage and tonumber(m.effect) == Effects.HIDDEN_POWER then
+          local _, ht = call(Damage.hiddenPower, mon)
+          mt = tonumber(ht) or mt
+        end
+        for _, f in ipairs(foes) do
+          local k = tonumber(call(Types.effectiveness, mt, f.type1, f.type2)) or 1
+          if atk == nil or k > atk then atk = k end
+        end
+      end
+    end
+    return atk, def
+  end
+
   function Pt.ally(c, i)
     if not c.battle then return nil end
     local B = engine("src.core.game3.battle")

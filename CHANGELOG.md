@@ -6,6 +6,9 @@ All notable changes to this mod are documented here, in
 ## [Unreleased]
 
 ### Added
+- **Type matchups when switching in a battle**: beside each Pokémon's types, a sword chip (the best its own
+  damaging moves do to the foe) and a shield chip (the most the foe's types do to it), as 4x, 2x, 1x, 0.5x, 0.25x
+  or 0x, green when good for you, red when bad, blue at 1x and grey at 0x; the worse of two foes in a double battle; by the type chart.
 - **OPTIONS in glass** (FireRed, LeafGreen, Ruby, Sapphire, Emerald): every option and page the game's screen has,
   with whole names, switches and arrows; the rows other mods add set apart under "Added by mods", each tagged; each
   mod's own options page there too (from its row or from MODS), its options as a tree under the one that shows

@@ -57,6 +57,11 @@ On FireRed, LeafGreen, Ruby, Sapphire and Emerald, the Pokémon menu is six glas
 chosen Pokémon's colours: the lead's picture, and every Pokémon's level, HP, status and held item. Each
 one's menu has its summary, its field moves, Switch and its item or mail; in battle, Shift or Send Out.
 
+Choosing who to switch in, each Pokémon shows two chips beside its types: a sword, the best its own attacks do
+against the foe (2x, 4x, 0.5x, 0x...), and a shield, the most the foe's types do to it. Green is good for you,
+red is bad, blue is 1x and grey is 0x. In a double battle they count the worse of the two foes. They go by the type chart alone, not
+abilities or weather.
+
 Items used from the Bag happen there too: a Potion's HP filling, a TM's able / not able on every card, a
 Rare Candy's new stats. So do items given to hold, choosing a Pokémon for the Day Care or a trade,
 choosing a team for the Battle Tower and Frontier, and the Move Tutor.

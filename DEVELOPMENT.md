@@ -1668,6 +1668,17 @@ our own, in phases (the plan: the Summary, then the Party, then the Bag); the mo
   In Battle; the team's badge a larger disc. The bubble (`drawPrompt`) wraps clear of the arrow (9 units) and
   drops to a smaller size when a page would take more than 45% of the screen.
 
+### The switch screen's matchups
+
+`Pt.matchup(c, mon)` (src/party.lua) -> atk, def, for the party's `battle_switch` / `battle_faint` cards
+(`card.atkK` / `card.defK`, made with the cards in src/apps/party.lua, never in a draw): the foes are battlers 1 and 3
+alive (`State.isAlive`); the sword the best `Types.effectiveness` of its damaging moves (power > 0; Hidden Power by
+`Damage.hiddenPower`'s type) on each foe's `type1` / `type2`, nil with none; the shield the worst of each foe's types
+on its types -- the battler's own when it's the one out (Color Change, Conversion), else its species'. Types only,
+by the owner's choice: no abilities, weather or items. The view's `matchChips` (row: beside the type badges, the HP
+10 units shorter to make room; the lead's big card: centred under its type chips); the multiple's words a constant
+table by 4 x the multiple. Tests: tests/menus_test.lua's last block.
+
 ### The party's look (round two)
 
 - `Pt.card` (src/party.lua) adds `expK` (0..1), `expText` (`party.toNext`), `nature`, `ability` (titled), `itemTitle`;

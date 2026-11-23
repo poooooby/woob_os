@@ -191,6 +191,60 @@ return function(K, env, T, A, sumView)
     if room >= h * 0.75 + 5 then return chip("", x, y, h, size, c, "dot") end
     return 0
   end
+  -- ------- a battle's switch: the matchup's chips, a sword (its moves on the foe) and a shield (the foe's types on it)
+  -- (the multiples' words, by four times the multiple: 0x, 0.25x, 0.5x, 1x, 2x, 4x)
+  local MULT = { [0] = "0x", [1] = "0.25x", [2] = "0.5x", [4] = "1x", [8] = "2x", [16] = "4x" }
+  local GOOD, BAD, EVEN = { 52, 168, 83 }, { 220, 60, 60 }, { 132, 132, 142 }
+  local SWORD_C, SHIELD_C = { 230, 52, 52 }, { 10, 112, 230 }
+  local function multWord(k) return MULT[floor(k * 4 + 0.5)] or "1x" end
+  -- (1x blue, 0x grey; otherwise good for the player green, bad red: a strong sword, a weak shield)
+  local NEUTRAL = { 10, 122, 230 }
+  local function multColour(k, sword)
+    if k == 1 then return NEUTRAL end
+    if k == 0 then return EVEN end
+    if sword then return k > 1 and GOOD or BAD end
+    return k > 1 and BAD or GOOD
+  end
+  local function swordIcon(cx, cy, r, c)
+    K.col(c)
+    G.setLineWidth(max(1, r * 0.32 * K.sc))
+    G.line(K.X(cx - r * 0.7), K.Y(cy + r * 0.7), K.X(cx + r * 0.8), K.Y(cy - r * 0.8))
+    G.line(K.X(cx - r * 0.75), K.Y(cy + r * 0.05), K.X(cx - r * 0.05), K.Y(cy + r * 0.75))
+  end
+  local function shieldIcon(cx, cy, r, c)
+    K.col(c)
+    G.polygon("fill", K.X(cx - r * 0.8), K.Y(cy - r * 0.8), K.X(cx + r * 0.8), K.Y(cy - r * 0.8),
+      K.X(cx + r * 0.8), K.Y(cy + r * 0.05), K.X(cx), K.Y(cy + r * 0.95), K.X(cx - r * 0.8), K.Y(cy + r * 0.05))
+  end
+  -- (one chip: its icon in a white disc, the multiple) -> its width
+  local function multChip(k, sword, x, y, h, size)
+    local word = multWord(k)
+    local c = multColour(k, sword)
+    local w = K.width(word, size) + h + 2
+    K.col(C.black, 0.12)
+    K.box("fill", K.R(x, y + 0.45, w, h), h / 2)
+    K.col(c)
+    K.box("fill", K.R(x, y, w, h), h / 2)
+    local r = h / 2 - 0.6
+    K.col(C.white)
+    G.circle("fill", K.X(x + h / 2), K.Y(y + h / 2), r * K.sc)
+    -- (the icons their own colours: a red sword, a blue shield)
+    if sword then swordIcon(x + h / 2, y + h / 2, r * 0.62, SWORD_C) else shieldIcon(x + h / 2, y + h / 2, r * 0.62, SHIELD_C) end
+    K.bold(word, x + h + 0.6, y + (h - size * 1.2) / 2, size, C.white)
+    return w
+  end
+  local function multW(k, h, size) return K.width(multWord(k), size) + h + 2 end
+  -- (both chips, when there's room for them) -> their width
+  local function matchChips(card, x, y, h, size, room)
+    if not (card.atkK or card.defK) then return 0 end
+    local need = (card.atkK and multW(card.atkK, h, size) + 1 or 0) + (card.defK and multW(card.defK, h, size) or 0)
+    if need > room then return 0 end
+    local w = 0
+    if card.atkK then w = w + multChip(card.atkK, true, x, y, h, size) + 1 end
+    if card.defK then w = w + multChip(card.defK, false, x + w, y, h, size) end
+    return w + 1
+  end
+
   local function pill(s, x, y, h, size, c, a)
     local pw = K.width(s, size) + 4
     K.col(c, a)
@@ -352,6 +406,12 @@ return function(K, env, T, A, sumView)
       typeChip(card.t1, tx, ty, bs, ts, ink)
       if w2 > 0 then typeChip(card.t2, tx + w1 + 3, ty, bs, ts, ink) end
       ty = ty + bs + 2.5
+      -- (a battle's switch: how it fares against the foe, centred under its types)
+      if card.atkK or card.defK then
+        local ch, cs = 5.4, 3.6
+        local need = (card.atkK and multW(card.atkK, ch, cs) + 1 or 0) + (card.defK and multW(card.defK, ch, cs) or 0)
+        if matchChips(card, x + (w - need) / 2, ty - 0.5, ch, cs, w - 8) > 0 then ty = ty + ch + 2 end
+      end
     end
     vitals(P, i, card, x + 5, ty, w - 10, 4.2, clock, dt, onDark)
     ty = ty + lineH(4.2) + 0.8
@@ -396,6 +456,8 @@ return function(K, env, T, A, sumView)
     if card.item then heldMark(card, x + is - 6, y + h - 7.5, 6.5) end
     local tx = x + is + 2
     local right = max(40, min(w * 0.42, 70))
+    -- (a battle's switch: the HP a little shorter, for the matchup's chips beside the types)
+    if card.atkK or card.defK then right = max(34, right - 10) end
     local nameW = w - (tx - x) - right - 4
     local ns = K.fit(card.name, P.compact and 4 or 5, nameW - 4)
     local ny = y + h / 2 - lineH(ns) * 0.95
@@ -420,6 +482,8 @@ return function(K, env, T, A, sumView)
       lx = lx + typeBadge(card.t1, lx, ly - 0.1, bs) + 1
       if card.t2 then lx = lx + typeBadge(card.t2, lx, ly - 0.1, bs) + 1 end
       lx = lx + 1
+      -- (a battle's switch: how it fares against the foe, beside its types)
+      lx = lx + matchChips(card, lx, ly + 0.1, 4.4, 3.0, hpX - lx - 1)
     end
     if card.active then lx = lx + fitChip(T("party.inBattle"), lx, ly - 0.8, 6.2, 3.8, C.accent, "dot", hpX - lx) + 1 end
     vitals(P, i, card, x + w - right - 3, y + h / 2 - 2.2, right, 3.8, clock, dt, onDark)

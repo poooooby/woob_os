@@ -1388,4 +1388,52 @@ do
   T.eq(row and row.value(fake), "3 OPTIONS", "its value: how many options")
 end
 
+-- ------- a battle's switch: each Pokémon's matchup with the foe (its moves on the foe, the foe's types on it)
+do
+  local Bt, Ty = require("src.core.game3.battle"), require("src.core.game3.battle.types")
+  local Pt = X._test.env.party
+  local Pk = require("src.core.game3.pokemon")
+  local s2 = { name = "WOS", party = {}, storage = Storage.new(), bag = Bag.new(), flags = {}, vars = {}, gameStats = {},
+               dex = { seen = {}, owned = {}, caught = {} } }
+  ItemsData.ensureModel(s2)
+  Party.giveMon(s2, Pk.speciesFromNational(25), 9)    -- Pikachu: Thundershock
+  Party.giveMon(s2, Pk.speciesFromNational(4), 12)    -- Charmander: Scratch, Ember
+  Party.giveMon(s2, Pk.speciesFromNational(129), 5)   -- Magikarp: Splash alone
+  local st0, active0 = Bt._st, Bt._active
+  local function foe(t1, t2) return { type1 = t1, type2 = t2 or t1, mon = { hp = 10 } } end
+  -- (Pikachu out, as its battler: its types the battler's)
+  Bt._st = { battlers = { [0] = { type1 = Ty.ID.ELECTRIC, type2 = Ty.ID.ELECTRIC, mon = s2.party[1] },
+                          [1] = foe(Ty.ID.WATER, Ty.ID.FLYING) } }
+  local a, d = Pt.matchup({}, s2.party[1])
+  T.check(a == 4 and d == 1, ("Pikachu on Gyarados: its moves 4x, Gyarados' types 1x on it (%s, %s)"):format(tostring(a), tostring(d)))
+  a, d = Pt.matchup({}, s2.party[2])
+  T.check(a == 1 and d == 2, ("Charmander: Scratch's 1x the best (Ember 0.5x), Water 2x on it (%s, %s)"):format(tostring(a), tostring(d)))
+  a, d = Pt.matchup({}, s2.party[3])
+  T.check(a == nil and d == 1, ("Magikarp: no damaging move, no sword; the shield 1x (%s, %s)"):format(tostring(a), tostring(d)))
+  -- (two foes: the worse case -- the shield the worst of both, the sword the best target)
+  Bt._st.battlers[3] = foe(Ty.ID.GROUND)
+  a, d = Pt.matchup({}, s2.party[1])
+  T.check(a == 4 and d == 2, ("two foes: Pikachu's sword 4x, its shield 2x from the Ground type (%s, %s)"):format(tostring(a), tostring(d)))
+  Bt._st.battlers[3] = nil
+  -- (on the switch screen's cards; the field's party has none)
+  Bt._active = true
+  local PM = require("src.ui.game3.party_menu")
+  PM.show(s2.party, nil, { session = s, mode = "battle_switch", battle = true, activeSlot = 1,
+                           validate = function() return nil end, onSelect = function() end, onClose = function() end })
+  local PS = Tm.isOpen() and Tm.state().win.state.party
+  T.check(PS and PS.cards[1].atkK == 4 and PS.cards[2].defK == 2, "a battle's switch: the matchups on the cards")
+  T.check(pcall(pframe, 5), "and they draw")
+  K.setTextScale(1.3)
+  T.check(pcall(pframe, 5), "at 130%")
+  K.setTextScale(1)
+  PM.close()
+  if Tm.isOpen() then pframe(1, "b") end
+  PM.show(s2.party, nil, { session = s, onClose = function() end })
+  PS = Tm.isOpen() and Tm.state().win.state.party
+  T.check(PS and PS.cards[1].atkK == nil, "the field's Pokémon menu: no matchups")
+  PM.close()
+  if Tm.isOpen() then pframe(1, "b") end
+  Bt._st, Bt._active = st0, active0
+end
+
 T.finish("woob_os menus (" .. GAME .. ")")

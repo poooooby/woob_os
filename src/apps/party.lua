@@ -62,6 +62,12 @@ return function(env, T, A, Ctl)
           for k, sl in ipairs(P.order or {}) do if sl == i then card.orderN = k end end
         end
         card.active = c.battle and (i == 1 or (c.double and i == 2)) or false
+        -- (a battle's switch: how this one fares against the foe, as multiples -- its moves on it, its types on this)
+        card.atkK, card.defK = nil, nil
+        if c.battle and (c.mode == "battle_switch" or c.mode == "battle_faint") then
+          local okM, atk, def = pcall(Pt.matchup, c, mon)
+          if okM then card.atkK, card.defK = atk, def end
+        end
         -- (a partner's, in a battle fought beside one: the partner's name on it, the card faded)
         local okA, ally = pcall(Pt.ally, c, i)
         card.ally = okA and ally and (ally ~= "" and ally or T("party.partner")) or nil
