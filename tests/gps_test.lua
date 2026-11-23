@@ -299,7 +299,20 @@ do
   local Words = setmetatable({ f = function(k, ...) return k .. ":" .. table.concat({ ... }, ",") end },
                              { __call = function(_, k) return k end })
   local flags, items, beats = {}, {}, {}
+  -- (the shops' stocks, as the game loads them)
+  local Marts = require("src.core.game3.marts")
+  local nMarts = 0
+  do
+    local f = io.open(GAME .. "/data/generated/gba/scripts/marts.lua", "rb")
+    local src = f and f:read("*a")
+    if f then f:close() end
+    local chunk = src and load(src, "@marts.lua", "t", {})
+    local okP, pack = pcall(chunk or error)
+    if okP then nMarts = Marts.install(pack) end
+  end
+  T.check((tonumber(nMarts) or 0) > 0, "the cart's shops' stocks (" .. tostring(nMarts) .. ")")
   local Ob = dofile(MOD .. "map3d/objectives.lua")(engine, {
+    shopKind = dofile(MOD .. "map3d/shop_kind.lua")(),
     maps = function() return maps end, gameId = function() return GAME end, T = Words, log = print,
     family = function() return RSE and "rse" or "frlg" end,
     flag = function(name) return flags[name] == true end,
@@ -326,6 +339,23 @@ do
     local ly = list(P .. "LILYCOVE_CITY")
     T.check(count(ly, "shop", "map.obj.shop.floor") >= 4 and find(ly, "people", "deleter"),
             "Lilycove: the department store's floors, the Move Deleter")
+    local order = {}
+    for _, e in ipairs(ly) do if e.kind == "shop" then order[#order + 1] = tostring(e.label) end end
+    local seq = table.concat(order, " | ")
+    T.check(seq:find("2F.-3F.-4F.-5F.-roof") ~= nil, "its floors from the bottom up, the rooftop last: " .. seq)
+    -- (each floor by what it sells)
+    T.check(seq:find("floorKind:map.obj.cat.trainer,2F", 1, true) and seq:find("floorKind:map.obj.cat.battle,3F", 1, true)
+            and seq:find("floorKind:map.obj.cat.tm,4F", 1, true) and seq:find("floorKind:map.obj.cat.deco,5F", 1, true),
+            "each floor by what it sells: Trainer Items, Battle Items, TMs, Decorations")
+    -- (a market's stalls by what each sells; Mt. Chimney's Lava Cookies, sold by a script of their own)
+    local sl = {}
+    for _, e in ipairs(list(P .. "SLATEPORT_CITY")) do if e.kind == "shop" then sl[#sl + 1] = tostring(e.label) end end
+    print("  Slateport's shops: " .. table.concat(sl, " | "))
+    T.check(table.concat(sl, " | "):find("stallKind:", 1, true) ~= nil, "Slateport's stalls by what they sell")
+    local mc = {}
+    for _, e in ipairs(list(P .. "MT_CHIMNEY")) do if e.kind == "shop" then mc[#mc + 1] = tostring(e.label) end end
+    T.check(table.concat(mc, " | "):find("vendor:Lava Cookie", 1, true) ~= nil,
+            "Mt. Chimney: the Lava Cookie vendor (" .. table.concat(mc, " | ") .. ")")
     local eg = list(P .. "EVER_GRANDE_CITY")
     T.eq(count(eg, "gym", "map.obj.elite"), 4, "Ever Grande: the Elite Four, once each")
     T.check(find(list(P .. "ROUTE117"), "people", "daycare") ~= nil, "Route 117: the Day Care")
@@ -353,6 +383,10 @@ do
     local la = list("FR_LAVENDER_TOWN")
     T.check(find(la, "key", "Flute") and find(la, "people", "nameRater"), "Lavender: the Poké Flute, the Name Rater")
     T.check(not find(list("FR_CELADON_CITY"), "people", "nameRater"), "Celadon's Eevee isn't a Name Rater")
+    local cs = {}
+    for _, e in ipairs(list("FR_CELADON_CITY")) do if e.kind == "shop" then cs[#cs + 1] = tostring(e.label) end end
+    print("  Celadon's shops: " .. table.concat(cs, " | "))
+    T.check(table.concat(cs, " | "):find("floorKind:map.obj.cat.tm", 1, true) ~= nil, "Celadon's TMs by their floor")
     T.eq(count(list("FR_POKEMON_LEAGUE_LORELEIS_ROOM"), "gym", "map.obj.elite"), 4, "the Elite Four, once each")
     T.check(find(list("FR_SSANNE_CAPTAINS_OFFICE"), "key", "HM01") ~= nil, "the S.S. Anne: HM01")
   end

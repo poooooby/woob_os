@@ -1309,6 +1309,34 @@ do
   for _, b in pairs(idx or {}) do for k in pairs(counts) do counts[k] = counts[k] + #b[k] end end
   print(string.format("  objectives: %d story, %d gyms / Elite Four, %d key items, %d people, %d shops",
     counts.story, counts.gym, counts.key, counts.people, counts.shops))
+  -- (a department store's floors by what each sells, from the bottom up)
+  do
+    local store
+    for _, b in pairs(idx or {}) do
+      local n = 0
+      for _, e in ipairs(b.shops or {}) do if e.floor then n = n + 1 end end
+      if n >= 3 then store = b end
+    end
+    local names = {}
+    for _, e in ipairs(store and store.shops or {}) do names[#names + 1] = e.name end
+    local seq = table.concat(names, " | ")
+    print("  the department store: " .. seq)
+    local vend = {}
+    for sec, b in pairs(idx or {}) do
+      for _, e in ipairs(b.shops or {}) do
+        if e.name:find("Vendor", 1, true) or e.name:find("Fresh Water", 1, true) then vend[#vend + 1] = sec .. ": " .. e.name end
+      end
+    end
+    table.sort(vend)
+    print("  vendors: " .. table.concat(vend, " | "))
+    local up, last = true, 0
+    for f in seq:gmatch("(%d)F") do
+      if tonumber(f) < last then up = false end
+      last = tonumber(f)
+    end
+    T.check(seq:find("TMs", 1, true) and seq:find("Battle Items", 1, true) and up and last >= 4,
+            "a department store's floors by what each sells, bottom up")
+  end
   if GEN == 2 then
     local sec, g = find("gym", "Falkner")
     T.check(sec == "lm6" and g.flag == "EVENT_BEAT_FALKNER", "Falkner at Violet City, done by beating him ("
@@ -1404,6 +1432,43 @@ do
   end
   T.check(shops >= 1 and shops < 8 and boxed == 3 and folded[4].label:find("Shop 1 · Shop 2", 1, true) ~= nil,
           "too long: the shops run on together (" .. shops .. " lines), the boxed a line each")
+  -- (an entry too long for its column goes on over the next lines, inside the card: words, or characters when
+  -- there are no spaces)
+  local wordy = "Stop the villains at the very top of the volcano before they wake the legend sleeping under it"
+  local cjk = string.rep("\227\129\130", 40)
+  local wl = V and V.lines({ { kind = "story", label = wordy, done = false }, { kind = "people", label = cjk } }, 86) or {}
+  local words, story, ppl, firstBoxed = {}, 0, 0, false
+  for i, e in ipairs(wl) do
+    if e.kind == "story" then
+      story = story + 1
+      words[#words + 1] = e.label
+      if i == 1 then firstBoxed = e.done == false and not e.cont end
+      if i > 1 and not (e.cont and e.boxed) then firstBoxed = false end
+    else
+      ppl = ppl + 1
+    end
+  end
+  T.check(story > 1 and firstBoxed and table.concat(words, " ") == wordy,
+          "a long objective over " .. story .. " lines, its box on the first, all its words kept")
+  T.check(ppl > 1, "a line with no spaces broken between its characters (" .. ppl .. " lines)")
+  -- (still too many for a small card: "+N more", counted; the card's room for it all once it's wide)
+  do
+    local five = { { kind = "key", label = "Powder Jar", done = false }, { kind = "people", label = "Move Tutor" },
+                   { kind = "people", label = "Name Rater" }, { kind = "shop", label = "Poke Mart" },
+                   { kind = "shop", label = "Market stalls" } }
+    -- (a card just tall enough, somewhere a fraction off a whole unit: every entry drawn, no "+N more")
+    local f = V.fit(five, 86, 200)
+    local hh = V.height(f, 86, 200)
+    local okF, left = pcall(V.draw, f, 13.37, 17.913, 86, hh, 0, nil, 1)
+    T.check(okF and left == 0, "a card just tall enough holds them all (" .. tostring(left) .. " left over)")
+  end
+  local many = {}
+  for k = 1, 40 do many[#many + 1] = { kind = "gym", label = "Leader " .. k, done = false } end
+  local okD, hidden = pcall(V.draw, V.fit(many, 86, 40), 0, 0, 86, 40, 0, nil, 1)
+  T.check(okD and type(hidden) == "number" and hidden > 0, "too many for the card: +" .. tostring(hidden) .. " more")
+  local wideH = V.height(V.fit(many, 300, 1e6), 300, 1e6)
+  local okW, none = pcall(V.draw, V.fit(many, 300, wideH), 0, 0, 300, wideH, 0, nil, 1)
+  T.check(okW and none == 0, "opened wide and tall: all of them (" .. tostring(none) .. " left over)")
   if os.getenv("OBJ_DUMP") then
     local secs = {}
     for sec in pairs(idx or {}) do secs[#secs + 1] = sec end
@@ -1515,7 +1580,7 @@ do
   T.check(Mm and Mm.isOpen() and P ~= nil, "the window open, full screen")
   local wr
   for _, r in ipairs(P and P.rows or {}) do if r.id == "woob_os" then wr = r end end
-  T.check(wr ~= nil and wr.section == "Interface" and wr.isOn == true, "WoobOS under Interface, on")
+  T.check(wr ~= nil and wr.section == "Interface" and wr.chip and wr.chip.on == true, "WoobOS under Interface, on")
   -- (F10 again: ours closes, as the game's toggles)
   Screens.push(game, "ManagerState")
   frame(3)

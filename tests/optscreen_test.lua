@@ -256,7 +256,9 @@ do
   local wi, wr = rowAt(P, "woob_os")
   T.check(P and wr and wr.section == "Interface" and wr.badge and wr.badge.letter == "W",
           "WoobOS under Interface, its badge (" .. tostring(wr and wr.section) .. ")")
-  T.check(wr and wr.isOn == true and wr.sub == "On", "its switch on, and where it stands (" .. tostring(wr and wr.sub) .. ")")
+  T.check(wr and wr.kind == "group" and wr.chip and wr.chip.on == true and wr.chip.key == "mods.st.on" and wr.sub == nil
+          and wr.step == nil, "its chip on, an arrow to its page, no switch in the list (" .. tostring(wr and wr.sub) .. ")")
+  T.check(P.desc == nil and wr.desc == nil, "no description card under the list")
   T.check(P and P.divs and P.divs[wi] == "Interface", "the section's divider over it")
   -- (A: its own page)
   moveTo(P, wi)
@@ -303,6 +305,28 @@ do
   frame(2)
   frame(1, "a")
   T.check(st().sheet == nil and said == 1, "A: yes")
+  -- (the list the game's own would show: a mod filtering ManagerState.modRows -- Cleaner Mod Options -- hides here too)
+  local modRows0 = MS.modRows
+  local drop = "woob_os"
+  MS.modRows = function(self, ...)
+    local out = {}
+    for _, r in ipairs(modRows0(self, ...)) do
+      if not (r.mod and (drop == "*" or r.mod.id == drop)) then out[#out + 1] = r end
+    end
+    return out
+  end
+  win().ui.refresh()
+  frame(2)
+  T.check(rowAt(pg(), "woob_os") == nil, "a mod modRows leaves out: not listed")
+  drop = "*"
+  win().ui.refresh()
+  frame(2)
+  local _, nr = rowAt(pg(), "__none")
+  T.check(nr and nr.label:find("hidden", 1, true), "every one left out: a line saying so (" .. tostring(nr and nr.label) .. ")")
+  MS.modRows = modRows0
+  win().ui.refresh()
+  frame(2)
+  T.check(rowAt(pg(), "woob_os") ~= nil, "back")
   -- (garbage, text size)
   frame(30)
   local kbM = garbageOf(Tm, 60)

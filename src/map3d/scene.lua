@@ -32,6 +32,7 @@ local floor, max, min, abs, sqrt, pi, exp = math.floor, math.max, math.min, math
 -- hit args
 local A_REGION, A_ME, A_FLY, A_NORTH, A_FLAT, A_PLACE = 1001, 1002, 1003, 1004, 1005, 2000
 local A_GROUND, A_MENU, A_PICK, A_MARK = 1006, 3000, 3100, 4000
+local A_OBJ = 1007
 local STICK_DEAD = 0.22    -- the right stick's dead zone
 local STICK_TURN, STICK_TILT = 2.2, 1.1   -- radians a second at full tilt
 local TURN = 1.7        -- radians a second, L / R held
@@ -59,6 +60,14 @@ local HINTS = {
            { "B", "hint.back" } },
   menu = { { "+", "hint.choose" }, { "A", "hint.ok" }, { "B", "hint.back" } },
   loading = { { "B", "hint.back" } },
+  -- (some objectives don't fit: SELECT opens their card; opened: SELECT or B closes it)
+  flatMore = { { "+", "map.hint.go" }, { "L R", "map.hint.region" }, { "A", "map.hint.menu" }, { "START", "map.hint.zoom" },
+               { "SELECT", "map.hint.objMore" }, { "B", "hint.back" } },
+  appMore = { { "+", "map.hint.go" }, { "L R", "map.hint.turn" }, { "A", "map.hint.menu" }, { "START", "map.hint.zoom" },
+              { "SELECT", "map.hint.objMore" }, { "B", "hint.back" } },
+  townMore = { { "+", "map.hint.go" }, { "L R", "map.hint.turn" }, { "A", "map.hint.menu" }, { "SELECT", "map.hint.objMore" },
+               { "START", "map.classic" }, { "B", "hint.back" } },
+  objOpen = { { "+", "map.hint.go" }, { "SELECT", "map.hint.objLess" }, { "B", "map.hint.objLess" } },
 }
 -- the spot's menu's rows and their words; the markers' kinds, their colours and words
 local ROW_WORD = { fly = "map.fly", waypoint = "map.menu.waypoint", clear = "map.menu.clearWaypoint",
@@ -677,6 +686,15 @@ return function(ctx, env, opts)
 
   -- ------- the window's contract
 
+  -- (the objectives' card opened wide and tall -- "+N more" tapped, or SELECT while some don't fit -- or closed again)
+  local function objectivesOpen(open)
+    if open == (st.objOpen == true) then return false end
+    if open and not ((st.objMore or 0) > 0) then return false end
+    st.objOpen = open
+    se("SE_SELECT")
+    return true
+  end
+
   local cur
   local function pressed(k) return cur:wasPressed(k) end
   local function down(k)
@@ -689,6 +707,15 @@ return function(ctx, env, opts)
     if st.menu then
       st.dirX, st.dirY, st.turn = 0, 0, 0
       return menuInput(input)
+    end
+    -- (the objectives' card: SELECT opens it while some don't fit; SELECT or B closes it)
+    if st.objOpen and (pressed("select") or pressed("b")) then
+      objectivesOpen(false)
+      return true
+    end
+    if not st.objOpen and (st.objMore or 0) > 0 and pressed("select") then
+      objectivesOpen(true)
+      return true
     end
     st.turn = st.flat and 0 or ((down("l") and -1 or 0) + (down("r") and 1 or 0))
     -- (the right stick: the engine keeps its position)
@@ -751,6 +778,7 @@ return function(ctx, env, opts)
       follow()
       return openMenu(mk.x, mk.z, mk)
     end
+    if arg == A_OBJ then return objectivesOpen(not st.objOpen) end
     if arg == A_REGION then return nextRegion(1) end
     if arg == A_ME then return toPlayer() end
     if arg == A_FLY then return fly() end
@@ -837,9 +865,11 @@ return function(ctx, env, opts)
   function W.hints()
     if st.loading then return T.list(HINTS.loading) end
     if st.menu then return T.list(HINTS.menu) end
-    if st.flat then return T.list(HINTS.flat) end
-    if mode == "town" then return T.list(HINTS.town) end
-    return T.list(HINTS.app)
+    if st.objOpen then return T.list(HINTS.objOpen) end
+    local more = (st.objMore or 0) > 0
+    if st.flat then return T.list(more and HINTS.flatMore or HINTS.flat) end
+    if mode == "town" then return T.list(more and HINTS.townMore or HINTS.town) end
+    return T.list(more and HINTS.appMore or HINTS.app)
   end
 
   function W.close()
@@ -1535,12 +1565,14 @@ return function(ctx, env, opts)
     local fs = K.fit(word, 4.8, fb[3] - 3)
     draw(word, fb[1] + 1.5, fb[2] + (fb[4] - fs * 1.2) / 2, fs, ink, "center", fb[3] - 3)
   end
-  local function drawCard(body, compact)
+  -- (reserve: the room the objectives' column takes at the right, the card narrowed beside it)
+  local function drawCard(body, compact, reserve)
     local p = place()
     st.cardW = nil
     if not p then return end
     local x, y, w, h = body[1], body[2], body[3], body[4] - (opts.footer or 0)
     local cw = (w > 190 and not compact) and min(190, w * 0.6) or w - M * 2
+    if reserve and reserve > 0 then cw = min(cw, w - M * 2 - reserve) end
     local facts = p.kind == "town" and (p.center or p.mart or p.hasGym or (p.extras and p.extras[1]))
     local ch = facts and 31 or 23
     -- (how far up the middle of the view above the card is, as a share of half the view)
@@ -1611,28 +1643,59 @@ return function(ctx, env, opts)
   end
 
   -- the place's objectives (env.objectives, the mod option Map Objectives): its story, gyms, key items, people and
-  -- shops on a card beside its own, or above it when there's no room beside (asked again on another place, and
-  -- every two seconds: a box ticked meanwhile)
-  local function drawObjectives(body, clock)
+  -- shops (asked again on another place, and every two seconds: a box ticked meanwhile)
+  local function objectivesList(clock)
     local O = env.objectives
     local p = place()
-    if not (O and p and st.cardW) then return end
+    if not (O and p) then return nil end
     local mode = O.mode()
-    if mode == "off" then return end
+    if mode == "off" then return nil end
     if st.objOf ~= p or st.objMode ~= mode or clock - (st.objAt or -10) > 2 then
+      -- (another place: its card closed again)
+      if st.objOf ~= p then st.objOpen, st.objMore = false, 0 end
       st.objOf, st.objMode, st.objAt = p, mode, clock
       local ok, list = pcall(O.at, p.id, session(), mode == "spoilers")
       st.objList = ok and list or nil
     end
-    local list = st.objList
-    if not list then return end
+    return st.objList
+  end
+  local OBJ_TOP, OBJ_W, OBJ_CARD_H, OBJ_CARD_MIN = 18, 86, 31, 100
+  -- (wide: when the room above the place's card can't hold them all, a column at the right from under the map's
+  -- buttons down to the foot, the card narrowed beside it -> the room it takes; upright, or the card too narrow
+  -- then: none)
+  local function objectivesReserve(body, list)
+    local O = env.objectives
+    if not (O and list and #list > 0) then return 0 end
     local x, y, w, h = body[1], body[2], body[3], body[4] - (opts.footer or 0)
-    -- (a small window at the top right, under the map's buttons: down to the place's card, or to the foot when
-    -- there's room beside it)
-    local top = y + 18
-    local ow = min(86, w * 0.4)
-    local ox = x + w - M - ow
-    local bottom = (ox > st.cardX + st.cardW + M) and (y + h - M) or (st.cardY - 3)
+    if h > w then return 0 end
+    local ow = min(OBJ_W, w * 0.4)
+    local above = (h - M - OBJ_CARD_H - 3) - OBJ_TOP
+    local okL, lines = pcall(O.view.lines, list, ow)
+    local okH, need = pcall(O.view.height, okL and lines or list, ow, 1e6)
+    if not okH or need <= above then return 0 end
+    if w - M * 3 - ow < OBJ_CARD_MIN then return 0 end
+    return ow + M
+  end
+  -- (a window at the top right, under the map's buttons, down to the place's card, or to the foot when there's
+  -- room beside it; upright: across the top, its entries in columns; opened: as wide as the map and down to its
+  -- foot, over the place's card)
+  local function drawObjectives(body, clock)
+    local O = env.objectives
+    local list = st.objList
+    if not (O and list and place() and st.cardW and st.objOf == place()) then
+      st.objMore, st.objOpen = 0, false
+      return
+    end
+    local x, y, w, h = body[1], body[2], body[3], body[4] - (opts.footer or 0)
+    local top = y + OBJ_TOP
+    local ow, ox, bottom
+    if st.objOpen then
+      ow, ox, bottom = w - M * 2, x + M, y + h - M
+    else
+      ow = h > w and w - M * 2 or min(OBJ_W, w * 0.4)
+      ox = x + w - M - ow
+      bottom = (ox >= st.cardX + st.cardW + M - 0.01) and (y + h - M) or (st.cardY - 3)
+    end
     -- (too long for the room: its shops and people run on together, made again only when the list or the room changes)
     local room = bottom - top
     if O.view.fit and (st.objFitOf ~= list or st.objFitW ~= ow or st.objFitH ~= room or st.objFitS ~= K.textScale()) then
@@ -1642,9 +1705,13 @@ return function(ctx, env, opts)
     end
     if O.view.fit and st.objFit then list = st.objFit end
     local oh = O.view.height(list, ow, room)
-    if oh < 22 then return end
-    local oy = top
-    O.view.draw(list, ox, oy, ow, oh, clock, glass)
+    if oh < 22 then
+      st.objMore = 0
+      return
+    end
+    -- (a tap on the card: open when some don't fit, closed again when open)
+    local hit = (st.objOpen or (st.objMore or 0) > 0) and A_OBJ or nil
+    st.objMore = O.view.draw(list, ox, top, ow, oh, clock, glass, hit) or 0
   end
 
   -- the loading screen: the sky over the sea, a glass card in the middle, its bar filling (eased, so it
@@ -1850,7 +1917,7 @@ return function(ctx, env, opts)
     drawChips(body)
     drawProblem(body, clock)
     st.cardLift = 0
-    drawCard(body, compact)
+    drawCard(body, compact, objectivesReserve(body, objectivesList(clock)))
     drawObjectives(body, clock)
     drawMenu(body)
     -- (a waypoint set while the routes were still being worked out: on with them, then set)

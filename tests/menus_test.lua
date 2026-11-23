@@ -1081,6 +1081,7 @@ do
   T.check(GS and GS.learn ~= nil, "a battle's forget-a-move summary: on the Gear's screen")
   if GS then
     sframe(30)
+    T.check(GS.h > GS.vis and GS.top == 0, ("it opens at the page's top, not pulled down to the list (top %.1f)"):format(GS.top))
     local last = #GS.rec.moves + 1
     for _ = 2, last do sframe(1, "down") sframe(20) end
     sframe(40)
@@ -1088,6 +1089,10 @@ do
     T.check(GS.move == last and GS.selRow and GS.selRow >= 0 and GS.selB <= 144,
             ("down to the new move: scrolled into view (row %.1f..%.1f of 144, top %.1f)"):format(
               GS.selRow or -1, GS.selB or -1, GS.top or -1))
+    -- (a drag back up to the picture: it stays there)
+    gs.win.scroll(1000)
+    sframe(60)
+    T.check(GS.top == 0, ("dragged up to the top: it stays (top %.1f)"):format(GS.top))
     for _ = 2, last do sframe(1, "up") end
     sframe(40)
     T.check(GS.move == 1 and GS.selA and GS.selA >= 0, "and back up to the first: the question in view")

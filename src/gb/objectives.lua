@@ -14,7 +14,9 @@
 -- A place is a Town Map location: Gen 2's landmark ("lm6"), Gen 1's outdoor map ("PEWTER_CITY"), as
 -- src/gb/map3d.lua makes them; a map with none (a cave, a tower) goes to the place its doors lead to.
 --
---   Ob = Objectives(H, Gd, deps)   deps: T, log
+-- A department store's floor and other named shops say what they sell (deps.shopKind over the clerk's stock).
+--
+--   Ob = Objectives(H, Gd, deps)   deps: T, log, shopKind (src/map3d/shop_kind.lua's, optional)
 --   Ob.at(place, s, spoilers) -> { { kind, label, done, hidden }, ... } | nil ; Ob.reset() ; Ob.index()
 
 local floor = math.floor
@@ -108,18 +110,26 @@ return function(H, Gd, deps)
       b.people[#b.people + 1] = { kind = kind, flag = flag }
     end
   end
-  local function addShop(b, name)
+  local function addShop(b, name, floorWord)
     if not b.seen["s" .. name] then
       b.seen["s" .. name] = true
-      b.shops[#b.shops + 1] = { name = name }
+      b.shops[#b.shops + 1] = { name = name, floor = floorWord }
     end
   end
-  -- (a shop's name from its map: a department store's floor, a Mart, else the map's own words past the town's)
-  local function shopName(id, town)
+  -- (what a clerk sells, in a word's key: its stock's item names)
+  local Sk = deps.shopKind
+  local function kindOf(names) return Sk and type(names) == "table" and Sk.of(names) or nil end
+  -- (a shop's name from its map: a department store's floor -- with what it sells --, a Mart, else the map's own words
+  -- past the town's (and what it sells)) -> the name, its floor's word ("2F", "Roof") for the order
+  local function shopName(id, town, cat)
     local floorWord = id:match("DEPT_STORE_(%w+)$") or id:match("_MART_(%d+F)$")
     if id:find("DEPT_STORE_ROOF$") then floorWord = "Roof" end
     if floorWord and (floorWord == "Roof" or floorWord:find("^%d")) and not id:find("_MART_1F$") then
-      return T.f("map.obj.shop.floor", floorWord)
+      if cat then
+        local fl = floorWord == "Roof" and T("map.obj.shop.roof") or floorWord
+        return T.f("map.obj.shop.floorKind", T(cat), fl), floorWord
+      end
+      return T.f("map.obj.shop.floor", floorWord == "Roof" and T("map.obj.shop.roof") or floorWord), floorWord
     end
     if id:find("_MART$") or id:find("_MART_1F$") or id:find("POKECENTER") or id:find("POKEMON_CENTER") or id:find("LOBBY") then
       return T("map.obj.shop.mart")
@@ -128,7 +138,28 @@ return function(H, Gd, deps)
     local base = town and town:gsub("_CITY$", ""):gsub("_TOWN$", "")
     if town and bare:sub(1, #town + 1) == town .. "_" then bare = bare:sub(#town + 2)
     elseif base and bare:sub(1, #base + 1) == base .. "_" then bare = bare:sub(#base + 2) end
+    if cat then return titleOf(bare) .. " - " .. T(cat) end
     return titleOf(bare)
+  end
+  -- (Gen 2: a pokemart's stock -- its type, then the mart's number, as the opcode carries them)
+  local function stock2(d, cmd)
+    local marts = d.gen2Marts
+    if type(marts) ~= "table" then return nil end
+    local args = cmd.args
+    local mtype = tonumber(cmd.martType or cmd.dialog or (args and args[1])) or 0
+    local id = cmd.mart or cmd.martId
+    if not id and args then id = (tonumber(args[2]) or 0) + (tonumber(args[3]) or 0) * 0x100 end
+    if mtype == 2 then
+      local names = {}
+      for _, row in ipairs(type(marts.bargain) == "table" and marts.bargain or {}) do
+        if type(row) == "table" and row.item then names[#names + 1] = row.item end
+      end
+      return names
+    end
+    -- (the rooftop sale keeps a stock of its own, not among the lists)
+    if mtype == 4 then return nil end
+    local lists = marts.lists
+    return type(lists) == "table" and lists[(tonumber(id) or -1) + 1] or nil
   end
 
   -- ------- Gen 2: the cart's scripts
@@ -180,6 +211,22 @@ return function(H, Gd, deps)
       end
       return nil
     end
+    -- (a script that takes money: its own takemoney, or one in a script it calls)
+    local function takes(key)
+      for _, cmd in ipairs(type(scripts[key]) == "table" and scripts[key] or {}) do
+        if cmd.op == "takemoney" then return true end
+      end
+      return false
+    end
+    local function pays(key)
+      for _, cmd in ipairs(type(scripts[key]) == "table" and scripts[key] or {}) do
+        if cmd.op == "takemoney" then return true end
+        if (cmd.op == "scall" or cmd.op == "farscall") and type(cmd.script) == "string" and takes(cmd.script) then
+          return true
+        end
+      end
+      return false
+    end
     local beatAt = {}
     for _, bt in ipairs(BEATS2) do beatAt[bt[2]] = bt end
     local redSec, redFlag
@@ -211,11 +258,15 @@ return function(H, Gd, deps)
             if item and isKey(item) then addKey(b, item, eventName(o.eventFlag ~= 65535 and o.eventFlag or nil)) end
           end
         end
-        for _, g in ipairs(def.bgEvents or {}) do if g.kind == 0 then add(g.scriptKey) end end
+        -- (signs: read from anywhere, 0, or from one side, 1-4 -- a vending machine, read facing up)
+        for _, g in ipairs(def.bgEvents or {}) do if (tonumber(g.kind) or -1) >= 0 and tonumber(g.kind) <= 4 then add(g.scriptKey) end end
         for _, c in ipairs(def.coordEvents or {}) do add(c.scriptKey) end
         for _, c in ipairs(def.callbacks or {}) do add(c.scriptKey) end
         for _, c in pairs(def.sceneScripts or {}) do if type(c) == "table" then add(c.scriptKey) end end
         for word, kind in pairs(HOUSE) do if id:find(word, 1, true) then addPerson(b, kind) end end
+        -- (an item sold by a script of its own -- money taken, the item handed over: the vending machines' drinks,
+        -- Moomoo Milk; a map's together on one line)
+        local sold, soldSeen = {}, {}
         local n = 1
         while n <= #todo and n < 400 do
           local key = todo[n]
@@ -225,7 +276,12 @@ return function(H, Gd, deps)
             local op = cmd.op
             if not STD[op] and type(cmd.script) == "string" and scripts[cmd.script] then add(cmd.script) end
             if GIVE2[op] then
-              addKey(b, items[tonumber(cmd.item) or -1], eventAfter(key, i + 1, 0, {}))
+              local it = items[tonumber(cmd.item) or -1]
+              addKey(b, it, eventAfter(key, i + 1, 0, {}))
+              if it and not isKey(it) and not soldSeen[it] and pays(key) then
+                soldSeen[it] = true
+                sold[#sold + 1] = itemTitle(it)
+              end
             elseif op == "loadtrainer" then
               local cls = classes[(tonumber(cmd.class) or -1) + 1]
               local kind = (LEADER2[cls] and "gym") or (ELITE2[cls] and "elite") or nil
@@ -235,7 +291,7 @@ return function(H, Gd, deps)
                                       rank = ELITE_ORDER[cls] or 0 }
               end
             elseif op == "pokemart" then
-              addShop(b, shopName(id, town[lm]))
+              addShop(b, shopName(id, town[lm], kindOf(stock2(d, cmd))))
             elseif op == "special" then
               addPerson(b, PEOPLE2[specials[(tonumber(cmd.id) or -1) + 1] or ""])
             elseif op == "trade" then
@@ -253,6 +309,13 @@ return function(H, Gd, deps)
               if bt and not beatSec[bt[1]] then beatSec[bt[1]] = sec end
             end
           end
+        end
+        if #sold > 0 then
+          local what = table.concat(sold, ", ")
+          local floorWord = id:match("DEPT_STORE_(%w+)$")
+          if floorWord == "ROOF" then floorWord = "Roof" end
+          local fl = floorWord and (floorWord == "Roof" and T("map.obj.shop.roof") or floorWord)
+          addShop(b, fl and T.f("map.obj.shop.floorKind", what, fl) or T.f("map.obj.shop.vendor", what), floorWord)
         end
       end
     end
@@ -341,7 +404,8 @@ return function(H, Gd, deps)
       local sec = id and place(id)
       if sec and type(tp) == "table" then
         for _, e in pairs(tp) do
-          if type(e) == "table" and e.mart then addShop(bucket(sec), shopName(id, sec)) break end
+          -- (each clerk his own: a floor's two counters, items and TMs)
+          if type(e) == "table" and e.mart then addShop(bucket(sec), shopName(id, sec, kindOf(e.mart))) end
         end
       end
     end
@@ -412,6 +476,22 @@ return function(H, Gd, deps)
         local ia, ic = 0, 0
         for k, v in ipairs(PEOPLE_ORDER) do if v == a.kind then ia = k end if v == c.kind then ic = k end end
         return ia < ic
+      end)
+      -- (the shops the same way every time: the Mart, a store's floors from the bottom up, the roof after them, then
+      -- the rest by name)
+      local mart = T("map.obj.shop.mart")
+      local function rank(e)
+        if e.name == mart then return 0 end
+        local f = e.floor
+        if f == "Roof" then return 100 end
+        local n = f and tonumber(f:match("^(%d+)F$"))
+        if n then return 2 + n end
+        return 200
+      end
+      table.sort(b.shops, function(a, c)
+        local ra, rc = rank(a), rank(c)
+        if ra ~= rc then return ra < rc end
+        return a.name < c.name
       end)
       b.seen = nil
     end

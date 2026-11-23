@@ -93,7 +93,8 @@ return function(mod)
                optScreen = loadSibling(mod, "src/options_screen.lua"), optWindow = loadSibling(mod, "src/apps/options.lua"),
                modsScreen = loadSibling(mod, "src/mods_screen.lua"),
                objectives = loadSibling(mod, "src/map3d/objectives.lua"),
-               objectivesView = loadSibling(mod, "src/map3d/objectives_view.lua") }
+               objectivesView = loadSibling(mod, "src/map3d/objectives_view.lua"),
+               shopKind = loadSibling(mod, "src/map3d/shop_kind.lua") }
   local Arrange = loadSibling(mod, "src/arrange.lua")
   local makeMart, martWindow = loadSibling(mod, "src/mart.lua"), loadSibling(mod, "src/apps/mart.lua")
   -- the real shops: every shop counter opens the Mart full screen (src/realshop.lua; src/shop.lua the
@@ -881,6 +882,7 @@ return function(mod)
     if SC.objectives and SC.objectivesView then
       local Ob = SC.objectives(engine, {
         maps = mapDefs, gameId = gameId, T = T, log = warn,
+        shopKind = SC.shopKind and SC.shopKind() or nil,
         family = function()
           local g = gameId()
           return (g == "firered" or g == "leafgreen") and "frlg" or "rse"

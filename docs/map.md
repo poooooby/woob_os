@@ -31,11 +31,17 @@ its close button, the 3D button, pinch and drag.
 
 ## ✅ Objectives
 
-On every game, a small window at the top right lists what the place under the cursor holds: its story moments,
+On every game, a window at the top right lists what the place under the cursor holds: its story moments,
 its Gym Leader (and the Elite Four at the League), the key items handed out there, its notable people (Move
 Tutors, the Move Relearner and Deleter, the Name Rater, the Day Care, in-game trades, Goldenrod's Lucky Number
-show) and its shops. A cave or a tower's are listed under the place it opens onto. Each story moment, Gym and key item has a box, ticked once you've done it or have it.
-When the window is too small for them all, the shops and people share lines.
+show) and its shops. A department store's floors and Slateport's market stalls say what each counter sells
+(Dept Store - TMs - 4F, Market - Vitamins), and someone selling a single thing is listed as a vendor (Vendor -
+Lava Cookie on Mt. Chimney). A cave or a tower's are listed under the place it opens onto. Each story moment, Gym and key item has a box, ticked once you've done it or have it.
+
+On a wide screen, a long list runs down the right side to the bottom, with the place's card beside it; held
+upright, the list goes across the top in two columns. A line too long for the window goes on to the next. If
+there still isn't room, the shops and people share lines, and whatever is left shows as "+N more": tap it, or
+press SELECT, to open the window across the map with everything in it, and tap it or press SELECT or B to close it.
 
 The Map Objectives option sets it: Enabled shows story moments still ahead of you as ???, Spoilers names them,
 and Off hides the window.

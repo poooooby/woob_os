@@ -279,12 +279,26 @@ return function(engine, deps)
                               ui.refresh()
                             end }
       end
+      -- (the mods the game's own list shows: the manager's modRows, which another mod may filter -- Cleaner Mod
+      -- Options' HIDE DISABLED / HIDE OTHER GAMES -- the same ones here; unanswerable: all of them)
+      local shown
+      local mrows = call(ms.modRows, ms)
+      if type(mrows) == "table" then
+        shown = {}
+        for _, r in ipairs(mrows) do
+          if type(r) == "table" and type(r.mod) == "table" then shown[r.mod] = true end
+        end
+      end
       -- (each kind its section)
-      local byKind, kinds = {}, {}
+      local byKind, kinds, hidden = {}, {}, 0
       for _, m in ipairs(ms.status and ms.status.available or {}) do
-        local k = kindOf(m)
-        if not byKind[k] then byKind[k], kinds[#kinds + 1] = {}, k end
-        table.insert(byKind[k], m)
+        if shown and not shown[m] then
+          hidden = hidden + 1
+        else
+          local k = kindOf(m)
+          if not byKind[k] then byKind[k], kinds[#kinds + 1] = {}, k end
+          table.insert(byKind[k], m)
+        end
       end
       local rank = {}
       for i, k in ipairs(SECTIONS) do rank[k] = i end
@@ -300,17 +314,20 @@ return function(engine, deps)
         for _, m in ipairs(list) do
           local word, tone = status(ms, m)
           local name = tostring(m.name or m.id)
-          rows[#rows + 1] = { id = m.id, kind = "toggle", label = name, section = sec, sub = word, subTone = tone,
-                              desc = m.description and tostring(m.description) or nil,
+          -- (on or off on a chip by its name, the line under it only when it says more; A its page, where its switch
+          -- is; no description card here, the list kept whole while moving along it: it's on the mod's page)
+          local plain = word == T("mods.st.on") or word == T("mods.st.off")
+          rows[#rows + 1] = { id = m.id, kind = "group", label = name, section = sec,
+                              sub = not plain and word or nil, subTone = tone,
+                              chip = { on = m.enabled == true, key = m.enabled and "mods.st.on" or "mods.st.off" },
                               badge = { letter = name:match("[%w]") or "?", colour = BADGE[k] or BADGE.OTHER },
-                              on = function() return m.enabled == true end,
-                              value = function() return m.enabled and "On" or "Off" end,
-                              step = function() toggle(ms, m, ui) return false end,
                               open = function() return modPage(model, ms, m.id, ui) end }
         end
       end
       if #(ms.status and ms.status.available or {}) == 0 then
         rows[#rows + 1] = { id = "__none", kind = "plain", label = T("mods.none") }
+      elseif #kinds == 0 then
+        rows[#rows + 1] = { id = "__none", kind = "plain", label = T.f("mods.allHidden", tostring(hidden)) }
       end
       -- (the loader's problems; the rest -- profiles -- the game's own manager)
       local more = T("mods.sec.more")

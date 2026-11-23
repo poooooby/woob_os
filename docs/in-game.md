@@ -119,12 +119,14 @@ bottom.
 ## 🧩 MODS
 
 On every game, MODS opens in the same glass: the installed mods under a heading for each kind (Content,
-Gameplay, Mechanics, Graphics, Interface, Tools, Other), each with a coloured letter, a switch, and a word on
-where it stands: on, off, on or off after a restart, not made for this game, or didn't load. The chosen mod's
-description is in the card along the bottom.
+Gameplay, Mechanics, Graphics, Interface, Tools, Other), each with a coloured letter, an On or Off chip by its
+name (a green dot or a grey one), and an arrow to its page. A line under the name says more when there's more to
+say: on or off after a restart, not made for this game, waiting on a mod it needs, or didn't load. With Cleaner
+Mod Options, the mods its settings hide stay hidden here too.
 
 A on a mod opens its page: its switch, its options, its place in the load order (Left / Right moves it), its
-version, who made it, its kind, its games and what it may reach beyond its own data. A mod not made for this
+version, who made it, its kind, its games and what it may reach beyond its own data, with its description in
+the card along the bottom. A mod not made for this
 game can be tried on it anyway. Turning on a mod that needs another asks to turn that one on too, and turning
 off a mod another needs asks to turn both off; a mod that can't run with one that's on says so.
 

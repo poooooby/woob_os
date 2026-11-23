@@ -430,19 +430,29 @@ return function(ctx, env)
       tagW = K.width(r.modName, 3.2) + 5
       labelW = labelW - tagW - 2
     end
+    -- (a mod's chip by its name: a dot, green when it's on, grey when it's off, and the word)
+    local chip, chipW = r.chip, 0
+    local chipWord = chip and T(chip.key)
+    if chip then
+      chipW = K.width(chipWord, 3.1) + 8.4
+      labelW = labelW - chipW - 2
+    end
     local ls = K.fit(r.label, depth > 0 and 4.6 or 4.9, max(10, labelW))
     local ink = (r.tone == "accent" and C.accent) or (r.tone == "red" and C.red) or C.ink
+    local lineY
     if r.sub then
       -- (a word under it: where a mod stands)
-      local ss = K.fit(r.sub, 3.3, max(10, labelW))
+      local ss = K.fit(r.sub, 3.3, max(10, labelW + chipW))
       local th = ls * 1.2 + ss * 1.2 + 0.4
       local ty = y + (h - th) / 2
       K.bold(r.label, lx, ty, ls, ink)
       local sc = (r.subTone == "accent" and C.accent) or (r.subTone == "red" and C.red)
         or (r.subTone == "green" and C.green) or C.soft
       K.text(r.sub, lx, ty + ls * 1.2 + 0.4, ss, sc)
+      lineY = ty + ls * 0.6
     else
       K.bold(r.label, lx, y + (h - ls * 1.2) / 2, ls, ink)
+      lineY = y + h / 2
     end
     if r.modName then
       local tx = lx + min(labelW, K.width(r.label, ls)) + 2.5
@@ -450,6 +460,15 @@ return function(ctx, env)
       K.col(tagColour(r.modName), 0.9)
       K.box("fill", tb, 2.7)
       K.text(r.modName, tx, y + h / 2 - 1.95, 3.2, C.white, "center", tagW)
+    end
+    if chip then
+      local tx = lx + min(labelW, K.width(r.label, ls)) + 2.5
+      local dot = chip.on and C.green or C.faint
+      K.col(dot, 0.16)
+      K.box("fill", K.R(tx, lineY - 2.6, chipW, 5.2), 2.6)
+      K.col(dot)
+      K.box("fill", K.R(tx + 2, lineY - 1, 2, 2), 1)
+      K.text(chipWord, tx + 5.4, lineY - 1.86, 3.1, chip.on and C.green or C.soft)
     end
   end
 

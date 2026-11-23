@@ -5,7 +5,9 @@
 --   gyms       its Gym Leader (a LEADER trainer's battle), the Elite Four and the Champion, done by the flag the
 --              script sets after the battle (the Badge's)
 --   story      the story's beats (src/story.lua's, as the News follows them), placed where each happens
---   shops      its Marts, department store floors and other shops (a pokemart in its scripts), named from the map
+--   shops      its Marts, department store floors and other shops (a pokemart in its scripts), named from the map;
+--              a floor or a market stall with what it sells (deps.shopKind over its stock); a vendor -- a script
+--              that takes money and hands over an item, Mt. Chimney's Lava Cookies -- by the item
 --   people     its Move Tutors, Move Relearner, Move Deleter, Name Rater, Day Care, in-game trades, Lottery Corner
 --              (by the game's own special called); a trade done once its flag is set
 -- Only a map's own scripts are followed (the shared Common_ ones -- naming a gift -- would make every gift spot a
@@ -13,7 +15,7 @@
 --
 --   Ob = Objectives(engine, deps)   deps: maps() -> the map definitions ; gameId() ; family() -> "frlg" | "rse" ;
 --                                   flag(name, s) -> bool ; reached(s) -> { [beatId] = true } ; hasItem(s, id) -> bool ;
---                                   T ; log
+--                                   T ; log ; shopKind (src/map3d/shop_kind.lua's, optional)
 --   Ob.at(sec, s, spoilers) -> { { kind, label, done (true / false; nil: no box), hidden (a story beat not reached,
 --       its words hidden) }, ... } in the order story, gyms, key items, people, shops; nil when there's nothing
 --   Ob.reset()
@@ -158,6 +160,30 @@ return function(engine, deps)
       return nil
     end
 
+    -- (a script that takes money: its own removemoney, or one in a script it calls or jumps to)
+    local paysOf = {}
+    local function takes(key)
+      local sc = B.scripts[key]
+      if not sc then return false end
+      for _, cmd in ipairs(sc) do if cmd.op == "removemoney" then return true end end
+      return false
+    end
+    local function pays(key)
+      local v = paysOf[key]
+      if v ~= nil then return v end
+      v = false
+      for _, cmd in ipairs(B.scripts[key] or {}) do
+        if cmd.op == "removemoney" then v = true break end
+        if cmd.target and (cmd.op == "call" or cmd.op == "call_if" or cmd.op == "goto" or cmd.op == "goto_if")
+            and takes(cmd.target) then
+          v = true
+          break
+        end
+      end
+      paysOf[key] = v
+      return v
+    end
+
     local bySec = {}
     local function bucket(sec)
       local b = bySec[sec]
@@ -174,11 +200,33 @@ return function(engine, deps)
       local sec = type(def) == "table" and tonumber(def.regionMapSectionId)
       if sec and type(id) == "string" and (not outdoor[sec] or #id < #outdoor[sec]) then outdoor[sec] = id end
     end
-    local function shopName(id, sec)
+    -- (what a shop sells, in a word's key: its stock's items, or a decoration shop's own kind)
+    local Sk = deps.shopKind
+    local Marts = engine("src.core.game3.marts")
+    -- (an item's constant, ITEM_X_ATTACK: the items' names by number sit under their prefix)
+    local itemConst = C and C.items and C.items.byId and C.items.byId.ITEM_ or {}
+    local function stockKind(cmd)
+      if not Sk then return nil end
+      if cmd.op == "pokemartdecoration" or cmd.op == "pokemartdecoration2" then return Sk.DECO end
+      local items = Marts and call(Marts.itemsFor, cmd[1] or cmd.ptr or cmd.items)
+      if type(items) ~= "table" then return nil end
+      local names = {}
+      for _, it in ipairs(items) do
+        local nm = itemConst[tonumber(it) or it]
+        if nm then names[#names + 1] = nm end
+      end
+      return Sk.of(names)
+    end
+    -- (a shop's words -> them, and its floor's word ("2F", "ROOFTOP") for the order)
+    local function shopName(id, sec, cat)
       local bare = id:sub(#prefix + 1)
       local floorWord = bare:match("DEPARTMENT_STORE_(%w+)$")
-      if floorWord and floorWord ~= "ROOFTOP" and floorWord ~= "ELEVATOR" then
-        return T.f("map.obj.shop.floor", floorWord)
+      if floorWord and floorWord ~= "ELEVATOR" and (floorWord ~= "ROOFTOP" or cat) then
+        if cat then
+          local fl = floorWord == "ROOFTOP" and T("map.obj.shop.roof") or floorWord
+          return T.f("map.obj.shop.floorKind", T(cat), fl), floorWord
+        end
+        return T.f("map.obj.shop.floor", floorWord), floorWord
       end
       -- (a Mart, a Pokémon Center's counter, the League's lobby)
       if bare:find("_MART$") or bare:find("POKEMON_CENTER", 1, true) or bare:find("POKEMON_LEAGUE$")
@@ -186,7 +234,9 @@ return function(engine, deps)
         return T("map.obj.shop.mart")
       end
       local town = outdoor[sec] and outdoor[sec]:sub(#prefix + 1)
-      if town and bare == town then return T("map.obj.shop.stall") end
+      if town and bare == town then
+        return cat and T.f("map.obj.shop.stallKind", T(cat)) or T("map.obj.shop.stall")
+      end
       if town and bare:sub(1, #town + 1) == town .. "_" then bare = bare:sub(#town + 2) end
       return (titled(bare:gsub("_", " ")):gsub("Pokemon", "Pokémon"))
     end
@@ -230,6 +280,15 @@ return function(engine, deps)
             b.key[#b.key + 1] = { item = item, name = itemTitle(item), flag = flagAfter(key, i + 1, 0, {}) }
           end
         end
+        -- (an item sold by a script of its own -- money taken, the item handed over -- a vendor by the item; a map's
+        -- together, its vending machine's drinks one line)
+        local sold, soldSeen = {}, {}
+        local function vendor(item, key)
+          if not (item and item > 0 and item < 0x4000) or isKey(item) or event[item] or not pays(key) then return end
+          if soldSeen[item] then return end
+          soldSeen[item] = true
+          sold[#sold + 1] = itemTitle(item)
+        end
         local badge, gyms = nil, {}
         local n = 1
         while n <= #todo and n < 400 do
@@ -252,8 +311,10 @@ return function(engine, deps)
                 if p.op == "setorcopyvar" and tonumber(p[1]) == 0x8000 then item = tonumber(p[2]) end
               end
               keyItem(item, key, i)
+              vendor(item, key)
             elseif op == "additem" then
               keyItem(tonumber(cmd[1]), key, i)
+              vendor(tonumber(cmd[1]), key)
             elseif op == "trainerbattle" then
               -- (the scripts a battle goes on to, after a win)
               for _, v in pairs(cmd) do if type(v) == "string" and B.scripts[v] then add(v) end end
@@ -268,10 +329,10 @@ return function(engine, deps)
                 if kind == "gym" then gyms[#gyms + 1] = b.gym[#b.gym] end
               end
             elseif op == "pokemart" or op == "pokemartdecoration" or op == "pokemartdecoration2" then
-              local label = shopName(id, sec)
+              local label, floor = shopName(id, sec, stockKind(cmd))
               if not b.seen["s" .. label] then
                 b.seen["s" .. label] = true
-                b.shops[#b.shops + 1] = { name = label }
+                b.shops[#b.shops + 1] = { name = label, floor = floor }
               end
             elseif op == "special" or op == "specialvar" then
               local sid = op == "special" and tonumber(cmd.id or cmd[1]) or tonumber(cmd[2])
@@ -285,6 +346,17 @@ return function(engine, deps)
         end
         -- (a Gym Leader done with the Badge)
         if badge then for _, gy in ipairs(gyms) do gy.flag = badge end end
+        if #sold > 0 then
+          local what = table.concat(sold, ", ")
+          local floorWord = id:sub(#prefix + 1):match("DEPARTMENT_STORE_(%w+)$")
+          local label = floorWord and floorWord ~= "ELEVATOR"
+            and T.f("map.obj.shop.floorKind", what, floorWord == "ROOFTOP" and T("map.obj.shop.roof") or floorWord)
+            or T.f("map.obj.shop.vendor", what)
+          if not b.seen["s" .. label] then
+            b.seen["s" .. label] = true
+            b.shops[#b.shops + 1] = { name = label, floor = floorWord, vendor = not floorWord }
+          end
+        end
       end
     end
     -- (the story's beats, at the first of their maps that has a section)
@@ -312,6 +384,28 @@ return function(engine, deps)
         local ia, ic = 0, 0
         for k, v in ipairs(PEOPLE_ORDER) do if v == a.kind then ia = k end if v == c.kind then ic = k end end
         return ia < ic
+      end)
+      -- (the shops the same way every time: the Mart, a store's floors from the bottom up -- a basement's first,
+      -- the rooftop after them -- then the rest by name; the maps come in no order)
+      local mart = T("map.obj.shop.mart")
+      local function rank(e)
+        if e.name == mart then return 0 end
+        local f = e.floor
+        if f then
+          local n = tonumber(f:match("^(%d+)F$"))
+          if n then return 2 + n end
+          local bn = tonumber(f:match("^B(%d+)F$"))
+          if bn then return 2 - bn * 0.01 end
+          return f == "ROOFTOP" and 100 or 1
+        end
+        if e.name:upper():find("ROOFTOP", 1, true) then return 100 end
+        if e.vendor then return 300 end
+        return 200
+      end
+      table.sort(b.shops, function(a, c)
+        local ra, rc = rank(a), rank(c)
+        if ra ~= rc then return ra < rc end
+        return a.name < c.name
       end)
       b.seen = nil
     end

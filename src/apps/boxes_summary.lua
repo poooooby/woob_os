@@ -736,17 +736,22 @@ return function(K, env, T, st, A, TABS)
 
   -- ------- the whole page
 
-  -- (the chosen move kept in view: the page scrolls to it when it changes -- the D-pad's way down a list taller
-  -- than the screen (the Kanto Gear's, a phone upright); choosing one to forget, the question and the whole
-  -- list when they fit. Only on a change: a drag or the wheel between keeps its place)
+  -- (the chosen move kept in view: the page scrolls to it when the player moves it -- the D-pad's way down a list
+  -- taller than the screen (the Kanto Gear's, a phone upright); choosing one to forget, the question and the whole
+  -- list when they fit. Only on a move of the player's: choosing one to forget or for something opens at the
+  -- page's top (its first move chosen for it), and a drag or the wheel keeps its place, even if the Pokémon's
+  -- page is made again)
   local function follow(S, top, ah)
     local sel = S.tab == #TABS and S.move or nil
     if not (sel and S.selA) then
       mv.followed = nil
       return
     end
-    if mv.followed == sel and mv.followedRec == S.rec then return end
-    mv.followed, mv.followedRec = sel, S.rec
+    local mon = S.rec and S.rec.mon
+    if mv.followed == sel and mv.followedMon == mon then return end
+    local opened = (mv.followed == nil or mv.followedMon ~= mon) and (S.learn or S.choose)
+    mv.followed, mv.followedMon = sel, mon
+    if opened then return end
     local off = mv.top - top
     local a, b = S.selA + off, S.selB + off
     if (S.learn or S.choose) and S.listB and S.listB - S.selA <= ah then b = S.listB + off end

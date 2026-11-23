@@ -5,6 +5,29 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Changed
+- **MODS:** each mod shows an On or Off chip by its name (a green dot or a grey one) and an arrow to its
+  page, where its switch is, instead of a switch in the list. The line under a name only appears when it says
+  more than on or off. The list has no description card along the bottom, so it stays whole while you move
+  along it; a mod's description is on its own page.
+- **Map Objectives:** on a wide screen, a long list runs down the right side to the bottom with the place's
+  card beside it; held upright, it goes across the top in two columns. A line too long for the window goes on to
+  the next instead of running past its edge. When even that can't hold everything, "+N more" opens the window
+  across the map (tap it or press SELECT; tap, SELECT or B closes it).
+- **Map Objectives' shops say what they sell:** each department store floor by its counter ("Dept Store - TMs -
+  4F", "Dept Store - Battle Items - 3F"; a floor with two counters lists both), listed from the bottom up with the
+  rooftop last, the same every time; Slateport's market stalls the same way ("Market - Vitamins"); and the people
+  and machines that sell a few things on their own are listed too: Mt. Chimney's "Vendor - Lava Cookie", Gold,
+  Silver and Crystal's vending machines ("Dept Store - Fresh Water, Soda Pop, Lemonade - 6F"), Moomoo Milk and
+  Mahogany's RageCandyBar. Every game, from what each counter actually stocks.
+- **Choosing a move to forget (or for an item) on a short screen** (Kanto Gear's, a phone held upright): the
+  summary opens at its top with the Pokémon in view. It scrolls down only as you move down the moves, and a
+  drag back up stays where you leave it.
+
+### Fixed
+- **MODS with Cleaner Mod Options:** the mods its HIDE DISABLED and HIDE OTHER GAMES settings hide are hidden
+  in WoobOS's MODS too, as in the game's own list.
+
 ## [0.26.1] - 2026-11-23
 
 ### Changed

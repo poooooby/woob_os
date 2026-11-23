@@ -305,7 +305,8 @@ return function(mod, loadSibling, optionsRow)
     local Towns = makeTowns and makeTowns() or nil
     local Model = makeGbMap(Host, Gd, { world = Wd, log = warn, place = Play and Play.place or nil })
     if makeObjectives and objectivesView and T then
-      local Ob = makeObjectives(Host, Gd, { T = T, log = warn })
+      local okK, shopKind = pcall(loadSibling(mod, "src/map3d/shop_kind.lua") or error)
+      local Ob = makeObjectives(Host, Gd, { T = T, log = warn, shopKind = okK and shopKind or nil })
       env.objectives = {
         at = Ob.at, reset = Ob.reset, index = Ob.index, view = objectivesView(Kit, T),
         mode = function()
