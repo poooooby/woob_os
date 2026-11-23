@@ -5,6 +5,17 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Changed
+- **Kanto Gear Battle Menus is on to begin with:** with Kanto Gear showing its own screen, a battle's Bag,
+  Pokémon menu and summary open there without looking for the switch.
+
+### Fixed
+- **A catch's page with Kanto Gear on:** a controller's A and D-pad reach the page and its "Give a nickname?"
+  question; Kanto Gear's battle panel took some of them. Kanto Gear also steps aside while the page, an evolution
+  or the naming keyboard is up.
+- **A catch's page on a small screen:** its card stays clear of the Yes / No buttons, and leaves out the Pokédex
+  entry rather than cutting it off when it can't fit.
+
 ## [0.26.0] - 2026-11-23
 
 ### Added

@@ -1670,7 +1670,11 @@ pages go there. Tests: tests/optscreen_test.lua's MODS block (Gen 3), tests/gb_t
 
 The touch pad stays out over a scene (`pad(true, true)` in `Sh.frame`'s two scene branches), the scene laid in
 `touchArea(viewport)` (upright: above the pad's buttons); a window's `W.noPad()` true -- the catch page's keyboard --
-puts it away and gives the whole screen. Red / Blue / Yellow's stats card has five rows (`statsOf` gives five; the
+puts it away and gives the whole screen. A scene's input is `Sh.sceneInput(input)`: the game's, with every bound pad
+button (`input.padBindings`) also read straight from the pads (`love.joystick`, the list kept by its count): Kanto
+Gear's battle filter on `input.pollPads` eats A and some of the D-pad after a catch (it thinks the battle still at its
+commands); a press heard both ways within four frames counts once. `woob_battle` is `shown()` while a scene is up
+(`Sh.gearOpen("scene")`). Scenes never go to the Gear's screen (the owner's call): only the battle's menus do. Red / Blue / Yellow's stats card has five rows (`statsOf` gives five; the
 window's `nStats()` by `#job.before`). A Game Boy Pokémon pictured as another species (an evolution's new one, asked
 before the change) goes to WoobleSpritePack as a stand-in with that species over the Pokémon (`Art.pic`'s `standIn`,
 kept per Pokémon and species), not the Pokémon itself, which the pack draws as it is.

@@ -190,9 +190,82 @@ return function(mod, deps)
   -- (in a battle the game hands the top layer no buttons -- only its own evolution and naming screens --:
   -- the frame's draw hands them over then, Sh.frame; sceneFedAt: the frame the game did)
   local sceneFedAt = -1
+  -- (a controller's buttons read straight from the pad as well, while a scene is up, by the game's own bindings: in
+  -- a battle another mod can take presses off the game's input -- the Kanto Gear's battle panel, thinking the battle
+  -- still at its commands, eats A and some of the D-pad -- and "Give a nickname?" and the words before it never
+  -- moved. A press heard both ways, a few frames apart, counts once. Nothing made: the pads' list kept by their count)
+  local PAD_KEYS = { "a", "b", "up", "down", "left", "right", "start", "select" }
+  local PAD_DEFAULT = { dpup = "up", dpdown = "down", dpleft = "left", dpright = "right", a = "a", b = "b",
+                        start = "start", back = "select" }
+  local padList, padCount, padAt = nil, -1, -1
+  local padWas, padNow, padFire, firedAt, firedBy = {}, {}, {}, {}, {}
+  local function pollPad(input)
+    if padAt == frameN then return end
+    padAt = frameN
+    for i = 1, #PAD_KEYS do padNow[PAD_KEYS[i]] = false end
+    local js = love and love.joystick
+    local okC, n = false, 0
+    if js and js.getJoystickCount and js.getJoysticks then okC, n = pcall(js.getJoystickCount) end
+    if not (okC and type(n) == "number" and n > 0) then
+      padList, padCount = nil, 0
+    else
+      if n ~= padCount or not padList then
+        local okL, l = pcall(js.getJoysticks)
+        padList, padCount = okL and type(l) == "table" and l or nil, n
+      end
+      local binds = type(input.padBindings) == "table" and input.padBindings or PAD_DEFAULT
+      for k = 1, padList and #padList or 0 do
+        local j = padList[k]
+        if type(j) == "userdata" or (type(j) == "table" and j.isGamepadDown) then
+          for button, key in pairs(binds) do
+            if padNow[key] == false then
+              local okD, down = pcall(j.isGamepadDown, j, button)
+              if okD and down then padNow[key] = true end
+            end
+          end
+        end
+      end
+    end
+    for i = 1, #PAD_KEYS do
+      local d = PAD_KEYS[i]
+      local edge = padNow[d] and not padWas[d]
+      padWas[d] = padNow[d]
+      local okE, eng = pcall(input.wasPressed, input, d)
+      eng = okE and eng == true
+      local fire = false
+      if eng then
+        fire = not (firedBy[d] == "pad" and frameN - (firedAt[d] or -99) <= 4)
+        if fire then firedBy[d] = "game" end
+      elseif edge then
+        fire = not (firedBy[d] == "game" and frameN - (firedAt[d] or -99) <= 4)
+        if fire then firedBy[d] = "pad" end
+      end
+      if fire then firedAt[d] = frameN end
+      padFire[d] = fire
+    end
+  end
+  -- (the input a scene is handed: the game's, its buttons as above)
+  local PadInput = { src = nil }
+  function PadInput.wasPressed(self, k)
+    local f = padFire[k]
+    if f ~= nil then return f end
+    return self.src:wasPressed(k)
+  end
+  function PadInput.isDown(self, k)
+    local okD, d = pcall(self.src.isDown, self.src, k)
+    return (okD and d == true) or padNow[k] == true
+  end
+  setmetatable(PadInput, { __index = function(t, k) return t.src and t.src[k] end })
+  local function sceneInput(input)
+    if type(input) ~= "table" or type(input.wasPressed) ~= "function" then return input end
+    pollPad(input)
+    PadInput.src = input
+    return PadInput
+  end
+  Sh.sceneInput = sceneInput
   function SceneLayer.handleInput(input)
     sceneFedAt = frameN
-    feed(input, Ts)
+    feed(sceneInput(input), Ts)
   end
   function SceneLayer.update() end
   function SceneLayer.draw() Layer.draw() end
@@ -728,6 +801,8 @@ return function(mod, deps)
   local closeGear = nil
   local gearApp = nil   -- (the Gear app open: its ctx and options, to bring back after a battle's menu)
   function Sh.gearOpen(appId)
+    -- ("scene": one of ours up -- the evolution, a catch's page, a nickname -- which the Gear stands down for)
+    if appId == "scene" then return Ts ~= nil and Ts.isOpen() end
     if not (Gp and Gp.isOpen()) then return false end
     -- ("battle": a battle's menu there, which the Gear stands down for)
     if appId == "battle" then return Gp.isBattle() end
@@ -1078,7 +1153,7 @@ return function(mod, deps)
         local noPad = scenePadless()
         pad(true, not noPad)
         if sceneFedAt ~= frameN - 1 and sceneFedAt ~= frameN and type(game) == "table" and game.input then
-          feed(game.input, Ts)
+          feed(sceneInput(game.input), Ts)
         end
         if G and type(viewport) == "table" then
           G.push("all")

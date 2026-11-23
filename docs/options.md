@@ -28,7 +28,7 @@ Whichever place you changed last is the one that counts.
 | - Evolution | On / Off | On | A Pokémon evolving, full screen with light and sparkles: the old one and the new one trading places, the flash, the new one. Off: the game's own. Shown while Modern Menus is on. |
 | - Catch & Name | On / Off | On | After a first catch, the Pokémon's Pokédex page and the question to nickname it, with a modern keyboard; the same keyboard for every Pokémon's nickname (a catch, an Egg, a gift). Off: the game's own. Shown while Modern Menus is on. |
 | - Battle Menus | On / Off | On | Off: the game's own Bag, Pokémon menu and summary in a battle (out of battle, as their own switches say). Shown while Modern Menus is on. |
-| - Kanto Gear Battle Menus | On / Off | Off | With Kanto Gear showing its own screen (a second display, or beside the game), a battle's Bag, Pokémon menu and summary open there, larger, and the battle stays on the game's screen. Shown while Modern Menus is on. |
+| - Kanto Gear Battle Menus | On / Off | On | With Kanto Gear showing its own screen (a second display, or beside the game), a battle's Bag, Pokémon menu and summary open there, larger, and the battle stays on the game's screen. Shown while Modern Menus is on. |
 | Map Objectives | Enabled / Spoilers / Off | Enabled | A small window on the 3D map with the place's story moments, Gyms, key items, people and shops, ticked once done. Enabled keeps story moments still ahead as ???; Spoilers names them. |
 | Overworld GPS | On / Off | Off | With a waypoint set, an arrow by your trainer on the field points the way (FireRed, LeafGreen, Ruby, Sapphire, Emerald, Gold, Silver, Crystal). |
 | Map: Invert X | On / Off | Off | The 3D map's camera turns the other way. |

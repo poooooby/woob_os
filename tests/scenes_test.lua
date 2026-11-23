@@ -157,6 +157,7 @@ do
     T.check(TC.enabled ~= false, "the touch pad out over it")
     TC.enabled = en0
   end
+  T.check(Sh.gearOpen("scene") == true, "Kanto Gear stands down while it's up (a controller's buttons ours)")
   T.check(waitFor(function() return wst() and wst().words.pages ~= nil end, 120), "What? It's evolving: the game's words")
   frame(1, "a")
   frame(30)
@@ -199,6 +200,7 @@ do
   T.check(pressUntil(function() return not Sh.sceneOpen() end), "A through the words: closed")
   T.eq(got[1], "evolved:true", "the game's onDone: evolved, with the Pokémon")
   T.check(#got == 1 and not ES.isOpen() and not Stack.has(Sh.SCENE_ID), "once; the game told it's shut, the layer gone")
+  T.check(Sh.gearOpen("scene") == false, "and the Gear back after")
   T.eq(P.moveSlotCount(mon), moves0 + 1, "the move it learns at its level, learned after")
 end
 
@@ -263,8 +265,37 @@ do
   T.check(Sh.sceneOpen("caught") and wst().kb == nil, "the catch's page: ours, the page first")
   T.check(waitFor(function() return wst().words.pages ~= nil end, 200), "its words")
   T.check(pressUntil(asking), "then the question")
-  frame(1, "a")
-  T.check(wst().kb ~= nil, "Yes: the keyboard")
+  -- (a controller's D-pad the game's input never hears -- another mod took it in a battle --: read from the pad;
+  -- heard both ways, once)
+  do
+    local held = {}
+    local pad = { isGamepadDown = function(_, b) return held[b] == true end }
+    local js0 = love.joystick
+    love.joystick = { getJoystickCount = function() return 1 end, getJoysticks = function() return { pad } end }
+    local w = wst().words
+    local sel0 = w.sel
+    held.dpdown = true
+    frame(1)
+    held.dpdown = nil
+    frame(3)
+    T.check(w.sel ~= sel0, "the controller's Down, from the pad: the other answer (" .. tostring(sel0) .. " -> "
+      .. tostring(w.sel) .. ")")
+    local sel1 = w.sel
+    held.dpup = true
+    frame(1, "up")
+    frame(1)
+    held.dpup = nil
+    frame(3)
+    T.check(w.sel ~= sel1 and w.sel == sel0, "heard by the game too: once (" .. tostring(sel1) .. " -> " .. tostring(w.sel) .. ")")
+    -- (its A from the pad alone too: Yes, the keyboard)
+    w.sel = 1
+    held.a = true
+    frame(1)
+    held.a = nil
+    frame(3)
+    love.joystick = js0
+  end
+  T.check(wst().kb ~= nil, "Yes by the controller's A, from the pad: the keyboard")
   -- (a phone upright, the touch pad out: the page above the pad's buttons; the keyboard alone, the pad away)
   do
     local TC = require("src.core.TouchControls")

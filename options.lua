@@ -154,7 +154,7 @@ return {
     key = "gearMenus",
     label = "- Kanto Gear Battle Menus",
     type = "toggle",
-    default = false,
+    default = true,
     -- (only with Modern Menus on: they're its menus)
     visible_if = { key = "modernMenus", equals = true },
     description = "With Kanto Gear showing its own screen (a second display, or beside the game), a battle's Bag, Pokémon menu and summary open there, larger, and the battle stays on the game's screen.",

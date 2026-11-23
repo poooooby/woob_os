@@ -293,7 +293,7 @@ return function(ctx, env)
   end
 
   -- (the page's height for its words at this width: the card no taller than they are)
-  local function pageNeed(w)
+  local function pageNeed(w, noDesc)
     local info = job.info
     local g = (K.textScale() - 1) * 2
     local pw = w - 10
@@ -301,14 +301,14 @@ return function(ctx, env)
     if info and info.numText then need = need + 4.6 + g end
     if info and info.category and info.category ~= "" then need = need + 5.4 + g end
     if info and (info.heightText or info.weightText) then need = need + 10.4 + g * 2 end
-    if info and info.description and info.description ~= "" then
+    if not noDesc and info and info.description and info.description ~= "" then
       local lines = math.ceil(K.width(info.description, 3.7) * 1.1 / pw)
       need = need + 2.2 + lines * K.lineH(3.7) * 1.05
     end
     return need
   end
   -- the page: number and name, category, types, height and weight, the entry
-  local function page(x, y, w, h, clock)
+  local function page(x, y, w, h, clock, noDesc)
     local info = job.info
     local e = K.outCubic((clock - t0 - 0.55) / 0.4)
     if e <= 0 then return end
@@ -344,7 +344,7 @@ return function(ctx, env)
       K.bold(info.weightText or "?", px + half, py, 4.4, C.ink)
       py = py + 6.2 + g
     end
-    if info and info.description and info.description ~= "" then
+    if not noDesc and info and info.description and info.description ~= "" then
       K.col(C.ink, 0.1)
       K.graphics().rectangle("fill", K.X(px), K.Y(py), pw * K.sc, max(1, 0.25 * K.sc))
       py = py + 2.2
@@ -416,16 +416,21 @@ return function(ctx, env)
     end
     hero(cx, cy, size, clock)
     if showPage then
+      -- (clear of the question's Yes / No over the words; the entry left out rather than cut off when it can't fit)
+      local pfoot = st.words.ask and foot - Fx.choiceH() or foot
       if narrow then
         local py = cy + size / 2 + 3
-        page(x + 6, py, w - 12, min(foot - py, pageNeed(w - 12)), clock)
+        local pw = w - 12
+        local noDesc = pageNeed(pw) > pfoot - py
+        page(x + 6, py, pw, min(pfoot - py, pageNeed(pw, noDesc)), clock, noDesc)
         stamp(x + w - 22, py + 3, clock)
       else
         local px = x + w * 0.52
         local pw = x + w - 6 - px
-        local ph = min(foot - y - 8, pageNeed(pw))
-        local py = max(y + 6, min(foot - 2 - ph, cy - ph / 2))
-        page(px, py, pw, ph, clock)
+        local noDesc = pageNeed(pw) > pfoot - y - 8
+        local ph = min(pfoot - y - 8, pageNeed(pw, noDesc))
+        local py = max(y + 6, min(pfoot - 2 - ph, cy - ph / 2))
+        page(px, py, pw, ph, clock, noDesc)
         stamp(x + w - 24, py + 4, clock)
       end
     end

@@ -99,6 +99,8 @@ return function(K, T)
   end
 
   function Fx.bubbleH() return 21 + (K.textScale() - 1) * 10 end
+  -- (the room a question's Yes / No take over the bubble)
+  function Fx.choiceH() return 2 * (12 + (K.textScale() - 1) * 3) + 1 end
   local YES_W = 26
   function Fx.bubble(w, b, clock, hit, hitYes, hitNo)
     if not w.pages then return end

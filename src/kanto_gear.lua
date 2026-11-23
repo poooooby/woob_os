@@ -9,8 +9,10 @@
 --   Gear.bind()      (game.ready: at most once, and only if Kanto Gear's there)
 --   Gear.bound()     true once Kanto Gear took the specs
 --   One more spec never offered (available() false): "woob_battle", shown() while a battle's menu is on the
---   Gear's screen (the option gearMenus, src/gear_panel.lua's battle mode). The Gear stands down while any
---   spec is shown: it draws, pushes and takes input nowhere, and hands its HP boxes back to the game's screen.
+--   Gear's screen (the option gearMenus, src/gear_panel.lua's battle mode) and while a scene of ours is up (an
+--   evolution, a catch's page, a nickname: a controller's buttons are ours then, not the Gear's battle panel's).
+--   The Gear stands down while any spec is shown: it draws, pushes and takes input nowhere, and hands its HP
+--   boxes back to the game's screen.
 --   Gear.specs       what was handed over ; Gear.results[id] = true | the reason it was refused
 --   Gear.find        where the hook is looked up (a test swaps it)
 
@@ -83,7 +85,7 @@ return function(deps)
       G.setColor(1, 1, 1, 1)
     end,
     available = function() return false end,
-    shown = function() return deps.shown("battle") == true end,
+    shown = function() return deps.shown("battle") == true or deps.shown("scene") == true end,
     open = function() return false end,
   }
   function Gear.bound() return bound end

@@ -38,9 +38,9 @@ In a wild battle, each Poké Ball shows its chance to catch the Pokémon in fron
 game's own way: its HP and status, and each Ball's own rules (a Net Ball on a Water or Bug type, a Timer Ball
 as the turns go by, and so on).
 
-With Kanto Gear showing its own screen, turn on **Kanto Gear Battle Menus** and a battle's Bag, Pokémon menu
-and summary open there instead, laid out for its shape with larger text, while the battle stays on the game's
-screen.
+With Kanto Gear showing its own screen, a battle's Bag, Pokémon menu and summary open there instead, laid out
+for its shape with larger text, while the battle stays on the game's screen. **Kanto Gear Battle Menus** turns
+this off. A catch's page and the nickname keyboard stay on the game's screen.
 
 Use, give, toss (choosing how many), register and reorder items there (SELECT, or Reorder in an item's
 menu, then tap where it goes). START (or the Sort button by Close)

@@ -1599,7 +1599,7 @@ return function(mod)
       end,
       feed = function(input) Sh.feedHost(input) end,
       -- (a battle's menus on the Kanto Gear's screen: the option, with Kanto Gear there to stand down)
-      gear = function() return option("gearMenus", false) == true and Gear ~= nil and Gear.bound() end,
+      gear = function() return option("gearMenus", true) == true and Gear ~= nil and Gear.bound() end,
       partyUi = function(s) return env.party and env.party.partyUi(s) or nil end,
       log = function(fmt, ...) mod.log:warn(fmt, ...) end,
     })
