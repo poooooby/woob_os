@@ -172,8 +172,37 @@ return function(ctx, env, makeSummary, makeParty, makeBag)
     end
   end
 
+  -- ------- a move to forget, asked for by the game while ours is up (the Game Boy games' TM or Rare Candy from our
+  -- Bag): the summary's forget page over whatever page was up, after(slot 0..3 | nil) once it's chosen
+  function W.forgetFor(list, index, moveId, after)
+    if st.closed or st.forgetFor then return false end
+    st.forgetFor = { page = st.page, sum = st.sum, after = after }
+    st.sum = Ctl.open(list, index or 1, { session = session, learn = moveId, back = m.back })
+    if not (st.sum and st.sum.learn) then
+      st.sum, st.forgetFor = st.forgetFor.sum, nil
+      return false
+    end
+    st.page = "summary"
+    return true
+  end
+  local function forgetDone()
+    local f = st.forgetFor
+    if not f then return false end
+    local picked = st.sum and st.sum.picked
+    st.forgetFor = nil
+    Ctl.stop()
+    st.sum, st.page = f.sum, f.page
+    if st.page == "bag" and st.bag then Bc.refresh(st.bag) elseif st.page == "party" and st.party then Pc.refresh(st.party) end
+    if f.after then pcall(f.after, type(picked) == "number" and picked or nil) end
+    return true
+  end
+
   function W.input(input, nav)
     if st.closed then return true end
+    if st.forgetFor then
+      if Ctl.input(st.sum, input, nav) == "close" then forgetDone() end
+      return true
+    end
     if st.page == "party" then step(Pc.input(st.party, input, nav))
     elseif st.page == "bag" then step(Bc.input(st.bag, input, nav))
     elseif Ctl.input(st.sum, input, nav) == "close" then done() end
@@ -181,6 +210,10 @@ return function(ctx, env, makeSummary, makeParty, makeBag)
   end
   function W.tap(arg)
     if st.closed or type(arg) ~= "number" then return end
+    if st.forgetFor then
+      if Ctl.tap(st.sum, arg) == "close" then forgetDone() end
+      return
+    end
     if st.page == "party" then step(Pc.tap(st.party, arg))
     elseif st.page == "bag" then step(Bc.tap(st.bag, arg))
     elseif Ctl.tap(st.sum, arg) == "close" then done() end

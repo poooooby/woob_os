@@ -1527,6 +1527,18 @@ stack: Gen 1 `BagMenu.new` with `list.index` on the row, `list.onChoose`, and in
 `HeldItemMenu` built off the stack (`say` / `ask` / `close` ours). Matchups: Gen 1 `TypeChart.effectiveness`, Gen 2
 `Damage.typeMultiplier` (tenths). Catch chance: the battle's own `catchChance` (a percent), wild only.
 
+A move to forget: Gen 1's `MoveLearnMenu` is the game's own (its questions, words, finish) with `askForget` replaced on
+the instance -- our summary's forget page in the window that's up (`W.forgetFor`, a `woobOsAbove` stand-in pushed over
+it meanwhile), else its own full-screen summary; Gen 2's field list (`Gen2MoveDeleter` layout "forget", the move from a
+once-per-process wrap of `Game2.learnMoveOn`) a carrier or, with a window up, a stand-in; Gen 2's battle through a wrap
+of `BattleState.answerForgetPrompt` (its `pendingLearn.move` is the entry, `{ id, pp }`: the summary shows its id),
+answered with `battle:resolveForget` as its own list's A. Crystal's Move Tutor ("Gen2MoveTutor"): the game's tutor built
+off the stack is `m.tutor`; the party in its move-tutor mode (`Pt.tutorTag` / `tutorMove` / `tutor` on it); its
+`finish` pops "its" screen. Red / Blue / Yellow's scripts that build their own party list (the Day Care, the Name
+Rater, the Fan Club, the Union Room board): `PartyMenu.new` wrapped once per process (`__woobOsNew`) for `pickOnly`
+callers. Mail: Gen 2's `MailMenu` built off the stack like `HeldItemMenu` (its `text`: the World's, else `gen2Text`).
+The Bag: SELECT moves an item through `Bag.order` within its pocket; SEL is `World:registerItem`.
+
 OmniUI (another author's mod) dresses and drives a state by its `screenId`, and takes an `isMenu` one for a small menu
 over whatever it knows underneath, which it then draws over ours; a state it doesn't know, it leaves alone. So every
 Game Boy carrier refuses the registry's `screenId` stamp (`H.noId`: the PC's, the Pokédex's, the Pokégear's, the

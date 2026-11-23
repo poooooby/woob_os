@@ -39,5 +39,4 @@ as a disc in its move's type's colour). Otherwise each item is a tile in its poc
 
 ## Not on the Game Boy games
 
-Condition, Ribbons and the PokéNav are Ruby, Sapphire and Emerald's only. On Red, Blue, Yellow, Gold, Silver
-and Crystal, choosing a move to forget, the Move Tutor's and the Day Care's choices stay the game's own.
+Condition, Ribbons and the PokéNav are Ruby, Sapphire and Emerald's only.

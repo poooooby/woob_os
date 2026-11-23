@@ -213,7 +213,8 @@ return function(H, Gd, deps)
       end
       c.fallback = function()
         local M = engine("src.ui.PartyMenu")
-        game.stack:push(M.new(game, opts))
+        local w = rawget(M, "__woobOsNew")
+        game.stack:push((w and w.orig or M.new)(game, opts))
       end
     end
     c.keepOpen = opts.keepOpen == true
@@ -291,6 +292,29 @@ return function(H, Gd, deps)
       hpThen(self, slot, o.fromHp, o.toHp, o.text, o.onDone)
     end
     function c:closeSubmenu() end
+    return c
+  end
+
+  -- Crystal's Move Tutor ("Gen2MoveTutor"): the game's own tutor built off the stack -- its rules, words and finish --
+  -- the party ours in its move-tutor mode. Its finish pops "its" screen (our state on top: ours closes, the carrier
+  -- goes); B: its finish(false)
+  local function tutor2(game, opts)
+    if cur or not on("party", false) then return nil end
+    local MT = engine("src.ui.gen2.MoveTutor")
+    local okN, inst = pcall(MT and MT.new, game, opts)
+    if not (okN and type(inst) == "table") then return nil end
+    local party = game.save and game.save.party or {}
+    if not party[1] then return nil end
+    local m = { kind = "party", party = party, mode = "move_tutor", tutor = inst, cursor = 1 }
+    local c = newCarrier(game, opts)
+    function c.open()
+      if Mn.isOpen() then return false end
+      return openWindow(c, m, function()
+        local ok, err = pcall(inst.finish, inst, false)
+        if not ok then log("after the Move Tutor: %s", tostring(err)) end
+      end)
+    end
+    c.fallback = function() game.stack:push(MT.new(game, opts)) end
     return c
   end
 
@@ -438,15 +462,161 @@ return function(H, Gd, deps)
     end, function() game.stack:push(engine("src.ui.gen2.PackMenu").new(game, opts)) end)
   end
 
+  -- ------- a move to forget: the summary's forget page -- in the window that's up (a TM or Rare Candy from ours), else
+  -- its own, full screen over the game's -- after(slot 1..4 | nil); `holder`: the game's state on top meanwhile, which
+  -- hands ours the buttons and lets it be seen
+  local function pickForget(game, mon, moveId, holder, after)
+    local w = win()
+    if w and w.forgetFor then
+      -- (a state of ours on top while it's chosen: the buttons ours, and another mod that dresses the game's own
+      -- screen -- OmniUI -- sees one it doesn't know)
+      local s = H.noId({ isOpaque = false, woobOsAbove = true, draw = function() end })
+      s.update = function() if game.input then Sh.feedHost(game.input) end end
+      if not w.forgetFor({ mon }, 1, moveId, function(p)
+        popIfTop(game, s)
+        removeState(game, s)
+        after(p and p + 1 or nil)
+      end) then return false end
+      game.stack:push(s)
+      return true
+    end
+    if cur or not on("summary", false) then return false end
+    local m = { kind = "summary", list = { mon }, index = 1, learn = moveId }
+    return Sh.openFull("menus", game.save, function()
+      local res = m.result or {}
+      after(type(res.picked) == "number" and res.picked + 1 or nil)
+    end, nil, { menu = m, chrome = false }) == true
+  end
+
+  -- Gen 1: MoveLearnMenu is the game's own (its questions and words), its list ours
+  local function learn1(game, mon, moveId, onDone, sound)
+    local M = engine("src.ui.MoveLearnMenu")
+    local inst = M.new(game, mon, moveId, onDone, sound)
+    if not on("summary", false) then return inst end
+    -- (asked for while ours is up -- a TM, a Rare Candy from our Bag: it stands in over ours, its words in our box)
+    if cur then inst.woobOsAbove = true end
+    -- (and never takes the screen id the registry stamps: OmniUI would dress it over ours; its methods kept)
+    local mt = getmetatable(inst)
+    setmetatable(inst, { __index = (mt and mt.__index) or M,
+                         __newindex = function(t, k, v) if k ~= "screenId" then rawset(t, k, v) end end })
+    local own = inst.askForget
+    local update = inst.update
+    inst.update = function(self, dt)
+      -- (ours up over it: the buttons are ours)
+      if rawget(self, "woobOsAbove") then
+        if game.input then Sh.feedHost(game.input) end
+        return
+      end
+      return update(self, dt)
+    end
+    inst.askForget = function(self)
+      self.selecting = false
+      local ok = pickForget(game, mon, moveId, self, function(slot)
+        local old = slot and mon.moves[slot]
+        if not old then return self:confirmAbandon() end
+        local mdef = game.data.moves[moveId]
+        local odef = game.data.moves[old.id]
+        mon.moves[slot] = { id = moveId, pp = mdef and mdef.pp or 0 }
+        self.forgot = odef and odef.name or old.id
+        self:finish(true)
+      end)
+      if not ok then return own(self) end
+    end
+    return inst
+  end
+
+  -- Gen 2 outside battle: Game2:learnMoveOn's list ("Gen2MoveDeleter", layout "forget"); the move it would learn is
+  -- the one learnMoveOn was last asked for (wrapped: `learning`)
+  local learning = nil
+  local function forget2(game, opts)
+    if type(opts) ~= "table" or opts.layout ~= "forget" or not on("summary", false) then return nil end
+    local L = learning
+    if not (L and L.mon == opts.mon) then return nil end
+    local function answer(slot)
+      if slot then
+        local ok, err = pcall(opts.onChoose, slot)
+        if not ok then log("after the move to forget: %s", tostring(err)) end
+      elseif opts.onCancel then
+        local ok, err = pcall(opts.onCancel)
+        if not ok then log("after the move to forget: %s", tostring(err)) end
+      end
+    end
+    -- (in the window that's up: a state of ours standing in for the list, the caller pops it)
+    if cur then
+      local s = H.noId({ isOpaque = false, woobOsAbove = true, draw = function() end })
+      s.update = function() if game.input then Sh.feedHost(game.input) end end
+      local w = win()
+      if not (w and w.forgetFor and w.forgetFor({ opts.mon }, 1, L.move, function(p) answer(p and p + 1 or nil) end)) then
+        return nil
+      end
+      return s
+    end
+    local c = newCarrier(game, opts)
+    function c.open()
+      if Mn.isOpen() then return false end
+      local m = { kind = "summary", list = { opts.mon }, index = 1, learn = L.move }
+      return openWindow(c, m, function()
+        local res = m.result or {}
+        answer(type(res.picked) == "number" and res.picked + 1 or nil)
+      end)
+    end
+    c.fallback = function() game.stack:push(engine("src.ui.gen2.MoveDeleter").new(game, opts)) end
+    return c
+  end
+
+  -- Gen 2 in battle: the battle's own questions; its four-slot list ours (answered as the list's A answers)
+  local function battleForget2(self, yes)
+    if not (yes and self.phase == "ask-forget" and on("summary", true)) then return nil end
+    local learn = self.pendingLearn
+    local mon = learn and self.battle and self.battle.party and self.battle.party[learn.index]
+    if not mon or cur then return nil end
+    local game = self.game
+    local was = self.phase
+    self.phase = "submenu"
+    -- (the battle's move to learn is its entry, { id, pp, ... }: the summary shows it by id)
+    local moveId = type(learn.move) == "table" and learn.move.id or learn.move
+    local m = { kind = "summary", list = { mon }, index = 1, learn = moveId }
+    local opened = Sh.openFull("menus", game.save, function()
+      local res = m.result or {}
+      local slot = type(res.picked) == "number" and res.picked + 1 or nil
+      if not slot then return self:askStopLearning() end
+      self.battle:resolveForget(learn.index, slot, learn.move, learn.moveName)
+      self.pendingLearn = nil
+      self.phase = "resolving"
+      self:pushFront(self.battle:takeEvents())
+      self:advanceQueue()
+    end, nil, { menu = m, chrome = false })
+    if not opened then
+      self.phase = was
+      return nil
+    end
+    return true
+  end
+
   -- ------- the game's text boxes while ours is up: our words box, a state of ours standing in until read
   local function ghostText(game, text, onDone, opts)
     if not (cur and type(text) == "string") or type(game) ~= "table" or not game.stack then return nil end
-    if type(opts) == "table" and (opts.stay or opts.evoIntro) then return nil end
+    if type(opts) == "table" and opts.evoIntro then return nil end
     local w = win()
     if not w then return nil end
     -- (only while ours, or a state of ours over it, is on top)
     local top = game.stack:top()
     if not (type(top) == "table" and (rawget(top, "woobOs") or rawget(top, "woobOsAbove"))) then return nil end
+    -- (a box that stays until the game takes it -- "Which move should be forgotten?" under its list: nothing to read,
+    -- its onShown at once, standing in until popped)
+    local stay = type(opts) == "table" and type(opts.stay) == "table" and opts.stay or nil
+    if stay then
+      local sg = { isOpaque = false, woobOsAbove = true, game = game, draw = function() end }
+      sg.update = function(me)
+        if not me.shown then
+          me.shown = true
+          if stay.onShown then pcall(stay.onShown) end
+          return
+        end
+        if game.input then Sh.feedHost(game.input) end
+      end
+      return sg
+    end
     local g = { isOpaque = false, woobOsAbove = true, game = game }
     g.draw = function() end
     g.update = function() if game.input then Sh.feedHost(game.input) end end
@@ -486,13 +656,74 @@ return function(H, Gd, deps)
       end })
     end
     if gen == 2 then
+      wrapScreen("Gen2MoveDeleter", "src.ui.gen2.MoveDeleter", forget2)
+      wrapScreen("Gen2MoveTutor", "src.ui.gen2.MoveTutor", tutor2)
       wrapScreen("Gen2PartyMenu", "src.ui.gen2.PartyMenu", party2)
       wrapScreen("Gen2SummaryMenu", "src.ui.gen2.SummaryMenu", summary2)
       if Bg then wrapScreen("Gen2PackMenu", "src.ui.gen2.PackMenu", bag2) end
     else
       wrapScreen("PartyMenu", "src.ui.PartyMenu", party1)
+      reg:register("MoveLearnMenu", { new = function(game, mon, moveId, onDone, sound)
+        local okC, inst = pcall(learn1, game, mon, moveId, onDone, sound)
+        if okC and inst then return inst end
+        if not okC then log("a move to forget: %s", tostring(inst)) end
+        return engine("src.ui.MoveLearnMenu").new(game, mon, moveId, onDone, sound)
+      end })
       wrapScreen("SummaryMenu", "src.ui.SummaryMenu", summary1)
       if Bg then wrapScreen("BagMenu", "src.ui.BagMenu", bag1) end
+    end
+    -- (Red / Blue / Yellow: the scripts that build the party list themselves -- the Day Care, the Name Rater, the Fan
+    -- Club's print, the Union Room's board -- PartyMenu.new wrapped once per process, the choosers among its callers ours)
+    if gen == 1 then
+      local PM = engine("src.ui.PartyMenu")
+      if type(PM) == "table" and type(PM.new) == "function" then
+        local w = rawget(PM, "__woobOsNew")
+        if not w then
+          w = { orig = PM.new }
+          PM.__woobOsNew = w
+          PM.new = function(game, opts, ...)
+            local cw = rawget(PM, "__woobOsNew")
+            if cw.impl and not cw.busy then
+              cw.busy = true
+              local ok, c = pcall(cw.impl, game, opts)
+              cw.busy = false
+              if ok and c then return c end
+              if not ok then log("a modern menu: %s", tostring(c)) end
+            end
+            return cw.orig(game, opts, ...)
+          end
+        end
+        w.impl = function(game, opts)
+          if type(opts) ~= "table" or not opts.pickOnly or opts.battle or opts.itemUse then return nil end
+          return party1(game, opts)
+        end
+      end
+    end
+    -- (Gen 2: the move learnMoveOn was asked about, for its list; the battle's forget list)
+    local function wrapFn(M, fname, key, impl)
+      if type(M) ~= "table" or type(M[fname]) ~= "function" then return end
+      local w = rawget(M, key)
+      if not w then
+        w = { orig = M[fname] }
+        M[key] = w
+        M[fname] = function(...)
+          local cw = rawget(M, key)
+          if cw.impl then
+            local ok, took = pcall(cw.impl, ...)
+            if ok and took then return end
+            if not ok then log("a modern menu: %s", tostring(took)) end
+          end
+          return cw.orig(...)
+        end
+      end
+      w.impl = impl
+    end
+    if gen == 2 then
+      wrapFn(engine("src.core.Game2"), "learnMoveOn", "__woobOsLearn", function(_, mon, moveId)
+        learning = { mon = mon, move = moveId }
+        return nil
+      end)
+      wrapFn(engine("src.ui.gen2.BattleState"), "answerForgetPrompt", "__woobOsForget", battleForget2)
     end
     -- (the text boxes: once per process, this instance's code swapped in)
     local TB = engine("src.render.TextBox")

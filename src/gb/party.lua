@@ -171,9 +171,33 @@ return function(H, Gd, deps)
     end
     return nil
   end
-  function Pt.tutorTag() return nil end
-  function Pt.tutorMove() return nil, "" end
-  function Pt.tutor() end
+  -- ------- Crystal's Move Tutor: c.tutor is the game's own tutor (src.ui.gen2.MoveTutor, built off the stack by
+  -- src/gb/menus.lua): its move, who can learn it, and what it does with the one chosen (its words, the move to
+  -- forget, its finish)
+  function Pt.tutorMove(c)
+    local t = c.tutor
+    if type(t) ~= "table" then return nil, "" end
+    return t.move, Gd.moveName(t.move)
+  end
+  function Pt.tutorTag(c, mon)
+    local t = c.tutor
+    if type(t) ~= "table" or type(mon) ~= "table" or Gd.isEgg(mon) then return nil end
+    for _, mv in ipairs(mon.moves or {}) do
+      if (type(mv) == "table" and mv.id or mv) == t.move then return "party.learned" end
+    end
+    local MT = engine("src.ui.gen2.MoveTutor")
+    local can = MT and MT.canLearn and call(MT.canLearn, t.view and t.view[mon.species], t.move)
+    return can and "party.able" or "party.notAble"
+  end
+  function Pt.tutor(c, i, ui)
+    local t, mon = c.tutor, c.party[i]
+    if not (type(t) == "table" and mon) then return ui.back("list") end
+    local ok, err = pcall(t.picked, t, mon)
+    if not ok then
+      log("the Move Tutor: %s", tostring(err))
+      ui.back("list")
+    end
+  end
   function Pt.eligible() return true end
   function Pt.ally() return nil end
   function Pt.multiActions() return {} end
@@ -546,13 +570,26 @@ return function(H, Gd, deps)
 
   -- ------- held items (Gold / Silver / Crystal): the game's own rules, through its menu built off the stack (its
   -- words in our box, its question in ours, a mail to write over ours)
-  local function heldMenu(c, i, ui, after)
+  local function heldMenu(c, i, ui, after, path)
     local g = game()
-    local HM = engine("src.ui.gen2.HeldItemMenu")
+    local HM = engine(path or "src.ui.gen2.HeldItemMenu")
     if not (HM and HM.new) then return nil end
-    local okN, held = pcall(HM.new, g, { save = c.session, slot = i, items = data() and data().items, onClose = function() end })
-    if not okN then return nil end
-    local function text(list) return type(list) == "table" and table.concat(list, "") or tostring(list or "") end
+    local text = (g and g.world and g.world.text) or (data() and data().gen2Text)
+    local okN, held = pcall(HM.new, g, { save = c.session, slot = i, items = data() and data().items, text = text,
+                                         onClose = function() end })
+    if not okN then
+      log("the game's %s: %s", tostring(path or "held item menu"), tostring(held))
+      return nil
+    end
+    -- (its words: pages, each a page's lines -- or one string)
+    local function text(list)
+      if type(list) ~= "table" then return tostring(list or "") end
+      local pages = {}
+      for k, pg in ipairs(list) do
+        pages[k] = type(pg) == "table" and table.concat(pg, " ") or tostring(pg)
+      end
+      return table.concat(pages, "\f")
+    end
     held.say = function(_, list, cb)
       ui.refresh()
       ui.say(text(list), function() if cb then cb() end end)
@@ -580,17 +617,19 @@ return function(H, Gd, deps)
       ui.back("list")
     end
   end
-  -- (mail: the game's own menu, over ours)
-  local function mailMenu(c, i, ui)
-    local g = game()
-    local Screens = engine("src.ui.Screens")
-    if Screens then pcall(Screens.push, g, "Gen2MailMenu", { save = c.session, slot = i, onClose = function()
-      g.stack:pop()
-      ui.refresh()
-    end }) end
-    ui.back("list")
+  -- (mail: the game's own mail menu built off the stack -- TAKE's questions and words in ours; READ its own reader,
+  -- over ours, as the Gen 3 games' is)
+  local function mailDo(c, i, ui, how)
+    local mm = heldMenu(c, i, ui, nil, "src.ui.gen2.MailMenu")
+    if not mm then return ui.back("list") end
+    local ok, err = pcall(mm[how], mm)
+    if not ok then
+      log("the mail: %s", tostring(err))
+      ui.back("list")
+    end
   end
-  Pt.takeMail, Pt.readMail = mailMenu, mailMenu
+  function Pt.takeMail(c, i, ui) mailDo(c, i, ui, "take") end
+  function Pt.readMail(c, i, ui) mailDo(c, i, ui, "read") end
   function Pt.give(c, i, item, source, ui, after)
     local held = item and heldMenu(c, i, ui, after)
     if not held then

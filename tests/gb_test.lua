@@ -45,7 +45,7 @@ if GEN == 2 then
     -- (since the engine's 0.4.6 the Gen 2 screens read these from the cart, with no fallback: the ROM's
     -- lines, the event tables (Oak's ratings, the phone book), the constants)
     text = loadLua("data/generated/rom_text.lua"), gen2EventTables = loadLua("data/generated/events.lua"),
-    gen2Constants = loadLua("data/generated/constants.lua"), gen2Scripts = loadLua("data/generated/scripts.lua"),
+    gen2Constants = loadLua("data/generated/constants.lua"), gen2Scripts = loadLua("data/generated/scripts.lua"), gen2Text = loadLua("data/generated/text.lua"),
     audio = { sfx = {} },
   }
   require("src.core.GameVersion").set(GAME)
@@ -1857,6 +1857,131 @@ do
   T.check(not Tm.isOpen(), "B: closed")
   for i = #stack.states, 1, -1 do if stack.states[i] == fake then table.remove(stack.states, i) end end
   while #stack.states > base0 do stack:pop() end
+  save.party, save.inventory = keepParty, keepInv
+end
+
+-- ------- the rest of the game's choosers (src/gb/menus.lua): SELECT and SEL in the Bag, the scripts' own party lists
+-- (Red / Blue / Yellow's Day Care, Name Rater...), Crystal's Move Tutor, a move to forget
+do
+  local Tm = X._test.townmap
+  local Bg, Pt = X._test.bag, X._test.party
+  local base0 = #stack.states
+  local function win() return Tm.isOpen() and Tm.state() and Tm.state().win end
+  local function press1(k) pressedNow = { [k] = true } frame(1) frame(1) end
+  local keepParty, keepInv = save.party, save.inventory
+  save.party = { newMon(GEN == 2 and "CYNDAQUIL" or "CHARMANDER", 16), newMon("PIDGEY", 9) }
+  save.inventory = {}
+  local Bag = require("src.inventory.Bag")
+  Bag.add(save, "POTION", 3, data)
+  Bag.add(save, "ANTIDOTE", 2, data)
+  Bag.add(save, "REPEL", 1, data)
+
+  -- SELECT: an item moved in its pocket, the game's own order
+  local c = { session = save, battle = false }
+  local p1 = GEN == 2 and "ITEMS" or "ITEMS"
+  local before = {}
+  for i, r in ipairs(Bg.rows(c, p1)) do before[i] = r.id end
+  T.check(Bg.canMove(c, p1), "SELECT: items can be moved")
+  T.check(Bg.move(c, p1, 1, 3), "moved")
+  local after = {}
+  for i, r in ipairs(Bg.rows(c, p1)) do after[i] = r.id end
+  T.check(after[3] == before[1] and after[1] == before[2], "the first went to third (" .. table.concat(after, ",") .. ")")
+  T.check(not Bg.canMove({ session = save, battle = true }, p1), "never in a battle")
+  -- SEL: Gold / Silver / Crystal's registered item
+  if GEN == 2 then
+    Bag.add(save, "BICYCLE", 1, data)
+    local bike
+    for _, r in ipairs(Bg.rows(c, "KEY_ITEMS")) do if r.id == "BICYCLE" then bike = r end end
+    local acts = {}
+    for _, a in ipairs(Bg.actions(c, "KEY_ITEMS", bike)) do acts[#acts + 1] = a.act end
+    T.check(table.concat(acts, ","):find("SET", 1, true) ~= nil, "the Bicycle can be registered: " .. table.concat(acts, ","))
+    world.registerItem = function(_, id) save.registeredItem = { id = id } return true end
+    local said
+    Bg.act(c, "SET", bike, { refresh = function() end, say = function(t) said = t end })
+    T.check(save.registeredItem and save.registeredItem.id == "BICYCLE", "SET: registered")
+    for _, r in ipairs(Bg.rows(c, "KEY_ITEMS")) do if r.id == "BICYCLE" then bike = r end end
+    T.check(bike.registered == true, "and shown so")
+    Bg.act(c, "SET", bike, { refresh = function() end, say = function() end })
+    T.eq(save.registeredItem, nil, "again: deselected")
+    world.registerItem = nil
+  end
+
+  -- a script's own party list (Gen 1's Day Care, Name Rater, Fan Club): ours
+  if GEN == 1 then
+    local picked, cancelled = nil, 0
+    local PM = require("src.ui.PartyMenu")
+    stack:push(PM.new(game, { pickOnly = true, onSwitch = function(mon) picked = mon end,
+                              onCancel = function() cancelled = cancelled + 1 end }))
+    frame(2)
+    local P = win() and win().state.party
+    T.check(P ~= nil and P.c.mode == "choose", "a script's own party list: ours")
+    P.cur = 2
+    press1("a")
+    frame(2)
+    T.check(not Tm.isOpen() and picked == save.party[2], "a Pokémon chosen: the script hears it")
+    T.eq(#stack.states, base0, "the stack as it was")
+    stack:push(PM.new(game, { pickOnly = true, onSwitch = function() end, onCancel = function() cancelled = cancelled + 1 end }))
+    frame(2)
+    press1("b")
+    frame(2)
+    T.check(not Tm.isOpen() and cancelled == 1, "B: the script's cancel")
+    T.eq(#stack.states, base0, "the stack as it was")
+  end
+
+  -- Crystal's Move Tutor: ours, its own rules
+  if GEN == 2 and GAME == "crystal" then
+    local taught
+    Screens.push(game, "Gen2MoveTutor", { move = "FLAMETHROWER", moveName = "FLAMETHROWER", onDone = function(t) taught = t end })
+    frame(2)
+    local P = win() and win().state.party
+    T.check(P ~= nil and P.c.mode == "move_tutor", "the Move Tutor: ours")
+    T.check(P and P.cards[1].tag ~= nil, "each Pokémon tagged able or not (" .. tostring(P and P.cards[1].tag) .. ")")
+    press1("b")
+    frame(2)
+    T.check(not Tm.isOpen() and taught == false, "B: the tutor told no")
+    T.eq(#stack.states, base0, "the stack as it was")
+  end
+
+  -- Gen 2's mail: TAKE asks (to the PC?), then the game's words; the mail goes
+  if GEN == 2 then
+    local M = require("src.core.gen2.Mail")
+    local holder = save.party[2]
+    holder.item = "FLOWER_MAIL"
+    M.set(save, 2, M.entry("FLOWER_MAIL", "HELLO", "KRIS", 1, "PIDGEY"))
+    local asked, said = nil, nil
+    local ui = { ask = function(t, cb) asked = t cb(true) end, say = function(t, cb) said = t if cb then cb() end end,
+                 back = function() end, refresh = function() end }
+    Pt.takeMail({ session = save, party = save.party }, 2, ui)
+    T.check(asked ~= nil and asked ~= "" and holder.item == nil, "the mail: TAKE asked, sent to the PC ("
+      .. tostring(asked) .. ")")
+  end
+
+  -- a move to forget (Gen 2 outside battle): the game's list in the window, its answer the game's
+  if GEN == 2 then
+    local mon = save.party[1]
+    local G2 = require("src.core.Game2")
+    -- (learnMoveOn asked, as the game asks it -- its own questions on a stack of their own here)
+    local aside = setmetatable({}, { __index = StateStack })
+    aside:init()
+    local okL = pcall(G2.learnMoveOn, setmetatable({ data = data, save = save, stack = aside, input = input,
+                                                     say = function() end }, { __index = G2 }),
+                      mon, "FLAMETHROWER", function() end)
+    local chose, cancelledF = nil, 0
+    Screens.push(game, "Gen2MoveDeleter", { mon = mon, moves = data.moves, layout = "forget",
+      onChoose = function(slot) chose = slot stack:pop() end,
+      onCancel = function() cancelledF = cancelledF + 1 stack:pop() end })
+    frame(2)
+    local w = win()
+    local S = w and w.state and w.state.sum
+    T.check(okL and S ~= nil and S.learn ~= nil, "a move to forget: our summary, the move it would learn below")
+    if S then
+      S.move = 2
+      press1("a")
+      frame(2)
+    end
+    T.check(not Tm.isOpen() and chose == 2, "the one chosen: the game's (" .. tostring(chose) .. ")")
+    while #stack.states > base0 do stack:pop() end
+  end
   save.party, save.inventory = keepParty, keepInv
 end
 

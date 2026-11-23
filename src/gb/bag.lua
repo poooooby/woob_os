@@ -43,16 +43,24 @@ return function(H, Gd, deps)
     return out
   end
 
+  -- (Gold / Silver / Crystal's registered item, SELECT's)
+  local function registered(c)
+    local r = c.session and c.session.registeredItem
+    return type(r) == "table" and r.id or r
+  end
   function Bg.rows(c, pocket)
     local rows = Inv.bagRows(c.session, pocket) or {}
+    local reg = gen == 2 and registered(c) or nil
     for _, r in ipairs(rows) do
       if r.showQty ~= false and (tonumber(r.qty) or 0) > 0 then r.qtyText = "×" .. tostring(r.qty) end
+      r.registered = reg ~= nil and r.id == reg
     end
     return rows
   end
 
-  local WORD = { USE = "bag.act.use", GIVE = "bag.act.give", TOSS = "bag.act.toss", CANCEL = "party.act.cancel" }
-  local function act(a) return { act = a, text = T(WORD[a]) } end
+  local WORD = { USE = "bag.act.use", GIVE = "bag.act.give", TOSS = "bag.act.toss", CANCEL = "party.act.cancel",
+                 SET = "bag.act.register", UNSET = "bag.act.deselect" }
+  local function act(a, word) return { act = a, text = T(WORD[word or a]) } end
   local function holdable(id)
     local it = Gd.item(id)
     return type(it) == "table" and it.pocket ~= "KEY_ITEM" and it.canToss ~= false
@@ -63,6 +71,11 @@ return function(H, Gd, deps)
     local rows = { act("USE") }
     if gen == 2 and holdable(row.id) then rows[#rows + 1] = act("GIVE") end
     if not row.important then rows[#rows + 1] = act("TOSS") end
+    -- (SEL: Gold / Silver / Crystal's registered item, for SELECT in the field)
+    local it = Gd.item(row.id)
+    if gen == 2 and type(it) == "table" and it.canSelect ~= false and it.canSelect ~= nil then
+      rows[#rows + 1] = act("SET", row.registered and "UNSET" or nil)
+    end
     rows[#rows + 1] = act("CANCEL")
     return rows
   end
@@ -75,6 +88,24 @@ return function(H, Gd, deps)
     if a == "GIVE" then
       if c.location == "party" then return ui.chosen(row.id) end
       return ui.party("give", row.id)
+    end
+    if a == "SET" then
+      local s = c.session
+      if row.registered then
+        s.registeredItem = nil
+        ui.refresh()
+        return
+      end
+      local g = H.game()
+      local w = g and g.world
+      local name = tostring(Gd.item(row.id) and Gd.item(row.id).name or row.name)
+      local ok = w and w.registerItem and call(w.registerItem, w, row.id)
+      ui.refresh()
+      if ok then
+        H.sfx("Sfx_FullHeal")
+        return ui.say(rom("_RegisteredItemText", name))
+      end
+      return ui.say(rom("_CantRegisterText"))
     end
   end
 
@@ -96,8 +127,40 @@ return function(H, Gd, deps)
     end)
   end
 
-  function Bg.canMove() return false end
-  function Bg.move() return false end
+  -- SELECT: an item moved to another place in its pocket (the game's own order, as its bag's SELECT swaps)
+  local POCKET_OF = { ITEM = "ITEMS", BALL = "POKE_BALLS", KEY_ITEM = "KEY_ITEMS", TM_HM = "TM_CASE" }
+  local function inPocket(id, pocket)
+    if type(id) ~= "string" or id:find("BADGE", 1, true) then return false end
+    if gen == 1 then return true end
+    local it = Gd.item(id)
+    return (POCKET_OF[it and it.pocket or "ITEM"] or "ITEMS") == pocket
+  end
+  function Bg.canMove(c, pocket)
+    if c.battle or c.location then return false end
+    return not (gen == 2 and pocket == "TM_CASE")
+  end
+  function Bg.move(c, pocket, from, to)
+    local rows = Bg.rows(c, pocket)
+    local a, b = rows[from], rows[to]
+    if from == to or not (a and b) then return false end
+    local B = engine("src.inventory.Bag")
+    local order = B and call(B.order, c.session, data())
+    if type(order) ~= "table" then return false end
+    local slots, ids = {}, {}
+    for i, id in ipairs(order) do
+      if inPocket(id, pocket) then slots[#slots + 1], ids[#ids + 1] = i, id end
+    end
+    local fi, ti
+    for k, id in ipairs(ids) do
+      if id == a.id and not fi then fi = k end
+      if id == b.id and not ti then ti = k end
+    end
+    if not (fi and ti) or fi == ti then return false end
+    local x = table.remove(ids, fi)
+    table.insert(ids, ti, x)
+    for k, at in ipairs(slots) do order[at] = ids[k] end
+    return true
+  end
   function Bg.canSort(c, pocket)
     if c.battle or c.location then return false end
     return not (gen == 2 and pocket == "TM_CASE")

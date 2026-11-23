@@ -5,6 +5,12 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **Red, Blue, Yellow, Gold, Silver and Crystal:** choosing a move to forget is the modern summary (a level up, a
+  TM, an evolution, the Move Tutor, in battle too); Crystal's Move Tutor and every Pokémon a script asks for (the
+  Day Care, the Name Rater) pick from the modern Pokémon menu; Gold, Silver and Crystal's mail READ and TAKE from it;
+  SELECT reorders the Bag, and Gold, Silver and Crystal's items can be registered from it.
+
 ## [0.25.0] - 2026-11-22
 
 ### Added

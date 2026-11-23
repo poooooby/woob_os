@@ -521,20 +521,33 @@ return function(H, Gd, Art, deps)
         local ups = tonumber(type(e) == "table" and e.ppUps) or 0
         local maxPp = tonumber(type(e) == "table" and e.maxPp) or (base + ups * floor(base / 5))
         local pp = tonumber(type(e) == "table" and e.pp) or maxPp
-        local t = m.type or "NORMAL"
-        local power, acc = tonumber(m.power) or 0, tonumber(m.accuracy) or 0
-        local desc = type(m.description) == "string" and m.description:gsub("<NEXT>", " "):gsub("%s+", " ") or ""
-        got.moves[#got.moves + 1] = {
-          id = id, slot = slot, name = Gd.moveName(id), typeId = Gd.typeId(t), typeName = Gd.typeName(t),
-          pp = pp, maxPp = maxPp, ppText = ("%d/%d"):format(pp, maxPp),
-          powerText = power > 1 and tostring(power) or "—", accText = acc > 0 and (tostring(floor(acc)) .. "%") or "—",
-          physical = Gd.typeId(t) < 9, status = power == 0, desc = desc,
-        }
+        got.moves[#got.moves + 1] = Bx.moveRecord(id, T, slot, pp, maxPp)
       end
     end
     sums[mon] = got
     return got
   end
+
+  -- one move as the summary shows it (its PP left of its most; with no numbers, the move's own: a move to learn)
+  function Bx.moveRecord(id, T, slot, pp, maxPp)
+    local d = data()
+    local m = d and d.moves and d.moves[id] or {}
+    maxPp = tonumber(maxPp) or tonumber(m.pp) or 5
+    pp = tonumber(pp) or maxPp
+    local t = m.type or "NORMAL"
+    local power, acc = tonumber(m.power) or 0, tonumber(m.accuracy) or 0
+    local desc = type(m.description) == "string" and m.description:gsub("<NEXT>", " "):gsub("%s+", " ") or ""
+    return {
+      id = id, slot = slot, name = Gd.moveName(id), typeId = Gd.typeId(t), typeName = Gd.typeName(t),
+      pp = pp, maxPp = maxPp, ppText = ("%d/%d"):format(pp, maxPp),
+      powerText = power > 1 and tostring(power) or "—", accText = acc > 0 and (tostring(floor(acc)) .. "%") or "—",
+      physical = Gd.typeId(t) < 9, status = power == 0, desc = desc,
+    }
+  end
+  -- (the moves the games keep from being forgotten: the HMs')
+  local HM = { CUT = true, FLY = true, SURF = true, STRENGTH = true, FLASH = true }
+  if gen == 2 then HM.WHIRLPOOL, HM.WATERFALL = true, true end
+  function Bx.isHm(id) return HM[id] == true end
 
   -- two of a Pokémon's moves trade places (their PP and PP Ups with them)
   function Bx.swapMoves(mon, a, b)
