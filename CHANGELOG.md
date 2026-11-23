@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-11-22
+
 ### Added
 - **Map Objectives on the 3D map** (FireRed, LeafGreen, Ruby, Sapphire, Emerald): a small window for the place
   under the cursor with its story moments, its Gym Leader and the Elite Four, the key items handed out there, its
