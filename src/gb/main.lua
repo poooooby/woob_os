@@ -3,9 +3,10 @@
 -- (src/gb/*.lua: their save tables, data, sounds and pictures) and host (src/gb/host.lua: their screen stack
 -- and PC takeover), handed to the shell (src/shell.lua) as deps.host.
 --
---   gb(mod, loadSibling)   called from main.lua when mod.generation is 1 or 2
+--   gb(mod, loadSibling, optionsRow)   called from main.lua when mod.generation is 1 or 2 (optionsRow: the WOOBOS
+--                                      row's api, src/options_row.lua)
 
-return function(mod, loadSibling)
+return function(mod, loadSibling, optionsRow)
   local gen = mod.generation == 1 and 1 or 2
   local makeKit, makeApps = loadSibling(mod, "src/ui_kit.lua"), loadSibling(mod, "src/apps.lua")
   local makeDesktop, makeShell = loadSibling(mod, "src/desktop.lua"), loadSibling(mod, "src/shell.lua")
@@ -51,6 +52,8 @@ return function(mod, loadSibling)
   local ShopThemes = loadSibling(mod, "src/shop_themes.lua")
   local makeTowns = loadSibling(mod, "src/map3d/towns.lua")
   local makeMarks = loadSibling(mod, "src/marks.lua")
+  -- (the map's objectives: each place's gyms, key items, people, shops and story, read from the cart)
+  local makeObjectives, objectivesView = loadSibling(mod, "src/gb/objectives.lua"), loadSibling(mod, "src/map3d/objectives_view.lua")
   -- Gold / Silver / Crystal's GPS: the walk graph over every map, the waypoint's route, the field's arrow
   local makeGpsGraph, makeGpsRoute = loadSibling(mod, "src/gps/graph.lua"), loadSibling(mod, "src/gps/route.lua")
   local makeGpsArrow, makeGpsReader = loadSibling(mod, "src/gps/arrow.lua"), loadSibling(mod, "src/gps/read2.lua")
@@ -62,6 +65,16 @@ return function(mod, loadSibling)
   local summaryCtl = loadSibling(mod, "src/apps/summary_ctl.lua")
   local typeArt = loadSibling(mod, "src/apps/type_art.lua")
   local makeLighting = loadSibling(mod, "src/lighting.lua")
+  -- (the modern screens over the game's own: OPTIONS, and the scene host's moments -- kept in one table)
+  local SC = { optScreen = loadSibling(mod, "src/options_screen.lua"), optWindow = loadSibling(mod, "src/apps/options.lua"),
+               gbOptions = loadSibling(mod, "src/gb/options.lua"), keyboard = loadSibling(mod, "src/keyboard.lua"),
+               fx = loadSibling(mod, "src/apps/scene_fx.lua"), scenes = loadSibling(mod, "src/gb/scenes.lua"),
+               evolutionWindow = loadSibling(mod, "src/apps/evolution.lua"),
+               caughtWindow = loadSibling(mod, "src/apps/caught.lua"),
+               party = loadSibling(mod, "src/gb/party.lua"), menus = loadSibling(mod, "src/gb/menus.lua"),
+               menusWindow = loadSibling(mod, "src/apps/menus.lua"), partyCtl = loadSibling(mod, "src/apps/party.lua"),
+               partyView = loadSibling(mod, "src/apps/party_view.lua"), bag = loadSibling(mod, "src/gb/bag.lua"),
+               bagCtl = loadSibling(mod, "src/apps/bag.lua"), bagView = loadSibling(mod, "src/apps/bag_view.lua") }
   if not (makeKit and makeApps and makeDesktop and makeShell and makeHost) then return end
 
   local function warn(fmt, ...) mod.log:warn(fmt, ...) end
@@ -290,6 +303,16 @@ return function(mod, loadSibling)
     local Wd = makeWorld(function() return nil end, {})
     local Towns = makeTowns and makeTowns() or nil
     local Model = makeGbMap(Host, Gd, { world = Wd, log = warn, place = Play and Play.place or nil })
+    if makeObjectives and objectivesView and T then
+      local Ob = makeObjectives(Host, Gd, { T = T, log = warn })
+      env.objectives = {
+        at = Ob.at, reset = Ob.reset, index = Ob.index, view = objectivesView(Kit, T),
+        mode = function()
+          local m = option("mapObjectives", "on")
+          return (m == "spoilers" or m == "off") and m or "on"
+        end,
+      }
+    end
     env.map3d = {
       model = Model, towns = Towns,
       render = makeMapRender({ log = warn, towns = Towns }),
@@ -706,6 +729,9 @@ return function(mod, loadSibling)
   env.summaryCtl = summaryCtl or nil
   env.typeArt = typeArt and env.K and typeArt(env.K) or nil
   env.lighting = makeLighting and makeLighting({ log = function(fmt, ...) mod.log:warn(fmt, ...) end }) or nil
+  -- (the staged scenes' shared pieces, and the keyboard)
+  env.sceneFx = SC.fx and env.K and SC.fx(env.K, T) or nil
+  env.keyboard = SC.keyboard and env.K and SC.keyboard(env.K, T) or nil
 
   -- (Gold / Silver / Crystal: the Pokégear's phone book; a tap stands in for A in a call's boxes)
   if gen == 2 and makePhone then
@@ -809,6 +835,10 @@ return function(mod, loadSibling)
   local TownMap = makeTownMap and makeTownMap({
     kit = Kit, T = T, env = env, se = env.se, scene = mapScene, log = function(fmt, ...) mod.log:warn(fmt, ...) end,
   }) or nil
+  -- the scene host: a mod's options page, an evolution, a catch's page, full screen over the rest
+  SC.host = makeTownMap and makeTownMap({
+    kit = Kit, T = T, env = env, se = env.se, scene = mapScene, log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+  }) or nil
   env.pad = { transfer = function(id, dir, kind)
     if Desktop.isOpen() then Desktop.padTransfer(id, dir, kind) end
   end }
@@ -884,6 +914,7 @@ return function(mod, loadSibling)
 
   Sh = makeShell(mod, { require = require, log = mod.log, desktop = Desktop, apps = Apps, watch = Watch,
                         notify = Nt, tick = tick, session = session, townmap = TownMap, host = Host, frame = frame,
+                        scenes = SC.host,
                         fieldDraw = Gps and Gps.arrow and function(G, vp, free, t) Gps.arrow.draw(G, vp, free, t) end or nil,
                         map3d = env.map3d, padOn = function() return env.padOption() end,
                         watchRow = function() return not Settings or Settings.get("watchRow", true) ~= false end,
@@ -914,12 +945,115 @@ return function(mod, loadSibling)
     -- (Gold / Silver / Crystal: the nurse's script, caught as it starts; Red / Blue / Yellow: at game.ready)
     if gen == 2 then pcall(env.pokecenter.install) end
   end
+  -- the OPTIONS screen, modern (src/gb/options.lua over src/options_screen.lua): the game's OPTIONS and each mod's
+  -- own options page; Modern Menus' "Options" switch
+  if SC.optScreen and SC.optWindow and SC.gbOptions and T then
+    Apps.register({ id = "options", labelKey = "opt.title", label = "Options", glyph = "pokeball",
+                    color = { 142, 142, 147 }, order = 99, pad = false, available = function() return false end,
+                    window = function(ctx, e) return SC.optWindow(ctx, e) end })
+    local function optOn() return option("modernMenus", true) ~= false and option("menuOptions", true) ~= false end
+    SC.options = SC.optScreen(engine, { Sh = Sh, on = optOn, family = function() return Host.family end,
+                                        log = function(fmt, ...) mod.log:warn(fmt, ...) end })
+    env.optionsScreen = SC.options
+    SC.gbOpt = SC.gbOptions(Host, SC.options, { Sh = Sh, on = optOn, screens = mod.content and mod.content.screens,
+                                                log = function(fmt, ...) mod.log:warn(fmt, ...) end })
+    local okO, errO = pcall(SC.gbOpt.install)
+    if not okO then mod.log:warn("the game keeps its own OPTIONS: %s", tostring(errO)) end
+    if type(optionsRow) == "table" then
+      optionsRow.inWindow = function(id)
+        local f = SC.options.inWindow
+        return SC.gbOpt.isOpen() and type(f) == "function" and f(id) == true
+      end
+    end
+  end
+  -- the modern menus (src/gb/menus.lua): the party menu and the summary, from START, a battle and the game's other
+  -- choosers; Modern Menus' switches
+  if SC.party and SC.menus and SC.menusWindow and SC.partyCtl and SC.partyView and boxesSummary and summaryCtl and T then
+    local MENU_OPTION = { bag = "menuBag", party = "menuParty", summary = "menuSummary" }
+    env.party = SC.party(Host, Gd, { T = T, log = function(fmt, ...) mod.log:warn(fmt, ...) end })
+    env.partyCtl = SC.partyCtl
+    if SC.bag and SC.bagCtl and SC.bagView and env.inv then
+      env.bagRules = SC.bag(Host, Gd, { T = T, inv = env.inv, party = env.party,
+                                        log = function(fmt, ...) mod.log:warn(fmt, ...) end })
+      env.bagCtl = SC.bagCtl
+    end
+    Apps.register({ id = "menus", labelKey = "menus.title", label = "Menus", glyph = "pokeball",
+                    color = { 10, 132, 255 }, order = 99, pad = false, available = function() return false end,
+                    window = function(ctx, e) return SC.menusWindow(ctx, e, boxesSummary, SC.partyView, SC.bagView) end })
+    SC.gbMenus = SC.menus(Host, Gd, {
+      Sh = Sh, party = env.party, bag = env.bagRules, screens = mod.content and mod.content.screens,
+      log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+      on = function(kind, battle)
+        if option("modernMenus", true) == false then return false end
+        local key = MENU_OPTION[kind]
+        if key and option(key, true) == false then return false end
+        if battle and option("menuBattle", true) == false then return false end
+        return true
+      end,
+    })
+    env.party.giveHandler = function(id)
+      local c = SC.gbMenus.cur()
+      local w = c and c.m and c.m.win
+      if w and w.giveFromBag then w.giveFromBag(id, nil, nil) end
+    end
+    local okM, errM = pcall(SC.gbMenus.install)
+    if not okM then mod.log:warn("the game keeps its own menus: %s", tostring(errM)) end
+  end
+  -- the moments we stage (src/gb/scenes.lua): an evolution, a catch's page and a Pokémon's nickname, full screen on
+  -- the scene host; each a switch under Modern Menus
+  if SC.scenes and SC.evolutionWindow and SC.caughtWindow and env.sceneFx and T then
+    Apps.register({ id = "evolution", labelKey = "evo.title", label = "Evolution", glyph = "pokeball",
+                    color = { 120, 90, 220 }, order = 99, pad = false, available = function() return false end,
+                    window = function(ctx, e) return SC.evolutionWindow(ctx, e) end })
+    Apps.register({ id = "caught", labelKey = "caught.title", label = "Caught", glyph = "pokeball",
+                    color = { 236, 80, 110 }, order = 99, pad = false, available = function() return false end,
+                    window = function(ctx, e) return SC.caughtWindow(ctx, e) end })
+    local SCENE_OPTION = { evolution = "menuEvolution", catch = "menuCatch" }
+    -- (the Pokédex's words for a species' page)
+    local function dexInfo(sp)
+      if not (env.dex and env.dex.open and env.dex.page) then return nil end
+      local book = env.dex.open(session())
+      for _, mode in ipairs(book and book.modes or {}) do
+        for _, en in ipairs(book.lists and book.lists[mode] or {}) do
+          if en.sp == sp then
+            local pg = env.dex.page(en)
+            if type(pg) == "table" then
+              return { numText = en.numText, category = pg.category, heightText = pg.heightText,
+                       weightText = pg.weightText, description = pg.description }
+            end
+            return { numText = en.numText }
+          end
+        end
+      end
+      return nil
+    end
+    SC.gbScenes = SC.scenes(Host, Gd, Art, {
+      Sh = Sh, T = T, kit = Kit, screens = mod.content and mod.content.screens, dexInfo = dexInfo,
+      log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+      on = function(kind)
+        if option("modernMenus", true) == false then return false end
+        return option(SCENE_OPTION[kind] or "", true) ~= false
+      end,
+    })
+    Host.caughtPage = SC.gbScenes.caughtPage
+    local okSc, errSc = pcall(SC.gbScenes.install)
+    if not okSc then mod.log:warn("the game keeps its own evolution and naming screens: %s", tostring(errSc)) end
+  end
   local okI, errI = pcall(Sh.install)
   if not okI then mod.log:warn("the desktop's hooks failed: %s", tostring(errI)) end
   mod.events:on("game.ready", function(ev)
     if ev and ev.game then Host.bind(ev.game) end
     local ok, err = pcall(Sh.ready)
     if not ok then mod.log:warn("the PC keeps its own menu: %s", tostring(err)) end
+    if SC.gbScenes then
+      local okW, errW = pcall(SC.gbScenes.wrap)
+      if not okW then mod.log:warn("the game keeps its own evolution: %s", tostring(errW)) end
+    end
+    -- (a mod's options page, where the mod manager would open it: ours)
+    if SC.options then
+      local okO, errO = pcall(SC.options.wrap)
+      if not okO then mod.log:warn("the mod manager keeps its own options pages: %s", tostring(errO)) end
+    end
     if env.pokecenter and gen == 1 then
       local okP, errP = pcall(env.pokecenter.install)
       if not okP then mod.log:warn("the nurse keeps her own counter: %s", tostring(errP)) end
@@ -996,5 +1130,7 @@ return function(mod, loadSibling)
                         journal = env.journal, swarm = env.swarm, challenges = env.challenges, errands = env.errands,
                         news = env.news, dex = env.dex, pokecenter = env.pokecenter,
                         settings = Settings, wall = Wall, arrange = Arrange, watch = Watch, pad = Watch,
-                        notify = Nt, tick = tick, townmap = TownMap, host = Host }
+                        notify = Nt, tick = tick, townmap = TownMap, host = Host, sceneHost = SC.host,
+                        optionsScreen = SC.options, gbOptions = SC.gbOpt, objectives = env.objectives,
+                        scenes = SC.gbScenes, menus = SC.gbMenus, party = env.party, bag = env.bagRules }
 end

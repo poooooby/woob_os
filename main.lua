@@ -62,7 +62,7 @@ return function(mod)
   -- same kit, desktop and windows over their own models and host)
   if mod.generation == 1 or mod.generation == 2 then
     local gb = loadSibling(mod, "src/gb/main.lua")
-    if gb then return gb(mod, loadSibling) end
+    if gb then return gb(mod, loadSibling, optionsRow) end
     return
   end
   if mod.generation ~= nil and mod.generation ~= 3 then return end

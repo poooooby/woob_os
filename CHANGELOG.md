@@ -5,6 +5,27 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **Map Objectives on Red, Blue, Yellow, Gold, Silver and Crystal:** the 3D map's window of a place's story moments,
+  Gym Leaders and Elite Four, key items, people and shops, ticked once done, read from each cart's own maps and
+  scripts (a cave's or a tower's under the place it opens onto); Gold, Silver and Crystal's story told in its own
+  moments (Prof. Elm's Pokémon, the Slowpoke Well, the Radio Tower, the legendary beasts, Ho-Oh and Lugia...).
+- **OPTIONS in glass on Red, Blue, Yellow, Gold, Silver and Crystal:** every option the game's own screen has, on
+  its pages, with whole names, switches and arrows; other mods' rows tagged under "Added by mods"; each mod's
+  options page as a tree with descriptions, from OPTIONS or the mod manager.
+- **Evolution, a first catch's page and the nickname keyboard on Red, Blue, Yellow, Gold, Silver and Crystal:**
+  an evolution full screen with its stats card (Red, Blue and Yellow's Special on both rows), the moves after it
+  the game's own; a first catch's Pokédex page with its question; every Pokémon's nickname on the phone-like
+  keyboard (a catch, a gift, an Egg, the Name Rater).
+- **The modern Bag, Pokémon menu and summary on Red, Blue, Yellow, Gold, Silver and Crystal:** from the START
+  menu, in battle and wherever the game asks for a Pokémon; the switch screen's type matchups and a Ball's catch
+  chance in a wild battle; field moves, SWITCH and held items (Gold, Silver, Crystal) as each game does them; an
+  item's USE the game's own, its words and its choice of Pokémon in the same glass.
+
+### Fixed
+- **OPTIONS:** a mod's row added to the top page another way than the engine's hook (Vivid Worlds' page) is tagged
+  with its mod's name and sits under "Added by mods", like the others.
+
 ## [0.24.0] - 2026-11-22
 
 ### Added

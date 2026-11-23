@@ -31,10 +31,10 @@ its close button, the 3D button, pinch and drag.
 
 ## ✅ Objectives
 
-On FireRed, LeafGreen, Ruby, Sapphire and Emerald, a small window at the top right lists what the place under
-the cursor holds: its story moments, its Gym Leader (and the Elite Four at the League), the key items handed out
-there, its notable people (Move Tutors, the Move Relearner and Deleter, the Name Rater, the Day Care, in-game
-trades) and its shops. Each story moment, Gym and key item has a box, ticked once you've done it or have it.
+On every game, a small window at the top right lists what the place under the cursor holds: its story moments,
+its Gym Leader (and the Elite Four at the League), the key items handed out there, its notable people (Move
+Tutors, the Move Relearner and Deleter, the Name Rater, the Day Care, in-game trades, Goldenrod's Lucky Number
+show) and its shops. A cave or a tower's are listed under the place it opens onto. Each story moment, Gym and key item has a box, ticked once you've done it or have it.
 
 The Map Objectives option sets it: Enabled shows story moments still ahead of you as ???, Spoilers names them,
 and Off hides the window.

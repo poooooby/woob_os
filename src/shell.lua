@@ -674,7 +674,8 @@ return function(mod, deps)
   -- only while its layer is the top one: a game screen it opens (the game's summary, to forget a move)
   -- draws itself over it
   local function sceneTop()
-    if not (Ts and Ts.isOpen()) or H then return false end
+    if not (Ts and Ts.isOpen()) then return false end
+    if H then return H.isTop(Sh.SCENE_ID) end
     local Stack = engine("src.ui.game3.stack")
     local top = Stack and Stack.top and Stack.top()
     return top ~= nil and top.id == Sh.SCENE_ID
@@ -686,9 +687,9 @@ return function(mod, deps)
     local r = Ts.state()
     return appId == nil or (r ~= nil and r.ctx ~= nil and r.ctx.app == appId)
   end
-  -- -> true when it opened (Gen 3: the Game Boy games keep theirs); onClose after ctx.done()
+  -- -> true when it opened; onClose after ctx.done()
   function Sh.openScene(appId, s, onClose, o)
-    if not Ts or Ts.isOpen() or H then return false end
+    if not Ts or Ts.isOpen() then return false end
     local app = A.byId(appId)
     if not (app and app.window) then return false end
     o = o or {}
@@ -1031,6 +1032,29 @@ return function(mod, deps)
     local Stack = not H and engine("src.ui.game3.stack") or nil
     -- (a scene: its layer gone -> closed (the window lets the game go); on top -> it alone is drawn, the touch
     -- pad away; under a game screen it opened -> that's drawn, the pad out for it)
+    -- (the Game Boy games: their own stack; a state of ours gets the buttons while it's on top)
+    if Ts and Ts.isOpen() and H then
+      if not H.has(Sh.SCENE_ID) then
+        Ts.close()
+        pad(false)
+      elseif sceneTop() then
+        pad(true)
+        if G and type(viewport) == "table" then
+          G.push("all")
+          G.origin()
+          G.setScissor()
+          G.setShader()
+          G.setBlendMode("alpha")
+          local okS, errS = pcall(Ts.draw, G, viewport)
+          G.pop()
+          if not okS and log then log:warn("the scene's draw failed: %s", tostring(errS)) end
+        end
+        return
+      else
+        pad(true, true)
+        return
+      end
+    end
     if Ts and Ts.isOpen() and Stack then
       if Stack.has and not Stack.has(Sh.SCENE_ID) then
         Ts.close()
@@ -1077,6 +1101,17 @@ return function(mod, deps)
     -- (a game screen opened over a modern menu -- the bag to give from, the mail reader, an evolution:
     -- ours waits under it, not drawn, until it's gone)
     gameAbove = false
+    -- (the Game Boy games: a game screen a modern menu opened -- the mod manager, the palette picker -- over it)
+    -- (a state of ours over it -- the game's chooser or words routed into the same window: `woobOsAbove` -- isn't)
+    if h and h == Tm and H and H.isTop and not H.isTop(id) then
+      local r = Tm.state and Tm.state()
+      local above = H.top and H.top()
+      if r and r.ctx and r.ctx.menu and not (type(above) == "table" and rawget(above, "woobOsAbove")) then
+        gameAbove = true
+        pad(true, true)
+        return
+      end
+    end
     if h and h == Tm and Stack and Stack.top then
       local r = Tm.state and Tm.state()
       local top = r and r.ctx and r.ctx.menu and Stack.top()

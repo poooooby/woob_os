@@ -1564,6 +1564,17 @@ our own, in phases (the plan: the Summary, then the Party, then the Bag); the mo
 
 ### The OPTIONS screen (`menuOptions`)
 
+The Game Boy games' are `src/gb/options.lua` (Go): `OptionsMenu` / `Gen2OptionsMenu` registered through
+`mod.content.screens`, a carrier in the game's screen's place that opens the window (`Sh.openFull("options")`) and
+answers as the game's does (Gen 1 pops itself then `onCancel`; Gen 2 calls `onDone(options)`, its caller pops). The
+rows are the game's screen built off the stack (`M.new`), once with `Runtime.call` answering `ui.options.rows` with
+its vanilla rows to tell the mods' apart; grouped by the copied `GROUPS1` / `GROUPS2` and `ORDER1` / `ORDER2`. Gen 1
+rows run as they are (`value(game)`, `step(game, dir)`, `activate(game)`), Gen 2 ones through the instance's
+`cycle(row, dir)` and its value column's rules; `model.ctx` is the game, `model.game` for a mod's page. A row that
+pushes one of the game's screens over ours: `Sh.frame` leaves the menu undrawn while `H.isTop(id)` is false. The
+mod manager's pages: `Os.wrap` on `ManagerState.openOptions`, the scene host on the Game Boy stack (`Sh.openScene`
+works there since `H.isTop`). Tests: tests/gb_test.lua's OPTIONS block.
+
 - **The model** (`src/options_screen.lua` Os, `env.optionsScreen`): wraps `src.ui.game3.option_menu.show` (FireRed /
   LeafGreen), `rse.option_menu.show` (Emerald) and `rs.option_menu.show` (Ruby / Sapphire) -- an in-game OPTIONS only
   (`opts.session`; the title screen's stays the game's) -- with `Sh.openFull("options", ..., { menu, noHints })`. Rows as
@@ -1584,6 +1595,19 @@ our own, in phases (the plan: the Summary, then the Party, then the Bag); the mo
   and on, which writes it explicitly: restore options.lua after), `optrs_driver.lua`, `optdiv_driver.lua`.
 
 ### The staged scenes: an evolution, a catch's page, a nickname (`menuEvolution`, `menuCatch`)
+
+The Game Boy games' are `src/gb/scenes.lua` over the same windows (the jobs built from the games' own pieces):
+Gen 1's `src.pokemon.Evolution.evolve` wrapped (`__woobOsEvo`; `Evolution.apply`, its exact-level moves with a full set
+through the game's `MoveLearnMenu`; `onDone()` after, the map's music unless `batch`); Gen 2's `Gen2EvolutionAnim`
+registered: a carrier whose job builds the game's own `EvolutionAnim` off the stack for `commit()` / `pending`,
+moves through `Mon.learnMove` / `game:learnMoveOn`, and answers `onDone({ canceled, evolved, learned, full })` (the
+caller pops). A first catch's page: Gen 1's `DexEntryMenu` while a battle (`isBattleState`) has that species out,
+Gen 2's `Gen2PokedexMenu` with `entrySpecies` + `newEntry` (src/gb/host.lua asks `H.caughtPage` first); its answer is
+kept by species for the battle's question (`BattleState.askNicknameUI` -> a state that pops itself; Gen 2's
+`askNickname` -> `phase = "resolving"`, `advanceQueue()`), since `catch.nickname` is asked before the page shows.
+Naming: Gen 1's `NamingScreen` with a `mon` (pops itself, `onDone(name, true)`), Gen 2's `Gen2NamingScreen` of type
+nickname (a blank name is `onCancel()`). The scene host runs on the Game Boy stack (`H.isTop`). Tests: tests/gb_test.lua's
+scenes block.
 
 - **The scene host.** A second instance of `src/townmap.lua` (main.lua `SC.host`, the shell's `deps.scenes`, `Ts`)
   on its own layer `woob_scene` (`Sh.SCENE_ID`, `Sh.sceneLayer`), opened by `Sh.openScene(appId, s, onClose,
@@ -1669,6 +1693,19 @@ our own, in phases (the plan: the Summary, then the Party, then the Bag); the mo
   drops to a smaller size when a page would take more than 45% of the screen.
 
 ### The map's objectives (`mapObjectives`)
+
+The Game Boy games' are `src/gb/objectives.lua` (the same `Ob.at` answers, wired in src/gb/main.lua's map3d block):
+Gen 2 walks each map's object / sign / step / scene / callback scripts in `data.gen2Scripts` (every `script` field
+but `jumpstd` / `callstd`'s, so `sdefer` too): `verbosegiveitem` / `giveitem` (Key Items pocket or `HM_`, done by the
+first `setevent` after), `loadtrainer` by class (`LEADER2` / `ELITE2`, done by the event set after the battle),
+`pokemart`, `special` by `specialOrder` name (`PEOPLE2`), `trade` (done by `save.tradeFlags[trade]`), the story by
+where `BEATS2`'s events are set; a map's place is `"lm" .. landmark` when an outdoor map has that landmark, else the
+place its warps reach. Event flags read the World's `events:get` for the save in play, else the save's kept bytes.
+Gen 1 has no script bytecode: leaders / Elite Four from the maps' `trainerClass` matched in `data.scripts.victories`,
+key items from `data.scripts.init`'s talk command lists (`give_item`, the next `set_flag`), key items lying in the
+maps, `GIFTS` (closures' gifts by hand), marts from `text_pointers` with `mart`, trades from `trade` rows, `BEATS1`
+(the Gen 3 story's words); a map's place is the outdoor map of its Town Map location (same name, else the nearest).
+Tests: tests/gb_test.lua's last block (`OBJ_DUMP=1` prints every place's list).
 
 `src/map3d/objectives.lua` (Ob) reads each map's own scripts once per game (objects', signs', steps' and map scripts,
 their `goto` / `call` jumps and the scripts a `trainerbattle` goes on to; never the shared `Common_` / `Std_` /

@@ -28,9 +28,11 @@ return after a loss.
 
 ## 🎒 The Bag
 
-On FireRed, LeafGreen, Ruby, Sapphire and Emerald, the Bag opens in glass from the START menu and in
-battle. Each pocket is a page (FireRed and LeafGreen's TM Case and Berry Pouch too), with the chosen
-item's picture and description beside the list, and a TM's move with its type, power, accuracy and PP.
+On every game, the Bag opens in glass from the START menu and in battle. Each pocket is a page (FireRed and
+LeafGreen's TM Case and Berry Pouch too; Red, Blue and Yellow have one list), with the chosen item's picture
+and description beside the list, and a TM's move with its type, power, accuracy and PP. On Red, Blue, Yellow,
+Gold, Silver and Crystal, using an item does exactly what the game's own Bag does, with its words and its
+choice of Pokémon in the same glass.
 
 In a wild battle, each Poké Ball shows its chance to catch the Pokémon in front of you, worked out the
 game's own way: its HP and status, and each Ball's own rules (a Net Ball on a Water or Bug type, a Timer Ball
@@ -53,9 +55,9 @@ but the Old Man's.
 
 <img src="screenshots/party.png" width="480" alt="The Pokémon menu">
 
-On FireRed, LeafGreen, Ruby, Sapphire and Emerald, the Pokémon menu is six glass cards over lights in the
-chosen Pokémon's colours: the lead's picture, and every Pokémon's level, HP, status and held item. Each
-one's menu has its summary, its field moves, Switch and its item or mail; in battle, Shift or Send Out.
+On every game, the Pokémon menu is six glass cards over lights in the chosen Pokémon's colours: the lead's
+picture, and every Pokémon's level, HP, status and held item. Each one's menu has its summary, its field
+moves, Switch and its item or mail (Red, Blue and Yellow's Pokémon hold none); in battle, Shift or Send Out.
 
 Choosing who to switch in, each Pokémon shows two chips beside its types: a sword, the best its own attacks do
 against the foe (2x, 4x, 0.5x, 0x...), and a shield, the most the foe's types do to it. Green is good for you,
@@ -72,12 +74,12 @@ shown below.
 
 ## ✨ Evolution
 
-On FireRed, LeafGreen, Ruby, Sapphire and Emerald, a Pokémon evolves full screen under a night sky lit in
-its new colours. It goes as the game's does: "What? It's evolving!", its cry, the music, then the old Pokémon
+On every game, a Pokémon evolves full screen under a night sky lit in its new colours. It goes as the game's does: "What? It's evolving!", its cry, the music, then the old Pokémon
 and the new one trading places as white silhouettes, faster and faster, while sparkles swirl round them,
 behind and in front. Then a flash breaks into a ring and a shower of stars, the new Pokémon steps out in
 colour, and its name and types drop in at the top. Then it steps aside for a card of its stats, each one
-counting up from before to after with what it gained, and the moves it learns at its new level follow.
+counting up from before to after with what it gained, and the moves it learns at its new level follow. On
+Red, Blue and Yellow the card shows their one Special stat on both Special rows.
 
 You can still stop it the game's way: B (or Stop at the top) while it's changing.
 
@@ -89,7 +91,8 @@ game's question, whether to give it a nickname. Yes brings up a keyboard like a 
 small ones after the first, and the game's marks (0-9 ! ? ♂ ♀ / - … “ ” ‘ ’ , .), up to ten letters. The
 battle doesn't ask again.
 
-Every Pokémon's nickname uses the same keyboard: a catch you've caught before, an Egg that hatched, a gift.
+Every Pokémon's nickname uses the same keyboard: a catch you've caught before, an Egg that hatched, a gift,
+the Name Rater. This is the same on every game.
 On a controller, the D-pad moves over the keys, A types, B deletes a letter, START jumps to OK and SELECT
 changes the letters.
 
@@ -100,12 +103,12 @@ at the top right, opens the game's own.
 
 ## ⚙️ OPTIONS
 
-On FireRed, LeafGreen, Ruby, Sapphire and Emerald, OPTIONS from the START menu opens in glass, with every
-option the game's own screen has: the same pages (Speed, Video, Audio...), each option's whole name, a switch
+On every game, OPTIONS from the START menu opens in glass, with every option the game's own screen has: the same pages (Speed, Video, Audio...), each option's whole name, a switch
 for one that's on or off, and its value between arrows for one with choices. The rows other mods add sit below
 a line marked "Added by mods", each with a Mod tag.
 
-Each mod's own options page opens there too, from its row or from MODS: options that only show once another
+Each mod's own options page opens there too, from its row or from MODS (on Gold, Silver and Crystal, MODS in
+the START menu): options that only show once another
 is on sit indented under it, with a line to it, and the chosen option's description is in a card along the
 bottom.
 

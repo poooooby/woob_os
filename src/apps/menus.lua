@@ -121,10 +121,41 @@ return function(ctx, env, makeSummary, makeParty, makeBag)
     end
   end
 
+  -- ------- a chooser of the game's own, asked for while ours is up (the Game Boy games' item use: the game's bag
+  -- code opening its party list): the party over the page that was up, answering the game through pm.onChoose;
+  -- the game taking its list away (W.innerDone), or B (onDone(result)), back to that page
+  local function innerDone()
+    local gi = st.gameInner
+    if not gi then return nil end
+    st.gameInner = nil
+    Ctl.stop()
+    st.party, st.page = gi.party, gi.page
+    if st.page == "bag" and st.bag then
+      st.bag.prompt, st.bag.menu, st.bag.view = nil, nil, "list"
+      Bc.refresh(st.bag)
+    elseif st.page == "party" and st.party then
+      Pc.refresh(st.party)
+    end
+    return gi
+  end
+  function W.innerParty(pm, onDone)
+    if st.closed or st.gameInner or not Pc then return false end
+    st.gameInner = { pm = pm, onDone = onDone, page = st.page, party = st.party }
+    st.party = Pc.open(pm, ctx)
+    st.page = "party"
+    return true
+  end
+  function W.innerDone() innerDone() end
+
   -- what a page's input / tap / tick said
   local function step(r)
     if st.closed or not r then return end
     if st.page == "party" then
+      if r == "close" and st.gameInner then
+        local gi = innerDone()
+        if gi and gi.onDone then pcall(gi.onDone, gi.pm.result or {}) end
+        return
+      end
       if r == "close" then
         if st.inner then partyOverBagDone() else done() end
       elseif r == "bag" and Bc then
@@ -199,6 +230,12 @@ return function(ctx, env, makeSummary, makeParty, makeBag)
     if st.page == "bag" and st.bag then Bc.ui(st.bag).ask(text, after) return true end
     if st.page == "party" and st.party then Pc.ui(st.party).ask(text, after) return true end
     return false
+  end
+  -- (an HP bar filling on the party, for the game: the Game Boy games' item results)
+  function W.hp(i, from, to, after)
+    if st.closed or not (st.page == "party" and st.party) then return false end
+    Pc.ui(st.party).hp(i, from, to, after)
+    return true
   end
   -- (a summary asked for from inside: a move to forget while the party's open)
   function W.forget(index, moveId, after)

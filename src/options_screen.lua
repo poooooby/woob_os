@@ -184,7 +184,9 @@ return function(engine, deps)
       local flat = call(Rows.build, ctx)
       return flat and call(Rows.group, flat, openPage) or nil
     end
-    -- (the rows the game and the engine make: the hook asked for nothing, once, to tell the mods' apart)
+    -- (the rows the game and the engine make: their flat list with the hook asked for nothing, once, to tell the
+    -- mods' apart -- never the grouped page, which a mod may add to by wrapping Rows.group (Vivid Worlds) --, the
+    -- engine's group pages and the cart's own rows)
     local own = {}
     if Runtime and type(Runtime.wantsHook) == "function" then
       local wants = Runtime.wantsHook
@@ -192,21 +194,31 @@ return function(engine, deps)
         if name == "ui.options.rows" then return false end
         return wants(name, ...)
       end
-      local plain = build()
+      local plain = call(Rows.build, ctx, cartRows)
       Runtime.wantsHook = wants
       for _, r in ipairs(plain or {}) do if r.id then own[r.id] = true end end
+      if next(own) then
+        for _, g in ipairs(type(Rows.GROUPS) == "table" and Rows.GROUPS or {}) do if g.id then own[g.id] = true end end
+        for key in pairs(cartRows or {}) do own[key] = true end
+      end
     end
     local rows = build()
     if type(rows) ~= "table" then return nil end
     local ms = managerState(ctx.game)
     local byId = ms and ms:manifestMap() or {}
+    local function bare(x) return (tostring(x or ""):upper():gsub("[^%w]", "")) end
     for _, r in ipairs(rows) do
       r.label = sentence(r.label or r.id or "?")
       if r.id and next(own) and not own[r.id] then
         local m = byId[r.id]
+        -- (a row whose id isn't its mod's: the mod whose name it carries)
+        if not m then
+          for _, mm in pairs(byId) do
+            if type(mm) == "table" and mm.name and bare(mm.name) == bare(r.label) then m = mm break end
+          end
+        end
         local name = m and (m.name or m.id) or nil
         -- (a row named for its mod: the mod's own spelling, the tag just "Mod")
-        local function bare(x) return (tostring(x or ""):upper():gsub("[^%w]", "")) end
         if name and bare(name) == bare(r.label) then
           r.label, r.modName = name, "Mod"
         else

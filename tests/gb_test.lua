@@ -45,7 +45,7 @@ if GEN == 2 then
     -- (since the engine's 0.4.6 the Gen 2 screens read these from the cart, with no fallback: the ROM's
     -- lines, the event tables (Oak's ratings, the phone book), the constants)
     text = loadLua("data/generated/rom_text.lua"), gen2EventTables = loadLua("data/generated/events.lua"),
-    gen2Constants = loadLua("data/generated/constants.lua"),
+    gen2Constants = loadLua("data/generated/constants.lua"), gen2Scripts = loadLua("data/generated/scripts.lua"),
     audio = { sfx = {} },
   }
   require("src.core.GameVersion").set(GAME)
@@ -92,7 +92,7 @@ local world = { acceptsMenuInput = function() return accepts end, events = { get
                 playSfxNamed = function() end }
 local overworld = setmetatable({ isOverworld = true, player = {}, update = function() end, draw = function() end },
   { __index = require("src.world.OverworldController") })
-local game = { data = data, save = save, stack = stack, input = input, phase = "play" }
+local game = { data = data, save = save, stack = stack, input = input, phase = "play", mods = run.loader }
 if GEN == 2 then game.world = world else game.overworld = overworld; table.insert(stack.states, overworld) end
 run.loader.events:emit("game.ready", { game = game })
 
@@ -1289,6 +1289,575 @@ do
     local ok = pcall(X._test.env.itemIcon, "POTION", 0, 0, 20, 1)
     T.check(ok, "the item's picture: its tile")
   end
+end
+
+-- ------- the map's objectives (src/gb/objectives.lua): each place's from the cart, ticked from the save
+do
+  local O = X._test.env.objectives
+  T.check(O ~= nil, "the map's objectives: made")
+  local idx = O and O.index()
+  T.check(type(idx) == "table" and next(idx) ~= nil, "read from the cart")
+  local function find(kind, word)
+    for sec, b in pairs(idx or {}) do
+      for _, e in ipairs(b[kind] or {}) do
+        local w = e.name or e.beat or e.kind
+        if tostring(w):find(word, 1, true) then return sec, e end
+      end
+    end
+  end
+  local counts = { story = 0, gym = 0, key = 0, people = 0, shops = 0 }
+  for _, b in pairs(idx or {}) do for k in pairs(counts) do counts[k] = counts[k] + #b[k] end end
+  print(string.format("  objectives: %d story, %d gyms / Elite Four, %d key items, %d people, %d shops",
+    counts.story, counts.gym, counts.key, counts.people, counts.shops))
+  if GEN == 2 then
+    local sec, g = find("gym", "Falkner")
+    T.check(sec == "lm6" and g.flag == "EVENT_BEAT_FALKNER", "Falkner at Violet City, done by beating him ("
+      .. tostring(sec) .. ", " .. tostring(g and g.flag) .. ")")
+    T.check(counts.gym >= 20, "every Gym Leader and the Elite Four (" .. counts.gym .. ")")
+    local ks, k = find("key", "Squirtbottle")
+    T.check(ks ~= nil and k.flag == "EVENT_GOT_SQUIRTBOTTLE", "the SquirtBottle, done by its event (" .. tostring(k and k.flag) .. ")")
+    T.check(find("key", "HM") ~= nil, "HMs among the key items")
+    T.check(find("people", "nameRater") ~= nil, "the Name Rater")
+    T.check(find("people", "daycare") ~= nil, "the Day Care")
+    T.check(find("story", "elm") ~= nil and find("story", "radioTower") ~= nil, "the story's beats, placed")
+    T.check(counts.shops >= 10, "the marts (" .. counts.shops .. ")")
+    local fk
+    for _, e in ipairs(O.at("lm6", save, false) or {}) do if e.kind == "gym" then fk = e end end
+    T.check(fk ~= nil and fk.done == false and fk.label:find("Falkner") ~= nil, "Violet City: Falkner, not yet ("
+      .. tostring(fk and fk.label) .. ")")
+    local id
+    for i, n in ipairs(data.gen2Constants.eventFlagOrder) do if n == "EVENT_BEAT_FALKNER" then id = i - 1 end end
+    -- (the World's own flags for the save in play; another save's kept bytes)
+    local get = world.events.get
+    world.events.get = function(_, i) return i == id end
+    for _, e in ipairs(O.at("lm6", save, false) or {}) do if e.kind == "gym" then fk = e end end
+    T.check(fk ~= nil and fk.done == true, "and done once beaten (the World's flags)")
+    world.events.get = get
+    local other = { events = { [math.floor(id / 8)] = 2 ^ (id % 8) } }
+    for _, e in ipairs(O.at("lm6", other, false) or {}) do if e.kind == "gym" then fk = e end end
+    T.check(fk ~= nil and fk.done == true, "and another save's, from its kept flags")
+  else
+    local sec, g = find("gym", "Brock")
+    T.check(sec == "PEWTER_CITY" and g.flags[1] == "EVENT_BEAT_BROCK", "Brock at Pewter City, done by beating him ("
+      .. tostring(sec) .. ")")
+    T.check(counts.gym >= 12, "the Gym Leaders and the Elite Four (" .. counts.gym .. ")")
+    T.eq(find("key", "Bicycle"), "CERULEAN_CITY", "the Bicycle at Cerulean City")
+    T.check(find("key", "HM01") ~= nil, "HM01 Cut, from the captain's script")
+    T.eq(find("people", "nameRater"), "LAVENDER_TOWN", "the Name Rater at Lavender Town")
+    T.eq(find("story", "pokedex"), "PALLET_TOWN", "the Pokédex at Pallet Town")
+    T.check(counts.shops >= 8, "the marts (" .. counts.shops .. ")")
+    local bk
+    for _, e in ipairs(O.at("PEWTER_CITY", save, false) or {}) do if e.kind == "gym" then bk = e end end
+    T.check(bk ~= nil and bk.done == false, "Pewter City: Brock, not yet")
+    save.flags = save.flags or {}
+    save.flags.EVENT_BEAT_BROCK = true
+    for _, e in ipairs(O.at("PEWTER_CITY", save, false) or {}) do if e.kind == "gym" then bk = e end end
+    T.check(bk ~= nil and bk.done == true, "and done once beaten")
+    save.flags.EVENT_BEAT_BROCK = nil
+  end
+  -- (every label made, nothing missing a word)
+  local missing = 0
+  for sec in pairs(idx or {}) do
+    for _, e in ipairs(O.at(sec, save, true) or {}) do
+      if type(e.label) ~= "string" or e.label == "" or e.label:find("^map%.obj") then
+        missing = missing + 1
+        if missing < 4 then print("  no words: " .. tostring(e.label)) end
+      end
+    end
+  end
+  T.eq(missing, 0, "every entry has its words")
+  if os.getenv("OBJ_DUMP") then
+    local secs = {}
+    for sec in pairs(idx or {}) do secs[#secs + 1] = sec end
+    table.sort(secs)
+    for _, sec in ipairs(secs) do
+      local parts = {}
+      for _, e in ipairs(O.at(sec, save, true) or {}) do parts[#parts + 1] = e.kind:sub(1, 1) .. ":" .. e.label end
+      print(sec, table.concat(parts, " | "))
+    end
+  end
+end
+
+-- ------- OPTIONS, modern (src/gb/options.lua): the game's screen's place taken, its rows ours, answered as it would
+do
+  local Tm = X._test.townmap
+  local Go = X._test.gbOptions
+  T.check(Go ~= nil, "OPTIONS: the takeover made")
+  local id = GEN == 2 and "Gen2OptionsMenu" or "OptionsMenu"
+  local base0 = #stack.states
+  local done, cancelled = 0, 0
+  game.options = game.options or save.options or {}
+  save.options = save.options or game.options
+  local opts = GEN == 2 and { options = game.options, onDone = function() done = done + 1; stack:pop() end }
+    or { onCancel = function() cancelled = cancelled + 1 end }
+  local writes = 0
+  game.writeOptions = function() writes = writes + 1 end
+  game.persistOptions = game.writeOptions
+  game.applyOptions = function() end
+  local c = Screens.push(game, id, opts)
+  T.check(type(c) == "table" and c.opts ~= nil, "OPTIONS: ours (a carrier in its place)")
+  frame(2)
+  local st = Tm and Tm.isOpen() and Tm.state()
+  T.check(st and st.ctx.app == "options", "the window open, full screen")
+  local W = st and st.win
+  local ws = W and W.state
+  local P = ws and ws.pages[#ws.pages]
+  T.check(P ~= nil and #P.rows >= 4, "the top page: the game's rows (" .. tostring(P and #P.rows) .. ")")
+  local groups, wr = 0, nil
+  for _, r in ipairs(P and P.rows or {}) do
+    if r.kind == "group" then groups = groups + 1 end
+    if r.id == "woob_os" then wr = r end
+  end
+  T.check(groups >= 3, "the game's pages (speed, video, audio...): " .. groups)
+  T.check(wr ~= nil and wr.modName == "Mod" and wr.label == "WoobOS", "WoobOS's row: its name, tagged ("
+    .. tostring(wr and wr.label) .. ", " .. tostring(wr and wr.modName) .. ")")
+  local tagged = 0
+  for _, r in ipairs(P and P.rows or {}) do if r.modName then tagged = tagged + 1 end end
+  T.eq(tagged, 1, "only the mod's row tagged")
+  -- (the speed page: A opens it; its text speed steps and the game keeps it)
+  local gi
+  for i, r in ipairs(P and P.rows or {}) do if r.id == "group.speed" then gi = i end end
+  T.check(gi ~= nil, "the SPEED page")
+  if gi then
+    P.cur = gi
+    pressedNow = { a = true }
+    frame(1)
+    frame(2)
+    local P2 = ws.pages[#ws.pages]
+    T.check(#ws.pages == 2 and P2 ~= P, "A: the page opened (" .. tostring(P2 and P2.title) .. ")")
+    local ti
+    for i, r in ipairs(P2.rows) do if r.id == "textSpeed" then ti = i end end
+    T.check(ti ~= nil and P2.rows[ti].valueText ~= nil, "Text speed with its value ("
+      .. tostring(ti and P2.rows[ti].valueText) .. ")")
+    if ti then
+      P2.cur = ti
+      local before = save.options.textSpeed or game.options.textSpeed
+      local v0 = P2.rows[ti].valueText
+      pressedNow = { right = true }
+      frame(1)
+      frame(2)
+      local after = save.options.textSpeed or game.options.textSpeed
+      T.check(after ~= before and P2.rows[ti].valueText ~= v0, "Right: it changes (" .. tostring(before) .. " -> "
+        .. tostring(after) .. ", " .. tostring(v0) .. " -> " .. tostring(P2.rows[ti].valueText) .. ")")
+      T.check(writes > 0, "and the game keeps it")
+      pressedNow = { left = true }
+      frame(1)
+    end
+    pressedNow = { b = true }
+    frame(1)
+    T.eq(#ws.pages, 1, "B: back to the top")
+  end
+  pressedNow = { b = true }
+  frame(1)
+  frame(2)
+  T.check(not Tm.isOpen(), "B at the top: closed")
+  if GEN == 2 then T.eq(done, 1, "the game told once (onDone; it pops ours)")
+  else T.eq(cancelled, 1, "the game told once (onCancel)") end
+  T.eq(#stack.states, base0, "the stack as it was")
+  -- (the switch off: the game's own)
+  run.loader.modOptions.woob_os = { menuOptions = false }
+  local own = Screens.build(game, id, GEN == 2 and { options = game.options, onDone = noop } or {})
+  T.check(type(own) == "table" and own.opts == nil and own.rows ~= nil, "Options off: the game's own")
+  run.loader.modOptions.woob_os = nil
+end
+
+-- ------- the staged scenes (src/gb/scenes.lua): an evolution, a first catch's page, a nickname -- ours, full screen
+do
+  local Ts = X._test.sceneHost
+  T.check(Ts ~= nil and X._test.scenes ~= nil, "the scenes: made")
+  local base0 = #stack.states
+  -- (A now and then, until `done`)
+  local function drive(done, limit)
+    for i = 1, limit or 4000 do
+      if done() then return true end
+      if i % 12 == 0 then pressedNow = { a = true } end
+      frame(1)
+    end
+    return done()
+  end
+  local function sceneState() return Ts.isOpen() and Ts.state() and Ts.state().win and Ts.state().win.state end
+  -- (the keyboard: a name typed, then OK)
+  local function typeName(text)
+    local ok = drive(function() local s = sceneState() return s ~= nil and s.kb ~= nil end, 1500)
+    local s = sceneState()
+    if not (ok and s and s.kb) then return false end
+    s.kb.text = text
+    pressedNow = { start = true }
+    frame(1)
+    pressedNow = { a = true }
+    frame(1)
+    return true
+  end
+
+  -- an evolution
+  local evoMon = newMon("PIDGEY", 18)
+  local evolved, result = 0, nil
+  if GEN == 1 then
+    require("src.pokemon.Evolution").evolve(game, evoMon, "PIDGEOTTO", function() evolved = evolved + 1 end, "LEVEL", false)
+  else
+    save.party[3] = evoMon
+    Screens.push(game, "Gen2EvolutionAnim", { mon = evoMon, entry = { into = "PIDGEOTTO", method = "EVOLVE_LEVEL" },
+      index = 3, party = save.party, save = save, onDone = function(r)
+        evolved, result = evolved + 1, r
+        stack:pop()
+      end })
+    frame(2)
+  end
+  T.check(Sh.sceneOpen("evolution"), "an evolution: ours, full screen")
+  T.check(drive(function() return evolved > 0 and not Ts.isOpen() end), "it plays through, the game told once ("
+    .. evolved .. ")")
+  local now = GEN == 2 and save.party[3] or evoMon
+  T.check(now and now.species == "PIDGEOTTO", "and the Pokémon evolved (" .. tostring(now and now.species) .. ")")
+  if GEN == 2 then
+    T.check(result and result.canceled == false and result.evolved == save.party[3], "the game's result: evolved, its record")
+    save.party[3] = nil
+  end
+  T.eq(#stack.states, base0, "the stack as it was")
+
+  -- a first catch's page, its question answered there (a name), the battle's then not asked
+  local caught = newMon("RATTATA", 4)
+  local fakeBattle
+  if GEN == 1 then
+    fakeBattle = setmetatable({ isBattleState = true, enemy = { mon = caught }, game = game },
+                              { __index = require("src.battle.BattleState") })
+  else
+    fakeBattle = setmetatable({ screenId = "Gen2BattleState", isBattle = true, battle = { enemy = caught }, game = game,
+                                advanceQueue = function(self) self.advanced = true end },
+                              { __index = require("src.ui.gen2.BattleState") })
+  end
+  table.insert(stack.states, fakeBattle)
+  local base1 = #stack.states
+  local pageDone = 0
+  if GEN == 1 then
+    Screens.push(game, "DexEntryMenu", "RATTATA", function() pageDone = pageDone + 1 end)
+  else
+    Screens.push(game, "Gen2PokedexMenu", { entrySpecies = "RATTATA", newEntry = true, onClose = function()
+      pageDone = pageDone + 1
+      stack:pop()
+    end })
+  end
+  frame(2)
+  T.check(Sh.sceneOpen("caught") and sceneState() and Ts.state().ctx.scene.kind == "dex", "the catch's page: ours")
+  T.check(typeName("RATS"), "its question: yes, the keyboard")
+  T.check(drive(function() return pageDone > 0 and not Ts.isOpen() end, 600), "the page closes, the game told once")
+  T.eq(#stack.states, base1, "the battle on top again")
+  local q
+  if GEN == 1 then
+    q = fakeBattle:askNicknameUI(caught, "RATTATA")
+    T.check(type(q) == "table" and q.choice == nil and q.update ~= nil, "the battle's question: not asked")
+  else
+    fakeBattle:askNickname(caught)
+    T.check(fakeBattle.advanced == true and fakeBattle.phase == "resolving", "the battle's question: not asked, on it goes")
+  end
+  T.eq(caught.nickname, "RATS", "the name from the page")
+  -- (no page answer: the battle asks as ever)
+  local other = newMon("SPEAROW", 4)
+  if GEN == 1 then
+    -- (headless the game's own question has no ROM text to say: its error is the game's, not ours)
+    local okQ, q2 = pcall(fakeBattle.askNicknameUI, fakeBattle, other, "SPEAROW")
+    T.check(not okQ or (type(q2) == "table" and q2.choice ~= nil), "another catch: the game's own question")
+  else
+    fakeBattle.advanced = nil
+    fakeBattle:askNickname(other)
+    T.check(fakeBattle.phase == "ask-nickname", "another catch: the game's own question")
+  end
+  while #stack.states >= base1 do stack:pop() end
+
+  -- a nickname, the naming screen's (a gift, an Egg, the Name Rater)
+  local named, gotName = 0, nil
+  local gift = newMon("EEVEE", 5)
+  if GEN == 1 then
+    Screens.push(game, "NamingScreen", { mon = gift, maxLen = 10, onDone = function(n) named, gotName = named + 1, n end })
+  else
+    Screens.push(game, "Gen2NamingScreen", { type = "nickname", mon = gift, onDone = function(n)
+      named, gotName = named + 1, n
+      stack:pop()
+    end, onCancel = function() named = named + 1 stack:pop() end })
+  end
+  frame(2)
+  T.check(Sh.sceneOpen("caught") and Ts.state().ctx.scene.kind == "name", "a nickname: ours, the keyboard at once")
+  T.check(typeName("Vee"), "a name typed")
+  T.check(drive(function() return named > 0 and not Ts.isOpen() end, 600), "closed, the game told once")
+  T.eq(gotName, "Vee", "with the name")
+  T.eq(#stack.states, base0, "the stack as it was")
+  -- (the switch off: the game's own)
+  run.loader.modOptions.woob_os = { menuCatch = false }
+  -- (headless the game's own Gen 2 keyboard can't be built: no menu art -- not ours either way)
+  local okOwn, own = pcall(Screens.build, game, GEN == 2 and "Gen2NamingScreen" or "NamingScreen",
+                           GEN == 2 and { type = "nickname", mon = gift, onDone = noop } or { mon = gift, onDone = noop })
+  T.check(not okOwn or (type(own) == "table" and own.open == nil), "Catch off: the game's own naming screen")
+  run.loader.modOptions.woob_os = nil
+end
+
+-- ------- the modern menus (src/gb/menus.lua, src/gb/party.lua): the party menu and the summary in the game's places
+do
+  local Tm = X._test.townmap
+  local Mn, Pt = X._test.menus, X._test.party
+  T.check(Mn ~= nil and Pt ~= nil, "the modern menus: made")
+  local base0 = #stack.states
+  local function win() return Tm.isOpen() and Tm.state() and Tm.state().win end
+  local function party() local w = win() return w and w.state and w.state.party end
+  local function press1(k) pressedNow = { [k] = true } frame(1) frame(1) end
+  local keep = save.party
+  save.party = { newMon(GEN == 2 and "CYNDAQUIL" or "CHARMANDER", 12), newMon("PIDGEY", 9), newMon("RATTATA", 7) }
+  local pty = save.party
+
+  -- START's
+  local cancelled = 0
+  if GEN == 2 then
+    Screens.push(game, "Gen2PartyMenu", { prompt = "choose", submenu = true, onCancel = function()
+      cancelled = cancelled + 1
+      stack:pop()
+    end })
+  else
+    Screens.push(game, "PartyMenu", { onCancel = function() cancelled = cancelled + 1 end })
+  end
+  frame(2)
+  local P = party()
+  T.check(P ~= nil and P.n == 3 and P.c.mode == "list", "START's party menu: ours, the party's cards (" .. tostring(P and P.n) .. ")")
+  local card = P and P.cards[1]
+  T.check(card and card.t1 == 10 and card.levelText ~= "" and card.maxHp > 1 and card.expText ~= nil,
+          "a card: its type, level, HP and the way to the next level")
+  -- (its menu: STATS, SWITCH, CANCEL...; SWITCH then another: the order swapped)
+  local rows = Pt.actions(P.c, 1)
+  local acts = {}
+  for _, r in ipairs(rows) do acts[#acts + 1] = r.act end
+  T.check(table.concat(acts, ","):find("SUMMARY,SWITCH", 1, true) ~= nil, "its menu: " .. table.concat(acts, ","))
+  press1("a")
+  T.check(P.view == "menu", "A: the Pokémon's menu")
+  local si
+  for k, r in ipairs(P.menu.rows) do if r.act == "SWITCH" then si = k end end
+  P.menu.sel = si or 1
+  press1("a")
+  T.check(P.view == "switch", "SWITCH: choosing the other")
+  P.cur = 2
+  press1("a")
+  T.check(pty[1].species == "PIDGEY" and P.view == "pick", "the two traded places")
+  Pt.swap(P.c, 1, 2)
+  -- (STATS: the summary inside)
+  press1("a")
+  for k, r in ipairs(P.menu.rows) do if r.act == "SUMMARY" then P.menu.sel = k end end
+  press1("a")
+  T.check(P.view == "summary" and P.sum ~= nil, "STATS: the summary, inside the same window")
+  press1("b")
+  T.check(P.view == "pick", "B: back to the cards")
+  press1("b")
+  frame(2)
+  T.check(not Tm.isOpen() and cancelled == 1, "B: closed, the game told once")
+  T.eq(#stack.states, base0, "the stack as it was")
+
+  -- a battle's SWITCH: refused for the one out, a switch for another; the matchups on the cards
+  local foe = newMon(GEN == 2 and "TOTODILE" or "SQUIRTLE", 10)
+  local fake
+  if GEN == 2 then
+    fake = { screenId = "Gen2BattleState", isBattle = true, update = function() end, draw = function() end,
+             battle = { enemy = foe, player = pty[1], party = pty,
+                        battlerTypes = function(_, m) return m.types end } }
+  else
+    fake = { isBattleState = true, kind = "wild", update = function() end, draw = function() end,
+             enemy = { mon = foe, curTypes = { "WATER" } }, player = { mon = pty[1], curTypes = { "FIRE" } } }
+  end
+  table.insert(stack.states, fake)
+  local base1 = #stack.states
+  local chosen, refusedOnce = nil, false
+  if GEN == 2 then
+    local list
+    list = Screens.push(game, "Gen2PartyMenu", { prompt = "choose", battle = true, battleSubmenu = true, party = pty,
+      save = save, onCancel = function() stack:pop() end,
+      onChoose = function(index, mon)
+        if mon == fake.battle.player then
+          refusedOnce = true
+          return list:refuse("Already out!")
+        end
+        stack:pop()
+        chosen = index
+      end })
+  else
+    Screens.push(game, "PartyMenu", { battle = fake, party = pty, keepOpen = true, onSwitch = function(mon, menu)
+      if mon == fake.player.mon then
+        refusedOnce = true
+        return menu:refuse("Already out!")
+      end
+      menu:close()
+      chosen = mon
+    end })
+  end
+  frame(2)
+  P = party()
+  T.check(P ~= nil and P.c.battle and P.c.mode == "battle_switch", "a battle's party menu: ours")
+  local c1 = P and P.cards[1]
+  T.check(c1 and c1.defK == 2 and c1.atkK ~= nil, "the matchups: Water on Fire 2x against it, its moves on the foe ("
+    .. tostring(c1 and c1.atkK) .. " / " .. tostring(c1 and c1.defK) .. ")")
+  -- (the one out: refused, ours stays)
+  P.cur = 1
+  press1("a")
+  P.menu.sel = 1
+  press1("a")
+  T.check(refusedOnce and Tm.isOpen() and P.prompt ~= nil and P.prompt.kind == "msg", "the one out: the game's words, ours stays")
+  press1("a")
+  -- (another: switched, ours gone, the battle on top)
+  P.cur = 2
+  press1("a")
+  P.menu.sel = 1
+  press1("a")
+  frame(2)
+  T.check(not Tm.isOpen() and (chosen == 2 or chosen == pty[2]), "another: the game's choice (" .. tostring(chosen) .. ")")
+  T.eq(#stack.states, base1, "the battle on top again")
+  for i = #stack.states, 1, -1 do if stack.states[i] == fake then table.remove(stack.states, i) end end
+
+  -- the summary from the game's own screens (the PC's STATS)
+  local sumClosed = 0
+  if GEN == 2 then
+    Screens.push(game, "Gen2SummaryMenu", { party = pty, index = 2, onClose = function()
+      sumClosed = sumClosed + 1
+      stack:pop()
+    end })
+  else
+    Screens.push(game, "SummaryMenu", pty[2])
+  end
+  frame(2)
+  local w = win()
+  T.check(w and w.state and w.state.page == "summary" and w.state.sum and w.state.sum.i == 2, "the summary: ours, on that Pokémon")
+  press1("b")
+  frame(2)
+  T.check(not Tm.isOpen() and (GEN == 1 or sumClosed == 1), "B: closed, the game told")
+  T.eq(#stack.states, base0, "the stack as it was")
+  -- (the switch off: the game's own)
+  run.loader.modOptions.woob_os = { menuParty = false }
+  local okOwn, own = pcall(Screens.build, game, GEN == 2 and "Gen2PartyMenu" or "PartyMenu",
+                           GEN == 2 and { prompt = "choose", submenu = true, onCancel = noop } or { onCancel = noop })
+  T.check(not okOwn or (type(own) == "table" and own.woobOsMenu == nil), "Pokémon Menu off: the game's own")
+  run.loader.modOptions.woob_os = nil
+  save.party = keep
+end
+
+-- ------- the Bag (src/gb/bag.lua, src/gb/menus.lua): in the game's place, USE the game's own
+do
+  local Tm = X._test.townmap
+  local Bg = X._test.bag
+  T.check(Bg ~= nil, "the Bag's rules: made")
+  local base0 = #stack.states
+  local function win() return Tm.isOpen() and Tm.state() and Tm.state().win end
+  local function bagSt() local w = win() return w and w.state and w.state.bag end
+  local function press1(k) pressedNow = { [k] = true } frame(1) frame(1) end
+  local keepParty, keepInv = save.party, save.inventory
+  save.party = { newMon(GEN == 2 and "CYNDAQUIL" or "CHARMANDER", 12), newMon("PIDGEY", 9) }
+  save.inventory = {}
+  local Bag = require("src.inventory.Bag")
+  Bag.add(save, "POTION", 3, data)
+  Bag.add(save, "POKE_BALL", 5, data)
+  Bag.add(save, "ANTIDOTE", 2, data)
+
+  -- START's
+  local closedN = 0
+  if GEN == 2 then
+    -- (START's: its USE goes on to the game's own field item use; the stand-in game lent the game's own spending)
+    game.consumeItem = require("src.core.Game2").consumeItem
+    Screens.push(game, "Gen2PackMenu", { onClose = function() closedN = closedN + 1 stack:pop() end,
+                                         onChoose = function(id) require("src.core.Game2").usePartyItem(game, id) end })
+  else
+    Screens.push(game, "BagMenu", { onClose = function() end, onCancel = function() closedN = closedN + 1 end })
+  end
+  frame(2)
+  local B = bagSt()
+  T.check(B ~= nil and B.c.battle == false, "START's Bag: ours")
+  T.eq(#B.pockets, GEN == 2 and 4 or 1, "its pockets")
+  local rows = Bg.rows(B.c, B.pockets[1])
+  local potion
+  for _, r in ipairs(rows) do if r.id == "POTION" then potion = r end end
+  T.check(potion and potion.qtyText == "×3" and potion.name ~= nil, "a row: its name and how many")
+  local acts = {}
+  for _, a in ipairs(Bg.actions(B.c, B.pockets[1], potion)) do acts[#acts + 1] = a.act end
+  T.check(table.concat(acts, ","):find("USE", 1, true) == 1 and table.concat(acts, ","):find("TOSS", 1, true) ~= nil,
+          "its actions: " .. table.concat(acts, ","))
+  -- (TOSS: the game's question, then gone)
+  local tossed
+  for _, r in ipairs(rows) do if r.id == "ANTIDOTE" then tossed = r end end
+  local ui = X._test.env.bagCtl and nil
+  local asked, said = nil, nil
+  Bg.toss(B.c, tossed, 2, { ask = function(text, after) asked = text after(true) end,
+                            say = function(text) said = text end, refresh = function() end })
+  T.check((save.inventory.ANTIDOTE or 0) == 0 and asked ~= nil, "TOSS: asked, then thrown away")
+  -- (USE: the game's own -- a Potion on a hurt Pokémon, its party list a page of ours)
+  local mon = save.party[1]
+  local maxHp = Gd.maxHp(mon)
+  mon.hp = math.max(1, maxHp - 15)
+  local hp0 = mon.hp
+  -- (headless, Red / Blue / Yellow's own bag can't be built: no ROM text cache -- the in-game driver covers it)
+  local okU, errU = GEN == 1 or pcall(function()
+    local P0 = B.pockets[1]
+    for i, r in ipairs(Bg.rows(B.c, P0)) do if r.id == "POTION" then B.cur = i end end
+    B.rows = {}
+    Bg.useHandler(potion, X._test.env.bagCtl and { back = function() end } or { back = function() end })
+  end)
+  if os.getenv("BAG_DEBUG") then
+    for i, st0 in ipairs(stack.states) do
+      print("  stack", i, tostring(st0.screenId), tostring(rawget(st0, "woobOs")), tostring(st0.woobOsAbove), tostring(st0.woobOsMenu), tostring(st0.pages and #st0.pages))
+    end
+    print("  cur", tostring(X._test.menus.cur()), "use err", tostring(errU))
+  end
+  frame(2)
+  local w = win()
+  local inner = w and w.state and w.state.gameInner
+  if GEN == 2 then
+    T.check(okU and inner ~= nil and w.state.page == "party", "USE: the game asks which Pokémon, on a page of ours ("
+      .. tostring(okU and "" or errU) .. ")")
+  end
+  if inner then
+    local P = w.state.party
+    P.cur = 1
+    press1("a")
+    for _ = 1, 120 do
+      if w.state.party and w.state.party.prompt then press1("a") else frame(1) end
+      if mon.hp > hp0 and not w.state.gameInner and not (w.state.party and w.state.party.prompt) then break end
+    end
+    T.check(mon.hp > hp0, "the Potion healed it, the game's own way (" .. hp0 .. " -> " .. mon.hp .. ")")
+    T.check((save.inventory.POTION or 0) == 2, "and one was used")
+  end
+  -- (B away from wherever it is)
+  for _ = 1, 6 do
+    if not Tm.isOpen() then break end
+    press1("b")
+  end
+  frame(2)
+  T.check(not Tm.isOpen() and (GEN == 1 or closedN == 1), "B: closed, the game told")
+  while #stack.states > base0 do stack:pop() end
+
+  -- a battle's: a Ball's catch chance
+  local foe = newMon("RATTATA", 3)
+  local fake
+  if GEN == 2 then
+    fake = { screenId = "Gen2BattleState", isBattle = true, update = function() end, draw = function() end,
+             battle = { enemy = foe, player = save.party[1], party = save.party, wild = true },
+             catchChance = function(_, id) return id == "POKE_BALL" and 37.4 or nil end }
+  else
+    fake = { isBattleState = true, kind = "wild", update = function() end, draw = function() end,
+             enemy = { mon = foe }, player = { mon = save.party[1] },
+             catchChance = function(_, id) return id == "POKE_BALL" and 37.4 or nil end }
+  end
+  table.insert(stack.states, fake)
+  if GEN == 2 then
+    Screens.push(game, "Gen2PackMenu", { battle = true, world = {}, onClose = function() stack:pop() end,
+                                         onChoose = function() stack:pop() end })
+  else
+    Screens.push(game, "BagMenu", { battle = fake })
+  end
+  frame(2)
+  B = bagSt()
+  T.check(B ~= nil and B.c.battle == true, "a battle's Bag: ours")
+  local ballRow
+  for _, p in ipairs(B and B.pockets or {}) do
+    for _, r in ipairs(B.rows[p] or Bg.rows(B.c, p)) do if r.id == "POKE_BALL" then ballRow = r end end
+  end
+  T.eq(Bg.chanceText(Bg.catchChance(B.c, "POKE_BALL")), "37%", "a Ball's catch chance, the battle's own")
+  fake.kind, fake.battle = "trainer", fake.battle and { enemy = foe, wild = false } or nil
+  T.eq(Bg.catchChance(B.c, "POKE_BALL"), nil, "none in a trainer's battle")
+  press1("b")
+  frame(2)
+  T.check(not Tm.isOpen(), "B: closed")
+  for i = #stack.states, 1, -1 do if stack.states[i] == fake then table.remove(stack.states, i) end end
+  while #stack.states > base0 do stack:pop() end
+  save.party, save.inventory = keepParty, keepInv
 end
 
 T.finish("woob_os gb (" .. GAME .. ")")

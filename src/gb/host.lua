@@ -16,7 +16,7 @@
 --
 --   H = host(mod, deps)   deps: gen (1 | 2), require, log, enabled() -> the Desktop option
 --   H.gen, H.family ("gen1" | "gen2"), H.gameId(), H.bind(game), H.game(), H.session()
---   H.push(id, layer, over) / H.pop(id) / H.has(id) ; H.se(name) ; H.free(game) ; H.rows(opts) ;
+--   H.push(id, layer, over) / H.pop(id) / H.has(id) / H.isTop(id) / H.top() ; H.se(name) ; H.free(game) ; H.rows(opts) ;
 --   H.original(o, opts, onClose) ; H.ready(Sh) ; H.install() (load: the screens) ; H.startRows(list, row)
 
 return function(mod, deps)
@@ -140,13 +140,35 @@ return function(mod, deps)
     end
   end
   local function shoulders() return true end
+  -- (standing in for one of the game's screens -- a modern menu over its carrier: the methods the game calls on
+  -- the screen it thinks is on top (Gen 2's refuse, showItemResult) answered by it, and the game popping "its"
+  -- screen heard: H.forward)
+  local FWD = { __index = function(t, k)
+    local f = rawget(t, "fwd")
+    local v = f and f[k]
+    if type(v) == "function" then return function(_, ...) return v(f, ...) end end
+    return nil
+  end }
+  local function stateExit(self)
+    if rawget(self, "closing") then return end
+    local f = rawget(self, "onGamePop")
+    if f then
+      self.onGamePop = nil
+      pcall(f)
+    end
+  end
   local function stateFor(id)
     local st = states[id]
     if not st then
-      st = { woobOs = id, isMenu = true, update = stateUpdate, draw = stateDraw, wantsShoulders = shoulders }
+      st = setmetatable({ woobOs = id, isMenu = true, update = stateUpdate, draw = stateDraw, wantsShoulders = shoulders,
+                          exit = stateExit }, FWD)
       states[id] = st
     end
     return st
+  end
+  function H.forward(id, obj, onGamePop)
+    local st = stateFor(id)
+    st.fwd, st.onGamePop = obj, onGamePop
   end
   function H.push(id, layer, over)
     local st = stateFor(id)
@@ -163,14 +185,17 @@ return function(mod, deps)
   end
   function H.pop(id)
     local st = states[id]
+    if st then st.fwd, st.onGamePop = nil, nil end
     local i = st and indexOf(st)
     if not i then return end
     local stk = stack()
+    st.closing = true
     if i == #stk.states then
       pcall(stk.pop, stk)
     else
       table.remove(stk.states, i)
     end
+    st.closing = nil
   end
   -- (a state shows what's under it while not opaque, read each frame: the full-screen host's fades)
   function H.opaque(id, yes)
@@ -180,6 +205,19 @@ return function(mod, deps)
   function H.has(id)
     local st = states[id]
     return st ~= nil and indexOf(st) ~= nil
+  end
+  -- (ours the top state: nothing of the game's opened over it)
+  function H.isTop(id)
+    local st = states[id]
+    local stk = stack()
+    local list = stk and stk.states
+    return st ~= nil and type(list) == "table" and list[#list] == st
+  end
+  -- (the game's state over ours, if any)
+  function H.top()
+    local stk = stack()
+    local list = stk and stk.states
+    return type(list) == "table" and list[#list] or nil
   end
 
   -- the player free to move in the field: the game in play, nothing on the stack over the field (Gen 2
@@ -469,6 +507,14 @@ return function(mod, deps)
     reg:register(id, { new = function(game, opts)
       opts = opts or {}
       local M = engine(path)
+      -- (a first catch's page, from a battle: the scenes', src/gb/scenes.lua)
+      if opts.entrySpecies and opts.newEntry and H.caughtPage then
+        local okC, c = pcall(H.caughtPage, game, opts)
+        if okC and c then
+          c.fallback = function() game.stack:push(M.new(game, opts)) end
+          return c
+        end
+      end
       local wanted = Sh and (not deps.enabled or deps.enabled()) and deps.dexOn and deps.dexOn()
       -- (only the START menu's: one with a way back to it)
       if not (wanted and (opts.onCancel or opts.onClose) and not opts.entrySpecies) then return M.new(game, opts) end

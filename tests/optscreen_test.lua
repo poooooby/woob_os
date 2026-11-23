@@ -201,6 +201,28 @@ frame(1, "b")
 T.check(not Tm.isOpen() and closed == 1 and not Os.isOpen(), "B at the top: closed, the game told once")
 T.check((family ~= "frlg" or FrMenu.open == false) and (family ~= "rs" or RsMenu.open == false), "the game's own flag down")
 
+-- ------- a mod's row added past the hook, by wrapping the engine's grouping (as Vivid Worlds adds its page),
+-- with an id that isn't its mod's: tagged all the same, named by the mod whose name it carries
+do
+  local Rows = require("src.ui.game3.option_rows")
+  local group = Rows.group
+  Rows.group = function(rows, openPage, ...)
+    local view = group(rows, openPage, ...)
+    view[#view + 1] = { id = "other_page", label = "WOOBOS", value = function() return "" end, activate = function() end }
+    return view
+  end
+  local okT, rows = pcall(Os.top, { session = s, game = game }, family, function() end)
+  Rows.group = group
+  local got
+  for _, r in ipairs(okT and rows or {}) do if r.id == "other_page" then got = r end end
+  T.check(got ~= nil and got.modName == "Mod" and got.label == "WoobOS",
+          "a row added by wrapping the grouping: tagged, named for its mod (" .. tostring(got and got.label) .. ", "
+          .. tostring(got and got.modName) .. ")")
+  local tagged = 0
+  for _, r in ipairs(okT and rows or {}) do if r.modName then tagged = tagged + 1 end end
+  T.check(tagged == 2, "and still only the mods' rows tagged (" .. tagged .. ")")
+end
+
 -- ------- the mod manager's way in: a mod's options page ours, over it
 do
   local ms = MS.new(game)

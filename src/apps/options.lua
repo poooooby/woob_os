@@ -74,7 +74,7 @@ return function(ctx, env)
   end
   -- (WoobOS's own row at the top: its page here, not through the mod manager)
   function W.openMod(modId)
-    local p = Os.modPage(modId, ectx.game)
+    local p = Os.modPage(modId, model.game or ectx.game)
     if not p then return false end
     push(p)
     se("SE_SELECT")
