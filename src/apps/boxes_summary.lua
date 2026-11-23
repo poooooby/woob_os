@@ -598,10 +598,19 @@ return function(K, env, T, st, A, TABS)
     end
     if n == 0 then
       K.text(word("dex.moves.none"), x + 2, yy + 1, 3.6, C.soft)
+      S.selA = nil
       return 8
     end
     -- (the chosen one's highlight gliding from row to row)
     local sel = S.move
+    -- (where the chosen row is, for the page to scroll it into view: from the question when choosing one to
+    -- forget, the list's foot too)
+    if sel then
+      S.selRow = yy + (sel - 1) * rh
+      S.selA, S.selB, S.listB = learn and y or S.selRow, S.selRow + rh, yy + n * rh
+    else
+      S.selA = nil
+    end
     if sel then
       if mv.movePrev == nil then mv.moveY = sel end
       mv.moveY, mv.movePrev = approach(mv.moveY, sel, dt, 22), sel
@@ -715,12 +724,40 @@ return function(K, env, T, st, A, TABS)
     local inner
     if S.tab == 1 then inner = infoTab(x + 3, cy + 3, w - 6, R, S, clock)
     elseif S.tab == 2 then inner = R.egg and 0 or statsTab(x + 3, cy + 3, w - 6, R, S, clock, dt)
-    else inner = R.egg and 0 or movesTab(x + 3, cy + 3, w - 6, R, S, clock, dt) end
+    else
+      inner = R.egg and 0 or movesTab(x + 3, cy + 3, w - 6, R, S, clock, dt)
+      -- (the chosen move's details end here: the page scrolls them into view with it)
+      S.detailB = cy + 3 + inner + 3
+    end
     S.cardH = inner + 6
     return 10 + S.cardH
   end
 
   -- ------- the whole page
+
+  -- (the chosen move kept in view: the page scrolls to it when it changes -- the D-pad's way down a list taller
+  -- than the screen (the Kanto Gear's, a phone upright); choosing one to forget, the question and the whole
+  -- list when they fit. Only on a change: a drag or the wheel between keeps its place)
+  local function follow(S, top, ah)
+    local sel = S.tab == #TABS and S.move or nil
+    if not (sel and S.selA) then
+      mv.followed = nil
+      return
+    end
+    if mv.followed == sel and mv.followedRec == S.rec then return end
+    mv.followed, mv.followedRec = sel, S.rec
+    local off = mv.top - top
+    local a, b = S.selA + off, S.selB + off
+    if S.learn and S.listB and S.listB - S.selA <= ah then b = S.listB + off end
+    -- (its details under the list too: power, accuracy, category, its words -- when they fit with it)
+    local d = S.detailB and S.detailB + off
+    if d and d - a <= ah then b = max(b, d)
+    elseif d and d - (S.selRow + off) <= ah then a, b = S.selRow + off, d end
+    if b - a > ah then a, b = S.selRow + off, S.selB + off end
+    local t = S.top
+    if a - 2 < t then t = a - 2 elseif b + 2 > t + ah then t = b + 2 - ah end
+    S.top = max(0, min(t, max(0, (S.h or 0) - ah)))
+  end
 
   -- (the Pokémon's words made once when it's shown: its numbers' texts)
   local function remake(R)
@@ -800,6 +837,7 @@ return function(K, env, T, st, A, TABS)
       settle(c3)
       S.h, S.vis = th, ah
       S.top = max(0, min(S.top, max(0, th - ah)))
+      follow(S, top, ah)
       K.scissor(bodyNow)
       K.scrollbar(x + w - M + 0.4, top, ah, mv.top, ah, max(ah, th))
       return
@@ -819,10 +857,19 @@ return function(K, env, T, st, A, TABS)
     yy = yy + (vh > 0 and vh + GAP or 0)
     local c3 = enter(clock, 0.14)
     rise(c3, 7)
+    -- (another tab chosen on a page too short for it all -- the Kanto Gear's, a phone upright: the page scrolls
+    -- to the tab's card, which then fits, the picture above it a drag away; not when it opens)
+    if mv.tabFollow ~= S.tab or mv.tabFollowRec ~= R then
+      if mv.tabFollow ~= nil and mv.tabFollowRec == R then
+        S.top = max(0, yy - top + mv.top - 1)
+      end
+      mv.tabFollow, mv.tabFollowRec = S.tab, R
+    end
     yy = yy + tabCard(cx, yy, cw, R, S, clock, dt)
     settle(c3)
     S.h, S.vis = yy + mv.top - top, ah
     S.top = max(0, min(S.top, max(0, S.h - ah)))
+    follow(S, top, ah)
     K.scissor(bodyNow)
     K.scrollbar(x + w - M + 0.4, top, ah, mv.top, ah, max(ah, S.h))
   end

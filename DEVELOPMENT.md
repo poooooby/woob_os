@@ -1560,6 +1560,42 @@ our own, in phases (the plan: the Summary, then the Party, then the Bag); the mo
   a wild battle's POKéMON → SUMMARY via `BattleBridge.startWild`, `Ui.askForget`; A through the battle's
   opening words; the first input after opening is the host's wait for the opening A to be let go).
 
+### The staged scenes: an evolution, a catch's page, a nickname (`menuEvolution`, `menuCatch`)
+
+- **The scene host.** A second instance of `src/townmap.lua` (main.lua `SC.host`, the shell's `deps.scenes`, `Ts`)
+  on its own layer `woob_scene` (`Sh.SCENE_ID`, `Sh.sceneLayer`), opened by `Sh.openScene(appId, s, onClose,
+  { scene })` (`ctx.scene` the model). Drawn by `Sh.frame` only while its layer is the stack's top (`Sh.sceneTop`;
+  a game screen it opens -- the game's summary to forget a move -- draws over it), and before anything else: a
+  modern menu under it isn't drawn (the shell's `gameAbove`). Its layer gone (a reset) closes it (`win.close`
+  lets the game go). Gen 3 only (`H` refuses). In a battle the HUD hands the top layer no buttons (only to
+  `evolution_scene` / `naming`): `Sh.frame` feeds `game.input` to it on a frame the game didn't (`sceneFedAt`).
+- **The wraps** (`src/scenes.lua` Sc, at game.ready, once per process: `__woobOsEvo` / `__woobOsCaught` /
+  `__woobOsNick`, the impl swapped per load, the game's own when ours can't open): `EvolutionScene.start`;
+  FireRed / LeafGreen's `Pokedex.showRegistration` and Ruby / Sapphire / Emerald's `rse.pokedex.showCaughtMon`
+  (the first catch's page); `Naming.open` for `CAUGHT_MON` / `NICKNAME` (not `hold`). Gates: `modernMenus` and
+  `menuEvolution` / `menuCatch` (main.lua `MENU_OPTION`).
+- **The evolution** (`src/evolve.lua` Ev: the game's steps without the drawing; `src/apps/evolution.lua`): sets
+  `EvolutionScene.open` / `_mon` / `_onDone` (the battle's `EvoSeq` and the party ask `isOpen()`); the swap is the
+  game's arithmetic stepped at 60 a second from the wall clock (speed 8, +2 a half-turn, past stopping at 128);
+  `Evolution.apply` there (`job.before` / `job.after`: its six stats either side, for the stats card after the
+  congratulations -- ours: the games show none; A finishes its counting, then goes on); `LearnMove.movesForLevels`
+  after, asking through the window (`ui.say / ask / wait`;
+  forgetting through `SummaryMenu.openMenu`, which the modern summary takes when it can); the music back as the
+  game's (its NON_MAP song list); `ctx.done()` before `job.finish` (the game's onDone may start the next
+  evolution). Silhouettes: a one-colour shader in `src/apps/scene_fx.lua` (Fx: the words' bubble, Yes / No,
+  pictures, sparkles, rays). Particle pools as arrays, nothing made while drawing.
+- **The catch** (`src/caught.lua` Cg, `src/apps/caught.lua`; the keyboard `src/keyboard.lua` Kb, `env.keyboard`):
+  "dex" asks the game's `STRINGID_GIVENICKNAMECAPTURED`; the answer waits in `Cg.answer` for the battle's
+  `catch.nickname` hook (main.lua: a name, `false` for no; once). Emerald's onDone gets the picture it slides
+  back (`{ sprite = { img, x = 120, y = 80 } ... }`). "name" holds the naming screen's flag up with a stand-in
+  `Naming._state` (callers compare it; `Naming.dismiss` from outside closes ours: `job.alive`), answers
+  `onDone(name)` (the seed when nothing's typed) after the flag's down, and shows the game's
+  `Storage.pcTransferMessage` for a catch to the PC. The page's data: main.lua `dexInfo` over `env.dex`.
+- **Tests:** `tests/scenes_test.lua` (every Gen 3 game). Drivers in the scratchpad: `evo_driver.lua` (each
+  screen called directly, shots), `battle_driver.lua` (a Rare Candy's evolution over our Pokémon menu; a Master
+  Ball catch to the PC, the nickname on our page reaching the battle), `evobattle_driver.lua` (a level-up
+  evolution at a battle's end).
+
 ### A battle's menus on the Kanto Gear's screen (the option `gearMenus`), and the catch chance
 
 - **Taking the Gear's screen.** Kanto Gear offers other mods no drawing; its one lever is a registered spec's

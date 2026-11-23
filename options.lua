@@ -107,6 +107,24 @@ return {
     description = "A Pokémon's summary in glass, and choosing a move to forget. Off: the game's own.",
   },
   {
+    key = "menuEvolution",
+    label = "- Evolution",
+    type = "toggle",
+    default = true,
+    visible_if = { key = "modernMenus", equals = true },
+    description = "A Pokémon evolving, full screen with light and sparkles: the old one and the new trading "
+      .. "places, the flash, the new one. Off: the game's own.",
+  },
+  {
+    key = "menuCatch",
+    label = "- Catch & Name",
+    type = "toggle",
+    default = true,
+    visible_if = { key = "modernMenus", equals = true },
+    description = "After a catch, its Pokédex page in glass and a nickname typed on a modern keyboard; the "
+      .. "same keyboard for an Egg's and a gift's nickname. Off: the game's own.",
+  },
+  {
     key = "menuBattle",
     label = "- Battle Menus",
     type = "toggle",

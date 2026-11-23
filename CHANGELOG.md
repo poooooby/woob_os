@@ -5,9 +5,33 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-11-22
+
+### Added
+- **Evolution, full screen** (FireRed, LeafGreen, Ruby, Sapphire, Emerald): the game's own steps and timing --
+  its words, the cry, the music, the old and the new Pokémon trading places as silhouettes faster and faster,
+  B to stop it -- under a night sky lit in the new Pokémon's colours, with turning rays, sparkles swirling round
+  it in front and behind, a flash that breaks into a ring and a shower of stars, the new Pokémon popping out in
+  colour and its name and types dropping in, then a card of its stats counting up from before to after with what
+  each gained (the games show none). The moves it learns at its new level follow there. A switch under
+  Modern Menus: Evolution.
+- **After a first catch, its Pokédex page in glass** over its types' colours: the Pokémon out of its Ball's light, a Registered stamp,
+  its number, category, types, height, weight and entry, then the game's question to nickname it; the battle
+  doesn't ask again.
+- **A modern keyboard for every Pokémon's nickname** (a catch, an Egg, a gift): capitals, then small letters,
+  and the game's own marks; a catch sent to the PC says so after. A switch under Modern Menus: Catch & Name.
+
 ### Changed
 - **The G-Max Factor is a mark,** the Gigantamax cloud in place of the "G-Max" label, in Boxes and a Pokémon's
   summary; with Galar Rising, under its picture in the Pokémon menu too, a battle's switch included.
+
+### Fixed
+- **A Pokémon's summary on a short screen** (Kanto Gear's, a phone held upright): choosing a move -- to forget
+  one, or to reorder -- scrolls the list with the choice, the question, all five moves and the chosen one's power,
+  accuracy, category and words in view when they fit;
+  before, only the first two showed, the rest hidden below. Changing tabs scrolls to the tab's card.
+- **L and R on Kanto Gear's screen in a FireRed or LeafGreen battle** switch the summary's tabs; the game's Help
+  took them.
 
 ## [0.22.0] - 2026-11-22
 

@@ -82,6 +82,12 @@ return function(mod)
   local partyView = loadSibling(mod, "src/apps/party_view.lua")
   local makeBagRules, bagCtl = loadSibling(mod, "src/bag_rules.lua"), loadSibling(mod, "src/apps/bag.lua")
   local bagView = loadSibling(mod, "src/apps/bag_view.lua")
+  -- (the moments we stage: an evolution, a catch's page and its nickname -- src/scenes.lua the wraps)
+  -- (kept in one table: this function is near Lua's 200 locals)
+  local SC = { make = loadSibling(mod, "src/scenes.lua"), evolve = loadSibling(mod, "src/evolve.lua"),
+               caught = loadSibling(mod, "src/caught.lua"), keyboard = loadSibling(mod, "src/keyboard.lua"),
+               evolutionWindow = loadSibling(mod, "src/apps/evolution.lua"),
+               caughtWindow = loadSibling(mod, "src/apps/caught.lua"), fx = loadSibling(mod, "src/apps/scene_fx.lua") }
   local Arrange = loadSibling(mod, "src/arrange.lua")
   local makeMart, martWindow = loadSibling(mod, "src/mart.lua"), loadSibling(mod, "src/apps/mart.lua")
   -- the real shops: every shop counter opens the Mart full screen (src/realshop.lua; src/shop.lua the
@@ -147,7 +153,8 @@ return function(mod)
     return default
   end
   -- (each modern menu's own option, under Modern Menus)
-  local MENU_OPTION = { bag = "menuBag", party = "menuParty", summary = "menuSummary" }
+  local MENU_OPTION = { bag = "menuBag", party = "menuParty", summary = "menuSummary", evolution = "menuEvolution",
+                        catch = "menuCatch" }
   local version = "0.1.0"
   pcall(function()
     local m = mod.manifest
@@ -763,6 +770,9 @@ return function(mod)
 
   env.summaryCtl = summaryCtl or nil
   env.typeArt = typeArt and env.K and typeArt(env.K) or nil
+  -- (the staged scenes' shared pieces, and the nickname keyboard)
+  env.sceneFx = SC.fx and env.K and SC.fx(env.K, T) or nil
+  env.keyboard = SC.keyboard and env.K and SC.keyboard(env.K, T) or nil
   env.stallView = stallView or nil
   env.lighting = makeLighting and makeLighting({ log = function(fmt, ...) mod.log:warn(fmt, ...) end }) or nil
   -- (a species by the game's own name for it, "KYOGRE")
@@ -1345,6 +1355,11 @@ return function(mod)
     kit = Kit, T = T, env = env, se = env.se,
     scene = mapScene, log = function(fmt, ...) mod.log:warn(fmt, ...) end,
   }) or nil
+  -- the scene host: an evolution, a catch's page and its nickname (src/scenes.lua), full screen over the rest
+  SC.host = makeTownMap and makeTownMap({
+    kit = Kit, T = T, env = env, se = env.se,
+    scene = mapScene, log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+  }) or nil
   -- the shelf's item pad, for the apps: an item crossing it ("out" to the PC, "in" to the Bag);
   -- WoobPad has no shelf
   env.pad = { transfer = function(id, dir, kind)
@@ -1453,7 +1468,7 @@ return function(mod)
   Sh = makeShell(mod, { require = require, log = mod.log, desktop = Desktop, apps = Apps, watch = Watch,
                         gearPanel = GearPanel,
                         notify = Nt, tick = tick, frame = frame, session = session,
-                        townmap = TownMap, map3d = env.map3d, pokenav = Pokenav,
+                        townmap = TownMap, scenes = SC.host, map3d = env.map3d, pokenav = Pokenav,
                         onCall = env.phone and onCall or nil,
                         map3dOn = function() return not Settings or Settings.get("map3d", true) ~= false end,
                         dexOn = env.dex and function()
@@ -1552,7 +1567,59 @@ return function(mod)
     env.notice = makeNotice(engine, { Sh = Sh, Settings = Settings, modId = mod.id or "woob_os",
                                       log = function(fmt, ...) mod.log:warn(fmt, ...) end })
   end
+  -- the moments we stage (src/scenes.lua): an evolution, a catch's page and a Pokémon's nickname, full screen
+  -- on the scene host; each a switch under Modern Menus
+  if SC.make and SC.evolve and SC.caught and SC.evolutionWindow and SC.caughtWindow and env.sceneFx then
+    Apps.register({ id = "evolution", labelKey = "evo.title", label = "Evolution", glyph = "pokeball",
+                    color = { 120, 90, 220 }, order = 99, pad = false, available = function() return false end,
+                    window = function(ctx, e) return SC.evolutionWindow(ctx, e) end })
+    Apps.register({ id = "caught", labelKey = "caught.title", label = "Caught", glyph = "pokeball",
+                    color = { 236, 80, 110 }, order = 99, pad = false, available = function() return false end,
+                    window = function(ctx, e) return SC.caughtWindow(ctx, e) end })
+    local function dexInfo(sp)
+      if not (env.dex and env.dex.open and env.dex.page) then return nil end
+      local book = env.dex.open(session())
+      for _, mode in ipairs(book and book.modes or {}) do
+        for _, en in ipairs(book.lists[mode] or {}) do
+          if en.sp == sp then
+            local pg = env.dex.page(en)
+            if type(pg) == "table" then
+              return { numText = en.numText, category = pg.category, heightText = pg.heightText,
+                       weightText = pg.weightText, description = pg.description }
+            end
+            return { numText = en.numText }
+          end
+        end
+      end
+      return nil
+    end
+    local warn = function(fmt, ...) mod.log:warn(fmt, ...) end
+    local Scenes = SC.make(engine, {
+      Sh = Sh, log = warn,
+      on = function(kind)
+        if option("modernMenus", true) == false then return false end
+        return option(MENU_OPTION[kind] or "", true) ~= false
+      end,
+      evolve = SC.evolve(engine, { kit = Kit, log = warn }),
+      caught = SC.caught(engine, { kit = Kit, T = T, log = warn, dexInfo = dexInfo }),
+      family = function()
+        local g = Sh.gameId and Sh.gameId() or ""
+        return (g == "firered" or g == "leafgreen") and "frlg" or "rse"
+      end,
+    })
+    env.scenes, SC.scenes = Scenes, Scenes
+    -- (a nickname given on the catch's page: the battle's question answered, not asked again)
+    mod.hooks:wrap("catch.nickname", function(nxt, mon, cctx)
+      local ok, ans = pcall(Scenes.nickFor, mon)
+      if ok and ans ~= nil then return ans end
+      return nxt(mon, cctx)
+    end)
+  end
   mod.events:on("game.ready", function()
+    if SC.scenes then
+      local okS, errS = pcall(SC.scenes.wrap)
+      if not okS then mod.log:warn("the game keeps its own evolution and catch screens: %s", tostring(errS)) end
+    end
     if Menus then pcall(Menus.wrap) end
     if RealShop then
       local okR, errR = pcall(RealShop.wrap)
@@ -1675,7 +1742,7 @@ return function(mod)
   mod.exports._test = { post = notify, desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
                         mart = env.mart, auction = env.auction, slots = env.slots, pcgames = env.pcgames, gts = env.gts,
                         bank = env.bank, journal = env.journal, challenges = env.challenges, errands = env.errands,
-                        swarm = env.swarm, news = env.news, story = env.story, pokecenter = env.pokecenter, menus = env.menus,
+                        swarm = env.swarm, news = env.news, story = env.story, pokecenter = env.pokecenter, menus = env.menus, scenes = SC.scenes, sceneHost = SC.host,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange,
                         watch = Watch, pad = Watch, notify = Nt, tick = tick, map3d = env.map3d, townmap = TownMap,
                         phone = env.phone, condition = env.condition, ribbons = env.ribbons, hall = env.hall, oak = env.oak, decorate = env.decorate, pokenav = Pokenav, onCall = onCall, gear = Gear, gearPanel = GearPanel,

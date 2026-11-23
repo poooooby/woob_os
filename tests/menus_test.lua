@@ -258,7 +258,7 @@ do
   for _, r in ipairs(rows) do
     if r.visible_if and r.visible_if.key == "modernMenus" and r.visible_if.equals == true then under[#under + 1] = r.key end
   end
-  T.eq(table.concat(under, " "), "pokedex menuBag menuParty menuSummary menuBattle gearMenus",
+  T.eq(table.concat(under, " "), "pokedex menuBag menuParty menuSummary menuEvolution menuCatch menuBattle gearMenus",
        "under Modern Menus: " .. table.concat(under, " "))
   for _, r in ipairs(rows) do
     local n = #r.label:gsub("[\128-\191]", "")
@@ -1061,6 +1061,39 @@ do
   T.check(pcall(gframe, 5), "and draws")
   PM.close()
   T.check(not Gp.isOpen(), "closed with the battle")
+  -- (choosing a move to forget there: the page short, the list scrolls with the choice -- all five reachable)
+  local lmon = s.party[1]
+  local active0 = Bt._active
+  Bt._active = true
+  SM.openMenu({ lmon }, 1, { mode = "select_move", moveToLearn = 89, onClose = function() end,
+                             onSelectMove = function() end })
+  local function sframe(n, press)
+    for i = 1, n or 1 do
+      clock = clock + 1 / 60
+      SM.handleInput(i == 1 and press and input({ press }) or NONE)
+      Gp.viewport(function(c2) return { x = 0, y = 0, width = c2.width, height = c2.height } end, VP)
+      Gp.frame()
+      Sh.frame(nil, VP)
+    end
+  end
+  local gs = Gp.isBattle() and Gp.hostState()
+  local GS = gs and gs.win.state.sum
+  T.check(GS and GS.learn ~= nil, "a battle's forget-a-move summary: on the Gear's screen")
+  if GS then
+    sframe(30)
+    local last = #GS.rec.moves + 1
+    for _ = 2, last do sframe(1, "down") sframe(20) end
+    sframe(40)
+    T.check(GS.detailB and GS.detailB <= 144, ("the chosen move's details in view too (to %.1f of 144)"):format(GS.detailB or -1))
+    T.check(GS.move == last and GS.selRow and GS.selRow >= 0 and GS.selB <= 144,
+            ("down to the new move: scrolled into view (row %.1f..%.1f of 144, top %.1f)"):format(
+              GS.selRow or -1, GS.selB or -1, GS.top or -1))
+    for _ = 2, last do sframe(1, "up") end
+    sframe(40)
+    T.check(GS.move == 1 and GS.selA and GS.selA >= 0, "and back up to the first: the question in view")
+    sframe(1, "b")
+  end
+  Bt._active = active0
   Mn.gear = nil
   Gp.bridge = bridge0
   Bt._st = st0

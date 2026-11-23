@@ -52,7 +52,10 @@ return function(mod, deps)
   local req = deps.require or require
   local log = deps.log
   local D, A, Wt, Nt, Tm = deps.desktop, deps.apps, deps.watch, deps.notify, deps.townmap
-  local Sh = { LAYER_ID = "woob_os", WATCH_ID = "woob_pad", MAP_ID = "woob_map" }
+  -- (the scene host: another full-screen host, for the game's moments we stage ourselves -- an evolution,
+  -- a catch's page and its nickname -- on its own layer, over everything else, a modern menu included)
+  local Ts = deps.scenes
+  local Sh = { LAYER_ID = "woob_os", WATCH_ID = "woob_pad", MAP_ID = "woob_map", SCENE_ID = "woob_scene" }
   Sh.PAD_ID = Sh.WATCH_ID
   local H = deps.host
   Sh.hostGb = H
@@ -181,6 +184,18 @@ return function(mod, deps)
     to.input(input)
   end
   function MapLayer.handleInput(input) feed(input) end
+  -- (the scene host's layer: its buttons as the map's, the game's screen black under it)
+  local SceneLayer = { isMenu = true }
+  Sh.sceneLayer = SceneLayer
+  -- (in a battle the game hands the top layer no buttons -- only its own evolution and naming screens --:
+  -- the frame's draw hands them over then, Sh.frame; sceneFedAt: the frame the game did)
+  local sceneFedAt = -1
+  function SceneLayer.handleInput(input)
+    sceneFedAt = frameN
+    feed(input, Ts)
+  end
+  function SceneLayer.update() end
+  function SceneLayer.draw() Layer.draw() end
   -- (a battle's menu on the Kanto Gear's screen takes the buttons the battle hands its menus)
   function Sh.feedHost(input)
     if Gp and Gp.isBattle and Gp.isBattle() then feed(input, Gp)
@@ -654,6 +669,53 @@ return function(mod, deps)
     return true
   end
 
+  -- ------- the scene host: the game's moments we stage ourselves (an evolution, a catch's page and its
+  -- nickname), full screen on their own layer over whatever's up -- a modern menu waits under it. Drawn
+  -- only while its layer is the top one: a game screen it opens (the game's summary, to forget a move)
+  -- draws itself over it
+  local function sceneTop()
+    if not (Ts and Ts.isOpen()) or H then return false end
+    local Stack = engine("src.ui.game3.stack")
+    local top = Stack and Stack.top and Stack.top()
+    return top ~= nil and top.id == Sh.SCENE_ID
+  end
+  Sh.sceneTop = sceneTop
+  -- -> true while that scene (or any, appId nil) is open
+  function Sh.sceneOpen(appId)
+    if not (Ts and Ts.isOpen()) then return false end
+    local r = Ts.state()
+    return appId == nil or (r ~= nil and r.ctx ~= nil and r.ctx.app == appId)
+  end
+  -- -> true when it opened (Gen 3: the Game Boy games keep theirs); onClose after ctx.done()
+  function Sh.openScene(appId, s, onClose, o)
+    if not Ts or Ts.isOpen() or H then return false end
+    local app = A.byId(appId)
+    if not (app and app.window) then return false end
+    o = o or {}
+    local ctx = { session = s, mode = "scene", family = familyOf(gameId()), rows = {}, app = appId,
+                  scene = o.scene }
+    function ctx.row() return nil end
+    local closed = false
+    local function close()
+      if closed then return end
+      closed = true
+      Ts.close()
+      pop(Sh.SCENE_ID)
+      if onClose then onClose() end
+    end
+    ctx.finish, ctx.done, ctx.logoff = close, close, close
+    function ctx.over() end
+    function ctx.original() end
+    function ctx.sheet() end
+    local so = { maker = app.window, app = appId, chrome = false, cancel = function() end, noHints = true }
+    if not Ts.open(ctx, so) then return false end
+    if not push(Sh.SCENE_ID, SceneLayer) then
+      Ts.close()
+      return false
+    end
+    return true
+  end
+
   -- ------- the Kanto Gear apps: their own host on the Gear's screen (src/gear_panel.lua), no layer on
   -- the game's stack; the PC's and WoobPad's windows are the other hosts', and don't change
   local closeGear = nil
@@ -688,6 +750,7 @@ return function(mod, deps)
       if closed then return end
       closed = true
       Gp.closeBattle()
+      help(false)
       if parked and gearApp == parked then Gp.reopen(parked.ctx, parked.so) end
       if onClose then onClose() end
     end
@@ -701,6 +764,8 @@ return function(mod, deps)
       if parked then Gp.reopen(parked.ctx, parked.so) end
       return false
     end
+    -- (FireRed / LeafGreen's Help off while it's up: L / R are the summary's tabs, not the Help's)
+    help(true)
     return true
   end
   function Sh.closeGear() if closeGear then closeGear() end end
@@ -964,6 +1029,32 @@ return function(mod, deps)
     end
     -- (the layer taken away under it, a reset: the desktop or the pad goes too)
     local Stack = not H and engine("src.ui.game3.stack") or nil
+    -- (a scene: its layer gone -> closed (the window lets the game go); on top -> it alone is drawn, the touch
+    -- pad away; under a game screen it opened -> that's drawn, the pad out for it)
+    if Ts and Ts.isOpen() and Stack then
+      if Stack.has and not Stack.has(Sh.SCENE_ID) then
+        Ts.close()
+        pad(false)
+      elseif sceneTop() then
+        pad(true)
+        if sceneFedAt ~= frameN - 1 and sceneFedAt ~= frameN and type(game) == "table" and game.input then
+          feed(game.input, Ts)
+        end
+        if G and type(viewport) == "table" then
+          G.push("all")
+          G.origin()
+          G.setScissor()
+          G.setShader()
+          G.setBlendMode("alpha")
+          local okS, errS = pcall(Ts.draw, G, viewport)
+          G.pop()
+          if not okS and log then log:warn("the scene's draw failed: %s", tostring(errS)) end
+        end
+        return
+      else
+        pad(true, true)
+      end
+    end
     local h, id = host()
     local gone
     if H then gone = h ~= nil and not H.has(id) else gone = h and Stack and Stack.has and not Stack.has(id) end
@@ -1032,6 +1123,7 @@ return function(mod, deps)
   -- pad on that notification's app; nil: not ours
   function Sh.pointer(ev)
     if Gp and Gp.pointer(ev) then return true end
+    if sceneTop() then return Ts.pointer(ev) end
     local h = host()
     -- (a game screen over ours: its taps aren't for the one waiting under it)
     if h and gameAbove then return false end
@@ -1112,6 +1204,7 @@ return function(mod, deps)
     end)
     mod.hooks:wrap("input.wheel", function(nxt, game, dy)
       if Gp and Gp.wheel(dy) then return end
+      if sceneTop() then return Ts.wheel(dy) end
       local h = host()
       if h then return h.wheel(dy) end
       return nxt(game, dy)

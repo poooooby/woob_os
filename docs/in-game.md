@@ -65,6 +65,29 @@ A Pokémon's summary is the same glass as in Boxes: its picture, info, stats wit
 When a Pokémon learns a new move with four already, you choose the one to forget there, with the new move
 shown below.
 
+## ✨ Evolution
+
+On FireRed, LeafGreen, Ruby, Sapphire and Emerald, a Pokémon evolves full screen under a night sky lit in
+its new colours. It goes as the game's does: "What? It's evolving!", its cry, the music, then the old Pokémon
+and the new one trading places as white silhouettes, faster and faster, while sparkles swirl round them,
+behind and in front. Then a flash breaks into a ring and a shower of stars, the new Pokémon steps out in
+colour, and its name and types drop in at the top. Then it steps aside for a card of its stats, each one
+counting up from before to after with what it gained, and the moves it learns at its new level follow.
+
+You can still stop it the game's way: B (or Stop at the top) while it's changing.
+
+## 🎉 After a catch
+
+The first time you catch a Pokémon, its Pokédex page comes up in glass over its types' colours: the Pokémon out of its Ball's light
+among sparkles, a Registered stamp, its number, category, types, height, weight and entry. Then comes the
+game's question, whether to give it a nickname. Yes brings up a keyboard like a phone's: capital letters,
+small ones after the first, and the game's marks (0-9 ! ? ♂ ♀ / - … “ ” ‘ ’ , .), up to ten letters. The
+battle doesn't ask again.
+
+Every Pokémon's nickname uses the same keyboard: a catch you've caught before, an Egg that hatched, a gift.
+On a controller, the D-pad moves over the keys, A types, B deletes a letter, START jumps to OK and SELECT
+changes the letters.
+
 ## 📕 The Pokédex
 
 The Pokédex from the START menu is WoobOS's own, the same as the [Pokédex app](apps.md). START, or Classic
