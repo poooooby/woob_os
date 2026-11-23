@@ -139,26 +139,30 @@ return function(H, Gd, deps)
     if c.battle or c.location then return false end
     return not (gen == 2 and pocket == "TM_CASE")
   end
+  -- (one stack at a time, its count with it: Red / Blue / Yellow keep an item in more than one stack past 99)
   function Bg.move(c, pocket, from, to)
     local rows = Bg.rows(c, pocket)
     local a, b = rows[from], rows[to]
     if from == to or not (a and b) then return false end
     local B = engine("src.inventory.Bag")
-    local order = B and call(B.order, c.session, data())
+    local s = c.session
+    if not (B and B.stackRows and B.setRows and s and s.inventory) then return false end
+    local order = call(B.order, s, data())
     if type(order) ~= "table" then return false end
-    local slots, ids = {}, {}
-    for i, id in ipairs(order) do
-      if inPocket(id, pocket) then slots[#slots + 1], ids[#ids + 1] = i, id end
+    local stacks = type(s.bagStacks) == "table" and s.bagStacks or {}
+    local all = call(B.stackRows, s.inventory, order, data(), stacks)
+    if type(all) ~= "table" then return false end
+    -- (the pocket's stacks, in the places they hold among the rest)
+    local at, mine = {}, {}
+    for i, r in ipairs(all) do
+      if inPocket(r.id, pocket) then at[#at + 1], mine[#mine + 1] = i, r end
     end
-    local fi, ti
-    for k, id in ipairs(ids) do
-      if id == a.id and not fi then fi = k end
-      if id == b.id and not ti then ti = k end
-    end
-    if not (fi and ti) or fi == ti then return false end
-    local x = table.remove(ids, fi)
-    table.insert(ids, ti, x)
-    for k, at in ipairs(slots) do order[at] = ids[k] end
+    local fr, tr = mine[from], mine[to]
+    if not (fr and tr and fr.id == a.id and tr.id == b.id) then return false end
+    table.insert(mine, to, table.remove(mine, from))
+    for k, i in ipairs(at) do all[i] = mine[k] end
+    call(B.setRows, s.inventory, order, all, data(), stacks)
+    s.bagStacks = next(stacks) ~= nil and stacks or nil
     return true
   end
   function Bg.canSort(c, pocket)

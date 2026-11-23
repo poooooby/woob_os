@@ -45,7 +45,7 @@ return function(ctx, env, makeSummary, makeParty, makeBag)
     st.bag, st.page = Bc.open(m, ctx), "bag"
   else
     st.sum = Ctl.open(m.list or {}, m.index or 1, { session = session, party = m.party, learn = m.learn,
-                                                   forgetMove = m.forgetMove, back = m.back })
+                                                   choose = m.choose, forgetMove = m.forgetMove, back = m.back })
   end
   m.win = W
 
@@ -173,11 +173,29 @@ return function(ctx, env, makeSummary, makeParty, makeBag)
   end
 
   -- ------- a move to forget, asked for by the game while ours is up (the Game Boy games' TM or Rare Candy from our
-  -- Bag): the summary's forget page over whatever page was up, after(slot 0..3 | nil) once it's chosen
+  -- Bag): the summary's forget page over whatever page was up, after(slot 0..3 | nil) once it's chosen. W.pickFor: the
+  -- same for a move chosen for something (a PP item's, the Move Deleter's): `choose` the question's word key
+  -- (the top's word: the page it came from)
+  local function backWord()
+    if st.page == "bag" then return "bag.title" end
+    if st.page == "party" then return "party.title" end
+    return m.back
+  end
+  function W.pickFor(list, index, choose, after)
+    if st.closed or st.forgetFor or type(choose) ~= "string" then return false end
+    st.forgetFor = { page = st.page, sum = st.sum, after = after }
+    st.sum = Ctl.open(list, index or 1, { session = session, choose = choose, back = backWord() })
+    if not (st.sum and st.sum.choose) then
+      st.sum, st.forgetFor = st.forgetFor.sum, nil
+      return false
+    end
+    st.page = "summary"
+    return true
+  end
   function W.forgetFor(list, index, moveId, after)
     if st.closed or st.forgetFor then return false end
     st.forgetFor = { page = st.page, sum = st.sum, after = after }
-    st.sum = Ctl.open(list, index or 1, { session = session, learn = moveId, back = m.back })
+    st.sum = Ctl.open(list, index or 1, { session = session, learn = moveId, back = backWord() })
     if not (st.sum and st.sum.learn) then
       st.sum, st.forgetFor = st.forgetFor.sum, nil
       return false

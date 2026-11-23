@@ -187,9 +187,9 @@ return function(H, Gd, Art, deps)
       return { tonumber(mon.maxHp or s.hp) or 0, tonumber(s.attack) or 0, tonumber(s.defense) or 0,
                tonumber(s.specialAttack) or 0, tonumber(s.specialDefense) or 0, tonumber(s.speed) or 0 }
     end
-    -- (Red / Blue / Yellow's one Special, on both rows: as the Pokédex shows it)
+    -- (Red / Blue / Yellow's one Special: five rows)
     return { tonumber(s.hp) or 0, tonumber(s.attack) or 0, tonumber(s.defense) or 0, tonumber(s.special) or 0,
-             tonumber(s.special) or 0, tonumber(s.speed) or 0 }
+             tonumber(s.speed) or 0 }
   end
 
   -- the model the evolution window draws (src/evolve.lua's job): `how` the game's own pieces --

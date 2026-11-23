@@ -116,6 +116,15 @@ return {
       .. "option that shows them, with their descriptions; another mod's rows tagged. Off: the game's own.",
   },
   {
+    key = "menuMods",
+    label = "- Mods",
+    type = "toggle",
+    default = true,
+    visible_if = { key = "modernMenus", equals = true },
+    description = "MODS in glass: the installed mods in a section for each kind, each with its switch and where it "
+      .. "stands, and a page of its own with its options, load order and what it may touch. Off: the game's own.",
+  },
+  {
     key = "menuEvolution",
     label = "- Evolution",
     type = "toggle",

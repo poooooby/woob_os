@@ -1336,6 +1336,29 @@ do
     local other = { events = { [math.floor(id / 8)] = 2 ^ (id % 8) } }
     for _, e in ipairs(O.at("lm6", other, false) or {}) do if e.kind == "gym" then fk = e end end
     T.check(fk ~= nil and fk.done == true, "and another save's, from its kept flags")
+    -- (Red at Mt. Silver: his flag set again after the Champion's)
+    local rs, re = find("story", "red")
+    T.check(rs ~= nil and re.all and re.all[1] == "EVENT_RED_IN_MT_SILVER", "Red at Mt. Silver ("
+      .. tostring(rs) .. ")")
+    if rs then
+      local ids = {}
+      for i, n in ipairs(data.gen2Constants.eventFlagOrder) do ids[n] = i - 1 end
+      local on = {}
+      world.events.get = function(_, i) return on[i] == true end
+      local function redDone()
+        for _, e in ipairs(O.at(rs, save, true) or {}) do
+          if e.kind == "story" and e.label == X._test.i18n("map.obj.story.red") then return e.done end
+        end
+      end
+      on[ids.EVENT_RED_IN_MT_SILVER] = true
+      T.eq(redDone(), false, "a new game's hidden Red: not yet")
+      on[ids.EVENT_RED_IN_MT_SILVER], on[ids.EVENT_BEAT_CHAMPION_LANCE] = nil, true
+      T.eq(redDone(), false, "after the Hall of Fame, waiting: not yet")
+      on[ids.EVENT_RED_IN_MT_SILVER] = true
+      T.eq(redDone(), true, "beaten: done")
+      world.events.get = get
+    end
+    T.check(find("people", "lucky") ~= nil, "the Lucky Number Show, by its name")
   else
     local sec, g = find("gym", "Brock")
     T.check(sec == "PEWTER_CITY" and g.flags[1] == "EVENT_BEAT_BROCK", "Brock at Pewter City, done by beating him ("
@@ -1366,6 +1389,21 @@ do
     end
   end
   T.eq(missing, 0, "every entry has its words")
+  -- (the small card: too long, its shops and people run on together)
+  local V = O and O.view
+  local long = {}
+  for k = 1, 3 do long[#long + 1] = { kind = "gym", label = "Leader " .. k, done = false } end
+  for k = 1, 8 do long[#long + 1] = { kind = "shop", label = "Shop " .. k } end
+  local same = V and V.fit(long, 300, 400)
+  T.check(same == long, "room for it all: the list as it is")
+  local folded = V and V.fit(long, 86, 40) or {}
+  local shops, boxed = 0, 0
+  for _, e in ipairs(folded) do
+    if e.kind == "shop" then shops = shops + 1 end
+    if e.done ~= nil then boxed = boxed + 1 end
+  end
+  T.check(shops >= 1 and shops < 8 and boxed == 3 and folded[4].label:find("Shop 1 · Shop 2", 1, true) ~= nil,
+          "too long: the shops run on together (" .. shops .. " lines), the boxed a line each")
   if os.getenv("OBJ_DUMP") then
     local secs = {}
     for sec in pairs(idx or {}) do secs[#secs + 1] = sec end
@@ -1459,6 +1497,44 @@ do
   local own = Screens.build(game, id, GEN == 2 and { options = game.options, onDone = noop } or {})
   T.check(type(own) == "table" and own.opts == nil and own.rows ~= nil, "Options off: the game's own")
   run.loader.modOptions.woob_os = nil
+end
+
+-- ------- MODS, modern (src/mods_screen.lua): the "ManagerState" screen ours, START's and OPTIONS' alike
+do
+  local Tm = X._test.townmap
+  local Mm = X._test.modsScreen
+  local base0 = #stack.states
+  -- (a switch flipped is kept by the loader in the engine's options file: not from a test)
+  local saveState = run.loader._saveState
+  run.loader._saveState = function() end
+  local c = Screens.push(game, "ManagerState")
+  T.check(type(c) == "table" and c.screenId == nil, "MODS: a carrier of ours in its place, no screen id")
+  frame(2)
+  local ws = Tm.isOpen() and Tm.state().win and Tm.state().win.state
+  local P = ws and ws.pages[#ws.pages]
+  T.check(Mm and Mm.isOpen() and P ~= nil, "the window open, full screen")
+  local wr
+  for _, r in ipairs(P and P.rows or {}) do if r.id == "woob_os" then wr = r end end
+  T.check(wr ~= nil and wr.section == "Interface" and wr.isOn == true, "WoobOS under Interface, on")
+  -- (F10 again: ours closes, as the game's toggles)
+  Screens.push(game, "ManagerState")
+  frame(3)
+  T.check(not Tm.isOpen() and not Mm.isOpen(), "F10 again: closed")
+  T.eq(#stack.states, base0, "the stack as it was")
+  -- (B: closed, the carrier gone)
+  Screens.push(game, "ManagerState")
+  frame(2)
+  pressedNow = { b = true }
+  frame(1)
+  frame(2)
+  T.check(not Tm.isOpen(), "B: closed")
+  T.eq(#stack.states, base0, "the stack as it was")
+  -- (the switch off: the game's own)
+  run.loader.modOptions.woob_os = { menuMods = false }
+  local own = Screens.build(game, "ManagerState")
+  T.check(type(own) == "table" and own.screen == "list", "Mods off: the game's own")
+  run.loader.modOptions.woob_os = nil
+  run.loader._saveState = saveState
 end
 
 -- ------- the staged scenes (src/gb/scenes.lua): an evolution, a first catch's page, a nickname -- ours, full screen
@@ -1887,6 +1963,22 @@ do
   for i, r in ipairs(Bg.rows(c, p1)) do after[i] = r.id end
   T.check(after[3] == before[1] and after[1] == before[2], "the first went to third (" .. table.concat(after, ",") .. ")")
   T.check(not Bg.canMove({ session = save, battle = true }, p1), "never in a battle")
+  -- (Red / Blue / Yellow: one stack at a time, its count with it)
+  if GEN == 1 then
+    Bag.add(save, "ESCAPE_ROPE", 150, data)
+    local rs, ropes = Bg.rows(c, p1), {}
+    for i, r in ipairs(rs) do if r.id == "ESCAPE_ROPE" then ropes[#ropes + 1] = i end end
+    T.eq(#ropes, 2, "150 Escape Ropes: two stacks")
+    T.check(Bg.move(c, p1, ropes[2], 1), "the second stack moved")
+    rs = Bg.rows(c, p1)
+    T.check(rs[1].id == "ESCAPE_ROPE" and rs[1].qty == 51,
+            "alone, its 51 with it (" .. tostring(rs[1].id) .. " ×" .. tostring(rs[1].qty) .. ")")
+    local n = 0
+    for _, r in ipairs(rs) do if r.id == "ESCAPE_ROPE" then n = n + r.qty end end
+    T.eq(n, 150, "none lost")
+    T.eq(save.inventory.ESCAPE_ROPE, 150, "the game's count the same")
+    Bag.remove(save, "ESCAPE_ROPE", 150, data)
+  end
   -- SEL: Gold / Silver / Crystal's registered item
   if GEN == 2 then
     Bag.add(save, "BICYCLE", 1, data)
@@ -1980,6 +2072,102 @@ do
       frame(2)
     end
     T.check(not Tm.isOpen() and chose == 2, "the one chosen: the game's (" .. tostring(chose) .. ")")
+    while #stack.states > base0 do stack:pop() end
+  end
+
+  -- a move chosen for something (an Ether's, a PP Up's, the Move Deleter's): the summary's moves
+  do
+    local mon = save.party[1]
+    local chose, cancelledM = nil, 0
+    local function pushPick(onChoose, owner)
+      chose = nil
+      if GEN == 2 then
+        Screens.push(game, "Gen2MoveDeleter", { mon = mon, moves = data.moves,
+          onChoose = function(slot) chose = slot stack:pop() end,
+          onCancel = function() cancelledM = cancelledM + 1 stack:pop() end })
+      else
+        Screens.push(game, "MoveSelectMenu", mon, "Restore PP of\nwhich technique?",
+          function(slot, menu) chose = slot if onChoose then onChoose(slot, menu) end end,
+          function() cancelledM = cancelledM + 1 end, owner)
+      end
+    end
+    local function sumNow() local w = win() return w and w.state and w.state.sum end
+    pushPick()
+    frame(2)
+    local S = sumNow()
+    T.check(S ~= nil and S.choose == "sum.pick.move" and not S.learn, "a move to choose: our summary's moves ("
+      .. tostring(S and S.choose) .. ")")
+    T.check(S and S.move == 1 and S.tab == 3, "on the moves, the first chosen")
+    if S then S.move = 2 press1("a") frame(2) end
+    T.check(not Tm.isOpen() and chose == 2, "the one chosen: the game's (" .. tostring(chose) .. ")")
+    T.eq(#stack.states, base0, "the stack as it was")
+    pushPick()
+    frame(2)
+    press1("b")
+    frame(2)
+    T.check(not Tm.isOpen() and cancelledM == 1 and chose == nil, "B: none, the game told")
+    T.eq(#stack.states, base0, "the stack as it was")
+    if GEN == 1 then
+      -- ("PP is maxed": the game asks again)
+      local asks = 0
+      pushPick(function(_, menu) asks = asks + 1 if asks == 1 then menu:ask() end end)
+      frame(2)
+      press1("a")
+      frame(2)
+      T.check(Tm.isOpen() and asks == 1, "asked again (PP maxed)")
+      press1("a")
+      frame(2)
+      T.check(not Tm.isOpen() and asks == 2, "then chosen")
+      T.eq(#stack.states, base0, "the stack as it was")
+      -- (held under the game's words until its party list closes, which takes it)
+      local owner = setmetatable({ game = game, update = function() end, draw = function() end },
+                                 { __index = require("src.ui.PartyMenu") })
+      table.insert(stack.states, owner)
+      local words = { update = function() end, draw = function() end }
+      pushPick(function() table.insert(stack.states, words) end, owner)
+      frame(2)
+      press1("a")
+      frame(2)
+      local held = stack.states[#stack.states - 1]
+      T.check(stack:top() == words and type(held) == "table" and rawget(held, "woobOsPick") and held.held,
+              "held under the game's words")
+      table.remove(stack.states)
+      owner:close()
+      T.eq(#stack.states, base0, "its list's close took it")
+    else
+      -- (Blackthorn's Move Deleter asks which to delete)
+      local World = require("src.world.gen2.World")
+      local fw = setmetatable({ game = game, pushScreen = function(_, id, o) Screens.push(game, id, o) return true end },
+                              { __index = World })
+      local got = "none"
+      World.chooseMoveToDelete(fw, mon, function(i) got = i end)
+      frame(2)
+      S = sumNow()
+      T.check(S ~= nil and S.choose == "sum.pick.delete", "the Move Deleter: ours, its question")
+      if S then press1("a") frame(2) end
+      T.check(not Tm.isOpen() and got == 1, "deleted: the game's (" .. tostring(got) .. ")")
+      T.eq(#stack.states, base0, "the stack as it was")
+    end
+    -- (asked for while our Bag is up: a page of the same window, back to the Bag after)
+    if GEN == 2 then
+      Screens.push(game, "Gen2PackMenu", { onClose = function() stack:pop() end, onChoose = function() end })
+    else
+      Screens.push(game, "BagMenu", { onClose = function() end, onCancel = function() end })
+    end
+    frame(2)
+    pushPick()
+    frame(2)
+    local w = win()
+    S = sumNow()
+    T.check(w and w.state.page == "summary" and S and S.choose ~= nil, "over our Bag: a page of the same window")
+    press1("a")
+    frame(2)
+    T.check(Tm.isOpen() and w.state.page == "bag" and chose == 1, "chosen: back to the Bag (" .. tostring(chose) .. ")")
+    for _ = 1, 4 do
+      if not Tm.isOpen() then break end
+      press1("b")
+    end
+    frame(2)
     while #stack.states > base0 do stack:pop() end
   end
   save.party, save.inventory = keepParty, keepInv

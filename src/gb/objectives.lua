@@ -35,7 +35,9 @@ local LEADER2 = { FALKNER = true, WHITNEY = true, BUGSY = true, MORTY = true, PR
                   SABRINA = true, BLAINE = true, BLUE = true }
 local ELITE2 = { WILL = true, KOGA = true, BRUNO = true, KAREN = true }
 local PEOPLE2 = { NameRater = "nameRater", DayCareMan = "daycare", DayCareLady = "daycare", DayCareManOutside = "daycare",
-                  MoveDeletion = "deleter", MoveTutor = "tutor", CheckForLuckyNumberWinners = "lottery" }
+                  MoveDeletion = "deleter", MoveTutor = "tutor", CheckForLuckyNumberWinners = "lucky" }
+-- (Red at Mt. Silver: his object's flag is set from the start, cleared by the Hall of Fame, set again once he's beaten)
+local RED_CLASS, RED_AFTER = "RED", "EVENT_BEAT_CHAMPION_LANCE"
 -- (the shared std scripts: never followed)
 local STD = { jumpstd = true, callstd = true }
 local GIVE2 = { verbosegiveitem = true, giveitem = true }
@@ -63,7 +65,7 @@ local ELITE1 = { LORELEI = true, BRUNO = true, AGATHA = true, LANCE = true }
 local ELITE_ORDER = { WILL = 1, KOGA = 2, BRUNO = 3, KAREN = 4, LORELEI = 1, AGATHA = 3, LANCE = 4 }
 -- (people known by their house)
 local HOUSE = { NAME_RATER = "nameRater", DAYCARE = "daycare", DAY_CARE = "daycare", MOVE_DELETER = "deleter" }
-local PEOPLE_ORDER = { "tutor", "relearner", "deleter", "nameRater", "daycare", "trade", "lottery" }
+local PEOPLE_ORDER = { "tutor", "relearner", "deleter", "nameRater", "daycare", "trade", "lottery", "lucky" }
 
 return function(H, Gd, deps)
   local Ob = {}
@@ -180,6 +182,7 @@ return function(H, Gd, deps)
     end
     local beatAt = {}
     for _, bt in ipairs(BEATS2) do beatAt[bt[2]] = bt end
+    local redSec, redFlag
     local beatSec = {}
     local ids = {}
     for id in pairs(defs) do if type(id) == "string" then ids[#ids + 1] = id end end
@@ -195,6 +198,13 @@ return function(H, Gd, deps)
         for _, o in ipairs(def.objects or {}) do
           add(o.scriptKey)
           if type(o.trainer) == "table" then add(o.trainer.scriptKey) end
+          -- (Red: the one whose own script battles him, done by his object's flag)
+          local own = scripts[o.scriptKey]
+          for _, cmd in ipairs(type(own) == "table" and own or {}) do
+            if cmd.op == "loadtrainer" and classes[(tonumber(cmd.class) or -1) + 1] == RED_CLASS and not redSec then
+              redSec, redFlag = sec, eventName(o.eventFlag ~= 65535 and o.eventFlag or nil)
+            end
+          end
           -- (a key item lying there, a ball: done once picked up -- its flag is the object's own)
           if type(o.itemball) == "table" then
             local item = items[tonumber(o.itemball.item) or -1]
@@ -253,6 +263,10 @@ return function(H, Gd, deps)
         local b = bucket(sec)
         b.story[#b.story + 1] = { beat = bt[1], flags = { bt[2] } }
       end
+    end
+    if redSec and redFlag then
+      local b = bucket(redSec)
+      b.story[#b.story + 1] = { beat = "red", all = { redFlag, RED_AFTER } }
     end
     return true
   end
@@ -446,6 +460,10 @@ return function(H, Gd, deps)
     for _, f in ipairs(list or {}) do if flagOn(f, s) then return true end end
     return false
   end
+  local function allOn(list, s)
+    for _, f in ipairs(list or {}) do if not flagOn(f, s) then return false end end
+    return true
+  end
   local function hasItem(s, id)
     local inv = type(s) == "table" and s.inventory
     return type(inv) == "table" and (tonumber(inv[id]) or 0) > 0
@@ -462,7 +480,7 @@ return function(H, Gd, deps)
     if not b then return nil end
     local out = {}
     for _, e in ipairs(b.story) do
-      local done = anyOn(e.flags, s)
+      local done = e.all and allOn(e.all, s) or (e.flags ~= nil and anyOn(e.flags, s))
       out[#out + 1] = { kind = "story", label = T("map.obj.story." .. e.beat), done = done,
                         hidden = not done and not spoilers }
     end

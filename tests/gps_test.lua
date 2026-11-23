@@ -329,6 +329,9 @@ do
     local eg = list(P .. "EVER_GRANDE_CITY")
     T.eq(count(eg, "gym", "map.obj.elite"), 4, "Ever Grande: the Elite Four, once each")
     T.check(find(list(P .. "ROUTE117"), "people", "daycare") ~= nil, "Route 117: the Day Care")
+    T.check(find(list(P .. "SLATEPORT_CITY"), "people", "nameRater") ~= nil, "Slateport: the Name Rater")
+    T.check(find(eg, "shop", "map.obj.shop.mart") ~= nil and not find(eg, "shop", "League"),
+            "Ever Grande: the League's Poké Mart, by that name")
     -- (the boxes: a Badge's flag, an item in the Bag)
     local g = find(mv, "gym", "Wattson")
     T.check(g and g.done == false, "Wattson's box empty")

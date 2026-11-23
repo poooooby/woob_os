@@ -1,14 +1,14 @@
 # What each game has
 
-WoobOS works on all eleven of Gen1Recomp's games. The desktop, WoobPad and most apps are the same
-everywhere, with each game's own Pokémon, items and moves. A few things depend on what the game itself
-had.
+WoobOS works on all eleven of Gen1Recomp's games. The desktop, WoobPad, most apps, the 3D map, OPTIONS and the
+modern [Bag, Pokémon menu and summary](in-game.md) are the same everywhere, with each game's own Pokémon, items
+and moves. A few things depend on what the game itself had.
 
 [← Back to the README](../README.md)
 
 ## FireRed, LeafGreen, Ruby, Sapphire and Emerald
 
-Everything, including the modern [Bag, Pokémon menu and summary](in-game.md).
+Everything, plus:
 
 - **Ruby, Sapphire and Emerald:** WoobPad takes the PokéNav's place in the START menu, and Condition
   and Ribbons are theirs alone. The Phone is Match Call on Emerald and Trainer's Eyes on Ruby

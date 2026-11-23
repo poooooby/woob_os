@@ -283,10 +283,28 @@ return function(H, Gd, K, deps)
     return packStill(sp, nil)
   end
 
+  -- (a Pokémon as another species -- an evolution's new one, asked before the change -- its own look kept: one
+  -- stand-in per Pokémon and species, so the pack's picture of it is kept too)
+  local asSpecies = setmetatable({}, { __mode = "k" })
+  local function standIn(mon, sp)
+    local bySp = asSpecies[mon]
+    if not bySp then
+      bySp = {}
+      asSpecies[mon] = bySp
+    end
+    local s = bySp[sp]
+    if not s then
+      s = setmetatable({ species = sp }, { __index = mon })
+      bySp[sp] = s
+    end
+    return s
+  end
+
   function Art.pic(sp, mon)
     local shiny = mon ~= nil and Gd.shiny(mon) or false
     local egg = Gd.isEgg(mon)
     if egg then return nil end
+    if mon and sp and mon.species ~= sp then mon = standIn(mon, sp) end
     local p = packStill(sp, mon)
     if p then return p end
     local byShiny = pics[sp]

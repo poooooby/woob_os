@@ -4,13 +4,16 @@
 -- on Moves, A takes the moves (Up / Down along them); a party Pokémon's moves trade places (A on one,
 -- then A on another), never in battle. Choosing a move to forget (S.learn: the move it would learn, a
 -- fifth row): A forgets the chosen one (an HM refused unless S.forgetMove), on the new move or B keeps
--- them all; S.picked holds the answer (the slot 0..3, or false) once it's chosen.
+-- them all; S.picked holds the answer (the slot 0..3, or false) once it's chosen. Choosing a move for something
+-- (S.choose: the question's word key -- a PP item's move, the Move Deleter's): the same page without the fifth row,
+-- A on any move, B none.
 -- Words: only from actions (Bx.summary makes the page's), never while drawing.
 --
 --   Ctl = summaryCtl(env, T, A, TABS)   A: the window's hit args (SUM_BACK / PREV / NEXT / PIC / TAB / MOVE)
 --   S = Ctl.open(list, index, opts)     opts: session() ; party (its moves may be reordered) ; learn (a move
---                                       id: choosing one to forget) ; forgetMove (an HM may go) ; back (the
---                                       top's word) -> the state the view draws (st.sum)
+--                                       id: choosing one to forget) ; forgetMove (an HM may go) ; choose (a word
+--                                       key: choosing one of its moves) ; back (the top's word) -> the state the
+--                                       view draws (st.sum)
 --   Ctl.show(S, i, quiet) ; Ctl.input(S, input, nav) -> "close" when it's done ; Ctl.tap(S, arg) -> the same ;
 --   Ctl.hints(S) -> the hint list ; Ctl.stop() (the picture's animation)
 
@@ -22,6 +25,7 @@ local HINTS = {
   sumSwapping = { { "^ v", "sum.hint.move" }, { "A", "sum.hint.here" }, { "B", "hint.cancel" } },
   forget = { { "^ v", "sum.hint.move" }, { "A", "sum.hint.forget" }, { "B", "sum.hint.keep" } },
   forgetNew = { { "^ v", "sum.hint.move" }, { "A", "sum.hint.keep" }, { "B", "sum.hint.keep" } },
+  choose = { { "^ v", "sum.hint.move" }, { "A", "sum.hint.choose" }, { "B", "hint.cancel" } },
 }
 
 return function(env, T, A, TABS)
@@ -45,7 +49,7 @@ return function(env, T, A, TABS)
     if n == 0 then return end
     i = (i - 1) % n + 1
     S.i, S.swap, S.top, S.hm = i, nil, 0, false
-    S.move = S.learn and 1 or nil
+    S.move = (S.learn or S.choose) and 1 or nil
     S.rec = Bx.summary(S.session(), S.list[i], T)
     S.at = now()
     if not quiet then se("SE_SELECT") end
@@ -58,6 +62,10 @@ return function(env, T, A, TABS)
                 top = 0, h = 0, vis = 0, at = now(), openAt = now(), lines = {}, shown = { 0, 0, 0, 0, 0, 0 },
                 session = opts.session or function() return nil end, back = opts.back, hm = false, picked = nil,
                 forgetMove = opts.forgetMove == true }
+    -- (choosing one of its moves: the moves tab, the cursor on the first)
+    if type(opts.choose) == "string" then
+      S.choose, S.tab, S.party = opts.choose, #TABS, false
+    end
     -- (choosing a move to forget: the moves tab, the cursor on the first, the move it would learn below)
     if opts.learn and Bx.moveRecord then
       local ok, rec = pcall(Bx.moveRecord, opts.learn, T)
@@ -74,7 +82,7 @@ return function(env, T, A, TABS)
   function Ctl.stop() if env.dexSprite then env.dexSprite.stop() end end
 
   local function tab(S, t)
-    if S.learn then return end
+    if S.learn or S.choose then return end
     t = (t - 1) % #TABS + 1
     if t == S.tab then return end
     S.tab, S.move, S.swap, S.top = t, nil, nil, 0
@@ -90,7 +98,7 @@ return function(env, T, A, TABS)
       S.picked = false
       return "close"
     end
-    if Bx.isHm and Bx.isHm(m.id) and not S.forgetMove then
+    if S.learn and Bx.isHm and Bx.isHm(m.id) and not S.forgetMove then
       se("SE_FAILURE")
       S.hm = true
       return nil
@@ -103,7 +111,7 @@ return function(env, T, A, TABS)
   -- a move chosen: the first time it's shown; again (a party Pokémon's), picked up to swap; another
   -- picked while one is held: the two trade places
   local function move(S, k)
-    if S.learn then
+    if S.learn or S.choose then
       if S.move == k then return forget(S, k) end
       S.move, S.hm = k, false
       se("SE_SELECT")
@@ -131,8 +139,8 @@ return function(env, T, A, TABS)
   function Ctl.input(S, input, nav)
     local function pressed(k) return input:wasPressed(k) end
     local moves = S.rec and S.rec.moves or {}
-    if S.learn then
-      local last = #moves + 1
+    if S.learn or S.choose then
+      local last = #moves + (S.learn and 1 or 0)
       if nav.up then
         if S.move > 1 then S.move, S.hm = S.move - 1, false se("SE_SELECT") end
       elseif nav.down then
@@ -186,10 +194,10 @@ return function(env, T, A, TABS)
   function Ctl.tap(S, arg)
     if arg == A.SUM_BACK then
       se("SE_SELECT")
-      if S.learn then S.picked = false end
+      if S.learn or S.choose then S.picked = false end
       return "close"
     end
-    if S.learn then
+    if S.learn or S.choose then
       if arg > A.SUM_MOVE and arg <= A.SUM_MOVE + 5 then return move(S, arg - A.SUM_MOVE) end
       if arg == A.SUM_PIC then cry(S) end
       return nil
@@ -204,7 +212,9 @@ return function(env, T, A, TABS)
 
   function Ctl.hints(S)
     local h
-    if S.learn then
+    if S.choose then
+      h = HINTS.choose
+    elseif S.learn then
       local moves = S.rec and S.rec.moves or {}
       h = S.move and S.move > #moves and HINTS.forgetNew or HINTS.forget
     elseif S.move then

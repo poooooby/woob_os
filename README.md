@@ -134,7 +134,7 @@ and they wait for it while it's off.
 
 If you'd rather keep the game's own version of something, you can switch it back piece by piece: the
 desktop itself, WoobPad, the Pokégear, the shops, the Pokémon Center and the modern menus, which have a
-switch each for the Pokédex, the Bag, the Pokémon menu, the summary, OPTIONS, evolution, catching and naming, and the
+switch each for the Pokédex, the Bag, the Pokémon menu, the summary, OPTIONS, MODS, evolution, catching and naming, and the
 battle menus.
 The options also hold the theme (Light, Dark or OLED), the text size, a 24-hour clock, Overworld GPS, and,
 with Kanto Gear, a battle's menus on its screen.

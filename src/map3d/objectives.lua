@@ -64,6 +64,8 @@ local PEOPLE_ORDER = { "tutor", "relearner", "deleter", "nameRater", "daycare", 
 local TRAINER_KIND = { LEADER = "gym", ELITE_FOUR = "elite", ["ELITE FOUR"] = "elite" }
 -- (people known by their house's map: Ruby / Sapphire / Emerald's Name Rater calls nothing of its own)
 local HOUSE = { NAME_RATER = "nameRater", MOVE_DELETER = "deleter", DAYCARE = "daycare" }
+-- (and by their own script's name: Ruby / Sapphire's Name Rater lives in a house numbered like any other)
+local PERSON_LABEL = { ["EventScript_NameRater$"] = "nameRater", ["EventScript_MoveDeleter$"] = "deleter" }
 -- (the event tickets: handed out by every Pokémon Center's Mystery Gift man, never a place's own)
 local EVENT_ITEMS = { "ITEM_EON_TICKET", "ITEM_MYSTIC_TICKET", "ITEM_AURORA_TICKET", "ITEM_OLD_SEA_MAP" }
 -- (the standard routines that hand out an item set in VAR_0x8000: obtain, find, received)
@@ -178,7 +180,11 @@ return function(engine, deps)
       if floorWord and floorWord ~= "ROOFTOP" and floorWord ~= "ELEVATOR" then
         return T.f("map.obj.shop.floor", floorWord)
       end
-      if bare:find("_MART$") or bare:find("POKEMON_CENTER", 1, true) then return T("map.obj.shop.mart") end
+      -- (a Mart, a Pokémon Center's counter, the League's lobby)
+      if bare:find("_MART$") or bare:find("POKEMON_CENTER", 1, true) or bare:find("POKEMON_LEAGUE$")
+          or bare:find("POKEMON_LEAGUE_1F$") then
+        return T("map.obj.shop.mart")
+      end
       local town = outdoor[sec] and outdoor[sec]:sub(#prefix + 1)
       if town and bare == town then return T("map.obj.shop.stall") end
       if town and bare:sub(1, #town + 1) == town .. "_" then bare = bare:sub(#town + 2) end
@@ -192,7 +198,16 @@ return function(engine, deps)
         -- (the scripts the map's people, signs, steps and map scripts start, and where they go)
         local todo, seen = {}, {}
         local function add(key) if type(key) == "string" and not seen[key] and not shared(key) then seen[key] = true todo[#todo + 1] = key end end
-        for _, o in ipairs(def.objects or {}) do add(o.scriptKey) end
+        for _, o in ipairs(def.objects or {}) do
+          add(o.scriptKey)
+          local l = labelOf[o.scriptKey]
+          for pat, kind in pairs(type(l) == "string" and PERSON_LABEL or {}) do
+            if l:find(pat) and not b.seen["p" .. kind] then
+              b.seen["p" .. kind] = true
+              b.people[#b.people + 1] = { kind = kind }
+            end
+          end
+        end
         for _, c in ipairs(def.coordEvents or {}) do add(c.scriptKey) end
         for _, g in ipairs(def.bgEvents or {}) do add(g.scriptKey) end
         -- (its map scripts: on load, on a frame when a variable says so -- the Elite Four's rooms start there)

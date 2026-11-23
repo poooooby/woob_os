@@ -6,10 +6,13 @@
 -- description in a card along the foot.
 --   buttons  Up / Down an option, Left / Right its value, A to change it or open it, B / START back (out at the top)
 --   touch    tap an option (a switch flips, a page opens), its arrows for the value, < back; drag or wheel to scroll
+-- MODS (src/mods_screen.lua the model, kind "mods") in the same window: its rows under a divider for each section
+-- (row.section), a mod's badge and the word on where it stands under its name (row.badge, row.sub), A on a mod its
+-- page (row.open) while its switch flips; the manager's questions on a sheet (OK, or Cancel / OK).
 
 local floor, max, min, abs, sin = math.floor, math.max, math.min, math.abs, math.sin
 
-local A = { ROW = 3000, DEC = 3200, INC = 3400, BACK = 3600, KEY = 3700, SCRIM = 3690 }
+local A = { ROW = 3000, DEC = 3200, INC = 3400, BACK = 3600, KEY = 3700, SCRIM = 3690, SHEET = 3680 }
 local M, TOP_H = 4, 15
 local C = {
   ink = { 28, 28, 30 }, soft = { 112, 112, 120 }, faint = { 160, 160, 170 }, white = { 255, 255, 255 },
@@ -23,6 +26,7 @@ local SOUNDS = { "SE_SELECT" }
 return function(ctx, env)
   local K, T = env.K, env.T
   local Os = env.optionsScreen
+  local Mm = env.modsScreen
   local model = ctx.menu or ctx.scene
   local function now() return env.now and env.now() or (love and love.timer and love.timer.getTime() or 0) end
   local function se(name) if env.se then pcall(env.se, name) end end
@@ -72,10 +76,44 @@ return function(ctx, env)
     push({ title = Os.sentence(title), rows = Os.pageRows(ectx, rows) })
     se("SE_SELECT")
   end
+  -- (a page made again -- MODS' after a change -- the cursor kept on the same row)
+  local function rebuild(p)
+    if not (p and p.rebuild) then return end
+    local id = p.rows[p.cur] and p.rows[p.cur].id
+    pcall(p.rebuild)
+    for i, x in ipairs(p.rows) do if x.id == id then p.cur = i end end
+    p.cur = max(1, min(p.cur, #p.rows))
+  end
+  -- (what a model's rows reach in the window: MODS' pages, questions, notes)
+  local finish
+  local ui = {}
+  function ui.push(p)
+    push(p)
+    se("SE_SELECT")
+  end
+  function ui.ok(text) st.sheet = { text = tostring(text or ""), at = now(), sel = 1 } end
+  function ui.confirm(text, yes) st.sheet = { text = tostring(text or ""), yes = yes, at = now(), sel = 2 } end
+  function ui.toast(text) st.toast, st.toastAt = tostring(text or ""), now() end
+  function ui.close() if finish then finish() end end
+  W.ui = ui
+  function ui.refresh()
+    for _, p in ipairs(st.pages) do rebuild(p) end
+    refresh()
+  end
   -- (WoobOS's own row at the top: its page here, not through the mod manager)
   function W.openMod(modId)
     local p = Os.modPage(modId, model.game or ectx.game)
     if not p then return false end
+    push(p)
+    se("SE_SELECT")
+    return true
+  end
+  -- (MODS asked for from OPTIONS: its pages here)
+  function W.openMods(mm)
+    if not (mm and mm.top) then return false end
+    local ok, p = pcall(mm.top, ui)
+    if not (ok and p) then return false end
+    st.mods = mm
     push(p)
     se("SE_SELECT")
     return true
@@ -85,18 +123,24 @@ return function(ctx, env)
     top.title = T("opt.title")
     push(top)
     Os.inWindow = W.openMod
+    if Mm then Mm.inWindow = W.openMods end
+  elseif model.kind == "mods" then
+    st.mods = model
+    push(model.top(ui))
   else
     push(model.page)
   end
 
-  local function finish()
+  finish = function()
     if Os.inWindow == W.openMod then Os.inWindow = nil end
+    if Mm and Mm.inWindow == W.openMods then Mm.inWindow = nil end
     if ctx.done then ctx.done() end
   end
   local function back()
     se("SE_SELECT")
     if #st.pages > 1 then
       st.pages[#st.pages] = nil
+      rebuild(page())
       refresh()
       return
     end
@@ -137,15 +181,34 @@ return function(ctx, env)
       se("SE_SELECT")
       return
     end
+    -- (a mod: its own page)
+    if r.open then
+      local ok, np = pcall(r.open)
+      if ok and np then ui.push(np) end
+      return
+    end
     if r.activate then
       se("SE_SELECT")
       local ok, err = pcall(r.activate, ectx)
       if not ok and env.log then pcall(env.log, "an OPTIONS row: %s", tostring(err)) end
       Os.lendShaderLayer()
+      if p.rebuild and page() == p then rebuild(p) end
       refresh()
       return
     end
     step(p, r, 1)
+  end
+
+  -- (the sheet: OK, or Cancel / OK)
+  local function sheetAnswer(yes)
+    local sh = st.sheet
+    st.sheet = nil
+    se("SE_SELECT")
+    if yes and sh and sh.yes then
+      local ok, err = pcall(sh.yes)
+      if not ok and env.log then pcall(env.log, "a MODS answer: %s", tostring(err)) end
+    end
+    ui.refresh()
   end
 
   -- ------- input
@@ -178,6 +241,18 @@ return function(ctx, env)
   function W.input(input, nav)
     if st.kb then
       keyboardInput(input, nav)
+      return true
+    end
+    if st.sheet then
+      local sh = st.sheet
+      if nav and (nav.left or nav.right) and sh.yes then
+        sh.sel = nav.left and 1 or 2
+        se("SE_SELECT")
+      elseif input:wasPressed("a") then
+        sheetAnswer(sh.yes == nil or sh.sel == 2)
+      elseif input:wasPressed("b") then
+        sheetAnswer(false)
+      end
       return true
     end
     local p = page()
@@ -214,6 +289,11 @@ return function(ctx, env)
       end
       return
     end
+    if st.sheet then
+      if arg == A.SHEET + 2 then return sheetAnswer(true) end
+      if arg == A.SHEET + 1 or arg == A.SCRIM then return sheetAnswer(st.sheet.yes == nil) end
+      return
+    end
     local p = page()
     if arg == A.BACK then return back() end
     if arg > A.INC and arg <= A.INC + #p.rows then
@@ -237,6 +317,7 @@ return function(ctx, env)
   function W.hints() return nil end
   function W.close()
     if Os.inWindow == W.openMod then Os.inWindow = nil end
+    if Mm and Mm.inWindow == W.openMods then Mm.inWindow = nil end
   end
 
   -- ------- drawing
@@ -259,6 +340,16 @@ return function(ctx, env)
     G.circle("fill", K.X(kx), K.Y(y + h / 2), (h / 2 - 0.7) * K.sc)
   end
 
+  -- (a sheet's button: the chosen one ringed)
+  local function sheetButton(sh, i, bx, by, bw, bh, word, strong)
+    local b = K.R(bx, by, bw, bh)
+    K.col(strong and C.accent or C.track, strong and 1 or 0.5)
+    K.box("fill", b, bh / 2)
+    if sh.sel == i then K.ring(b, bh / 2, C.accent, 0.9, 0.7) end
+    K.bold(word, bx, by + (bh - 4.4 * 1.2) / 2, 4.4, strong and C.white or C.ink, "center", bw)
+    K.addHit(b, "win", A.SHEET + i)
+  end
+
   local ROW_H = 13
   local function rowH() return ROW_H + (K.textScale() - 1) * 4 end
 
@@ -278,6 +369,15 @@ return function(ctx, env)
     K.addHit(b, "win", A.ROW + i)
     local lx = b[1] + 5
     local ly = y + (h - 4.8 * 1.2) / 2
+    -- (a mod's badge: its first letter on its kind's colour)
+    local bd = r.badge
+    if bd then
+      local s = h - 4.4
+      K.col(bd.colour)
+      K.box("fill", K.R(lx - 1.5, y + 2.2, s, s), s * 0.28)
+      K.bold(bd.letter, lx - 1.5, y + 2.2 + (s - 4.4 * 1.2) / 2, 4.4, C.white, "center", s)
+      lx = lx + s + 1.5
+    end
     if r.reset then
       local word = T("opt.reset")
       K.bold(word, b[1], ly, 4.6, C.red, "center", b[3])
@@ -331,7 +431,19 @@ return function(ctx, env)
       labelW = labelW - tagW - 2
     end
     local ls = K.fit(r.label, depth > 0 and 4.6 or 4.9, max(10, labelW))
-    K.bold(r.label, lx, y + (h - ls * 1.2) / 2, ls, C.ink)
+    local ink = (r.tone == "accent" and C.accent) or (r.tone == "red" and C.red) or C.ink
+    if r.sub then
+      -- (a word under it: where a mod stands)
+      local ss = K.fit(r.sub, 3.3, max(10, labelW))
+      local th = ls * 1.2 + ss * 1.2 + 0.4
+      local ty = y + (h - th) / 2
+      K.bold(r.label, lx, ty, ls, ink)
+      local sc = (r.subTone == "accent" and C.accent) or (r.subTone == "red" and C.red)
+        or (r.subTone == "green" and C.green) or C.soft
+      K.text(r.sub, lx, ty + ls * 1.2 + 0.4, ss, sc)
+    else
+      K.bold(r.label, lx, y + (h - ls * 1.2) / 2, ls, ink)
+    end
     if r.modName then
       local tx = lx + min(labelW, K.width(r.label, ls)) + 2.5
       local tb = K.R(tx, y + h / 2 - 2.7, tagW, 5.4)
@@ -359,7 +471,7 @@ return function(ctx, env)
     K.bold(title, x, y + TOP_H / 2 - 3.4, K.fit(title, 5.8, w * 0.5), C.ink, "center", w)
     -- (the chosen option's description, in a card along the foot, when it has one)
     local r0 = p.rows[p.cur]
-    local desc = r0 and r0.desc
+    local desc = r0 and r0.desc or p.desc
     local dh = 0
     if desc and desc ~= "" then
       -- (as tall as its lines: measured when the option or the text size changes)
@@ -374,15 +486,30 @@ return function(ctx, env)
     local listH = y + h - M - (dh > 0 and dh + 3 or 0) - top
     local rh, gap = rowH(), 2.2
     local n = #p.rows
-    -- (the rows other mods added: a line with its words above the first of them, apart from the game's)
-    if p.firstMod == nil then
-      p.firstMod = false
-      for i, r in ipairs(p.rows) do if r.modName and not p.firstMod then p.firstMod = i end end
+    -- (a line with words over a row that starts a part: the rows other mods added, apart from the game's; each of
+    -- MODS' sections. Worked out when the page's rows change)
+    if p.divsOf ~= p.rows then
+      p.divsOf, p.divs, p.divN = p.rows, {}, {}
+      local fm, prev, count = false, nil, 0
+      for i, r in ipairs(p.rows) do
+        local word
+        if r.section then
+          if r.section ~= prev then word = r.section end
+          prev = r.section
+        elseif r.modName and not fm then
+          fm, word = true, T("opt.mods")
+        end
+        if word then
+          p.divs[i] = word
+          count = count + 1
+        end
+        p.divN[i] = count
+      end
     end
-    local fm = p.firstMod
-    local DIV = fm and (11 + (K.textScale() - 1) * 4) or 0
-    local function rowY(i) return (i - 1) * (rh + gap) + ((fm and i >= fm) and DIV or 0) end
-    local contentH = n * (rh + gap) + DIV
+    local DIV = 11 + (K.textScale() - 1) * 4
+    local divN = p.divN
+    local function rowY(i) return (i - 1) * (rh + gap) + (divN[i] or 0) * DIV end
+    local contentH = n * (rh + gap) + (divN[n] or 0) * DIV
     p.contentH, p.viewH = contentH, listH
     -- (the chosen one kept in view, the list easing to it)
     if p.followed ~= p.cur then
@@ -398,9 +525,9 @@ return function(ctx, env)
     local lx, lw = x + M + (1 - e) * 10, w - M * 2 - 2
     for i = 1, n do
       local ry = top + rowY(i) - p.shown
-      if fm and i == fm and ry > top - DIV - 2 and ry - DIV < top + listH + 2 then
+      local word = p.divs[i]
+      if word and ry > top - DIV - 2 and ry - DIV < top + listH + 2 then
         local dy = ry - DIV / 2 - 1.5
-        local word = T("opt.mods")
         local ww = K.width(word, 3.6) + 6
         K.col(C.line)
         G.setLineWidth(max(1, 0.4 * K.sc))
@@ -426,6 +553,32 @@ return function(ctx, env)
       K.glass(K.R(x + (w - tw) / 2, y + h - 22, tw, 10), 5, 0.92)
       K.text(st.toast, x, y + h - 19.6, 4.2, C.ink, "center", w)
       K.setFade(f0)
+    end
+    -- (a question: a sheet over a dim, OK -- or Cancel / OK)
+    local sh = st.sheet
+    if sh then
+      K.col(C.black, 0.25)
+      K.box("fill", body)
+      K.addHit(body, "win", A.SCRIM)
+      local sw = min(w - 16, 170)
+      if sh.forW ~= sw or sh.forTS ~= K.textScale() then
+        local lines = math.ceil(K.width(sh.text, 4.2) * 1.12 / max(20, sw - 14)) + select(2, sh.text:gsub("\n", ""))
+        sh.forW, sh.forTS, sh.textH = sw, K.textScale(), lines * K.lineH(4.2) * 1.06
+      end
+      local bh = 11 + (K.textScale() - 1) * 3
+      local shH = 8 + sh.textH + 5 + bh + 6
+      local k = K.outBack(min(1, (clock - sh.at) / 0.22))
+      local sb = K.R(x + (w - sw) / 2, y + (h - shH) / 2 + (1 - k) * 8, sw, shH)
+      K.glass(sb, 7, 0.97, C.white)
+      K.text(sh.text, sb[1] + 7, sb[2] + 7, 4.2, C.ink, "center", sw - 14)
+      local by = sb[2] + shH - 6 - bh
+      if sh.yes then
+        local bw = (sw - 14 - 4) / 2
+        sheetButton(sh, 1, sb[1] + 7, by, bw, bh, T("opt.cancel"), false)
+        sheetButton(sh, 2, sb[1] + 7 + bw + 4, by, bw, bh, T("opt.ok"), true)
+      else
+        sheetButton(sh, 1, sb[1] + 7, by, sw - 14, bh, T("opt.ok"), true)
+      end
     end
     -- (a text option: the keyboard over a dim)
     if st.kb then

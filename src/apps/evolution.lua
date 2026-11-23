@@ -18,6 +18,8 @@ local A = { WORDS = 2001, YES = 2002, NO = 2003, STOP = 2004, STATS = 2005 }
 -- (the stats card: each row counting up, one after another; out)
 local COUNT, STAGGER, CARD_OUT = 0.55, 0.12, 0.25
 local STAT_KEYS = { "dex.stat.hp", "dex.stat.atk", "dex.stat.def", "dex.stat.spa", "dex.stat.spd", "dex.stat.spe" }
+-- (Red / Blue / Yellow's five: one Special)
+local STAT_KEYS5 = { "dex.stat.hp", "dex.stat.atk", "dex.stat.def", "dex.stat.spc", "dex.stat.spe" }
 local GREEN, RED = { 52, 199, 89 }, { 255, 59, 48 }
 -- (when each beat comes, seconds from the start)
 local T_WORDS, T_CRY, T_INTRO, T_MUSIC, T_CYCLE = 0.3, 1.05, 1.8, 2.4, 2.75
@@ -277,13 +279,16 @@ return function(ctx, env)
   -- ------- drawing
 
   -- (the stats card's words and numbers: made once)
-  local statWords = {}
+  local statWords, statWords5 = {}, {}
   for i = 1, 6 do statWords[i] = T(STAT_KEYS[i]) end
+  for i = 1, 5 do statWords5[i] = T(STAT_KEYS5[i]) end
+  -- (six stats, or the Game Boy's first games' five)
+  local function nStats() return (job.before and #job.before == 5) and 5 or 6 end
   local numT = K.textCache(function(n) return tostring(n) end)
   local plusT = K.textCache(function(n) return (n >= 0 and "+" or "") .. tostring(n) end)
   local levelWord = T.f and T.f("boxes.level", job.level) or ("Lv. " .. tostring(job.level))
   local cardName = tostring(job.toName or "")
-  local function cardH() return 13 + 6 * (8 + (K.textScale() - 1) * 3) + 4 end
+  local function cardH() return 13 + nStats() * (8 + (K.textScale() - 1) * 3) + 4 end
   -- the stats card: the new one's name and level, each stat from before to after, counting up, the gain
   local function statsCard(x, y, w, clock, k)
     local G = K.graphics()
@@ -297,7 +302,9 @@ return function(ctx, env)
     K.text(levelWord, x, y + 4, 4.2, C.soft, "right", w - 5)
     local t = clock - st.statsAt
     local vx, ax, nx = x + w * 0.45, x + w * 0.6, x + w * 0.66
-    for i = 1, 6 do
+    local n = nStats()
+    local words = n == 5 and statWords5 or statWords
+    for i = 1, n do
       local ry = y + 13 + (i - 1) * rowH
       local e = K.outCubic(min(1, max(0, (t - (i - 1) * STAGGER) / COUNT)))
       if i % 2 == 0 then
@@ -305,7 +312,7 @@ return function(ctx, env)
         K.box("fill", K.R(x + 3, ry - 1, w - 6, rowH), 2)
       end
       local ty = ry + (rowH - 4.4 * 1.2) / 2 - 1
-      K.text(statWords[i], x + 6, ty, 4.4, C.soft)
+      K.text(words[i], x + 6, ty, 4.4, C.soft)
       K.text(numT(before[i]), vx - 14, ty, 4.4, C.soft, "right", 14)
       K.col(C.soft, 0.8)
       G.setLineWidth(max(1, 0.5 * K.sc))

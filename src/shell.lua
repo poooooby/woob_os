@@ -296,6 +296,12 @@ return function(mod, deps)
     return AREA
   end
   Sh.touchArea = touchArea
+  -- (a scene that wants no touch pad over it: the naming keyboard)
+  local function scenePadless()
+    local r = Ts and Ts.state and Ts.state()
+    local w = r and r.win
+    return w ~= nil and type(w.noPad) == "function" and w.noPad() == true
+  end
   -- (the viewport handed on with that area: kept, refilled each frame)
   local VPA = {}
   local function withArea(vp, area)
@@ -1031,21 +1037,27 @@ return function(mod, deps)
     -- (the layer taken away under it, a reset: the desktop or the pad goes too)
     local Stack = not H and engine("src.ui.game3.stack") or nil
     -- (a scene: its layer gone -> closed (the window lets the game go); on top -> it alone is drawn, the touch
-    -- pad away; under a game screen it opened -> that's drawn, the pad out for it)
+    -- pad out over it, the scene above its buttons (not over the naming keyboard); under a game screen it opened ->
+    -- that's drawn, the pad out for it)
     -- (the Game Boy games: their own stack; a state of ours gets the buttons while it's on top)
     if Ts and Ts.isOpen() and H then
       if not H.has(Sh.SCENE_ID) then
         Ts.close()
         pad(false)
       elseif sceneTop() then
-        pad(true)
+        -- (the touch pad left out over it: a phone with no controller plays it -- the text, B to stop an
+        -- evolution -- the scene in the room above the pad's buttons; not over the naming keyboard, whose own
+        -- keys are the way to type: `noPad`)
+        local noPad = scenePadless()
+        pad(true, not noPad)
         if G and type(viewport) == "table" then
           G.push("all")
           G.origin()
           G.setScissor()
           G.setShader()
           G.setBlendMode("alpha")
-          local okS, errS = pcall(Ts.draw, G, viewport)
+          local area = not noPad and touchArea(viewport) or nil
+          local okS, errS = pcall(Ts.draw, G, area and withArea(viewport, area) or viewport)
           G.pop()
           if not okS and log then log:warn("the scene's draw failed: %s", tostring(errS)) end
         end
@@ -1060,7 +1072,11 @@ return function(mod, deps)
         Ts.close()
         pad(false)
       elseif sceneTop() then
-        pad(true)
+        -- (the touch pad left out over it: a phone with no controller plays it -- the text, B to stop an
+        -- evolution -- the scene in the room above the pad's buttons; not over the naming keyboard, whose own
+        -- keys are the way to type: `noPad`)
+        local noPad = scenePadless()
+        pad(true, not noPad)
         if sceneFedAt ~= frameN - 1 and sceneFedAt ~= frameN and type(game) == "table" and game.input then
           feed(game.input, Ts)
         end
@@ -1070,7 +1086,8 @@ return function(mod, deps)
           G.setScissor()
           G.setShader()
           G.setBlendMode("alpha")
-          local okS, errS = pcall(Ts.draw, G, viewport)
+          local area = not noPad and touchArea(viewport) or nil
+          local okS, errS = pcall(Ts.draw, G, area and withArea(viewport, area) or viewport)
           G.pop()
           if not okS and log then log:warn("the scene's draw failed: %s", tostring(errS)) end
         end

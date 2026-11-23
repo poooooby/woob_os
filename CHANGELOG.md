@@ -10,6 +10,23 @@ All notable changes to this mod are documented here, in
   TM, an evolution, the Move Tutor, in battle too); Crystal's Move Tutor and every Pokémon a script asks for (the
   Day Care, the Name Rater) pick from the modern Pokémon menu; Gold, Silver and Crystal's mail READ and TAKE from it;
   SELECT reorders the Bag, and Gold, Silver and Crystal's items can be registered from it.
+- **Red, Blue, Yellow, Gold, Silver and Crystal:** an Ether, a Max Ether or a PP Up asks which move on the modern
+  summary, in the Bag's window or full screen, in battle too; so does Blackthorn's Move Deleter.
+- **MODS in glass, every game:** the installed mods in a section for each kind, each with its switch and where it
+  stands; a mod's own page with its options, load order, version, maker, games and what it may touch; the manager's
+  questions (a mod another needs, a conflict, an experimental mod) on a sheet; a change waiting for a restart offered
+  at the top with undoing it; the game's own manager a row away, for profiles. Its own switch under Modern Menus.
+- **Map Objectives:** Red at Mt. Silver on Gold, Silver and Crystal, ticked once he's beaten.
+
+### Fixed
+- **Evolution on Red, Blue, Yellow, Gold, Silver and Crystal with WoobleSpritePack:** the new Pokémon's picture is
+  the new Pokémon, not the old one again. Red, Blue and Yellow's stats card has five rows, one Special.
+- **Red, Blue and Yellow's Bag:** SELECT moves one stack of an item, its count with it, not every stack of it.
+- **Map Objectives:** Gold, Silver and Crystal's Lucky Number Show by its name; Ruby and Sapphire's Name Rater
+  found; the Pokémon League's Poké Mart by that name; a small window runs its shops and people together on shared
+  lines before it needs "+N more".
+- **Touch:** the game's touch buttons stay out over an evolution and a catch's page (the page above them on a phone
+  held upright); the naming keyboard keeps the whole screen.
 
 ## [0.25.0] - 2026-11-22
 

@@ -258,7 +258,7 @@ do
   for _, r in ipairs(rows) do
     if r.visible_if and r.visible_if.key == "modernMenus" and r.visible_if.equals == true then under[#under + 1] = r.key end
   end
-  T.eq(table.concat(under, " "), "pokedex menuBag menuParty menuSummary menuOptions menuEvolution menuCatch menuBattle gearMenus",
+  T.eq(table.concat(under, " "), "pokedex menuBag menuParty menuSummary menuOptions menuMods menuEvolution menuCatch menuBattle gearMenus",
        "under Modern Menus: " .. table.concat(under, " "))
   for _, r in ipairs(rows) do
     local n = #r.label:gsub("[\128-\191]", "")

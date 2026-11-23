@@ -67,6 +67,7 @@ return function(mod, loadSibling, optionsRow)
   local makeLighting = loadSibling(mod, "src/lighting.lua")
   -- (the modern screens over the game's own: OPTIONS, and the scene host's moments -- kept in one table)
   local SC = { optScreen = loadSibling(mod, "src/options_screen.lua"), optWindow = loadSibling(mod, "src/apps/options.lua"),
+               modsScreen = loadSibling(mod, "src/mods_screen.lua"),
                gbOptions = loadSibling(mod, "src/gb/options.lua"), keyboard = loadSibling(mod, "src/keyboard.lua"),
                fx = loadSibling(mod, "src/apps/scene_fx.lua"), scenes = loadSibling(mod, "src/gb/scenes.lua"),
                evolutionWindow = loadSibling(mod, "src/apps/evolution.lua"),
@@ -959,6 +960,14 @@ return function(mod, loadSibling, optionsRow)
                                                 log = function(fmt, ...) mod.log:warn(fmt, ...) end })
     local okO, errO = pcall(SC.gbOpt.install)
     if not okO then mod.log:warn("the game keeps its own OPTIONS: %s", tostring(errO)) end
+    -- MODS, modern (src/mods_screen.lua): the "ManagerState" screen, in the same window
+    if SC.modsScreen then
+      env.modsScreen = SC.modsScreen(engine, { Sh = Sh, Os = SC.options, T = T, gen = gen, noId = Host.noId,
+        log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+        on = function() return option("modernMenus", true) ~= false and option("menuMods", true) ~= false end })
+      local okM, errM = pcall(env.modsScreen.install, mod.content and mod.content.screens)
+      if not okM then mod.log:warn("the game keeps its own MODS: %s", tostring(errM)) end
+    end
     if type(optionsRow) == "table" then
       optionsRow.inWindow = function(id)
         local f = SC.options.inWindow
@@ -1131,6 +1140,6 @@ return function(mod, loadSibling, optionsRow)
                         news = env.news, dex = env.dex, pokecenter = env.pokecenter,
                         settings = Settings, wall = Wall, arrange = Arrange, watch = Watch, pad = Watch,
                         notify = Nt, tick = tick, townmap = TownMap, host = Host, sceneHost = SC.host,
-                        optionsScreen = SC.options, gbOptions = SC.gbOpt, objectives = env.objectives,
+                        optionsScreen = SC.options, gbOptions = SC.gbOpt, modsScreen = env.modsScreen, objectives = env.objectives,
                         scenes = SC.gbScenes, menus = SC.gbMenus, party = env.party, bag = env.bagRules }
 end

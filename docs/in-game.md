@@ -70,7 +70,8 @@ choosing a team for the Battle Tower and Frontier, and the Move Tutor.
 
 A Pokémon's summary is the same glass as in Boxes: its picture, info, stats with IVs and EVs, and moves.
 When a Pokémon learns a new move with four already, you choose the one to forget there, with the new move
-shown below.
+shown below. On Red, Blue, Yellow, Gold, Silver and Crystal, an Ether, a Max Ether or a PP Up asks which
+move there too, and so does Blackthorn's Move Deleter.
 
 ## ✨ Evolution
 
@@ -79,7 +80,7 @@ and the new one trading places as white silhouettes, faster and faster, while sp
 behind and in front. Then a flash breaks into a ring and a shower of stars, the new Pokémon steps out in
 colour, and its name and types drop in at the top. Then it steps aside for a card of its stats, each one
 counting up from before to after with what it gained, and the moves it learns at its new level follow. On
-Red, Blue and Yellow the card shows their one Special stat on both Special rows.
+Red, Blue and Yellow the card has five rows, with their one Special stat.
 
 You can still stop it the game's way: B (or Stop at the top) while it's changing.
 
@@ -94,7 +95,10 @@ battle doesn't ask again.
 Every Pokémon's nickname uses the same keyboard: a catch you've caught before, an Egg that hatched, a gift,
 the Name Rater. This is the same on every game.
 On a controller, the D-pad moves over the keys, A types, B deletes a letter, START jumps to OK and SELECT
-changes the letters.
+changes the letters. OK with the name left blank gives no nickname.
+
+On a phone with no controller, the game's touch buttons stay out over an evolution and a catch's page, with
+the page above them when the phone is upright. The keyboard has the whole screen to itself.
 
 ## 📕 The Pokédex
 
@@ -111,6 +115,21 @@ Each mod's own options page opens there too, from its row or from MODS (on Gold,
 the START menu): options that only show once another
 is on sit indented under it, with a line to it, and the chosen option's description is in a card along the
 bottom.
+
+## 🧩 MODS
+
+On every game, MODS opens in the same glass: the installed mods under a heading for each kind (Content,
+Gameplay, Mechanics, Graphics, Interface, Tools, Other), each with a coloured letter, a switch, and a word on
+where it stands: on, off, on or off after a restart, not made for this game, or didn't load. The chosen mod's
+description is in the card along the bottom.
+
+A on a mod opens its page: its switch, its options, its place in the load order (Left / Right moves it), its
+version, who made it, its kind, its games and what it may reach beyond its own data. A mod not made for this
+game can be tried on it anyway. Turning on a mod that needs another asks to turn that one on too, and turning
+off a mod another needs asks to turn both off; a mod that can't run with one that's on says so.
+
+Mods switch on and off as the game starts, so a change waits at the top under "Waiting for a restart", with
+Restart now and Undo the changes. Classic mod manager, at the bottom, opens the game's own, for profiles.
 
 ## 📱 WoobPad in the START menu
 

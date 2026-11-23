@@ -35,6 +35,7 @@ On every game, a small window at the top right lists what the place under the cu
 its Gym Leader (and the Elite Four at the League), the key items handed out there, its notable people (Move
 Tutors, the Move Relearner and Deleter, the Name Rater, the Day Care, in-game trades, Goldenrod's Lucky Number
 show) and its shops. A cave or a tower's are listed under the place it opens onto. Each story moment, Gym and key item has a box, ticked once you've done it or have it.
+When the window is too small for them all, the shops and people share lines.
 
 The Map Objectives option sets it: Enabled shows story moments still ahead of you as ???, Spoilers names them,
 and Off hides the window.

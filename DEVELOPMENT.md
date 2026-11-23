@@ -1537,7 +1537,20 @@ off the stack is `m.tutor`; the party in its move-tutor mode (`Pt.tutorTag` / `t
 `finish` pops "its" screen. Red / Blue / Yellow's scripts that build their own party list (the Day Care, the Name
 Rater, the Fan Club, the Union Room board): `PartyMenu.new` wrapped once per process (`__woobOsNew`) for `pickOnly`
 callers. Mail: Gen 2's `MailMenu` built off the stack like `HeldItemMenu` (its `text`: the World's, else `gen2Text`).
-The Bag: SELECT moves an item through `Bag.order` within its pocket; SEL is `World:registerItem`.
+The Bag: SELECT moves one stack within its pocket (`Bag.stackRows` over `Bag.order` and `save.bagStacks`, the rows
+reordered, written back by `Bag.setRows`, so a split stack's count goes with it); SEL is `World:registerItem`.
+
+A move chosen for something: Gen 1's `MoveSelectMenu` (an Ether's, a PP Up's: `Screens.push(game, "MoveSelectMenu",
+mon, prompt, onChoose, onCancel, picker)`) and Gen 2's `Gen2MoveDeleter` outside the "forget" layout (a PP item's in
+the field and in battle, Blackthorn's Move Deleter through `World:chooseMoveToDelete`) are a state of ours
+(`woobOsPick`, `woobOsAbove`) opening the summary in its choose mode (`S.choose`: the question's word key; no fifth
+row, HMs allowed, A picks, B none): `W.pickFor` in the window that's up, else full screen. Gen 1's answer is
+`onChoose(slot, menu)` with the menu `held` until the game's words are read: its picker's `close` takes a held menu
+it owns (the game's `PartyMenu:close` does; our inner carrier's `close` too), "PP is maxed" calls `menu:ask()` (ours
+asks again). Gen 2's callers pop the list themselves. The question: the item our Bag is using (`usingItem`, set by
+`Bg.useHandler`; Gen 2 also by wraps of `Game2.usePartyItem` / `BattleState.pickMoveForItem`, since its field USE
+closes our Bag before the list), PP Up's own; the Move Deleter's from a wrap of `World.chooseMoveToDelete`
+(`__woobOsDelete`).
 
 OmniUI (another author's mod) dresses and drives a state by its `screenId`, and takes an `isMenu` one for a small menu
 over whatever it knows underneath, which it then draws over ours; a state it doesn't know, it leaves alone. So every
@@ -1629,11 +1642,38 @@ works there since `H.isTop`). Tests: tests/gb_test.lua's OPTIONS block.
   our WOOBOS row (`src/options_row.lua`'s `api.inWindow`) opens ours inside the OPTIONS window.
 - **The window** (`src/apps/options.lua`): a page stack; values cached (`refresh`: on show, after a change, twice a
   second -- the engine's `value()` builds strings); the shader picker lent a layer (`woob_shaderfx`) since the game's
-  OPTIONS draws it; text options on `env.keyboard`; the "Added by mods" divider above `firstMod`. Test:
+  OPTIONS draws it; text options on `env.keyboard`; a divider with words over a row that starts a part (`p.divs`,
+  worked out when `p.rows` changes: "Added by mods" over the first mod's row, MODS' sections by `row.section`). Test:
   `tests/optscreen_test.lua` (every Gen 3 game); drivers in the scratchpad: `opt_driver.lua` (toggles Modern Menus off
   and on, which writes it explicitly: restore options.lua after), `optrs_driver.lua`, `optdiv_driver.lua`.
 
+### The MODS screen (`menuMods`)
+
+`src/mods_screen.lua` (Mm, `env.modsScreen`) builds the engine's `ManagerState` off the stack (Gen 3 over a stand-in
+like `mod_manager.show`'s: `save.options`, `restartWithMods`; `enter()` as the game's does, seeding its first
+profile) and hands the OPTIONS window (`src/apps/options.lua`, model `kind = "mods"`, `model.top(ui)`) its pages: the
+list by `category` (`SECTIONS`; `SAME` folds "Tools" into TOOL) with `row.section`, `row.badge`, `row.sub` (where it
+stands: `isStaged`, `runsHere`, `state`, `error`) and `row.open` (its page); a mod's page (`on`, `options` ->
+`Os.modPage`, `try` -> `toggleGen2Force` (its own confirm's `onYes` taken and asked in our words), `order` ->
+`moveOrder` / `loadOrderList`, the facts, `perms`, the error). Turning one on or off is `loader:resolveToggle` (else
+`ManagerState.resolveToggle`), its missing / conflicts / badVersion an OK sheet, alsoEnable / alsoDisable a Cancel /
+OK sheet, experimental asked first, then `commitToggle` (the loader persists it in the engine's options file: tests
+stub `loader._saveState`). Restart: `restartGame`; undo: `discardChanges`. The window's `ui`: `push`, `ok`, `confirm`
+(`st.sheet`), `toast`, `close`, `refresh` (every page's `rebuild`). Takeover: Gen 3 wraps
+`src.ui.game3.mod_manager.show` (`__woobOsMods`; Classic calls its `orig` with `bypass`, handing the caller's
+`onClose` on); the Game Boy games register "ManagerState" (a carrier with no screen id; F10 again closes ours, as the
+game's toggles; Classic pushes the engine's own). From our OPTIONS window (`Mm.inWindow`, set while it's open) the
+pages go there. Tests: tests/optscreen_test.lua's MODS block (Gen 3), tests/gb_test.lua's. Driver: scratchpad
+`mods3_driver.lua` (Emerald), `whichmove_driver.lua` (Red / Crystal: the Ether too).
+
 ### The staged scenes: an evolution, a catch's page, a nickname (`menuEvolution`, `menuCatch`)
+
+The touch pad stays out over a scene (`pad(true, true)` in `Sh.frame`'s two scene branches), the scene laid in
+`touchArea(viewport)` (upright: above the pad's buttons); a window's `W.noPad()` true -- the catch page's keyboard --
+puts it away and gives the whole screen. Red / Blue / Yellow's stats card has five rows (`statsOf` gives five; the
+window's `nStats()` by `#job.before`). A Game Boy Pokémon pictured as another species (an evolution's new one, asked
+before the change) goes to WoobleSpritePack as a stand-in with that species over the Pokémon (`Art.pic`'s `standIn`,
+kept per Pokémon and species), not the Pokémon itself, which the pack draws as it is.
 
 The Game Boy games' are `src/gb/scenes.lua` over the same windows (the jobs built from the games' own pieces):
 Gen 1's `src.pokemon.Evolution.evolve` wrapped (`__woobOsEvo`; `Evolution.apply`, its exact-level moves with a full set
@@ -1744,6 +1784,9 @@ Gen 1 has no script bytecode: leaders / Elite Four from the maps' `trainerClass`
 key items from `data.scripts.init`'s talk command lists (`give_item`, the next `set_flag`), key items lying in the
 maps, `GIFTS` (closures' gifts by hand), marts from `text_pointers` with `mart`, trades from `trade` rows, `BEATS1`
 (the Gen 3 story's words); a map's place is the outdoor map of its Town Map location (same name, else the nearest).
+Red at Mt. Silver: the object whose own script `loadtrainer`s class RED, a story entry done when both his object's
+flag (`EVENT_RED_IN_MT_SILVER`: set at a new game, cleared by the Hall of Fame, set again when he's beaten) and
+`EVENT_BEAT_CHAMPION_LANCE` are (`all`). The Lucky Number Show is its own kind (`lucky`).
 Tests: tests/gb_test.lua's last block (`OBJ_DUMP=1` prints every place's list).
 
 `src/map3d/objectives.lua` (Ob) reads each map's own scripts once per game (objects', signs', steps' and map scripts,
@@ -1753,11 +1796,15 @@ in VAR_0x8000 (Key Items pocket or an HM, named with its move by `Pokemon.moveFr
 done by the first `setflag` after it, else the Bag; LEADER / ELITE FOUR trainers (a rematch's team once), a Gym's
 done by the map's `FLAG_BADGE0n_GET` wherever it's set; `pokemart` floors and shops named from the map's id; people
 by the special they call (`ChooseMonForMoveTutor`, the Relearner's, the Deleter's, `NameRaterWasNicknameChanged`, the
-Day Care's, `CreateInGameTradePokemon`, the Lottery) or a house's map name (`NAME_RATER`); the story's beats placed
+Day Care's, `CreateInGameTradePokemon`, the Lottery), a house's map name (`NAME_RATER`) or an object's own script's
+label (`PERSON_LABEL`: Ruby / Sapphire's Name Rater lives in HOUSE2); a Mart, a Center's counter or the League's
+lobby (`POKEMON_LEAGUE`, `_1F`) is "Poké Mart"; the story's beats placed
 by `BEAT_AT` (src/story.lua's ids, the first map of each list that exists), done from `Sy.reached`. Flag names from
 the constants' `byName` (their `byId` lacks the system flags). By section (`regionMapSectionId`, the 3D map's place
 ids). `src/map3d/objectives_view.lua` draws the card in the scene's `glass`; the scene's `drawObjectives` puts it at
 the top right, `min(86, 40%)` wide, down to the place's card, and asks `Ob.at` again on another place or every 2 s.
+Too long for that room, `V.fit` runs the entries without a box (shops, most people) together a line at a time (made
+when the list or the room changes: `st.objFit`), before "+N more".
 Tests: tests/gps_test.lua's last block (all five games). Driver: scratchpad `objmap_driver.lua`.
 
 ### The switch screen's matchups

@@ -139,7 +139,9 @@ for _, r in ipairs(P0.rows) do if r.modName then mods = mods + 1 end end
 T.check(mods == 1, "only the mod's rows tagged (" .. mods .. ")")
 frame(2)
 local wi0 = rowAt(P0, "woob_os")
-T.check(P0.firstMod == wi0, "the divider above the first row a mod added (row " .. tostring(P0.firstMod) .. ")")
+local divs = 0
+for _ in pairs(P0.divs or {}) do divs = divs + 1 end
+T.check(P0.divs and P0.divs[wi0] ~= nil and divs == 1, "the divider above the first row a mod added (row " .. tostring(wi0) .. ")")
 -- (a value: Right changes it, and the game keeps it)
 local ti = rowAt(P0, "buttonMode")
 moveTo(P0, ti)
@@ -236,6 +238,96 @@ do
     frame(1, "b")
     T.check(not Ts.isOpen(), "B: closed, back to the manager")
   end
+end
+
+-- ------- MODS, modern (src/mods_screen.lua): each mod under its kind's section, its switch, its page
+do
+  local Mm = X._test.modsScreen
+  local MM = require("src.ui.game3.mod_manager")
+  T.check(Mm ~= nil and MM.__woobOsMods ~= nil, "MODS: the game's screen wrapped")
+  -- (a switch flipped here is kept by the loader in the engine's options file: not from a test)
+  local saveState = run.loader._saveState
+  run.loader._saveState = function() end
+  local closedM = 0
+  MM.show({ game = game, session = s, onClose = function() closedM = closedM + 1 end })
+  T.check(Tm.isOpen() and Tm.state().ctx.app == "options" and Mm.isOpen() and not MM.open, "MODS: ours, full screen")
+  frame(3)
+  local P = pg()
+  local wi, wr = rowAt(P, "woob_os")
+  T.check(P and wr and wr.section == "Interface" and wr.badge and wr.badge.letter == "W",
+          "WoobOS under Interface, its badge (" .. tostring(wr and wr.section) .. ")")
+  T.check(wr and wr.isOn == true and wr.sub == "On", "its switch on, and where it stands (" .. tostring(wr and wr.sub) .. ")")
+  T.check(P and P.divs and P.divs[wi] == "Interface", "the section's divider over it")
+  -- (A: its own page)
+  moveTo(P, wi)
+  frame(1, "a")
+  frame(2)
+  local MP = pg()
+  T.check(MP ~= P and MP.title == "WoobOS" and rowAt(MP, "on") and rowAt(MP, "options") and rowAt(MP, "version")
+          and rowAt(MP, "perms"), "A: its page (" .. tostring(MP and MP.title) .. ")")
+  T.check(MP.desc and #MP.desc > 10, "its description for the card along the foot")
+  local _, pr = rowAt(MP, "perms")
+  T.check(pr and pr.valueText and pr.valueText:find("code", 1, true), "what it may touch: " .. tostring(pr and pr.valueText))
+  local oi = rowAt(MP, "options")
+  moveTo(MP, oi)
+  frame(1, "a")
+  frame(2)
+  T.check(pg().mod == "woob_os", "Options: its options page, here")
+  frame(1, "b")
+  -- (its switch: off after a restart)
+  local ni = rowAt(MP, "on")
+  moveTo(MP, ni)
+  frame(1, "right")
+  frame(2)
+  local _, on2 = rowAt(pg(), "on")
+  T.check(run.loader.mods.woob_os.enabled == false and on2 and on2.isOn == false and on2.sub == "Off after a restart",
+          "its switch: off after a restart (" .. tostring(on2 and on2.sub) .. ")")
+  frame(1, "b")
+  frame(2)
+  P = pg()
+  T.check(rowAt(P, "__restart") and rowAt(P, "__discard"), "a change waiting: restart and undo at the top")
+  T.check(P.rows[1].id == "__restart" and P.divs[1] ~= nil, "under their own heading, first")
+  local di = rowAt(P, "__discard")
+  moveTo(P, di)
+  frame(1, "a")
+  frame(2)
+  T.check(run.loader.mods.woob_os.enabled == true and rowAt(pg(), "__restart") == nil, "undone: on again, nothing waiting")
+  -- (a question on a sheet: Cancel / OK)
+  local said = 0
+  win().ui.confirm("Turn it on?", function() said = said + 1 end)
+  frame(2)
+  T.check(st().sheet ~= nil, "a question: the sheet")
+  frame(1, "b")
+  T.check(st().sheet == nil and said == 0, "B: no")
+  win().ui.confirm("Turn it on?", function() said = said + 1 end)
+  frame(2)
+  frame(1, "a")
+  T.check(st().sheet == nil and said == 1, "A: yes")
+  -- (garbage, text size)
+  frame(30)
+  local kbM = garbageOf(Tm, 60)
+  T.check(kbM < 0.5, ("MODS: next to no garbage (%.3f KB a frame)"):format(kbM))
+  K.setTextScale(1.3)
+  T.check(pcall(frame, 10), "MODS' text at 130%")
+  K.setTextScale(1)
+  frame(1, "b")
+  T.check(not Tm.isOpen() and closedM == 1 and not Mm.isOpen(), "B: closed, the game told once")
+  -- (from our OPTIONS: its pages in the same window)
+  Screens.get("option", s).show({ session = s, game = game, onClose = function() end })
+  frame(2)
+  MM.show({ game = game, session = s })
+  frame(2)
+  T.check(Tm.isOpen() and #st().pages == 2 and rowAt(pg(), "woob_os") ~= nil, "from OPTIONS: MODS' pages there")
+  frame(1, "b")
+  frame(1, "b")
+  T.check(not Tm.isOpen(), "B, B: closed")
+  -- (the switch off: the game's own)
+  run.loader.modOptions.woob_os = { menuMods = false }
+  pcall(MM.show, { game = game, session = s })
+  T.check(not Tm.isOpen() and MM.open == true, "Mods off: the game's own")
+  if MM.open then pcall(MM.close) end
+  run.loader.modOptions.woob_os = nil
+  run.loader._saveState = saveState
 end
 
 -- ------- the switch off: the game's own

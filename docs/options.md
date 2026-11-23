@@ -23,7 +23,8 @@ Whichever place you changed last is the one that counts.
 | - Bag | On / Off | On | The Bag, and choosing from it (planting a Berry, the Berry Blender, the PC's items, selling, the Battle Pyramid). Off: the game's own Bag. Shown while Modern Menus is on. |
 | - Pokémon Menu | On / Off | On | The Pokémon menu, and choosing from it (giving and using items, a team, the Move Tutor). Off: the game's own. Shown while Modern Menus is on. |
 | - Options | On / Off | On | OPTIONS in glass: whole names, switches and arrows, the rows other mods add tagged and set apart, and each mod's options page with its options as a tree and their descriptions. Off: the game's own. Shown while Modern Menus is on. |
-| - Summary | On / Off | On | A Pokémon's summary, and choosing a move to forget. Off: the game's own. Shown while Modern Menus is on. |
+| - Mods | On / Off | On | MODS in glass: the installed mods in a section for each kind, each with its switch and where it stands, and a page of its own with its options, load order and what it may touch. Off: the game's own. Shown while Modern Menus is on. |
+| - Summary | On / Off | On | A Pokémon's summary, choosing a move to forget, and choosing a move for an Ether, a PP Up or the Move Deleter (Red to Crystal). Off: the game's own. Shown while Modern Menus is on. |
 | - Evolution | On / Off | On | A Pokémon evolving, full screen with light and sparkles: the old one and the new one trading places, the flash, the new one. Off: the game's own. Shown while Modern Menus is on. |
 | - Catch & Name | On / Off | On | After a first catch, the Pokémon's Pokédex page and the question to nickname it, with a modern keyboard; the same keyboard for every Pokémon's nickname (a catch, an Egg, a gift). Off: the game's own. Shown while Modern Menus is on. |
 | - Battle Menus | On / Off | On | Off: the game's own Bag, Pokémon menu and summary in a battle (out of battle, as their own switches say). Shown while Modern Menus is on. |

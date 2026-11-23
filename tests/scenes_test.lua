@@ -149,6 +149,14 @@ do
   T.check(Sh.sceneOpen("evolution") and Stack.has(Sh.SCENE_ID) and ES.isOpen(),
           "an evolution: ours, on its own layer, the game told it's open")
   T.check(Sh.sceneTop(), "on top")
+  do
+    local TC = require("src.core.TouchControls")
+    local en0 = TC.enabled
+    TC.enabled = true
+    frame(1)
+    T.check(TC.enabled ~= false, "the touch pad out over it")
+    TC.enabled = en0
+  end
   T.check(waitFor(function() return wst() and wst().words.pages ~= nil end, 120), "What? It's evolving: the game's words")
   frame(1, "a")
   frame(30)
@@ -257,6 +265,32 @@ do
   T.check(pressUntil(asking), "then the question")
   frame(1, "a")
   T.check(wst().kb ~= nil, "Yes: the keyboard")
+  -- (a phone upright, the touch pad out: the page above the pad's buttons; the keyboard alone, the pad away)
+  do
+    local TC = require("src.core.TouchControls")
+    local en0, vis0, lay0 = TC.enabled, TC.visible, TC.layout
+    TC.enabled = true
+    TC.visible = function() return true end
+    TC.layout = function() return { dpad = { cy = 740, w = 150 }, a = { cy = 690, w = 70 }, b = { cy = 750, w = 70 } } end
+    local seen, draw0 = false, Ts.draw
+    Ts.draw = function(G, vp) seen = vp.area return draw0(G, vp) end
+    local vp0 = VP
+    VP = { width = 450, height = 800 }
+    frame(2)
+    T.check(TC.enabled == false and seen == nil, "the keyboard: no touch pad over it, the whole screen")
+    local kb0 = wst().kb
+    wst().kb = nil
+    TC.enabled = true
+    frame(1)
+    -- (the pad back as the player had it -- off here -- and the page above where its buttons are)
+    T.check(TC.enabled == en0 and type(seen) == "table" and seen[2] + seen[4] <= 690 - 35,
+            "the page before it: the pad as it was, the page above its buttons")
+    wst().kb = kb0
+    frame(1)
+    VP = vp0
+    Ts.draw = draw0
+    TC.enabled, TC.visible, TC.layout = en0, vis0, lay0
+  end
   T.check(typeWord("Spark"), "typed")
   T.eq(wst().kb.text, "Spark", "a capital, then small letters")
   frame(1, "b")

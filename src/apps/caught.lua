@@ -172,6 +172,8 @@ return function(ctx, env)
   end
 
   function W.hints() return nil end
+  -- (the keyboard up: no touch pad over it -- its own keys are the way to type)
+  function W.noPad() return st.kb ~= nil end
   function W.close()
     if not st.finished then
       st.finished = true

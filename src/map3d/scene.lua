@@ -1633,7 +1633,15 @@ return function(ctx, env, opts)
     local ow = min(86, w * 0.4)
     local ox = x + w - M - ow
     local bottom = (ox > st.cardX + st.cardW + M) and (y + h - M) or (st.cardY - 3)
-    local oh = O.view.height(list, ow, bottom - top)
+    -- (too long for the room: its shops and people run on together, made again only when the list or the room changes)
+    local room = bottom - top
+    if O.view.fit and (st.objFitOf ~= list or st.objFitW ~= ow or st.objFitH ~= room or st.objFitS ~= K.textScale()) then
+      st.objFitOf, st.objFitW, st.objFitH, st.objFitS = list, ow, room, K.textScale()
+      local ok, got = pcall(O.view.fit, list, ow, room)
+      st.objFit = ok and got or list
+    end
+    if O.view.fit and st.objFit then list = st.objFit end
+    local oh = O.view.height(list, ow, room)
     if oh < 22 then return end
     local oy = top
     O.view.draw(list, ox, oy, ow, oh, clock, glass)

@@ -11,6 +11,10 @@
 --                    the carrier with it)
 --   the summary      Gen 1 "SummaryMenu" (one Pokémon; pops itself), Gen 2 "Gen2SummaryMenu" (one, or the party at
 --                    an index; its MOVE screen; onClose(), the caller pops; screen.index where it ended)
+--   a move to choose Gen 1 "MoveSelectMenu" (an Ether's, a PP Up's: onChoose(slot, menu) with the menu held until the
+--                    game's words are read, its picker's close() taking it; "PP is maxed" asks again: menu:ask()),
+--                    Gen 2 "Gen2MoveDeleter" outside its forget layout (a PP item's, Blackthorn's Move Deleter's:
+--                    onChoose(slot) / onCancel(), the caller pops): the summary's moves, a state of ours in its place
 --   the Bag          Gen 1 "BagMenu" (START's, a battle's), Gen 2 "Gen2PackMenu" (START's, a battle's, the held
 --                    item's GIVE; the mart's and the item PC's, which hold their pack, stay the game's). USE is the
 --                    game's own bag, built off the stack on that item (Gen 1: its choose, and in the field its USE
@@ -223,6 +227,11 @@ return function(H, Gd, deps)
     function c:setMessage(text) if text and text ~= "" then say(self, text) end end
     function c:eraseCursors() end
     function c:close()
+      -- (a move menu of its own still held over it -- an Ether's -- goes first, as the game's own list does)
+      local top = game.stack:top()
+      if top ~= self and type(top) == "table" and rawget(top, "woobOsPick") and top.owner == self and top.held then
+        popIfTop(game, top)
+      end
       if self.inner then popIfTop(game, self) return end
       shut(self)
       popIfTop(game, self)
@@ -363,6 +372,8 @@ return function(H, Gd, deps)
 
   -- ------- the Bag
 
+  -- (the item our Bag is using: a move chosen for it asks its question)
+  local usingItem = nil
   -- (USE: the game's own bag built off the stack, on that item)
   local function use1(game, opts, c, row)
     local BM = engine("src.ui.BagMenu")
@@ -420,12 +431,14 @@ return function(H, Gd, deps)
     function c.open()
       if Mn.isOpen() then return false end
       Bg.useHandler = function(row, ui)
+        usingItem = row.id
         local ok, took = pcall(useFn, game, opts, c, row)
         if not ok then log("the game's item use: %s", tostring(took)) end
         if not (ok and took) then ui.back() end
       end
       return openWindow(c, m, function()
         Bg.useHandler = nil
+        usingItem = nil
         onClosed(c, m.result or {})
       end)
     end
@@ -486,6 +499,89 @@ return function(H, Gd, deps)
       local res = m.result or {}
       after(type(res.picked) == "number" and res.picked + 1 or nil)
     end, nil, { menu = m, chrome = false }) == true
+  end
+
+  -- ------- a move chosen for something (a PP item's, the Move Deleter's): the summary's moves in the window that's up,
+  -- else its own full screen; a state of ours in the game's list's place, answer(state, slot 1..4 | nil)
+  local deleting = nil
+  local function question(item)
+    if item == "PP_UP" then return "sum.pick.ppUp" end
+    if item then return "sum.pick.pp" end
+    return "sum.pick.move"
+  end
+  local function canPick(game)
+    local battle = Pt.battleOf and Pt.battleOf(game) ~= nil
+    if not on("summary", battle) then return false end
+    if cur then
+      local w = win()
+      return w ~= nil and w.pickFor ~= nil
+    end
+    return true
+  end
+  local function openPick(game, mon, choose, after)
+    local w = win()
+    if cur then
+      return w ~= nil and w.pickFor ~= nil and w.pickFor({ mon }, 1, choose, function(p) after(p and p + 1 or nil) end)
+    end
+    local m = { kind = "summary", list = { mon }, index = 1, choose = choose }
+    return Sh.openFull("menus", game.save, function()
+      local res = m.result or {}
+      after(type(res.picked) == "number" and res.picked + 1 or nil)
+    end, nil, { menu = m, chrome = false }) == true
+  end
+  local function pickState(game, mon, choose, answer)
+    local s = H.noId({ isOpaque = false, woobOsAbove = true, woobOsPick = true, game = game, mon = mon,
+                       draw = function() end })
+    -- (opened on its first update, and again when the game asks again)
+    s.update = function(me)
+      if not me.asked then
+        me.asked = true
+        if not openPick(game, mon, choose, function(slot) answer(me, slot) end) then answer(me, nil) end
+        return
+      end
+      if cur and game.input then Sh.feedHost(game.input) end
+    end
+    return s
+  end
+  -- Gen 1: an Ether's, a PP Up's list (pushed over the party list that chose the Pokémon, its `owner`)
+  local function pick1(game, mon, prompt, onChoose, onCancel, owner)
+    if type(mon) ~= "table" or not canPick(game) then return nil end
+    local s = pickState(game, mon, question(usingItem), function(me, slot)
+      if not slot then
+        me.held = false
+        popIfTop(game, me)
+        removeState(game, me)
+        if onCancel then pcall(onCancel) end
+        return
+      end
+      -- (held until the game's words are read: its picker's close takes it, "PP is maxed" asks again)
+      me.held = true
+      local ok, err = pcall(onChoose, slot, me)
+      if not ok then log("after the move chosen: %s", tostring(err)) end
+      if me.held and game.stack:top() == me then me:release() end
+    end)
+    s.owner = owner
+    function s:release()
+      self.held = false
+      popIfTop(game, self)
+    end
+    function s:ask()
+      self.held = false
+      self.asked = false
+    end
+    return s
+  end
+  -- Gen 2: a PP item's list, the Move Deleter's (outside the forget layout; the caller pops it)
+  local function pick2(game, opts)
+    if type(opts) ~= "table" or type(opts.mon) ~= "table" or not canPick(game) then return nil end
+    local choose = (deleting and deleting.mon == opts.mon) and "sum.pick.delete" or question(usingItem)
+    deleting, usingItem = nil, nil
+    return pickState(game, opts.mon, choose, function(_, slot)
+      local f = slot and opts.onChoose or opts.onCancel
+      if not f then return end
+      local ok, err = pcall(f, slot)
+      if not ok then log("after the move chosen: %s", tostring(err)) end
+    end)
   end
 
   -- Gen 1: MoveLearnMenu is the game's own (its questions and words), its list ours
@@ -656,7 +752,10 @@ return function(H, Gd, deps)
       end })
     end
     if gen == 2 then
-      wrapScreen("Gen2MoveDeleter", "src.ui.gen2.MoveDeleter", forget2)
+      wrapScreen("Gen2MoveDeleter", "src.ui.gen2.MoveDeleter", function(game, opts)
+        if type(opts) == "table" and opts.layout == "forget" then return forget2(game, opts) end
+        return pick2(game, opts)
+      end)
       wrapScreen("Gen2MoveTutor", "src.ui.gen2.MoveTutor", tutor2)
       wrapScreen("Gen2PartyMenu", "src.ui.gen2.PartyMenu", party2)
       wrapScreen("Gen2SummaryMenu", "src.ui.gen2.SummaryMenu", summary2)
@@ -670,6 +769,7 @@ return function(H, Gd, deps)
         return engine("src.ui.MoveLearnMenu").new(game, mon, moveId, onDone, sound)
       end })
       wrapScreen("SummaryMenu", "src.ui.SummaryMenu", summary1)
+      wrapScreen("MoveSelectMenu", "src.ui.MoveSelectMenu", pick1)
       if Bg then wrapScreen("BagMenu", "src.ui.BagMenu", bag1) end
     end
     -- (Red / Blue / Yellow: the scripts that build the party list themselves -- the Day Care, the Name Rater, the Fan
@@ -724,6 +824,20 @@ return function(H, Gd, deps)
         return nil
       end)
       wrapFn(engine("src.ui.gen2.BattleState"), "answerForgetPrompt", "__woobOsForget", battleForget2)
+      -- (the item a move is chosen for: the field's, the battle's)
+      wrapFn(engine("src.core.Game2"), "usePartyItem", "__woobOsItem", function(_, itemId)
+        usingItem = itemId
+        return nil
+      end)
+      wrapFn(engine("src.ui.gen2.BattleState"), "pickMoveForItem", "__woobOsItem", function(_, itemId)
+        usingItem = itemId
+        return nil
+      end)
+      -- (Blackthorn's Move Deleter: its list asks which to delete)
+      wrapFn(engine("src.world.gen2.World"), "chooseMoveToDelete", "__woobOsDelete", function(_, mon)
+        deleting = { mon = mon }
+        return nil
+      end)
     end
     -- (the text boxes: once per process, this instance's code swapped in)
     local TB = engine("src.render.TextBox")

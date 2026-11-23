@@ -586,13 +586,14 @@ return function(K, env, T, st, A, TABS)
   end
   local function movesTab(x, y, w, R, S, clock, dt)
     local moves = R.moves
-    -- (choosing one to forget: the question above, the move it would learn as a fifth row)
+    -- (choosing one to forget: the question above, the move it would learn as a fifth row; choosing one for
+    -- something: its question)
     local learn = S.learn
     local n = #moves + (learn and 1 or 0)
     local rh = 10
     local yy = y
-    if learn then
-      local q = word("sum.forget")
+    if learn or S.choose then
+      local q = word(S.choose or "sum.forget")
       K.bold(q, x + 1.5, yy, K.fit(q, 4, w - 3), C.accent)
       yy = yy + 6.5
     end
@@ -607,7 +608,7 @@ return function(K, env, T, st, A, TABS)
     -- forget, the list's foot too)
     if sel then
       S.selRow = yy + (sel - 1) * rh
-      S.selA, S.selB, S.listB = learn and y or S.selRow, S.selRow + rh, yy + n * rh
+      S.selA, S.selB, S.listB = (learn or S.choose) and y or S.selRow, S.selRow + rh, yy + n * rh
     else
       S.selA = nil
     end
@@ -748,7 +749,7 @@ return function(K, env, T, st, A, TABS)
     mv.followed, mv.followedRec = sel, S.rec
     local off = mv.top - top
     local a, b = S.selA + off, S.selB + off
-    if S.learn and S.listB and S.listB - S.selA <= ah then b = S.listB + off end
+    if (S.learn or S.choose) and S.listB and S.listB - S.selA <= ah then b = S.listB + off end
     -- (its details under the list too: power, accuracy, category, its words -- when they fit with it)
     local d = S.detailB and S.detailB + off
     if d and d - a <= ah then b = max(b, d)

@@ -91,6 +91,7 @@ return function(mod)
                evolutionWindow = loadSibling(mod, "src/apps/evolution.lua"),
                caughtWindow = loadSibling(mod, "src/apps/caught.lua"), fx = loadSibling(mod, "src/apps/scene_fx.lua"),
                optScreen = loadSibling(mod, "src/options_screen.lua"), optWindow = loadSibling(mod, "src/apps/options.lua"),
+               modsScreen = loadSibling(mod, "src/mods_screen.lua"),
                objectives = loadSibling(mod, "src/map3d/objectives.lua"),
                objectivesView = loadSibling(mod, "src/map3d/objectives_view.lua") }
   local Arrange = loadSibling(mod, "src/arrange.lua")
@@ -1681,11 +1682,21 @@ return function(mod)
         return SC.options.isOpen() and type(f) == "function" and f(id) == true
       end
     end
+    -- MODS, modern (src/mods_screen.lua), in the same window
+    if SC.modsScreen then
+      env.modsScreen = SC.modsScreen(engine, { Sh = Sh, Os = SC.options, T = T, gen = 3,
+        log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+        on = function() return option("modernMenus", true) ~= false and option("menuMods", true) ~= false end })
+    end
   end
   mod.events:on("game.ready", function()
     if SC.options then
       local okO, errO = pcall(SC.options.wrap)
       if not okO then mod.log:warn("the game keeps its own OPTIONS: %s", tostring(errO)) end
+    end
+    if env.modsScreen then
+      local okM, errM = pcall(env.modsScreen.wrap)
+      if not okM then mod.log:warn("the game keeps its own MODS: %s", tostring(errM)) end
     end
     if SC.scenes then
       local okS, errS = pcall(SC.scenes.wrap)
@@ -1813,7 +1824,7 @@ return function(mod)
   mod.exports._test = { post = notify, desktop = Desktop, shell = Sh, apps = Apps, kit = Kit, inv = env.inv, mb = env.mb, bx = env.bx,
                         mart = env.mart, auction = env.auction, slots = env.slots, pcgames = env.pcgames, gts = env.gts,
                         bank = env.bank, journal = env.journal, challenges = env.challenges, errands = env.errands,
-                        swarm = env.swarm, news = env.news, story = env.story, pokecenter = env.pokecenter, menus = env.menus, scenes = SC.scenes, sceneHost = SC.host, optionsScreen = SC.options, objectives = env.objectives,
+                        swarm = env.swarm, news = env.news, story = env.story, pokecenter = env.pokecenter, menus = env.menus, scenes = SC.scenes, sceneHost = SC.host, optionsScreen = SC.options, modsScreen = env.modsScreen, objectives = env.objectives,
                         env = env, i18n = T, settings = Settings, wall = Wall, arrange = Arrange,
                         watch = Watch, pad = Watch, notify = Nt, tick = tick, map3d = env.map3d, townmap = TownMap,
                         phone = env.phone, condition = env.condition, ribbons = env.ribbons, hall = env.hall, oak = env.oak, decorate = env.decorate, pokenav = Pokenav, onCall = onCall, gear = Gear, gearPanel = GearPanel,
