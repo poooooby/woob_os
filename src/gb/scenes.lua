@@ -169,8 +169,8 @@ return function(H, Gd, Art, deps)
     end
   end
   local function carrier(game, open, fallback)
-    local c = { isMenu = true, isOpaque = true, update = carrierUpdate, draw = carrierDraw, game = game,
-                open = open, fallback = fallback }
+    local c = H.noId({ isOpaque = true, update = carrierUpdate, draw = carrierDraw, game = game,
+                       open = open, fallback = fallback })
     function c.lost() c.done = true end
     return c
   end
@@ -621,7 +621,7 @@ return function(H, Gd, Art, deps)
         if a then mon.nickname = clip(a) end
         self.blankForAskName = false
         -- (a state the battle waits on: gone at once)
-        local st = { isMenu = true, draw = function() end }
+        local st = { draw = function() end }
         st.update = function(me) popIfTop(self.game, me) end
         return st
       end)

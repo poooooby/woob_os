@@ -25,6 +25,8 @@ All notable changes to this mod are documented here, in
 ### Fixed
 - **OPTIONS:** a mod's row added to the top page another way than the engine's hook (Vivid Worlds' page) is tagged
   with its mod's name and sits under "Added by mods", like the others.
+- **With OmniUI on Red, Blue, Yellow, Gold, Silver and Crystal:** its menus don't draw over WoobOS's screens, and
+  WoobOS's keyboard isn't taken for the game's own.
 
 ## [0.24.0] - 2026-11-22
 

@@ -267,7 +267,7 @@ return function(H, Os, deps)
       local playing = type(game) == "table" and game.save ~= nil and (game.phase == nil or game.phase == "play"
         or game.phase == "field")
       if not (M and on() and playing and not opts.rows) then return M.new(game, opts) end
-      local c = { isMenu = true, update = carrierUpdate, draw = carrierDraw, isOpaque = true, game = game, opts = opts }
+      local c = H.noId({ update = carrierUpdate, draw = carrierDraw, isOpaque = true, game = game, opts = opts })
       c.finish = function()
         if c.done then return end
         c.done = true

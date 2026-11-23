@@ -1506,6 +1506,33 @@ The mod option `realShops`; with it off, or anything failing, the game's own scr
 
 ## The modern menus
 
+### The Game Boy games' menus
+
+`src/gb/menus.lua` (Mn: the takeover), `src/gb/party.lua` (Pt, src/party.lua's interface) and `src/gb/bag.lua` (Bg,
+src/bag_rules.lua's), under the same windows. The screens come through `mod.content.screens`: Gen 1 `PartyMenu` /
+`SummaryMenu` / `BagMenu`, Gen 2 `Gen2PartyMenu` / `Gen2SummaryMenu` / `Gen2PackMenu` (the mart's and item PC's packs,
+built with `world = {}` and held by those screens, stay the game's). A carrier stands in the game's screen's place and
+opens the window over it; `H.forward(MAP_ID, carrier, onGamePop)` makes our host state answer the methods the game
+calls on "its" top screen (Gen 2's `list:refuse`, `stack:top():showItemResult`) and a pop by the game closes ours and
+takes the carrier with it (host states' `exit`, `closing` set by `H.pop`). Gen 1's party callers hold the menu object
+(`onSwitch(mon, menu)`: `refuse` / `close` / `animateTo` / `setMessage`). While a window is up, the game's own pieces
+come into it: its party list asked for by its item code opens as a page over ours (`W.innerParty` / `W.innerDone` in
+src/apps/menus.lua; an inner carrier with `woobOsAbove`, forwarding the buttons, which `Sh.frame` treats as
+see-through) and `src.render.TextBox.new` (wrapped once per process, `__woobOsMenus`) gives a `woobOsAbove` stand-in
+whose text is our words box (`W.say`, or `W.ask` for `opts.choice`). The Bag's USE is the game's own bag built off the
+stack: Gen 1 `BagMenu.new` with `list.index` on the row, `list.onChoose`, and in the field its USE box's first entry;
+`list.close` closes ours. Gen 2 `PackMenu.new`, `pocketIndex` + `rebuild()` + `index`, `showMessage` ours,
+`useSelected()`. Field moves: Gen 1 the overworld's own calls (refusals in our box, the move after ours closes), Gen 2
+`World:useFieldMove` with `showText` caught, then the party menu's own exits. Held items through Gen 2's
+`HeldItemMenu` built off the stack (`say` / `ask` / `close` ours). Matchups: Gen 1 `TypeChart.effectiveness`, Gen 2
+`Damage.typeMultiplier` (tenths). Catch chance: the battle's own `catchChance` (a percent), wild only.
+
+OmniUI (another author's mod) dresses and drives a state by its `screenId`, and takes an `isMenu` one for a small menu
+over whatever it knows underneath, which it then draws over ours; a state it doesn't know, it leaves alone. So every
+Game Boy carrier refuses the registry's `screenId` stamp (`H.noId`: the PC's, the Pokédex's, the Pokégear's, the
+shops', OPTIONS', the scenes', the menus'), and no state of ours on the Game Boy stack has `isMenu` (the engine reads it
+only for the game's speed). Tests: tests/gb_test.lua's menus and Bag blocks; driver scratchpad `gbmenu_driver.lua`.
+
 The options: `modernMenus`, then one per category, each `visible_if` modernMenus (`pokedex`, `menuBag`,
 `menuParty`, `menuSummary`, `menuBattle`, then `gearMenus`). src/menus.lua's gates ask `on(kind, battle)`
 (`Mn.allowed`): main.lua's `deps.on` is Modern Menus, then the category's key (`MENU_OPTION`), then

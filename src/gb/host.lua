@@ -157,10 +157,17 @@ return function(mod, deps)
       pcall(f)
     end
   end
+  -- (a state of ours pushed in one of the game's screens' places never takes the screen id the registry stamps on it:
+  -- OmniUI dresses -- and drives -- a state by it, the game's own screen it thinks it is)
+  local NO_ID = { __newindex = function(t, k, v) if k ~= "screenId" then rawset(t, k, v) end end }
+  function H.noId(t) return setmetatable(t, NO_ID) end
+  -- (no `isMenu` on any state of ours here: another mod that dresses the game's own menus -- OmniUI -- takes a state
+  -- with it for a small menu over whatever it knows underneath, and draws that over ours; one it doesn't know, it
+  -- leaves alone. The engine reads it only for the game's speed, and nothing under ours updates while it's up)
   local function stateFor(id)
     local st = states[id]
     if not st then
-      st = setmetatable({ woobOs = id, isMenu = true, update = stateUpdate, draw = stateDraw, wantsShoulders = shoulders,
+      st = setmetatable({ woobOs = id, update = stateUpdate, draw = stateDraw, wantsShoulders = shoulders,
                           exit = stateExit }, FWD)
       states[id] = st
     end
@@ -328,8 +335,8 @@ return function(mod, deps)
     end
   end
   local function carrier(game, mode, finish, fallback)
-    local c = { isMenu = true, mode = mode, update = carrierUpdate, draw = stateDraw, isOpaque = true,
-                finish = finish, fallback = fallback, changed = false }
+    local c = H.noId({ mode = mode, update = carrierUpdate, draw = stateDraw, isOpaque = true,
+                finish = finish, fallback = fallback, changed = false })
     c.dopts = { session = game.save, bedroom = mode == "bedroom", carrier = c,
                 onClose = function(result)
                   c.done = true
@@ -518,7 +525,7 @@ return function(mod, deps)
       local wanted = Sh and (not deps.enabled or deps.enabled()) and deps.dexOn and deps.dexOn()
       -- (only the START menu's: one with a way back to it)
       if not (wanted and (opts.onCancel or opts.onClose) and not opts.entrySpecies) then return M.new(game, opts) end
-      local c = { isMenu = true, update = dexCarrierUpdate, draw = stateDraw, isOpaque = true, game = game }
+      local c = H.noId({ update = dexCarrierUpdate, draw = stateDraw, isOpaque = true, game = game })
       c.finish = function()
         if gen == 2 then
           if opts.onClose then opts.onClose() end
@@ -576,8 +583,8 @@ return function(mod, deps)
       local wanted = Sh and (not deps.enabled or deps.enabled()) and (not deps.gearOn or deps.gearOn())
       if not wanted then return gearBuiltin(game, opts) end
       if not (opts.fly or opts.townMap) and deps.padOn and not deps.padOn() then return gearBuiltin(game, opts) end
-      local c = { isMenu = true, update = gearCarrierUpdate, draw = stateDraw, isOpaque = true, game = game,
-                  opts = opts }
+      local c = H.noId({ update = gearCarrierUpdate, draw = stateDraw, isOpaque = true, game = game,
+                         opts = opts })
       local function popSelf()
         local stk = stack()
         if stk and stk:top() == c then pcall(stk.pop, stk) end
@@ -640,8 +647,8 @@ return function(mod, deps)
       if not wanted then return M.new(game, opts) end
       local okB, mr = pcall(M.new, game, opts)
       if not (okB and mr and mr.station) then return M.new(game, opts) end
-      local c = { isMenu = true, update = gearCarrierUpdate, draw = stateDraw, isOpaque = false, game = game,
-                  opts = opts }
+      local c = H.noId({ update = gearCarrierUpdate, draw = stateDraw, isOpaque = false, game = game,
+                         opts = opts })
       local function finish()
         if c.done then return end
         c.done = true

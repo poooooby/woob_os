@@ -121,7 +121,7 @@ return function(H, Gd, deps)
   end
   local function noDraw() end
   local function carrier(model, finish, fallback)
-    local c = { isMenu = true, update = carrierUpdate, draw = noDraw, isOpaque = false }
+    local c = H.noId({ update = carrierUpdate, draw = noDraw, isOpaque = false })
     c.finish = function()
       if c.done then return end
       c.done = true

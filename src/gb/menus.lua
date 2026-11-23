@@ -81,12 +81,10 @@ return function(H, Gd, deps)
       if not okF then log("the game's own menu: %s", tostring(errF)) end
     end
   end
-  -- (ours never carries the game's screen id: the registry stamps it, and another mod that dresses the game's own
-  -- menus by it -- OmniUI -- would draw its party or bag over ours)
-  local NO_ID = { __newindex = function(t, k, v) if k ~= "screenId" then rawset(t, k, v) end end }
+  -- (ours never carries the game's screen id: H.noId)
   local function newCarrier(game, opts)
-    local c = setmetatable({ isMenu = true, isOpaque = true, update = carrierUpdate, draw = carrierDraw, game = game,
-                             opts = opts, woobOsMenu = true }, NO_ID)
+    local c = H.noId({ isOpaque = true, update = carrierUpdate, draw = carrierDraw, game = game,
+                       opts = opts, woobOsMenu = true })
     function c.lost()
       c.done = true
       if cur == c then cur = nil end
@@ -144,8 +142,8 @@ return function(H, Gd, deps)
   local function innerCarrier(game, opts, m, cancel)
     local w = win()
     if not (w and w.innerParty) then return nil end
-    local c = setmetatable({ isMenu = true, isOpaque = false, woobOsAbove = true, woobOsMenu = true, inner = true,
-                             game = game, opts = opts, m = cur.m }, NO_ID)
+    local c = H.noId({ isOpaque = false, woobOsAbove = true, woobOsMenu = true, inner = true,
+                       game = game, opts = opts, m = cur.m })
     c.update = function() if game.input then Sh.feedHost(game.input) end end
     c.draw = function() end
     -- (the game took its list away)
@@ -449,7 +447,7 @@ return function(H, Gd, deps)
     -- (only while ours, or a state of ours over it, is on top)
     local top = game.stack:top()
     if not (type(top) == "table" and (rawget(top, "woobOs") or rawget(top, "woobOsAbove"))) then return nil end
-    local g = { isMenu = true, isOpaque = false, woobOsAbove = true, game = game }
+    local g = { isOpaque = false, woobOsAbove = true, game = game }
     g.draw = function() end
     g.update = function() if game.input then Sh.feedHost(game.input) end end
     local function out()
