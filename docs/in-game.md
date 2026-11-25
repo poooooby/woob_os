@@ -100,6 +100,29 @@ changes the letters. OK with the name left blank gives no nickname.
 On a phone with no controller, the game's touch buttons stay out over an evolution and a catch's page, with
 the page above them when the phone is upright. The keyboard has the whole screen to itself.
 
+## 🪪 The trainer card
+
+START's trainer card is a glass card floating over a night sky, its metal and its light the colour of its
+tier: Classic, Bronze, Silver, Gold or Black. On FireRed, LeafGreen, Ruby, Sapphire and Emerald that's the
+game's own stars. On Red, Blue, Yellow, Gold, Silver and Crystal a star comes with each of: all eight badges,
+the Champion, then a full Kanto Pokédex and Mew (Red, Blue, Yellow) or Kanto's eight badges and a full Pokédex
+(Gold, Silver, Crystal). A holographic shimmer crosses it now and then, and a holo sticker turns its colours.
+
+It turns over like a real card, in perspective, page by page:
+
+- **The front:** your trainer under a spotlight, your name, ID number, the Hall of Fame, money, the Pokédex
+  (seen and caught), play time with its colon blinking, your stars and your badges along the foot.
+- **The badges:** each in a glass medallion with its name and its Gym Leader, the ones you've earned lit and
+  glinting, the rest dark. On Red to Crystal the leaders' faces sit beside them, and Gold, Silver and Crystal
+  have a page for Johto and one for Kanto (Kanto's in colour when FireRed or LeafGreen is imported).
+- **The records:** your Hall of Fame debut, link battles won and lost, trades, the game's own counts (battles,
+  Pokémon caught, Eggs hatched, steps and more), contests, Pokéblocks and Battle Points on Emerald, and your
+  party.
+
+A, Right or R turns to the next page, Left or L back, B closes. By touch: tap the card, the arrows beside
+it or the dots under it. Held upright, the card stands tall. A link partner's card in the Union Room or the
+Cable Club is the game's own. The Modern Menus' "- Trainer Card" switch turns it off.
+
 ## 📕 The Pokédex
 
 The Pokédex from the START menu is WoobOS's own, the same as the [Pokédex app](apps.md). START, or Classic

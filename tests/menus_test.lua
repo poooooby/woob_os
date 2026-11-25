@@ -258,7 +258,7 @@ do
   for _, r in ipairs(rows) do
     if r.visible_if and r.visible_if.key == "modernMenus" and r.visible_if.equals == true then under[#under + 1] = r.key end
   end
-  T.eq(table.concat(under, " "), "pokedex menuBag menuParty menuSummary menuOptions menuMods menuEvolution menuCatch menuBattle gearMenus",
+  T.eq(table.concat(under, " "), "pokedex menuBag menuParty menuSummary menuOptions menuMods menuEvolution menuCatch menuTrainerCard menuBattle gearMenus",
        "under Modern Menus: " .. table.concat(under, " "))
   for _, r in ipairs(rows) do
     local n = #r.label:gsub("[\128-\191]", "")
@@ -1439,6 +1439,51 @@ do
   PM.close()
   if Tm.isOpen() then pframe(1, "b") end
   Bt._st, Bt._active = st0, active0
+end
+
+-- ------- the trainer card (src/trainercard.lua): START's TRAINER CARD, ours full screen; its pages turn; B closes
+do
+  local TC = require("src.ui.game3.trainer_card")
+  T.check(TC.__woobOsCard ~= nil, "the trainer card: wrapped")
+  local closedC = 0
+  s.gameStats = { [5] = 1234, [7] = 40, [11] = 12 }
+  TC.show({ session = s, onClose = function() closedC = closedC + 1 end })
+  T.check(Tm.isOpen() and Tm.state().ctx.app == "trainercard" and not TC.open, "TRAINER CARD: ours, full screen")
+  local cs = Tm.state().win.state
+  local card = Tm.state().ctx.menu
+  T.check(card and card.name == "WOS" and card.idText and #card.sets == 1 and #card.sets[1].badges == 8,
+          "its card: the name, the ID, eight badges")
+  T.check(card.party and #card.party == 3, "the party on it (" .. tostring(card.party and #card.party) .. ")")
+  local recN = 0
+  for _, r in ipairs(card.records or {}) do if r.value then recN = recN + 1 end end
+  T.check(recN >= 3, "the records: the game's own stats (" .. recN .. ")")
+  frame(40)
+  T.check(not Tm.state().winFailed, "it draws")
+  frame(1, "a")
+  frame(40)
+  T.eq(cs.page, 2, "A: the badges")
+  frame(1, "a")
+  frame(40)
+  T.eq(cs.page, 3, "A: the records")
+  frame(1, "left")
+  frame(40)
+  T.eq(cs.page, 2, "Left: back")
+  frame(30)
+  local tkb = garbageOf(60)
+  T.check(tkb < 0.5, ("the trainer card: next to no garbage (%.3f KB a frame)"):format(tkb))
+  K.setTextScale(1.3)
+  T.check(pcall(frame, 10), "at 130%")
+  K.setTextScale(1)
+  frame(1, "b")
+  frame(40)
+  T.check(not Tm.isOpen() and closedC == 1, "B: closed, the game told once (" .. closedC .. ")")
+  -- (the switch off: the game's own)
+  run.loader.modOptions.woob_os = { menuTrainerCard = false }
+  -- (Ruby / Sapphire's own card needs its art, which a headless run hasn't: only that it isn't ours)
+  pcall(TC.show, { session = s, onClose = function() end })
+  T.check(not Tm.isOpen(), "Trainer Card off: the game's own")
+  pcall(TC.close)
+  run.loader.modOptions.woob_os = nil
 end
 
 T.finish("woob_os menus (" .. GAME .. ")")

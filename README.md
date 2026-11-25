@@ -53,7 +53,8 @@ machine. Talk to a shop clerk and the shop opens full screen, dressed for wherev
 LeafGreen, Ruby, Sapphire and Emerald, the Bag, the Pokémon menu and each Pokémon's summary are redone in
 frosted glass too. An evolution plays full screen, the two Pokémon trading places as silhouettes in a swirl
 of sparkles until a flash of light shows the new one. A new catch shows its Pokédex page, and you type its
-nickname on a phone-style keyboard.
+nickname on a phone-style keyboard. Your trainer card is a foil card in glass, coloured by your progress, that
+turns over to your badges and your records.
 
 <table>
   <tr>
@@ -134,8 +135,8 @@ and they wait for it while it's off.
 
 If you'd rather keep the game's own version of something, you can switch it back piece by piece: the
 desktop itself, WoobPad, the Pokégear, the shops, the Pokémon Center and the modern menus, which have a
-switch each for the Pokédex, the Bag, the Pokémon menu, the summary, OPTIONS, MODS, evolution, catching and naming, and the
-battle menus.
+switch each for the Pokédex, the Bag, the Pokémon menu, the summary, OPTIONS, MODS, evolution, catching and naming, the
+trainer card and the battle menus.
 The options also hold the theme (Light, Dark or OLED), the text size, a 24-hour clock, Overworld GPS, and,
 with Kanto Gear, a battle's menus on its screen.
 Find them under OPTIONS > WOOBOS in the game, or MODS > WoobOS. [Every option](docs/options.md)

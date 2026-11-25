@@ -143,6 +143,15 @@ return {
       .. "same keyboard for an Egg's and a gift's nickname. Off: the game's own.",
   },
   {
+    key = "menuTrainerCard",
+    label = "- Trainer Card",
+    type = "toggle",
+    default = true,
+    visible_if = { key = "modernMenus", equals = true },
+    description = "The trainer card full screen in glass: a foil card in its tier's colour that turns over to "
+      .. "your badges and your records. Off: the game's own.",
+  },
+  {
     key = "menuBattle",
     label = "- Battle Menus",
     type = "toggle",

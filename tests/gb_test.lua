@@ -62,7 +62,48 @@ else
   data = Data
 end
 
-local run = T.sdk.loadMods({ "mods/woob_os" }, { generation = GEN, data = data })
+-- (the engine's options as they are, but WoobOS on for the game tested -- whatever mod profile the player has
+-- active -- read so in memory; the file itself never touched)
+local function testFs()
+  local FsIo = require("tests.fs_io")
+  local inner = FsIo.new(".")
+  local fs = { root = inner.root }
+  local SS = require("src.core.SaveSerializer")
+  local function patched(body)
+    if type(body) ~= "string" then return body end
+    local t = SS.decode(body)
+    if type(t) ~= "table" then return body end
+    t.mods = type(t.mods) == "table" and t.mods or {}
+    t.mods.woob_os = true
+    t.modsByVersion = type(t.modsByVersion) == "table" and t.modsByVersion or {}
+    t.modsByVersion[GAME] = type(t.modsByVersion[GAME]) == "table" and t.modsByVersion[GAME] or {}
+    for _, b in pairs(t.modsByVersion) do if type(b) == "table" then b.woob_os = true end end
+    return SS.encode(t)
+  end
+  function fs.read(path)
+    if path == "options.lua" then return patched(inner.read(path)) end
+    return inner.read(path)
+  end
+  function fs.write() return true end
+  function fs.load(path)
+    if path == "options.lua" then
+      local body = fs.read(path)
+      if not body then return nil, "no options.lua" end
+      return (loadstring or load)(body, "@options.lua")
+    end
+    return inner.load(path)
+  end
+  function fs.getInfo(path)
+    if path == "mods" then return { type = "directory" } end
+    return inner.getInfo(path)
+  end
+  function fs.getDirectoryItems(path)
+    if path == "mods" then return { "woob_os" } end
+    return inner.getDirectoryItems(path)
+  end
+  return fs
+end
+local run = T.sdk.loadMods({ "mods/woob_os" }, { generation = GEN, data = data, fs = testFs() })
 T.eq(#run.errors, 0, "loads clean on " .. GAME .. " (" .. tostring(run.errors[1]) .. ")")
 local X = run.loader.exports.woob_os
 T.check(X ~= nil and X._test ~= nil and X._test.host ~= nil, "the Game Boy wiring is made (src/gb/main.lua)")
@@ -2236,6 +2277,49 @@ do
     while #stack.states > base0 do stack:pop() end
   end
   save.party, save.inventory = keepParty, keepInv
+end
+
+-- ------- the trainer card (src/gb/trainercard.lua): START's TRAINER card, ours full screen; its pages; B closes
+do
+  local Tm = X._test.townmap
+  local base0 = #stack.states
+  local closedC = 0
+  local id = GEN == 2 and "Gen2TrainerCard" or "TrainerCard"
+  local opts = GEN == 2 and { onClose = function() closedC = closedC + 1 end }
+    or { onCancel = function() closedC = closedC + 1 end }
+  local c = Screens.push(game, id, opts)
+  T.check(type(c) == "table" and c.screenId == nil, "TRAINER card: a carrier of ours in its place")
+  frame(2)
+  local ws = Tm.isOpen() and Tm.state()
+  T.check(ws and ws.ctx.app == "trainercard", "the trainer card: ours, full screen")
+  local card = ws and ws.ctx.menu
+  T.check(card and card.idText and #card.sets == (GEN == 2 and 2 or 1) and #card.sets[1].badges == 8,
+          "its card: the ID, " .. (GEN == 2 and "Johto's and Kanto's" or "Kanto's") .. " eight badges")
+  T.check(card and card.art and card.art.portrait and card.art.face, "its pictures: the portrait, the leaders' faces")
+  frame(40)
+  T.check(ws and not Tm.state().winFailed, "it draws")
+  local cs = ws and ws.win.state
+  pressedNow = { a = true }
+  frame(1)
+  frame(40)
+  T.eq(cs and cs.page, 2, "A: the badges")
+  for _ = 1, 3 do
+    pressedNow = { a = true }
+    frame(1)
+    frame(40)
+  end
+  T.check(pcall(frame, 20), "every page draws")
+  pressedNow = { b = true }
+  frame(1)
+  frame(40)
+  T.check(not Tm.isOpen() and closedC == 1, "B: closed, the game told once (" .. closedC .. ")")
+  T.eq(#stack.states, base0, "the stack as it was")
+  -- (the switch off: the game's own)
+  run.loader.modOptions.woob_os = { menuTrainerCard = false }
+  -- (Gold / Silver / Crystal's own needs its card art, which a headless run hasn't: then only that it isn't ours)
+  local okOwn, own = pcall(Screens.build, game, id, opts)
+  T.check(not okOwn or (type(own) == "table" and own.finish == nil), "Trainer Card off: the game's own")
+  run.loader.modOptions.woob_os = nil
 end
 
 T.finish("woob_os gb (" .. GAME .. ")")

@@ -69,6 +69,8 @@ return function(mod, loadSibling, optionsRow)
   local SC = { optScreen = loadSibling(mod, "src/options_screen.lua"), optWindow = loadSibling(mod, "src/apps/options.lua"),
                modsScreen = loadSibling(mod, "src/mods_screen.lua"),
                gbOptions = loadSibling(mod, "src/gb/options.lua"), keyboard = loadSibling(mod, "src/keyboard.lua"),
+               trainerCard = loadSibling(mod, "src/gb/trainercard.lua"),
+               trainerCardWindow = loadSibling(mod, "src/apps/trainercard.lua"),
                fx = loadSibling(mod, "src/apps/scene_fx.lua"), scenes = loadSibling(mod, "src/gb/scenes.lua"),
                evolutionWindow = loadSibling(mod, "src/apps/evolution.lua"),
                caughtWindow = loadSibling(mod, "src/apps/caught.lua"),
@@ -848,6 +850,10 @@ return function(mod, loadSibling, optionsRow)
   env.appIcon = function(app, x, y, size, a) Desktop.appIcon(app, x, y, size, nil, a) end
   env.glyph = Desktop.glyph
   env.amount = function(n, x, y, size, c, measure) return Desktop.amount(n, x, y, size, c, measure) end
+  -- (one of the desktop's pictures, white, centred on cx, cy in units; tile: the colour its holes show)
+  env.icon = function(name, cx, cy, s, a, tile)
+    if Icons then pcall(Icons.draw, Kit.graphics(), name, Kit.X(cx), Kit.Y(cy), s * Kit.sc, a, tile) end
+  end
 
   -- the text size (Settings > Display, the mod option), on the kit: at load, once a second, and at once
   -- when the Settings app changes it
@@ -961,6 +967,18 @@ return function(mod, loadSibling, optionsRow)
                                                 log = function(fmt, ...) mod.log:warn(fmt, ...) end })
     local okO, errO = pcall(SC.gbOpt.install)
     if not okO then mod.log:warn("the game keeps its own OPTIONS: %s", tostring(errO)) end
+    -- the trainer card, modern (src/gb/trainercard.lua): the "TrainerCard" / "Gen2TrainerCard" screen
+    if SC.trainerCard and SC.trainerCardWindow and env.sceneFx then
+      Apps.register({ id = "trainercard", labelKey = "tc.title", label = "Trainer Card", glyph = "pokeball",
+                      color = { 255, 184, 40 }, order = 99, pad = false, available = function() return false end,
+                      window = function(ctx, e) return SC.trainerCardWindow(ctx, e) end })
+      SC.tc = SC.trainerCard(Host, { Sh = Sh, T = T, kit = Kit, dex = env.dex, screens = mod.content and mod.content.screens,
+        on = function() return option("modernMenus", true) ~= false and option("menuTrainerCard", true) ~= false end,
+        log = function(fmt, ...) mod.log:warn(fmt, ...) end })
+      env.trainerCard = SC.tc
+      local okT, errT = pcall(SC.tc.install)
+      if not okT then mod.log:warn("the game keeps its own trainer card: %s", tostring(errT)) end
+    end
     -- MODS, modern (src/mods_screen.lua): the "ManagerState" screen, in the same window
     if SC.modsScreen then
       env.modsScreen = SC.modsScreen(engine, { Sh = Sh, Os = SC.options, T = T, gen = gen, noId = Host.noId,

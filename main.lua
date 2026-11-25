@@ -94,7 +94,9 @@ return function(mod)
                modsScreen = loadSibling(mod, "src/mods_screen.lua"),
                objectives = loadSibling(mod, "src/map3d/objectives.lua"),
                objectivesView = loadSibling(mod, "src/map3d/objectives_view.lua"),
-               shopKind = loadSibling(mod, "src/map3d/shop_kind.lua") }
+               shopKind = loadSibling(mod, "src/map3d/shop_kind.lua"),
+               trainerCard = loadSibling(mod, "src/trainercard.lua"),
+               trainerCardWindow = loadSibling(mod, "src/apps/trainercard.lua") }
   local Arrange = loadSibling(mod, "src/arrange.lua")
   local makeMart, martWindow = loadSibling(mod, "src/mart.lua"), loadSibling(mod, "src/apps/mart.lua")
   -- the real shops: every shop counter opens the Mart full screen (src/realshop.lua; src/shop.lua the
@@ -1420,6 +1422,10 @@ return function(mod)
   env.glyph = Desktop.glyph
   -- (money in a window, with the game's sign: the Mart)
   env.amount = function(n, x, y, size, c, measure) return Desktop.amount(n, x, y, size, c, measure) end
+  -- (one of the desktop's pictures, white, centred on cx, cy in units; tile: the colour its holes show)
+  env.icon = function(name, cx, cy, s, a, tile)
+    if Icons then pcall(Icons.draw, Kit.graphics(), name, Kit.X(cx), Kit.Y(cy), s * Kit.sc, a, tile) end
+  end
   -- the text size (Settings > Display, the mod option), on the kit: at load, once a second, and at once
   -- when the Settings app changes it
   local function applyTextSize()
@@ -1691,7 +1697,24 @@ return function(mod)
         on = function() return option("modernMenus", true) ~= false and option("menuMods", true) ~= false end })
     end
   end
+  -- the trainer card, modern (src/trainercard.lua; the window an app that's never on the grid): Modern Menus'
+  -- "Trainer Card" switch
+  if SC.trainerCard and SC.trainerCardWindow and env.sceneFx then
+    Apps.register({ id = "trainercard", labelKey = "tc.title", label = "Trainer Card", glyph = "pokeball",
+                    color = { 255, 184, 40 }, order = 99, pad = false, available = function() return false end,
+                    window = function(ctx, e) return SC.trainerCardWindow(ctx, e) end })
+    SC.tc = SC.trainerCard(engine, {
+      Sh = Sh, T = T, kit = Kit, dex = env.dex, gameId = function() return Sh.gameId and Sh.gameId() or "firered" end,
+      on = function() return option("modernMenus", true) ~= false and option("menuTrainerCard", true) ~= false end,
+      log = function(fmt, ...) mod.log:warn(fmt, ...) end,
+    })
+    env.trainerCard = SC.tc
+  end
   mod.events:on("game.ready", function()
+    if SC.tc then
+      local okT, errT = pcall(SC.tc.wrap)
+      if not okT then mod.log:warn("the game keeps its own trainer card: %s", tostring(errT)) end
+    end
     if SC.options then
       local okO, errO = pcall(SC.options.wrap)
       if not okO then mod.log:warn("the game keeps its own OPTIONS: %s", tostring(errO)) end

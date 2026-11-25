@@ -5,6 +5,16 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+### Added
+- **The trainer card, modern, on every game:** START's trainer card full screen in glass, a foil card in its
+  tier's colour (Classic, Bronze, Silver, Gold or Black: the game's own stars on FireRed to Emerald, worked out
+  the same way from badges, the Champion and the Pokédex on Red to Crystal) that turns over in perspective. The
+  front has your trainer, name, ID, the Hall of Fame, money, the Pokédex, play time, stars and badges; a page of
+  badges has each in a glass medallion with its Gym Leader (and their faces on Red to Crystal; Johto and Kanto
+  on Gold, Silver and Crystal); the records have link battles, trades, the game's own counts, Emerald's contests,
+  Pokéblocks and Battle Points, and your party. A holographic shimmer, a holo sticker, a tall card held upright.
+  Modern Menus' "- Trainer Card" switch turns it off.
+
 ## [0.27.0] - 2026-11-23
 
 ### Changed
