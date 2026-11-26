@@ -5,6 +5,8 @@ All notable changes to this mod are documented here, in
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-26
+
 ### Added
 - **The trainer card, modern, on every game:** START's trainer card full screen in glass, a foil card in its
   tier's colour (Classic, Bronze, Silver, Gold or Black: the game's own stars on FireRed to Emerald, worked out
