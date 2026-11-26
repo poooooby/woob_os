@@ -29,5 +29,5 @@
   Settings. SELECT switches between filling the screen and stretching to it.
 - **Your own language:** copy `lang/en.lua` to a new file in the same folder, write the language's name
   at the top and translate the words. It shows up in Settings. WoobOS comes in English, French, German,
-  Spanish, Italian, Japanese and Brazilian Portuguese.
+  Spanish, Italian, Japanese, Brazilian Portuguese and Norwegian (Bokmål).
 - **Your own apps:** other mods can add apps to the desktop. See [DEVELOPMENT.md](../DEVELOPMENT.md).

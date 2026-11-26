@@ -14,6 +14,7 @@ All notable changes to this mod are documented here, in
   on Gold, Silver and Crystal); the records have link battles, trades, the game's own counts, Emerald's contests,
   Pokéblocks and Battle Points, and your party. A holographic shimmer, a holo sticker, a tall card held upright.
   Modern Menus' "- Trainer Card" switch turns it off.
+- **Norwegian (Bokmål):** WoobOS in Norsk bokmål, chosen in Settings > Language.
 
 ## [0.27.0] - 2026-11-23
 

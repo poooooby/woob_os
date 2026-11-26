@@ -527,7 +527,7 @@ do
     if not en["cond.why." .. code] then missing[#missing + 1] = "cond.why." .. code end
   end
   T.eq(table.concat(missing, " "), "", "every word the PokéNav's apps name is in English")
-  for _, l in ipairs({ "fr", "de", "es", "it", "ja", "pt-br" }) do
+  for _, l in ipairs({ "fr", "de", "es", "it", "ja", "pt-br", "nb" }) do
     local t = assert(load(readFile("lang/" .. l .. ".lua"), l, "t", {}))().strings
     local gaps = {}
     for k, v in pairs(en) do

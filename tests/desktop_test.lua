@@ -2684,7 +2684,7 @@ T.check(named > 60 and #missing == 0, "every key the code names is in English ("
   .. table.concat(missing, ", ") .. ")")
 -- the shipped languages: each loads, has a name, every key, and the same %s as English
 local langs = I18n.languages()
-T.eq(#langs, 7, "seven languages (" .. #langs .. ")")
+T.eq(#langs, 8, "eight languages (" .. #langs .. ")")
 T.eq(langs[1].code, "en", "English first")
 for _, l in ipairs(langs) do
   local words = I18n.raw(l.code)
